@@ -11,9 +11,9 @@ class PreferenceWindow(wx.Frame):
         self.parent = parent
 
         self.SetTitle("Preferences")
-        self.SetSize((520, 720))
-        self.SetMinSize((520, 720))
-        self.SetMaxSize((520, 720))
+        self.SetSize((500, 620))
+        self.SetMinSize((500, 620))
+        self.SetMaxSize((500, 620))
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -73,69 +73,69 @@ class PreferenceWindow(wx.Frame):
         self.font_combo = wx.ComboBox(self.text_tab, choices=fonts, style=wx.CB_READONLY)
         self.font_combo.Bind(wx.EVT_COMBOBOX, self.on_text_change)
         text_sizer.Add(font_label, pos=(0, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.font_combo, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.font_combo, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Core level name font size
         core_level_label = wx.StaticText(self.text_tab, label="Title Font Size:")
         self.core_level_spin = wx.SpinCtrl(self.text_tab, min=8, max=24, initial=15)
         self.core_level_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(core_level_label, pos=(1, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.core_level_spin, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.core_level_spin, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Legend font size
         legend_size_label = wx.StaticText(self.text_tab, label="Legend Font Size:")
         self.legend_size_spin = wx.SpinCtrl(self.text_tab, min=6, max=16, initial=8)
         self.legend_size_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(legend_size_label, pos=(2, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.legend_size_spin, pos=(2, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.legend_size_spin, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         label_size_label = wx.StaticText(self.text_tab, label="Label Font Size:")
         self.label_size_spin = wx.SpinCtrl(self.text_tab, min=6, max=16, initial=8)
         self.label_size_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(label_size_label, pos=(3, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.label_size_spin, pos=(3, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.label_size_spin, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Axis title font size
         axis_title_label = wx.StaticText(self.text_tab, label="Axis Title Font Size:")
         self.axis_title_spin = wx.SpinCtrl(self.text_tab, min=8, max=20, initial=12)
         self.axis_title_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(axis_title_label, pos=(4, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.axis_title_spin, pos=(4, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.axis_title_spin, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Axis numbers font size
         axis_num_label = wx.StaticText(self.text_tab, label="Axis Numbers Font Size:")
         self.axis_num_spin = wx.SpinCtrl(self.text_tab, min=8, max=20, initial=10)
         self.axis_num_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(axis_num_label, pos=(5, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.axis_num_spin, pos=(5, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.axis_num_spin, pos=(5, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # X-axis sublines
         x_sublines_label = wx.StaticText(self.text_tab, label="Number of X-axis Sublines:")
         self.x_sublines_spin = wx.SpinCtrl(self.text_tab, min=0, max=10, initial=5)
         self.x_sublines_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(x_sublines_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.x_sublines_spin, pos=(6, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.x_sublines_spin, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Y-axis sublines
         y_sublines_label = wx.StaticText(self.text_tab, label="Number of Y-axis Sublines:")
         self.y_sublines_spin = wx.SpinCtrl(self.text_tab, min=0, max=10, initial=5)
         self.y_sublines_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(y_sublines_label, pos=(7, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.y_sublines_spin, pos=(7, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.y_sublines_spin, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # X-axis label
         x_label_text = wx.StaticText(self.text_tab, label="X-axis Label:")
         self.x_label_ctrl = wx.TextCtrl(self.text_tab, value="Binding Energy (eV)")
         self.x_label_ctrl.Bind(wx.EVT_TEXT, self.on_text_change)
         text_sizer.Add(x_label_text, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.x_label_ctrl, pos=(8, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.x_label_ctrl, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Y-axis label
         y_label_text = wx.StaticText(self.text_tab, label="Y-axis Label:")
         self.y_label_ctrl = wx.TextCtrl(self.text_tab, value="Intensity (CPS)")
         self.y_label_ctrl.Bind(wx.EVT_TEXT, self.on_text_change)
         text_sizer.Add(y_label_text, pos=(9, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        text_sizer.Add(self.y_label_ctrl, pos=(9, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        text_sizer.Add(self.y_label_ctrl, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.text_tab.SetSizer(text_sizer)
 
@@ -163,10 +163,10 @@ class PreferenceWindow(wx.Frame):
         excel_grid = wx.GridBagSizer(5, 5)
 
         # Core Level settings
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2))
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0))
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0))
-        excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0))
+        excel_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.excel_width = wx.SpinCtrlDouble(self.save_tab, value='5.2', min=1, max=20, inc=0.1)
         self.excel_width.SetMinSize((100, -1))
@@ -175,15 +175,15 @@ class PreferenceWindow(wx.Frame):
         self.excel_dpi = wx.SpinCtrl(self.save_tab, value='100', min=50, max=1200)
         self.excel_dpi.SetMinSize((100, -1))
 
-        excel_grid.Add(self.excel_width, pos=(1, 1))
-        excel_grid.Add(self.excel_height, pos=(2, 1))
-        excel_grid.Add(self.excel_dpi, pos=(3, 1))
+        excel_grid.Add(self.excel_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(self.excel_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(self.excel_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Survey settings
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2))
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4))
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4))
-        excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4))
+        excel_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.survey_excel_width = wx.SpinCtrlDouble(self.save_tab, value='8', min=1, max=20, inc=0.1)
         self.survey_excel_width.SetMinSize((100, -1))
@@ -192,9 +192,9 @@ class PreferenceWindow(wx.Frame):
         self.survey_excel_dpi = wx.SpinCtrl(self.save_tab, value='100', min=50, max=1200)
         self.survey_excel_dpi.SetMinSize((100, -1))
 
-        excel_grid.Add(self.survey_excel_width, pos=(1, 5))
-        excel_grid.Add(self.survey_excel_height, pos=(2, 5))
-        excel_grid.Add(self.survey_excel_dpi, pos=(3, 5))
+        excel_grid.Add(self.survey_excel_width, pos=(1, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(self.survey_excel_height, pos=(2, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        excel_grid.Add(self.survey_excel_dpi, pos=(3, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         excel_sizer.Add(excel_grid, 5, wx.ALL, 5)
 
@@ -204,10 +204,10 @@ class PreferenceWindow(wx.Frame):
         word_grid = wx.GridBagSizer(5, 5)
 
         # Core Level settings
-        word_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2))
-        word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0))
-        word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0))
-        word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0))
+        word_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.word_width = wx.SpinCtrlDouble(self.save_tab, value='5', min=1, max=20, inc=0.1)
         self.word_width.SetMinSize((100, -1))
@@ -216,15 +216,15 @@ class PreferenceWindow(wx.Frame):
         self.word_dpi = wx.SpinCtrl(self.save_tab, value='300', min=50, max=1200)
         self.word_dpi.SetMinSize((100, -1))
 
-        word_grid.Add(self.word_width, pos=(1, 1))
-        word_grid.Add(self.word_height, pos=(2, 1))
-        word_grid.Add(self.word_dpi, pos=(3, 1))
+        word_grid.Add(self.word_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(self.word_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(self.word_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Survey settings
-        word_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2))
-        word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4))
-        word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4))
-        word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4))
+        word_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.survey_word_width = wx.SpinCtrlDouble(self.save_tab, value='8', min=1, max=20, inc=0.1)
         self.survey_word_width.SetMinSize((100, -1))
@@ -233,9 +233,9 @@ class PreferenceWindow(wx.Frame):
         self.survey_word_dpi = wx.SpinCtrl(self.save_tab, value='300', min=50, max=1200)
         self.survey_word_dpi.SetMinSize((100, -1))
 
-        word_grid.Add(self.survey_word_width, pos=(1, 5))
-        word_grid.Add(self.survey_word_height, pos=(2, 5))
-        word_grid.Add(self.survey_word_dpi, pos=(3, 5))
+        word_grid.Add(self.survey_word_width, pos=(1, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(self.survey_word_height, pos=(2, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        word_grid.Add(self.survey_word_dpi, pos=(3, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         word_sizer.Add(word_grid, 5, wx.ALL, 5)
 
@@ -244,9 +244,9 @@ class PreferenceWindow(wx.Frame):
         other_sizer = wx.StaticBoxSizer(other_box, wx.VERTICAL)
         other_grid = wx.GridBagSizer(5, 5)
 
-        other_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(0, 0))
-        other_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(1, 0))
-        other_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(2, 0))
+        other_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        other_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        other_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.export_width = wx.SpinCtrlDouble(self.save_tab, value='8', min=1, max=20, inc=0.1)
         self.export_width.SetMinSize((100, -1))
@@ -255,9 +255,9 @@ class PreferenceWindow(wx.Frame):
         self.export_dpi = wx.SpinCtrl(self.save_tab, value='300', min=50, max=1200)
         self.export_dpi.SetMinSize((100, -1))
 
-        other_grid.Add(self.export_width, pos=(0, 1))
-        other_grid.Add(self.export_height, pos=(1, 1))
-        other_grid.Add(self.export_dpi, pos=(2, 1))
+        other_grid.Add(self.export_width, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        other_grid.Add(self.export_height, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        other_grid.Add(self.export_dpi, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         other_sizer.Add(other_grid, 5, wx.ALL, 5)
@@ -278,31 +278,8 @@ class PreferenceWindow(wx.Frame):
 
         # Add instrument selection
         sizer.Add(wx.StaticText(self.instrument_tab, label="Current Instrument:"), pos=(0, 0),
-                  flag=wx.EXPAND | wx.ALL, border=5)
-        sizer.Add(self.instrument_combo, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=5)
-
-        # Add buttons for library
-        open_lib_btn = wx.Button(self.instrument_tab, label="Edit Library")
-        open_lib_btn.SetToolTip("You must convert the excel file to a .json after changing the library")
-        convert_lib_btn = wx.Button(self.instrument_tab, label="Library to JSON")
-        convert_lib_btn.SetToolTip("Convert Excel library file to a readable .json file")
-        open_lib_btn.SetMinSize((110, -1))
-        convert_lib_btn.SetMinSize((110, -1))
-
-        sizer.Add(open_lib_btn, pos=(0, 2), flag=wx.ALL, border=5)
-        sizer.Add(convert_lib_btn, pos=(1, 2), flag=wx.ALL, border=5)
-
-        lib_info_btn = wx.Button(self.instrument_tab, label="View Library Data")
-        lib_info_btn.SetToolTip("View (only) RSF and DS values for the current instrument")
-        lib_info_btn.SetMinSize((110, -1))
-
-        sizer.Add(lib_info_btn, pos=(1, 1), flag=wx.ALL, border=5)
-
-        open_lib_btn.Bind(wx.EVT_BUTTON, self.on_open_lib)
-        convert_lib_btn.Bind(wx.EVT_BUTTON, self.on_convert_lib)
-        lib_info_btn.Bind(wx.EVT_BUTTON, self.on_view_library)
-
-
+                  flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.instrument_combo, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Add ECF method selection
         self.library_type_label = wx.StaticText(self.instrument_tab, label="ECF Method:")
@@ -315,17 +292,42 @@ class PreferenceWindow(wx.Frame):
             self.library_type_combo.SetSelection(selection_index)
         else:
             self.library_type_combo.SetSelection(2)  # TPP-2M as fallback
-        sizer.Add(self.library_type_label, pos=(2, 0), flag=wx.EXPAND | wx.ALL, border=5)
-        sizer.Add(self.library_type_combo, pos=(2, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        sizer.Add(self.library_type_label, pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.library_type_combo, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+
+        # Add buttons for library
+        open_lib_btn = wx.Button(self.instrument_tab, label="Edit Library")
+        open_lib_btn.SetToolTip("You must convert the excel file to a .json after changing the library")
+        open_lib_btn.SetMinSize((110, 30))
+        open_lib_btn.Bind(wx.EVT_BUTTON, self.on_open_lib)
+        sizer.Add(open_lib_btn, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+        convert_lib_btn = wx.Button(self.instrument_tab, label="Library to JSON")
+        convert_lib_btn.SetToolTip("Convert Excel library file to a readable .json file")
+        convert_lib_btn.SetMinSize((110, 30))
+        convert_lib_btn.Bind(wx.EVT_BUTTON, self.on_convert_lib)
+        sizer.Add(convert_lib_btn, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+
+
+        lib_info_btn = wx.Button(self.instrument_tab, label="View Library Data")
+        lib_info_btn.SetToolTip("View (only) RSF and DS values for the current instrument")
+        lib_info_btn.SetMinSize((110, 30))
+        lib_info_btn.Bind(wx.EVT_BUTTON, self.on_view_library)
+        sizer.Add(lib_info_btn, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+
+
 
         # Add angular correction controls
         self.use_angular_correction = wx.CheckBox(self.instrument_tab, label="Use Angular Correction")
-        sizer.Add(self.use_angular_correction, pos=(3, 0), flag=wx.EXPAND | wx.ALL, border=5)
+        sizer.Add(self.use_angular_correction, pos=(5, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         angle_label = wx.StaticText(self.instrument_tab, label="Analysis Angle (°):")
         self.angle_spin = wx.SpinCtrlDouble(self.instrument_tab, value='54.7', min=0, max=90, inc=0.1)
-        sizer.Add(angle_label, pos=(4, 0), flag=wx.EXPAND | wx.ALL, border=5)
-        sizer.Add(self.angle_spin, pos=(4, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        sizer.Add(angle_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.angle_spin, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Add photon source selection
         photon_sources = ["Al Kα", "Mg Kα", "Custom"]
@@ -341,18 +343,23 @@ class PreferenceWindow(wx.Frame):
         self.ref_peak_value = wx.SpinCtrlDouble(self.instrument_tab, value='284.8', min=0, max=1200, inc=0.1)
 
         # Add to sizer
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Photon Source:"), pos=(6, 0), flag=wx.EXPAND | wx.ALL,
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Photon Source:"), pos=(8, 0), flag=wx.EXPAND | wx.ALL,
                   border=5)
-        sizer.Add(self.photon_combo, pos=(6, 1), flag=wx.EXPAND | wx.ALL, border=5)
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Custom Energy (eV):"), pos=(7, 0), flag=wx.EXPAND |
+        sizer.Add(self.photon_combo, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Custom Energy (eV):"), pos=(9, 0), flag=wx.EXPAND |
                                                                                                     wx.ALL, border=5)
-        sizer.Add(self.custom_photon, pos=(7, 1), flag=wx.EXPAND | wx.ALL, border=5)
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference Peak:"), pos=(8, 0), flag=wx.EXPAND | wx.ALL,
+        sizer.Add(self.custom_photon, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference Peak:"), pos=(11, 0), flag=wx.EXPAND | wx.ALL,
                   border=5)
-        sizer.Add(self.ref_peak_text, pos=(8, 1), flag=wx.EXPAND | wx.ALL, border=5)
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference BE (eV):"), pos=(9, 0), flag=wx.EXPAND |
+        sizer.Add(self.ref_peak_text, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference BE (eV):"), pos=(12, 0), flag=wx.EXPAND |
                                                                                                    wx.ALL, border=5)
-        sizer.Add(self.ref_peak_value, pos=(9, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        sizer.Add(self.ref_peak_value, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Bind photon source selection
         self.photon_combo.Bind(wx.EVT_COMBOBOX, self.on_photon_source)
@@ -373,8 +380,10 @@ class PreferenceWindow(wx.Frame):
         self.plot_style = wx.Choice(self.plot_tab, choices=["Scatter", "Line"])
         self.plot_style.SetMinSize((100,30))
         self.plot_style.Bind(wx.EVT_CHOICE, self.OnPlotStyleChange)
-        sizer.Add(plot_style_label, pos=(0, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.plot_style, pos=(0, 1), flag=wx.ALL, border=5)
+        # sizer.Add(plot_style_label, pos=(0, 0), flag=wx.LEFT | wx.RIGHT, border=5)
+        sizer.Add(plot_style_label, pos=(0, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        # sizer.Add(self.plot_style, pos=(0, 1), flag=wx.LEFT | wx.RIGHT, border=5)
+        sizer.Add(self.plot_style, pos=(0, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
 
 
@@ -382,121 +391,121 @@ class PreferenceWindow(wx.Frame):
         self.point_size_label = wx.StaticText(self.plot_tab, label="Scatter Size:")
         self.point_size_spin = wx.SpinCtrl(self.plot_tab, value="20", min=1, max=50)
         self.point_size_spin.SetMinSize((100,-1))
-        sizer.Add(self.point_size_label, pos=(1, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.point_size_spin, pos=(1, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.point_size_label, pos=(1, 0), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.point_size_spin, pos=(1, 1), flag=wx.BOTTOM | wx.TOP, border=0)
 
         # Scatter marker
         marker_label = wx.StaticText(self.plot_tab, label="Scatter Marker:")
         self.marker_choice = wx.Choice(self.plot_tab, choices=['.', ',', 'o', 'v', '^', '<', '>', '1', '2', '3', '4', '8', 's', 'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_'] )# ["o", "s", "^", "D", "*"])
         self.marker_choice.SetMinSize((100, -1))
-        sizer.Add(marker_label, pos=(2, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.marker_choice, pos=(2, 1), flag=wx.ALL, border=5)
+        sizer.Add(marker_label, pos=(2, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.marker_choice, pos=(2, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Scatter color
         scatter_color_label = wx.StaticText(self.plot_tab, label="Scatter Color:")
         self.scatter_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.scatter_color_picker.SetMinSize((100, -1))
-        sizer.Add(scatter_color_label, pos=(3, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.scatter_color_picker, pos=(3, 1), flag=wx.ALL, border=5)
+        sizer.Add(scatter_color_label, pos=(3, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.scatter_color_picker, pos=(3, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Raw data linestyle
         self.raw_data_linestyle_label = wx.StaticText(self.plot_tab, label="Raw Data Line:")
         self.raw_data_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.raw_data_linestyle.SetMinSize((100, -1))
-        sizer.Add(self.raw_data_linestyle_label, pos=(5, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.raw_data_linestyle, pos=(5, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.raw_data_linestyle_label, pos=(5, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.raw_data_linestyle, pos=(5, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Line width (for line)
         self.line_width_label = wx.StaticText(self.plot_tab, label="Line Width:")
         self.line_width_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=10)
         self.line_width_spin.SetMinSize((100, -1))
-        sizer.Add(self.line_width_label, pos=(6, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.line_width_spin, pos=(6, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.line_width_label, pos=(6, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.line_width_spin, pos=(6, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Line alpha (for line)
         self.line_alpha_label = wx.StaticText(self.plot_tab, label="Line Alpha:")
         self.line_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.7", min=0, max=1, inc=0.1)
         self.line_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.line_alpha_label, pos=(7, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.line_alpha_spin, pos=(7, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.line_alpha_label, pos=(7, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.line_alpha_spin, pos=(7, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Line color
         line_color_label = wx.StaticText(self.plot_tab, label="Line Color:")
         self.line_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.line_color_picker.SetMinSize((100, -1))
-        sizer.Add(line_color_label, pos=(8, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.line_color_picker, pos=(8, 1), flag=wx.ALL, border=5)
+        sizer.Add(line_color_label, pos=(8, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.line_color_picker, pos=(8, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Residual options
         self.residual_linestyle_label = wx.StaticText(self.plot_tab, label="Residual Line:")
         self.residual_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.residual_linestyle.SetMinSize((100, -1))
-        sizer.Add(self.residual_linestyle_label, pos=(10, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.residual_linestyle, pos=(10, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.residual_linestyle_label, pos=(10, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.residual_linestyle, pos=(10, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.residual_alpha_label = wx.StaticText(self.plot_tab, label="Residual Alpha:")
         self.residual_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.4", min=0, max=1, inc=0.1)
         self.residual_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.residual_alpha_label, pos=(11, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.residual_alpha_spin, pos=(11, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.residual_alpha_label, pos=(11, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.residual_alpha_spin, pos=(11, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         residual_label = wx.StaticText(self.plot_tab, label="Residual:")
         self.residual_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.residual_color_picker.SetMinSize((100, -1))
-        sizer.Add(residual_label, pos=(12, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.residual_color_picker, pos=(12, 1), flag=wx.ALL, border=5)
+        sizer.Add(residual_label, pos=(12, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.residual_color_picker, pos=(12, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Background options
         self.background_linestyle_label = wx.StaticText(self.plot_tab, label="Background Line:")
         self.background_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.background_linestyle.SetMinSize((100, -1))
-        sizer.Add(self.background_linestyle_label, pos=(14, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.background_linestyle, pos=(14, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.background_linestyle_label, pos=(14, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_linestyle, pos=(14, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.background_alpha_label = wx.StaticText(self.plot_tab, label="Background Alpha:")
         self.background_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.5", min=0, max=1, inc=0.1)
         self.background_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.background_alpha_label, pos=(15, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.background_alpha_spin, pos=(15, 1), flag=wx.ALL, border=5)
+        sizer.Add(self.background_alpha_label, pos=(15, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_alpha_spin, pos=(15, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         background_label = wx.StaticText(self.plot_tab, label="Background:")
         self.background_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.background_color_picker.SetMinSize((100, -1))
-        sizer.Add(background_label, pos=(16, 0), flag=wx.ALL, border=5)
-        sizer.Add(self.background_color_picker, pos=(16, 1), flag=wx.ALL, border=5)
+        sizer.Add(background_label, pos=(16, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_color_picker, pos=(16, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Envelope options
         self.envelope_linestyle_label = wx.StaticText(self.plot_tab, label="Envelope Line:")
         self.envelope_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.envelope_linestyle.SetMinSize((100, -1))
-        sizer.Add(self.envelope_linestyle_label, pos=(0, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.envelope_linestyle, pos=(0, 5), flag=wx.ALL, border=5)
+        sizer.Add(self.envelope_linestyle_label, pos=(0, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.envelope_linestyle, pos=(0, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.envelope_alpha_label = wx.StaticText(self.plot_tab, label="Envelope Alpha:")
         self.envelope_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.6", min=0, max=1, inc=0.1)
         self.envelope_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.envelope_alpha_label, pos=(1, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.envelope_alpha_spin, pos=(1, 5), flag=wx.ALL, border=5)
+        sizer.Add(self.envelope_alpha_label, pos=(1, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.envelope_alpha_spin, pos=(1, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         envelope_label = wx.StaticText(self.plot_tab, label="Envelope:")
         self.envelope_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.envelope_color_picker.SetMinSize((100, -1))
-        sizer.Add(envelope_label, pos=(2, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.envelope_color_picker, pos=(2, 5), flag=wx.ALL, border=5)
+        sizer.Add(envelope_label, pos=(2, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.envelope_color_picker, pos=(2, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak number selection
         self.peak_number_spin_label = wx.StaticText(self.plot_tab, label="Peak Number:")
         self.peak_number_spin = wx.SpinCtrl(self.plot_tab, min=1, max=15, initial=1)
         self.peak_number_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_number_spin_label, pos=(4, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_number_spin, pos=(4, 5), flag=wx.ALL, border=5)
+        sizer.Add(self.peak_number_spin_label, pos=(4, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_number_spin, pos=(4, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak fill type
         peak_fill_type_label = wx.StaticText(self.plot_tab, label="Peak Fill Type:")
         self.peak_fill_type_combo = wx.ComboBox(self.plot_tab, choices=["Solid Fill", "Hatch"], style=wx.CB_READONLY)
         self.peak_fill_type_combo.SetMinSize((100, -1))
-        sizer.Add(peak_fill_type_label, pos=(5, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_fill_type_combo, pos=(5, 5), flag=wx.ALL, border=5)
+        sizer.Add(peak_fill_type_label, pos=(5, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_fill_type_combo, pos=(5, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak hatch pattern
         peak_hatch_label = wx.StaticText(self.plot_tab, label="Hatch Pattern:")
@@ -517,14 +526,14 @@ class PreferenceWindow(wx.Frame):
                                                 ],
                                             style=wx.CB_READONLY)
         self.peak_hatch_combo.SetMinSize((100, -1))
-        sizer.Add(peak_hatch_label, pos=(6, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_hatch_combo, pos=(6, 5), flag=wx.ALL, border=5)
+        sizer.Add(peak_hatch_label, pos=(6, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_hatch_combo, pos=(6, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         hatch_density_label = wx.StaticText(self.plot_tab, label="Hatch Density:")
         self.hatch_density_spin = wx.SpinCtrl(self.plot_tab, value="2", min=1, max=10)
         self.hatch_density_spin.SetMinSize((100, -1))
-        sizer.Add(hatch_density_label, pos=(7, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.hatch_density_spin, pos=(7, 5), flag=wx.ALL, border=5)
+        sizer.Add(hatch_density_label, pos=(7, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.hatch_density_spin, pos=(7, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.peak_fill_type_combo.Bind(wx.EVT_COMBOBOX, self.OnFillTypeChange)
         self.peak_hatch_combo.Bind(wx.EVT_COMBOBOX, self.OnHatchChange)
@@ -534,15 +543,15 @@ class PreferenceWindow(wx.Frame):
         peak_color_label = wx.StaticText(self.plot_tab, label="Peak Color:")
         self.peak_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.peak_color_picker.SetMinSize((100, -1))
-        sizer.Add(peak_color_label, pos=(8, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_color_picker, pos=(8, 5), flag=wx.ALL, border=5)
+        sizer.Add(peak_color_label, pos=(8, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_color_picker, pos=(8, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak alpha
         self.peak_alpha_label = wx.StaticText(self.plot_tab, label="Peak Alpha:")
         self.peak_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.3", min=0, max=1, inc=0.1)
         self.peak_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_alpha_label, pos=(9, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_alpha_spin, pos=(9, 5), flag=wx.ALL, border=5)
+        sizer.Add(self.peak_alpha_label, pos=(9, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_alpha_spin, pos=(9, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line style
         peak_line_style_label = wx.StaticText(self.plot_tab, label="Peak Line Style:")
@@ -550,22 +559,22 @@ class PreferenceWindow(wx.Frame):
                                                  choices=["No Line", "Black", "Same Color", "Grey", "Yellow"],
                                                  style=wx.CB_READONLY)
         self.peak_line_style_combo.SetMinSize((100, -1))
-        sizer.Add(peak_line_style_label, pos=(10, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_line_style_combo, pos=(10, 5), flag=wx.ALL, border=5)
+        sizer.Add(peak_line_style_label, pos=(10, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_style_combo, pos=(10, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line thickness
         self.peak_line_thickness_label = wx.StaticText(self.plot_tab, label="Peak Line Thickness:")
         self.peak_line_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
         self.peak_line_thickness_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_line_thickness_label, pos=(11, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_line_thickness_spin, pos=(11, 5), flag=wx.ALL, border=5)
+        sizer.Add(self.peak_line_thickness_label, pos=(11, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_thickness_spin, pos=(11, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line alpha
         self.peak_line_alpha_label = wx.StaticText(self.plot_tab, label="Peak Line Alpha:")
         self.peak_line_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.7", min=0, max=1, inc=0.1)
         self.peak_line_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_line_alpha_label, pos=(12, 4), flag=wx.ALL, border=5)
-        sizer.Add(self.peak_line_alpha_spin, pos=(12, 5), flag=wx.ALL, border=5)
+        sizer.Add(self.peak_line_alpha_label, pos=(12, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_alpha_spin, pos=(12, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
 
         # # Save button (moved to the bottom)
