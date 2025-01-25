@@ -3033,6 +3033,9 @@ class MyFrame(wx.Frame):
                 self.residual_color = config.get('residual_color', self.residual_color)
                 self.residual_alpha = config.get('residual_alpha', self.residual_alpha)
                 self.residual_linestyle = config.get('residual_linestyle', self.residual_linestyle)
+                self.background_thickness = config.get('background_thickness', 1)
+                self.envelope_thickness = config.get('envelope_thickness', 1)
+                self.residual_thickness = config.get('residual_thickness', 1)
                 self.raw_data_linestyle = config.get('raw_data_linestyle', self.raw_data_linestyle)
                 self.peak_colors = config.get('peak_colors', self.peak_colors)
                 self.peak_alpha = config.get('peak_alpha', self.peak_alpha)
@@ -3100,6 +3103,9 @@ class MyFrame(wx.Frame):
             'residual_color': self.residual_color,
             'residual_alpha': self.residual_alpha,
             'residual_linestyle': self.residual_linestyle,
+            'background_thickness': self.background_thickness,
+            'envelope_thickness': self.envelope_thickness,
+            'residual_thickness': self.residual_thickness,
             'raw_data_linestyle': self.raw_data_linestyle,
             'peak_colors': self.peak_colors,
             'peak_alpha': self.peak_alpha,
@@ -3180,8 +3186,11 @@ class MyFrame(wx.Frame):
             self.residual_alpha,
             self.residual_linestyle,
             self.raw_data_linestyle,
-            self.peak_colors,  # Add this line
-            self.peak_alpha  # Add this line
+            self.peak_colors,
+            self.peak_alpha,
+            self.background_thickness,
+            self.envelope_thickness,
+            self.residual_thickness
         )
 
         if hasattr(self, 'sheet_combobox'):

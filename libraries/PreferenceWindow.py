@@ -449,30 +449,43 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.residual_alpha_label, pos=(11, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.residual_alpha_spin, pos=(11, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
+        self.residual_thickness_label = wx.StaticText(self.plot_tab, label="Residual Thickness:")
+        self.residual_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
+        self.residual_thickness_spin.SetMinSize((100, -1))
+        sizer.Add(self.residual_thickness_label, pos=(12, 0), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.residual_thickness_spin, pos=(12, 1), flag=wx.BOTTOM | wx.TOP, border=0)
+
         residual_label = wx.StaticText(self.plot_tab, label="Residual:")
         self.residual_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.residual_color_picker.SetMinSize((100, -1))
-        sizer.Add(residual_label, pos=(12, 0), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.residual_color_picker, pos=(12, 1), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(residual_label, pos=(13, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.residual_color_picker, pos=(13, 1), flag= wx.BOTTOM | wx.TOP, border=0)
+
 
         # Background options
         self.background_linestyle_label = wx.StaticText(self.plot_tab, label="Background Line:")
         self.background_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.background_linestyle.SetMinSize((100, -1))
-        sizer.Add(self.background_linestyle_label, pos=(14, 0), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.background_linestyle, pos=(14, 1), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_linestyle_label, pos=(15, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_linestyle, pos=(15, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.background_alpha_label = wx.StaticText(self.plot_tab, label="Background Alpha:")
         self.background_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.5", min=0, max=1, inc=0.1)
         self.background_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.background_alpha_label, pos=(15, 0), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.background_alpha_spin, pos=(15, 1), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_alpha_label, pos=(16, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_alpha_spin, pos=(16, 1), flag= wx.BOTTOM | wx.TOP, border=0)
+
+        self.background_thickness_label = wx.StaticText(self.plot_tab, label="Background Thickness:")
+        self.background_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
+        self.background_thickness_spin.SetMinSize((100, -1))
+        sizer.Add(self.background_thickness_label, pos=(17, 0), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_thickness_spin, pos=(17, 1), flag=wx.BOTTOM | wx.TOP, border=0)
 
         background_label = wx.StaticText(self.plot_tab, label="Background:")
         self.background_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.background_color_picker.SetMinSize((100, -1))
-        sizer.Add(background_label, pos=(16, 0), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.background_color_picker, pos=(16, 1), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(background_label, pos=(18, 0), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.background_color_picker, pos=(18, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Envelope options
         self.envelope_linestyle_label = wx.StaticText(self.plot_tab, label="Envelope Line:")
@@ -487,25 +500,32 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.envelope_alpha_label, pos=(1, 4), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.envelope_alpha_spin, pos=(1, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
+        # Envelope thickness
+        self.envelope_thickness_label = wx.StaticText(self.plot_tab, label="Envelope Thickness:")
+        self.envelope_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
+        self.envelope_thickness_spin.SetMinSize((100, -1))
+        sizer.Add(self.envelope_thickness_label, pos=(2, 4), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.envelope_thickness_spin, pos=(2, 5), flag=wx.BOTTOM | wx.TOP, border=0)
+
         envelope_label = wx.StaticText(self.plot_tab, label="Envelope:")
         self.envelope_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.envelope_color_picker.SetMinSize((100, -1))
-        sizer.Add(envelope_label, pos=(2, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.envelope_color_picker, pos=(2, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(envelope_label, pos=(3, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.envelope_color_picker, pos=(3, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak number selection
         self.peak_number_spin_label = wx.StaticText(self.plot_tab, label="Peak Number:")
         self.peak_number_spin = wx.SpinCtrl(self.plot_tab, min=1, max=15, initial=1)
         self.peak_number_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_number_spin_label, pos=(4, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_number_spin, pos=(4, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_number_spin_label, pos=(5, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_number_spin, pos=(5, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak fill type
         peak_fill_type_label = wx.StaticText(self.plot_tab, label="Peak Fill Type:")
         self.peak_fill_type_combo = wx.ComboBox(self.plot_tab, choices=["Solid Fill", "Hatch"], style=wx.CB_READONLY)
         self.peak_fill_type_combo.SetMinSize((100, -1))
-        sizer.Add(peak_fill_type_label, pos=(5, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_fill_type_combo, pos=(5, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(peak_fill_type_label, pos=(6, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_fill_type_combo, pos=(6, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak hatch pattern
         peak_hatch_label = wx.StaticText(self.plot_tab, label="Hatch Pattern:")
@@ -526,14 +546,14 @@ class PreferenceWindow(wx.Frame):
                                                 ],
                                             style=wx.CB_READONLY)
         self.peak_hatch_combo.SetMinSize((100, -1))
-        sizer.Add(peak_hatch_label, pos=(6, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_hatch_combo, pos=(6, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(peak_hatch_label, pos=(7, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_hatch_combo, pos=(7, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         hatch_density_label = wx.StaticText(self.plot_tab, label="Hatch Density:")
         self.hatch_density_spin = wx.SpinCtrl(self.plot_tab, value="2", min=1, max=10)
         self.hatch_density_spin.SetMinSize((100, -1))
-        sizer.Add(hatch_density_label, pos=(7, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.hatch_density_spin, pos=(7, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(hatch_density_label, pos=(8, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.hatch_density_spin, pos=(8, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.peak_fill_type_combo.Bind(wx.EVT_COMBOBOX, self.OnFillTypeChange)
         self.peak_hatch_combo.Bind(wx.EVT_COMBOBOX, self.OnHatchChange)
@@ -543,15 +563,15 @@ class PreferenceWindow(wx.Frame):
         peak_color_label = wx.StaticText(self.plot_tab, label="Peak Color:")
         self.peak_color_picker = wx.ColourPickerCtrl(self.plot_tab)
         self.peak_color_picker.SetMinSize((100, -1))
-        sizer.Add(peak_color_label, pos=(8, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_color_picker, pos=(8, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(peak_color_label, pos=(9, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_color_picker, pos=(9, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak alpha
         self.peak_alpha_label = wx.StaticText(self.plot_tab, label="Peak Alpha:")
         self.peak_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.3", min=0, max=1, inc=0.1)
         self.peak_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_alpha_label, pos=(9, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_alpha_spin, pos=(9, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_alpha_label, pos=(10, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_alpha_spin, pos=(10, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line style
         peak_line_style_label = wx.StaticText(self.plot_tab, label="Peak Line Style:")
@@ -559,29 +579,23 @@ class PreferenceWindow(wx.Frame):
                                                  choices=["No Line", "Black", "Same Color", "Grey", "Yellow"],
                                                  style=wx.CB_READONLY)
         self.peak_line_style_combo.SetMinSize((100, -1))
-        sizer.Add(peak_line_style_label, pos=(10, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_line_style_combo, pos=(10, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(peak_line_style_label, pos=(11, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_style_combo, pos=(11, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line thickness
         self.peak_line_thickness_label = wx.StaticText(self.plot_tab, label="Peak Line Thickness:")
         self.peak_line_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
         self.peak_line_thickness_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_line_thickness_label, pos=(11, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_line_thickness_spin, pos=(11, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_thickness_label, pos=(12, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_thickness_spin, pos=(12, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line alpha
         self.peak_line_alpha_label = wx.StaticText(self.plot_tab, label="Peak Line Alpha:")
         self.peak_line_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.7", min=0, max=1, inc=0.1)
         self.peak_line_alpha_spin.SetMinSize((100, -1))
-        sizer.Add(self.peak_line_alpha_label, pos=(12, 4), flag= wx.BOTTOM | wx.TOP, border=0)
-        sizer.Add(self.peak_line_alpha_spin, pos=(12, 5), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_alpha_label, pos=(13, 4), flag= wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.peak_line_alpha_spin, pos=(13, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
-
-        # # Save button (moved to the bottom)
-        # save_button = wx.Button(self.plot_tab, label="Save")
-        # save_button.SetMinSize((190, 40))
-        # save_button.Bind(wx.EVT_BUTTON, self.OnSave)
-        # sizer.Add(save_button, pos=(15, 0), span=(2, 2), flag=wx.ALL | wx.ALIGN_CENTER, border=5)
 
         # Bind the spin control to update the color picker
         self.peak_number_spin.Bind(wx.EVT_SPINCTRL, self.OnPeakNumberChange)
@@ -607,12 +621,24 @@ class PreferenceWindow(wx.Frame):
         self.peak_line_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnPeakLineThicknessChange)
         self.peak_line_alpha_spin.Bind(wx.EVT_SPINCTRLDOUBLE, self.OnPeakLineAlphaChange)
         self.hatch_density_spin.Bind(wx.EVT_SPINCTRL, self.OnHatchDensityChange)
+        self.background_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnBackgroundThicknessChange)
+        self.envelope_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnEnvelopeThicknessChange)
+        self.residual_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnResidualThicknessChange)
 
         self.plot_tab.SetSizer(sizer)
         self.Centre()
 
-        # Load current settings
-        # self.LoadSettings()
+    def OnBackgroundThicknessChange(self, event):
+        self.parent.background_thickness = self.background_thickness_spin.GetValue()
+        self.update_plot()
+
+    def OnEnvelopeThicknessChange(self, event):
+        self.parent.envelope_thickness = self.envelope_thickness_spin.GetValue()
+        self.update_plot()
+
+    def OnResidualThicknessChange(self, event):
+        self.parent.residual_thickness = self.residual_thickness_spin.GetValue()
+        self.update_plot()
 
     def OnHatchDensityChange(self, event):
         self.parent.hatch_density = self.hatch_density_spin.GetValue()
@@ -735,6 +761,10 @@ class PreferenceWindow(wx.Frame):
         self.peak_line_thickness_spin.SetValue(self.parent.peak_line_thickness)
         # self.peak_line_pattern_combo.SetValue(self.parent.peak_line_pattern)
         self.hatch_density_spin.SetValue(self.parent.hatch_density)
+
+        self.background_thickness_spin.SetValue(self.parent.background_thickness)
+        self.envelope_thickness_spin.SetValue(self.parent.envelope_thickness)
+        self.residual_thickness_spin.SetValue(self.parent.residual_thickness)
 
         # Add loading of text settings
         self.font_combo.SetValue(self.parent.plot_font)
@@ -868,6 +898,10 @@ class PreferenceWindow(wx.Frame):
         self.parent.peak_line_alpha = self.peak_line_alpha_spin.GetValue()
         self.parent.peak_line_thickness = self.peak_line_thickness_spin.GetValue()
         # self.parent.peak_line_pattern = self.peak_line_pattern_combo.GetValue()
+
+        self.parent.background_thickness = self.background_thickness_spin.GetValue()
+        self.parent.envelope_thickness = self.envelope_thickness_spin.GetValue()
+        self.parent.residual_thickness = self.residual_thickness_spin.GetValue()
 
         # Save the current color of the selected peak
         current_peak = self.peak_number_spin.GetValue() - 1

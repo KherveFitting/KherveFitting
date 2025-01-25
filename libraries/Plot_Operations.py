@@ -45,13 +45,16 @@ class PlotManager:
         self.background_color = "#808080"
         self.background_alpha = 0.5
         self.background_linestyle = "--"
+        self.background_thickness = 1
         self.envelope_color = "#0000FF"
         self.envelope_alpha = 0.6
         self.envelope_linestyle = "-"
+        self.envelope_thickness = 1
         self.residual_color = "#00FF00"
         self.residual_alpha = 0.4
         self.residual_linestyle = "-"
         self.raw_data_linestyle = "-"
+        self.residual_thickness = 1
 
         self.peak_colors = []
         self.peak_alpha = 0.3
@@ -529,12 +532,14 @@ class PlotManager:
                                      color=self.background_color,
                                      linestyle=self.background_linestyle,
                                      alpha=self.background_alpha,
+                                     linewidth=self.background_thickness,
                                      label='Background')
                     else:
                         self.ax.plot(x_values, window.background,
                                      color=self.background_color,
                                      linestyle=self.background_linestyle,
                                      alpha=self.background_alpha,
+                                     linewidth=self.background_thickness,
                                      label='Background')
 
             self.canvas.draw()  # Update the plot
@@ -751,7 +756,7 @@ class PlotManager:
                 }
                 if window.energy_scale == 'KE':
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
-                                                color=color, alpha=alpha)
+                                                color=color, alpha=alpha, linewidth=self.background_thickness)
                 else:
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window, color=color,
                                    alpha=alpha)
@@ -764,11 +769,12 @@ class PlotManager:
         #     else:
         if window.energy_scale == 'KE':
             self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
-                         color=self.background_color,
+                         color=self.background_color, linewidth=self.background_thickness,
                     linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
         else:
             self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
-                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+                         linewidth=self.background_thickness)
         # Update overall fit and residuals
         if cst_unfit in ["Unfitted","D-parameter","SurveyID"] or any(x in sheet_name.lower() for x in ["survey", "wide"]):
             pass
@@ -1198,11 +1204,13 @@ class PlotManager:
             if window.energy_scale == 'KE':
                 self.ax.plot(window.photons - window.x_values, overall_fit, color=self.envelope_color,
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                             linewidth=self.envelope_thickness,
                              label='D-parameter' if fitting_model == "D-parameter" else 'Overall Fit')
             else:
                 # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
                 self.ax.plot(x_plot, y_plot, color=self.envelope_color,
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                             linewidth=self.envelope_thickness,
                              label='D-parameter' if fitting_model == "D-parameter" else 'Overall Fit')
         except:
             return
@@ -1212,16 +1220,17 @@ class PlotManager:
             if self.residuals_state == 1:  # On main plot
                 residual_height = 1.07 * max(window.y_values)
                 residual_base = self.ax.axhline(y=residual_height, color='grey', linestyle='-.', alpha=0.1)
-
+                print(f"Residual thickness: {self.residual_thickness}")
                 residual_line = self.ax.plot(window.x_values, masked_residuals + residual_height,
                                              color=self.residual_color, linestyle=self.residual_linestyle,
-                                             alpha=self.residual_alpha, label='Residuals')
+                                             alpha=self.residual_alpha, label='Residuals', linewidth=self.residual_thickness)
 
                 residual_line[0].set_visible(True)
                 residual_base.set_visible(True)
                 self.ax.get_xaxis().set_visible(True)
             elif self.residuals_state == 2:  # Separate subplot
-                self.setup_residual_subplot(window, x_values, masked_residuals, scaling_factor=1.0)
+                self.setup_residual_subplot(window, x_values, masked_residuals, self.residual_thickness,
+                                            scaling_factor=1.0)
 
             else:
                 self.ax.get_xaxis().set_visible(True)
@@ -1269,7 +1278,7 @@ class PlotManager:
         self.canvas.draw_idle()
         return residuals
 
-    def setup_residual_subplot(self, window, x_values, masked_residuals, scaling_factor=1.0):
+    def setup_residual_subplot(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
         # Create gridspec at start
         gs = self.figure.add_gridspec(20, 1, hspace=0.0)
 
@@ -1287,7 +1296,7 @@ class PlotManager:
                                     color=self.residual_color,
                                     linestyle=self.residual_linestyle,
                                     alpha=self.residual_alpha,
-                                    linewidth=2)
+                                    linewidth=residual_thickness)
 
         # Configure main plot
         self.ax.get_xaxis().set_visible(False)
@@ -1631,7 +1640,9 @@ class PlotManager:
                           background_color, background_alpha, background_linestyle,
                           envelope_color, envelope_alpha, envelope_linestyle,
                           residual_color, residual_alpha, residual_linestyle,
-                          raw_data_linestyle, peak_colors, peak_alpha):
+                          raw_data_linestyle, peak_colors, peak_alpha,
+                          background_thickness, envelope_thickness, residual_thickness
+    ):
         self.plot_style = style
         self.scatter_size = scatter_size
         self.line_width = line_width
@@ -1651,6 +1662,9 @@ class PlotManager:
         self.raw_data_linestyle = raw_data_linestyle
         self.peak_colors = peak_colors
         self.peak_alpha = peak_alpha
+        self.background_thickness = background_thickness
+        self.envelope_thickness = envelope_thickness
+        self.residual_thickness = residual_thickness
 
     def toggle_peak_fill(self):
         self.peak_fill_enabled = not self.peak_fill_enabled
@@ -1719,7 +1733,8 @@ class PlotManager:
             window.background = background_filtered
 
             # Plot the calculated background
-            self.ax.plot(x_values, window.background, color='grey', linestyle='--', label=label)
+            self.ax.plot(x_values, window.background, color='grey', linestyle='--', label=label,
+                         linewidth=background_thickness)
 
             # Replot everything if peaks exist
             if window.peak_params_grid.GetNumberRows() > 0:
