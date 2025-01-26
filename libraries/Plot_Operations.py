@@ -756,7 +756,7 @@ class PlotManager:
                 }
                 if window.energy_scale == 'KE':
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
-                                                color=color, alpha=alpha, linewidth=self.background_thickness)
+                                                color=color, alpha=alpha) #, linewidth=self.background_thickness)
                 else:
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window, color=color,
                                    alpha=alpha)
@@ -1734,7 +1734,7 @@ class PlotManager:
 
             # Plot the calculated background
             self.ax.plot(x_values, window.background, color='grey', linestyle='--', label=label,
-                         linewidth=background_thickness)
+                         linewidth=self.background_thickness)
 
             # Replot everything if peaks exist
             if window.peak_params_grid.GetNumberRows() > 0:
