@@ -477,8 +477,7 @@ def create_horizontal_toolbar(window):
 
     # File operations
     open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
-    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path, "refresh-25.png"),
-                                                                                     wx.BITMAP_TYPE_PNG), shortHelp="Refresh Excel File")
+
     save_tool = toolbar.AddTool(wx.ID_ANY, 'Save', wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save the Fitted Results to Excel for this Core Level \tCtrl+S")
     save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Save Plot', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save this Figure to Excel")
     save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets', wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save all sheets with plots")
@@ -502,6 +501,10 @@ def create_horizontal_toolbar(window):
     window.sheet_combobox.SetToolTip("Select Sheet")
     toolbar.AddControl(window.sheet_combobox)
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected(window, event))
+
+    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path, "refresh-25.png"),
+                                                                                     wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Refresh Excel File. Used when the Excel File has more sheets")
 
     delete_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Delete Core Level/Survey',
                                         wx.Bitmap(os.path.join(icon_path, "delete-25.png"), wx.BITMAP_TYPE_PNG),
