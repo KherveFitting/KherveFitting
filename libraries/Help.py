@@ -480,13 +480,14 @@ def show_version_log(window):
 - Added possibility of changing the reference peak for binding energy correction in Instrument settings
 - Added Linewidth settings in the preference window
 - Removed the fitting of the data when saving data
-- Improve size of Preference Window (smaller)
+- Improved size of Preference Window (smaller)
 - Improve Toggle by adding a third state. Removal of Raw Data, En
 - Improved Legend filtering 
 - Improved Check of the use of constraints in the peak fitting grid
 - Improved Measure Area window - more tools added
 - Improved Undo / Redo States 
 - Improved File checking before opening onto KherveFitting
+- Fixed KE plot for all toggles
 
 Version 1.3 (December 2024)
 - Added Tougaard background with fitting option
