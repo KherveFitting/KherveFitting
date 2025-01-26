@@ -604,8 +604,8 @@ class PlotManager:
                 # self.ax.set_position([0.1, 0.1, 0.8, 0.8])
                 self.ax.set_position([0.1, 0.125, 0.85, 0.85])
                 gs = self.figure.add_gridspec(20, 1, hspace=0.0)
-                self.ax.set_position(gs[0:17, 0].get_position(self.figure))  # Main plot takes 6/8
-                self.residuals_subplot.set_position(gs[17:, 0].get_position(self.figure))  # Residuals takes 2/8
+                self.ax.set_position(gs[0:18, 0].get_position(self.figure))  # Main plot takes 6/8
+                self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))  # Residuals takes 2/8
                 self.residuals_subplot.sharex(self.ax)
 
                 # Explicitly ensure visibility
@@ -1254,8 +1254,8 @@ class PlotManager:
         gs = self.figure.add_gridspec(20, 1, hspace=0.0)
 
         if not self.residuals_subplot:
-            self.ax.set_position(gs[0:17, 0].get_position(self.figure))
-            self.residuals_subplot = self.figure.add_subplot(gs[17:, 0])
+            self.ax.set_position(gs[0:18, 0].get_position(self.figure))
+            self.residuals_subplot = self.figure.add_subplot(gs[18:, 0])
 
         self.residuals_subplot.clear()
 
@@ -1263,7 +1263,7 @@ class PlotManager:
         x_plot = window.photons - x_values if window.energy_scale == 'KE' else x_values
 
         # Plot residuals
-        self.residuals_subplot.plot(x_plot, masked_residuals,
+        self.residuals_subplot.plot(x_plot, masked_residuals * scaling_factor,
                                     color=self.residual_color,
                                     linestyle=self.residual_linestyle,
                                     alpha=self.residual_alpha,
@@ -1288,7 +1288,7 @@ class PlotManager:
 
         # Set y limits with margin
         y_min, y_max = np.min(masked_residuals), np.max(masked_residuals)
-        margin = 0.3 * (y_max - y_min)
+        margin = 0.1 * (y_max - y_min)
         self.residuals_subplot.set_ylim(y_min - margin, y_max + margin)
 
         # Get current main plot limits
@@ -1303,7 +1303,7 @@ class PlotManager:
         # Final styling
         self.residuals_subplot.tick_params(axis='both', labelsize=window.axis_number_size)
         self.residuals_subplot.grid(True, alpha=0.8)
-        self.residuals_subplot.set_position(gs[17:, 0].get_position(self.figure))
+        self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))
         self.residuals_subplot.set_visible(True)
         self.residuals_subplot.yaxis.set_visible(self.y_axis_visible)
 
