@@ -19,9 +19,9 @@ class FittingWindow(wx.Frame):
 
 
         self.SetTitle("Peak Fitting")
-        self.SetSize((305, 520))  # Increased height to accommodate new elements
-        self.SetMinSize((305, 520))
-        self.SetMaxSize((305, 520))
+        self.SetSize((325, 520))  # Increased height to accommodate new elements
+        self.SetMinSize((325, 520))
+        self.SetMaxSize((325, 520))
 
         #305 480
 
@@ -199,6 +199,7 @@ class FittingWindow(wx.Frame):
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
+                 "Voigt (Area, L/G, \u03c3, skew)",
                  "Others---------------",
                  "Area Based----------",
                  # "GL (Area)",
@@ -697,8 +698,12 @@ class FittingWindow(wx.Frame):
             "GL (Area)": "Gaussian-Lorentzian product function (area-based).\nEquation: Similar to GL (Height), but normalized for area",
             "SGL (Area)": "Sum of Gaussian and Lorentzian functions (area-based).\nEquation: Similar to SGL (Height), but normalized for area",
             "Pseudo-Voigt (Area)": "Linear combination of Gaussian and Lorentzian.\nEquation: I(x) = A * [η * L(x) + (1-η) * G(x)]",
-            "Voigt (Area, L/G, \u03c3)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
+            "Voigt (Area, L/G, \u03c3, skew)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
+                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
+            "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
+                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
+            "Voigt (Area, L/G, \u03c3, skew)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
                                            "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
             "ExpGauss.(Area, \u03c3, \u03b3)": "Gaussian shape model with asymmetric side. The asymmetry is modelled"
                                                "using an exponential decay as per equation: ",

@@ -131,6 +131,14 @@ def on_sheet_selected(window, event):
                             window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    if window.selected_fitting_method == "Voigt (Area, L/G, \u03c3, skew)":
+                        for col in [3,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4,5,6,7,9]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                     elif window.selected_fitting_method in ["Voigt (Area, \u03c3, \u03B3)",
                                         "ExpGauss.(Area, \u03c3, \u03b3)"]:
                         for col in [3,4,5]:  # Columns for Height, FWHM, L/G ratio
