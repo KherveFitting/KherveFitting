@@ -1387,6 +1387,15 @@ class PlotManager:
             self.cross, = self.ax.plot(peak_x, peak_y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                        linewidth=3)
 
+            # Get peak letter (A, B, C etc)
+            peak_letter = chr(65 + index)
+
+            # Add letter above cross with offset
+            max_y = window.ax.get_ylim()[1]
+            y_offset = max_y * 0.02  # 2% of plot height for offset
+            self.ax.text(peak_x, peak_y + y_offset, peak_letter,
+                         ha='center', va='bottom', fontsize=12)
+
             # Connect event handlers
             self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers
             self.canvas.mpl_disconnect('button_release_event')

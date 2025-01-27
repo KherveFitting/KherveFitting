@@ -135,6 +135,8 @@ class MyFrame(wx.Frame):
 
         self.is_right_panel_hidden = False
 
+        self.peak_letter = None
+
         # X axis correction from KE to BE
         self.photons = 1486.67
         self.workfunction = 0
@@ -1653,7 +1655,6 @@ class MyFrame(wx.Frame):
         if self.selected_peak_index is not None:
             num_peaks = self.peak_params_grid.GetNumberRows() // 2
 
-            # Check if selected_peak_index is valid
             if self.selected_peak_index >= num_peaks:
                 print(
                     f"Warning: selected_peak_index ({self.selected_peak_index}) is out of range. Max index: {num_peaks - 1}")
@@ -1663,15 +1664,13 @@ class MyFrame(wx.Frame):
             for i in range(num_peaks):
                 row = i * 2
                 is_selected = (i == self.selected_peak_index)
-
                 self.peak_params_grid.SetCellBackgroundColour(row, 0, wx.LIGHT_GREY if is_selected else wx.WHITE)
                 self.peak_params_grid.SetCellBackgroundColour(row + 1, 0, wx.LIGHT_GREY if is_selected else wx.WHITE)
 
             row = self.selected_peak_index * 2
 
-            # Check if the row exists in the grid
             if row < self.peak_params_grid.GetNumberRows():
-                peak_label = self.peak_params_grid.GetCellValue(row, 1)  # Get the current label
+                peak_label = self.peak_params_grid.GetCellValue(row, 1)
                 x_str = self.peak_params_grid.GetCellValue(row, 2)
                 y_str = self.peak_params_grid.GetCellValue(row, 3)
 
@@ -1682,16 +1681,23 @@ class MyFrame(wx.Frame):
                         y += self.background[np.argmin(np.abs(self.x_values - x))]
 
                         self.remove_cross_from_peak()
+                        if hasattr(self, 'peak_letter') and self.peak_letter:
+                            self.peak_letter.remove()
+
                         self.cross, = self.ax.plot(x, y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                                    linewidth=3)
 
+                        peak_letter = chr(65 + self.selected_peak_index)
+                        max_y = self.ax.get_ylim()[1]
+                        y_offset = max_y * 0.02
+                        self.peak_letter = self.ax.text(x, y + y_offset, peak_letter, ha='center', va='bottom',
+                                                        fontsize=12)
+
                         self.peak_params_grid.ClearSelection()
                         self.peak_params_grid.SelectRow(row, addToSelected=False)
-
                         self.peak_params_grid.Refresh()
                         self.canvas.draw_idle()
 
-                        # Update the Data structure with the current label
                         sheet_name = self.sheet_combobox.GetValue()
                         if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][
                             sheet_name] and 'Peaks' in self.Data['Core levels'][sheet_name]['Fitting']:
@@ -2978,6 +2984,10 @@ class MyFrame(wx.Frame):
     def deselect_all_peaks(self):
         self.selected_peak_index = None
         self.remove_cross_from_peak()
+
+        if hasattr(self, 'peak_letter') and self.peak_letter:
+            self.peak_letter.remove()
+            self.peak_letter = None
 
         # Clear any selections in the peak_params_grid
         self.peak_params_grid.ClearSelection()
