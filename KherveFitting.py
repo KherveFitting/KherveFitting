@@ -457,6 +457,11 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row, 7, "2.7")  # sigma
             self.peak_params_grid.SetCellValue(row, 8, '2.7')  # gamma
             self.peak_params_grid.SetCellValue(row, 9, '0')  # skew
+        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+            self.peak_params_grid.SetCellValue(row, 5, "20")
+            self.peak_params_grid.SetCellValue(row, 7, "0.3")  # sigma
+            self.peak_params_grid.SetCellValue(row, 8, '0.1')  # gamma
+            self.peak_params_grid.SetCellValue(row, 9, '0.01')  # skew
         elif self.selected_fitting_method in ["D-parameter"]:
             self.peak_params_grid.SetCellValue(row, 5, "2")
             self.peak_params_grid.SetCellValue(row, 7, "1")  # sigma
@@ -495,6 +500,11 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:10")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:10")
             self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')  # skew
+        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+            self.peak_params_grid.SetCellValue(row + 1, 5, "15:35")
+            self.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")
+            self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
+            self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:0.5')  # skew
         else:
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:3")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:3")
@@ -1089,14 +1099,16 @@ class MyFrame(wx.Frame):
             gamma = float(self.peak_params_grid.GetCellValue(row, 8)) / 2
             skew = float(self.peak_params_grid.GetCellValue(row, 9))
 
-            # Create model instance first
-            skew_voigt_model = lmfit.models.SkewedVoigtModel()
+            height = PeakFunctions.get_skewedvoigt_height(area, sigma, gamma, skew)
 
-            # Then evaluate with parameters
-            x_range = np.linspace(center - 10 * sigma, center + 10 * sigma, 1000)
-            y_values = skew_voigt_model.eval(x=x_range, amplitude=area, center=center, sigma=sigma, gamma=gamma,
-                                             skew=skew)
-            height = np.max(y_values)
+            # # Create model instance first
+            # skew_voigt_model = lmfit.models.SkewedVoigtModel()
+            #
+            # # Then evaluate with parameters
+            # x_range = np.linspace(center - 10 * sigma, center + 10 * sigma, 1000)
+            # y_values = skew_voigt_model.eval(x=x_range, amplitude=area, center=center, sigma=sigma, gamma=gamma,
+            #                                  skew=skew)
+            # height = np.max(y_values)
             return height
         elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
             if row is None:
@@ -2381,11 +2393,11 @@ class MyFrame(wx.Frame):
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for Voigt models")
             area = PeakFunctions.voigt_height_to_area(height, sigma / 2.355, gamma / 2)
-        # elif model == "Voigt (Area, L/G, \u03c3, skew)":
-        #     if sigma is None or gamma is None:
-        #         raise ValueError("Sigma and gamma are required for Voigt models")
-        #     print("We need Skew in height to area")
-        #     area = PeakFunctions.voigt_height_to_area(height, sigma / 2.355, gamma / 2)
+        elif model == "Voigt (Area, L/G, \u03c3, skew)":
+            if sigma is None or gamma is None:
+                raise ValueError("Sigma and gamma are required for Voigt models")
+            print("We need Skew in height to area")
+            area = PeakFunctions.skewedvoigt_height_to_area(height, sigma / 2.355, gamma / 2, skew)
         elif model == "Pseudo-Voigt (Area)":
             sigma = fwhm / 2
             amplitude = height / PeakFunctions.get_pseudo_voigt_height(1, sigma, fraction)

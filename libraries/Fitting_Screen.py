@@ -199,7 +199,6 @@ class FittingWindow(wx.Frame):
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
-                 "Voigt (Area, L/G, \u03c3, skew)",
                  "Others---------------",
                  "Area Based----------",
                  # "GL (Area)",
@@ -214,7 +213,8 @@ class FittingWindow(wx.Frame):
                  "Height Based---------",
                  "GL (Height)",
                  "SGL (Height)",
-                 # "Under Test -----------"
+                 "Under Test -----------",
+                 "Voigt (Area, L/G, \u03c3, skew)",
                  ]
 
 
@@ -304,7 +304,7 @@ class FittingWindow(wx.Frame):
         fit_button.SetMinSize((125, 40))
         fit_button.Bind(wx.EVT_BUTTON, self.on_fit_peaks)
 
-        fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nMultiple Times")
+        fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nN# Times")
         fit_multi_button.SetMinSize((125, 40))
         fit_multi_button.Bind(wx.EVT_BUTTON, self.on_fit_multi)
 
@@ -313,14 +313,14 @@ class FittingWindow(wx.Frame):
         fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=0)
         fitting_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL, border=0)
 
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Optimization Method:"), pos=(2, 0),
+        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Method:"), pos=(2, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence Limit:"), pos=(3, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fit Iterations:"), pos=(4, 0),
+        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
@@ -513,14 +513,10 @@ class FittingWindow(wx.Frame):
         print(f'First word {first_word}')
         # element = re.match(r'([A-Z][a-z]*)', first_word).group(1)
         orbital = re.search(r'([2-5][spdf])', first_word)
-        # print(f'Element: {first_word} , Orbital:{orbital.group(1)}')
-        # if orbital:
-        #     orbital = orbital.group(1)
-        #     print(f"Looking up splitting for element: {element}, orbital: {orbital}")
 
         if not orbital:
-            wx.MessageBox("Invalid sheet name. Cannot determine orbital type. It needs to be of the form Au4f and NOT "
-                          "Au 4f", "Error", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
+                          "Error", wx.OK | wx.ICON_ERROR)
             return
 
         orbital = orbital.group()

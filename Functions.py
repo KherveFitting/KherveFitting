@@ -749,17 +749,14 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         sigma = result.params[f'{prefix}sigma'].value
                         gamma = result.params[f'{prefix}gamma'].value
                         skew  = result.params[f'{prefix}skew'].value
-                        peak_model = lmfit.models.SkewedVoigtModel()
-                        x_eval = np.linspace(-10 * sigma, 10 * sigma, 1000)
-                        y_temp = peak_model.eval(x=x_eval, center=0, amplitude=1.0, sigma=sigma, gamma=gamma, skew=skew)
-                        max_height = np.max(y_temp)
-                        peak_params_grid.SetCellValue(row, 3, f"{max_height:.2f}")  # Update height in grid
+                        height = PeakFunctions.get_skewedvoigt_height(amplitude, sigma, gamma, skew)
+                        peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")  # Update height in grid
                         # amplitude = height / max_height
+                        fwhm = PeakFunctions.skewed_voigt_fwhm(sigma, gamma, skew)
+                        fraction = (2 * gamma) / (sigma * 2.355 + 2 * gamma) * 100
                         area = amplitude
-                        x = center
-                        params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma,
-                                                        skew=skew)
-                    #                                     skew=skew)
+                        # print(f'Into Voigt (Area, L/G, \u03c3, skew): H {height}  w {fwhm}')
+
                     elif peak_model_choice == "Pseudo-Voigt (Area)":
                         amplitude = result.params[f'{prefix}area'].value
                         sigma = result.params[f'{prefix}sigma'].value
