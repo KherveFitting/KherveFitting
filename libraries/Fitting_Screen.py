@@ -214,7 +214,7 @@ class FittingWindow(wx.Frame):
                  "Height Based---------",
                  "GL (Height)",
                  "SGL (Height)",
-                 "Under Test -----------"
+                 # "Under Test -----------",
                  ]
 
 

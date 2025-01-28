@@ -917,46 +917,46 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     print(f"Warning: Peak {peak_label} not found in existing data. Skipping update for this peak.")
 
 
-                # Immediately apply rigid constraints after fit
-                for i in range(num_peaks):
-                    row = i * 2
-                    if row >= peak_params_grid.GetNumberRows():
-                        continue
-
-                    for col in [2, 3, 4, 5, 6, 7, 8, 9]:
-                        if col >= peak_params_grid.GetNumberCols():
-                            continue
-
-                        constraint = peak_params_grid.GetCellValue(row + 1, col)
-                        # Check if this is a rigid constraint (no error range)
-                        if constraint and constraint[0] in 'ABCDEFGHIJKLMNOP' and '#' not in constraint:
-                            ref_peak = ord(constraint[0]) - 65  # Convert A->0, B->1, etc
-                            ref_row = ref_peak * 2
-
-                            # Check if reference row exists
-                            if ref_row < 0 or ref_row >= peak_params_grid.GetNumberRows():
-                                continue
-
-                            try:
-                                ref_value = float(peak_params_grid.GetCellValue(ref_row, col))
-                                if '*' in constraint:
-                                    factor = float(constraint.split('*')[1])
-                                    new_value = ref_value * factor
-                                elif '+' in constraint:
-                                    offset = float(constraint.split('+')[1])
-                                    new_value = ref_value + offset
-                                elif '-' in constraint:
-                                    offset = float(constraint.split('-')[1])
-                                    new_value = ref_value - offset
-                                elif '/' in constraint:
-                                    factor = float(constraint.split('/')[1])
-                                    new_value = ref_value / factor
-                                else:
-                                    continue
-
-                                peak_params_grid.SetCellValue(row, col, f"{new_value:.2f}")
-                            except (ValueError, IndexError):
-                                continue
+                # # Immediately apply rigid constraints after fit
+                # for i in range(num_peaks):
+                #     row = i * 2
+                #     if row >= peak_params_grid.GetNumberRows():
+                #         continue
+                #
+                #     for col in [2, 3, 4, 5, 6, 7, 8, 9]:
+                #         if col >= peak_params_grid.GetNumberCols():
+                #             continue
+                #
+                #         constraint = peak_params_grid.GetCellValue(row + 1, col)
+                #         # Check if this is a rigid constraint (no error range)
+                #         if constraint and constraint[0] in 'ABCDEFGHIJKLMNOP' and '#' not in constraint:
+                #             ref_peak = ord(constraint[0]) - 65  # Convert A->0, B->1, etc
+                #             ref_row = ref_peak * 2
+                #
+                #             # Check if reference row exists
+                #             if ref_row < 0 or ref_row >= peak_params_grid.GetNumberRows():
+                #                 continue
+                #
+                #             try:
+                #                 ref_value = float(peak_params_grid.GetCellValue(ref_row, col))
+                #                 if '*' in constraint:
+                #                     factor = float(constraint.split('*')[1])
+                #                     new_value = ref_value * factor
+                #                 elif '+' in constraint:
+                #                     offset = float(constraint.split('+')[1])
+                #                     new_value = ref_value + offset
+                #                 elif '-' in constraint:
+                #                     offset = float(constraint.split('-')[1])
+                #                     new_value = ref_value - offset
+                #                 elif '/' in constraint:
+                #                     factor = float(constraint.split('/')[1])
+                #                     new_value = ref_value / factor
+                #                 else:
+                #                     continue
+                #
+                #                 peak_params_grid.SetCellValue(row, col, f"{new_value:.2f}")
+                #             except (ValueError, IndexError):
+                #                 continue
 
             window.Data['Core levels'][sheet_name]['Fitting']['Model'] = model_choice
 
