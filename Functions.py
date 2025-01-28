@@ -670,36 +670,6 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                 individual_peaks.append(peak_model)
 
-
-            # # NOT DOING ANYTHING I BELIEW
-            # # Update constrained parameters immediately before fitting
-            # for i in range(num_peaks):
-            #     row = i * 2
-            #     for col in [2, 3, 4, 5, 6, 7, 8, 9]:  # Columns containing parameters
-            #         constraint = peak_params_grid.GetCellValue(row + 1, col)
-            #         if constraint and constraint[0] in 'ABCDEFGHIJKLMNOP':
-            #             ref_peak = ord(constraint[0]) - 65
-            #             param_name = ['position', 'height', 'fwhm', 'lg_ratio', 'area', 'sigma', 'gamma', 'skew'][
-            #                 col - 2]
-            #             ref_value = get_peak_value(peak_params_grid, chr(65 + ref_peak), param_name)
-            #             if ref_value is not None:
-            #                 prefix = f'peak{i}_'
-            #                 param_map = {
-            #                     2: 'center',
-            #                     3: 'amplitude',
-            #                     4: 'fwhm',
-            #                     5: 'fraction',
-            #                     6: 'area',
-            #                     7: 'sigma',
-            #                     8: 'gamma',
-            #                     9: 'skew'
-            #                 }
-            #                 param_key = f'{prefix}{param_map[col]}'
-            #                 if param_key in params:
-            #                     new_value = evaluate_constraint(constraint, peak_params_grid, param_name, ref_value)
-            #                     params[param_key].value = new_value
-            # # UP TO HERE
-
             optimization_method = window.fitting_window.get_optimization_method() if window.fitting_window else 'leastsq'
             # Define fit_kws only for methods that support it
             if optimization_method in ['leastsq', 'least_squares']:

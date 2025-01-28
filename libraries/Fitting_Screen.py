@@ -199,6 +199,7 @@ class FittingWindow(wx.Frame):
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
+                 "Voigt (Area, L/G, \u03c3, skew)",
                  "Others---------------",
                  "Area Based----------",
                  # "GL (Area)",
@@ -213,8 +214,7 @@ class FittingWindow(wx.Frame):
                  "Height Based---------",
                  "GL (Height)",
                  "SGL (Height)",
-                 "Under Test -----------",
-                 "Voigt (Area, L/G, \u03c3, skew)",
+                 "Under Test -----------"
                  ]
 
 
@@ -352,9 +352,20 @@ class FittingWindow(wx.Frame):
         selection = self.optimization_method.GetValue()
         return selection.split()[0]  # Get just the method name without description
 
-    def on_method_change(self, event):
+    def on_method_change_OLD(self, event):
         new_method = self.model_combobox.GetValue()
         old_method = self.parent.selected_fitting_method
+        self.parent.set_fitting_method(new_method)
+        self.update_fitting_info_button()
+
+    def on_method_change(self, event):
+        new_method = self.model_combobox.GetValue()
+        if "skew" in new_method:
+            self.optimization_method.SetValue("leastsq")
+            self.optimization_method.Enable(True)
+        else:
+            self.optimization_method.SetValue("least_squares")
+            self.optimization_method.Enable(True)
         self.parent.set_fitting_method(new_method)
         self.update_fitting_info_button()
 

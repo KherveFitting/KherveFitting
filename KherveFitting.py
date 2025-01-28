@@ -506,7 +506,7 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row + 1, 5, "15:85")
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
-            self.peak_params_grid.SetCellValue(row + 1, 9, 'Fixed')  # skew
+            self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:0.7')  # skew
         else:
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:3")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:3")
