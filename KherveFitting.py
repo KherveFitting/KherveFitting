@@ -746,7 +746,7 @@ class MyFrame(wx.Frame):
                     'Area': '1:1e7',
                     'Sigma': "0.01:3",
                     'Gamma': "0.01:3",
-                    'Skew': "Fixed"
+                    'Skew': "0.01:0.7"
                 }
             })
 
@@ -1015,7 +1015,7 @@ class MyFrame(wx.Frame):
             self.canvas.mpl_disconnect(self.release_cid)
             delattr(self, 'release_cid')
 
-        self.refresh_peak_params_grid()
+        self.refresh_peak_params_grid_release()
 
     def get_linked_peaks(self, peak_index):
         linked_peaks = []
@@ -2501,7 +2501,42 @@ class MyFrame(wx.Frame):
                               "Duplicate Peak Name", wx.OK | wx.ICON_ERROR)
                 event.Veto()
                 return
-        if col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1:  # Constraint rows
+        elif col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1:  # Constraint rows
+
+            if new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
+                new_value = 'Fixed'
+                self.peak_params_grid.SetCellValue(row, col, new_value)
+                return
+            elif new_value == 'F':
+                new_value = 'F*1'
+                self.peak_params_grid.SetCellValue(row, col, new_value)
+                return
+            elif new_value.startswith('#'):
+                # Check if '#' is not followed by at least one digit
+                if len(new_value) == 1 or not new_value[1:].replace('.', '', 1).isdigit():
+                    wx.MessageBox(f"Wrong Value entered", "Wrong Value",
+                                  wx.OK | wx.ICON_ERROR)
+                    event.Veto()  # Veto the event if '#' is on its own or not followed by a valid number
+                    return
+
+                # If '#' is followed by a valid number, proceed with the calculation
+                peak_value = float(self.peak_params_grid.GetCellValue(row - 1, col))
+                new_value = str(round(peak_value - float(new_value[1:]), 2)) + ':' + str(
+                    round(peak_value + float(new_value[1:]), 2))
+                self.peak_params_grid.SetCellValue(row, col, new_value)
+                return
+            elif new_value.startswith(('+', '/', '*')):
+                wx.MessageBox(f"Wrong Value entered", "Wrong Value",
+                              wx.OK | wx.ICON_ERROR)
+                event.Veto()
+                return
+            # Add validation for expressions starting with '-' and not containing ':'
+            elif new_value.startswith('-') and ':' not in new_value:
+                wx.MessageBox(f"Wrong Value entered", "Wrong Value",
+                              wx.OK | wx.ICON_ERROR)
+                event.Veto()
+                return
+
             # Pattern to match all possible formats
             pattern = r'^([A-P])([+\-*/])(\d+\.?\d*)(?:#(\d+\.?\d*))?$'
             match = re.match(pattern, new_value)
@@ -2558,10 +2593,10 @@ class MyFrame(wx.Frame):
                                   wx.OK | wx.ICON_ERROR)
                     event.Veto()
                     return
-        if col in [0, 10, 11, 12]:
+        elif col in [0, 10, 11, 12]:
             event.Veto()
             return
-        elif col not in [1, 13, 14] and row % 2 == 1:  # Constraint row
+        elif col not in [13, 14] and row % 2 == 1:  # Constraint row
             if not new_value:  # If the cell is empty
                 new_value = default_constraints.get(col, '')
                 self.peak_params_grid.SetCellValue(row, col, new_value)
@@ -2573,15 +2608,8 @@ class MyFrame(wx.Frame):
                 event.Veto()
                 return
 
-        if new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
-            new_value = 'Fixed'
-        elif new_value == 'F':
-            new_value = 'F*1'
-        elif new_value.startswith('#'):
-            peak_value = float(self.peak_params_grid.GetCellValue(row - 1, col))
-            new_value = str(round(peak_value - float(new_value[1:]), 2)) + ':' + str(
-                round(peak_value + float(new_value[1:]), 2))
-        elif col == 2 and new_value.upper() in 'ABCDEFGHIJKLMNOP':
+
+        if col == 2 and new_value.upper() in 'ABCDEFGHIJKLMNOP':
             letter_index = ord(new_value.upper()) - 65
             if letter_index * 2 == row - 1:  # Same peak
                 new_value = "0:1000"  # Default value
@@ -2958,6 +2986,22 @@ class MyFrame(wx.Frame):
                     self.peak_params_grid.SetCellValue(row + 1, 8, str(peak_data['Constraints'].get('Gamma', '')))
                     self.peak_params_grid.SetCellValue(row + 1, 9, str(peak_data['Constraints'].get('Skew', '')))
         self.peak_params_grid.ForceRefresh()
+
+    def refresh_peak_params_grid_release(self):
+        sheet_name = self.sheet_combobox.GetValue()
+        if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][sheet_name] and 'Peaks' in \
+                self.Data['Core levels'][sheet_name]['Fitting']:
+            peaks = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+            for i, (peak_label, peak_data) in enumerate(peaks.items()):
+                row = i * 2
+                self.peak_params_grid.SetCellValue(row, 2, f"{peak_data['Position']:.2f}")
+                self.peak_params_grid.SetCellValue(row, 3, f"{peak_data['Height']:.2f}")
+                try:
+                    area_value = float(peak_data['Area'])
+                    self.peak_params_grid.SetCellValue(row, 6, f"{area_value:.2f}")
+                except (ValueError, KeyError):
+                    self.peak_params_grid.SetCellValue(row, 6, "ER! REFRESH PEAK")
+            self.peak_params_grid.ForceRefresh()
 
     def on_checkbox_update(self, event):
         row = event.GetRow()
