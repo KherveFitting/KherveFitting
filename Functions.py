@@ -335,11 +335,12 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 height = float(peak_params_grid.GetCellValue(row, 3))
                 fwhm = float(peak_params_grid.GetCellValue(row, 4))
                 lg_ratio = float(peak_params_grid.GetCellValue(row, 5))
-                skew = float(peak_params_grid.GetCellValue(row, 9))
                 try:
                     fwhm_g = float(peak_params_grid.GetCellValue(row, 9))
+                    skew = float(peak_params_grid.GetCellValue(row, 9))
                 except ValueError:
                     fwhm_g = 0.64
+                    skew = 0.1
                 try:
                     area = float(peak_params_grid.GetCellValue(row, 6))
                 except ValueError:
@@ -480,8 +481,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=fraction_vary,
                                brute_step=gamma * 0.01)
 
-                    params.add(f'{prefix}skew', value=skew, min=skew_min, max=skew_max, vary=skew_vary,
-                               brute_step=skew * 0.01)
+                    params.add(f'{prefix}skew', value=skew, min=skew_min, max=skew_max, vary=skew_vary)#, brute_step)=skew * 0.001)
 
                     params.add(f'{prefix}amplitude', expr=f'{prefix}area')
 
@@ -669,6 +669,36 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     model += peak_model
 
                 individual_peaks.append(peak_model)
+
+
+            # # NOT DOING ANYTHING I BELIEW
+            # # Update constrained parameters immediately before fitting
+            # for i in range(num_peaks):
+            #     row = i * 2
+            #     for col in [2, 3, 4, 5, 6, 7, 8, 9]:  # Columns containing parameters
+            #         constraint = peak_params_grid.GetCellValue(row + 1, col)
+            #         if constraint and constraint[0] in 'ABCDEFGHIJKLMNOP':
+            #             ref_peak = ord(constraint[0]) - 65
+            #             param_name = ['position', 'height', 'fwhm', 'lg_ratio', 'area', 'sigma', 'gamma', 'skew'][
+            #                 col - 2]
+            #             ref_value = get_peak_value(peak_params_grid, chr(65 + ref_peak), param_name)
+            #             if ref_value is not None:
+            #                 prefix = f'peak{i}_'
+            #                 param_map = {
+            #                     2: 'center',
+            #                     3: 'amplitude',
+            #                     4: 'fwhm',
+            #                     5: 'fraction',
+            #                     6: 'area',
+            #                     7: 'sigma',
+            #                     8: 'gamma',
+            #                     9: 'skew'
+            #                 }
+            #                 param_key = f'{prefix}{param_map[col]}'
+            #                 if param_key in params:
+            #                     new_value = evaluate_constraint(constraint, peak_params_grid, param_name, ref_value)
+            #                     params[param_key].value = new_value
+            # # UP TO HERE
 
             optimization_method = window.fitting_window.get_optimization_method() if window.fitting_window else 'leastsq'
             # Define fit_kws only for methods that support it
@@ -862,6 +892,11 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         fraction = round(fraction * 100,2)
                         area = round(float(area), 2)
                         fwhm_g = round(float(fwhm_g), 2)
+                    elif peak_model_choice in ["Voigt (Area, L/G, \u03c3, skew)"]:
+                        sigma = round(float(sigma * 2.355), 2)
+                        gamma = round(float(gamma * 2), 2)
+                        fraction = round(float(fraction), 2)
+                        area = round(float(area), 2)
                     else:
                         sigma = round(float(sigma * 2.355), 2)
                         gamma = round(float(gamma * 2), 2)
@@ -910,6 +945,48 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     })
                 else:
                     print(f"Warning: Peak {peak_label} not found in existing data. Skipping update for this peak.")
+
+
+                # Immediately apply rigid constraints after fit
+                for i in range(num_peaks):
+                    row = i * 2
+                    if row >= peak_params_grid.GetNumberRows():
+                        continue
+
+                    for col in [2, 3, 4, 5, 6, 7, 8, 9]:
+                        if col >= peak_params_grid.GetNumberCols():
+                            continue
+
+                        constraint = peak_params_grid.GetCellValue(row + 1, col)
+                        # Check if this is a rigid constraint (no error range)
+                        if constraint and constraint[0] in 'ABCDEFGHIJKLMNOP' and '#' not in constraint:
+                            ref_peak = ord(constraint[0]) - 65  # Convert A->0, B->1, etc
+                            ref_row = ref_peak * 2
+
+                            # Check if reference row exists
+                            if ref_row < 0 or ref_row >= peak_params_grid.GetNumberRows():
+                                continue
+
+                            try:
+                                ref_value = float(peak_params_grid.GetCellValue(ref_row, col))
+                                if '*' in constraint:
+                                    factor = float(constraint.split('*')[1])
+                                    new_value = ref_value * factor
+                                elif '+' in constraint:
+                                    offset = float(constraint.split('+')[1])
+                                    new_value = ref_value + offset
+                                elif '-' in constraint:
+                                    offset = float(constraint.split('-')[1])
+                                    new_value = ref_value - offset
+                                elif '/' in constraint:
+                                    factor = float(constraint.split('/')[1])
+                                    new_value = ref_value / factor
+                                else:
+                                    continue
+
+                                peak_params_grid.SetCellValue(row, col, f"{new_value:.2f}")
+                            except (ValueError, IndexError):
+                                continue
 
             window.Data['Core levels'][sheet_name]['Fitting']['Model'] = model_choice
 
@@ -1032,7 +1109,7 @@ def parse_constraints(constraint_str, current_value, peak_params_grid, peak_inde
             if param_name == 'fwhm_g':
                 small_error2 = 0.01
             if param_name == 'skew':
-                small_error2 = 0.01
+                small_error2 = 0.001
             else:
                 small_error2 = 0.0001
             return f"{ref_peak}{operator}{value - small_error2}", f"{ref_peak}{operator}{value + small_error2}", True

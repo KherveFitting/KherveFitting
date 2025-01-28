@@ -546,7 +546,10 @@ class FittingWindow(wx.Frame):
                     x in self.parent.selected_fitting_method for x in ["LA", "GL", "SGL"]):
                 fwhm_constraint = "0.3:3.5"  # Independent FWHM for Ti2p and V2p
             else:
-                fwhm_constraint = f"{chr(65 + first_peak)}*1"
+                if "Voigt" in self.parent.selected_fitting_method:
+                    fwhm_constraint = "0.3:3.5"
+                else:
+                    fwhm_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 4, fwhm_constraint)
 
             # Height constraint

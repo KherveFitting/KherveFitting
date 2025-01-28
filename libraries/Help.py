@@ -479,6 +479,7 @@ def show_version_log(window):
 - Added a View & and edit library in the preference window/instruments.
 - Added possibility of changing the reference peak for binding energy correction in Instrument settings
 - Added Linewidth settings in the preference window
+- Added peak name above the cross when moving a peak
 - Removed the fitting of the data when saving data
 - Improved size of Preference Window (smaller)
 - Improve Toggle by adding a third state. Removal of Raw Data, En

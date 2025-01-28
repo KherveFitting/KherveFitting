@@ -461,8 +461,8 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row, 9, '0')  # skew
         elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
             self.peak_params_grid.SetCellValue(row, 5, "20")
-            self.peak_params_grid.SetCellValue(row, 7, "0.3")  # sigma
-            self.peak_params_grid.SetCellValue(row, 8, '0.1')  # gamma
+            self.peak_params_grid.SetCellValue(row, 7, "1.2")  # sigma
+            self.peak_params_grid.SetCellValue(row, 8, '0.4')  # gamma
             self.peak_params_grid.SetCellValue(row, 9, '0.01')  # skew
         elif self.selected_fitting_method in ["D-parameter"]:
             self.peak_params_grid.SetCellValue(row, 5, "2")
@@ -503,10 +503,10 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:10")
             self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')  # skew
         elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
-            self.peak_params_grid.SetCellValue(row + 1, 5, "15:35")
+            self.peak_params_grid.SetCellValue(row + 1, 5, "15:85")
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
-            self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:0.5')  # skew
+            self.peak_params_grid.SetCellValue(row + 1, 9, 'Fixed')  # skew
         else:
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:3")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:3")
@@ -630,32 +630,62 @@ class MyFrame(wx.Frame):
         if 'Peaks' not in self.Data['Core levels'][sheet_name]['Fitting']:
             self.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
 
-        peak_data = {
-            'Position': peak_x,
-            'Height': peak_y,
-            'FWHM': 1.6,
-            'L/G': 30,
-            'Area': peak_y * 1.6 * 1.064,
-            'Sigma': 1,
-            'Gamma': 0.2,
-            'Skew' : 0.64,
-            'Fitting Model': self.selected_fitting_method,
-            'Bkg Type': self.background_method,
-            'Bkg Low': self.bg_min_energy,
-            'Bkg High': self.bg_max_energy,
-            'Bkg Offset Low': self.offset_l,
-            'Bkg Offset High': self.offset_h,
-            'Constraints': {
-                'Position': position_constraint,
-                'Height': "1:1e7",
-                'FWHM': "0.3:3.5",
-                'L/G': "2:80",
-                'Area': '1:1e7',
-                'Sigma': "0.01:1",
-                'Gamma': "0.01:3",
-                'Skew' : "0.01:2"
+
+
+        if self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+            peak_data = {
+                'Position': peak_x,
+                'Height': peak_y,
+                'FWHM': 1.6,
+                'L/G': 20,
+                'Area': peak_y * 1.6 * 1.064,
+                'Sigma': 1.2,
+                'Gamma': 0.4,
+                'Skew': 0.1,
+                'Fitting Model': self.selected_fitting_method,
+                'Bkg Type': self.background_method,
+                'Bkg Low': self.bg_min_energy,
+                'Bkg High': self.bg_max_energy,
+                'Bkg Offset Low': self.offset_l,
+                'Bkg Offset High': self.offset_h,
+                'Constraints': {
+                    'Position': position_constraint,
+                    'Height': "1:1e7",
+                    'FWHM': "0.3:3.5",
+                    'L/G': "2:80",
+                    'Area': '1:1e7',
+                    'Sigma': "0.01:1",
+                    'Gamma': "0.01:3",
+                    'Skew': "0.01:2"
+                }
             }
-        }
+        else:
+            peak_data = {
+                'Position': peak_x,
+                'Height': peak_y,
+                'FWHM': 1.6,
+                'L/G': 20,
+                'Area': peak_y * 1.6 * 1.064,
+                'Sigma': 1.2,
+                'Gamma': 0.4,
+                'Skew': 0.64,
+                'Fitting Model': self.selected_fitting_method,
+                'Bkg Type': self.background_method,
+                'Bkg Low': self.bg_min_energy,
+                'Bkg High': self.bg_max_energy,
+                'Bkg Offset Low': self.offset_l,
+                'Bkg Offset High': self.offset_h,
+                'Constraints': {
+                    'Position': position_constraint,
+                    'Height': "1:1e7",
+                    'FWHM': "0.3:3.5",
+                    'L/G': "2:80",
+                    'Area': '1:1e7',
+                    'Sigma': "0.01:1",
+                    'Gamma': "0.01:3",
+                    'Skew': "0.01:2"
+                }
+            }
 
         if self.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)","LA (Area, \u03c3/\u03b3, \u03b3)"]:
             peak_data.update({
@@ -707,6 +737,7 @@ class MyFrame(wx.Frame):
             peak_data.update({
                 'Sigma': 1,
                 'Gamma': 0.5,
+                'skew': 0.01,
                 'Constraints': {
                     'Position': position_constraint,
                     'Height': "1:1e7",
@@ -715,7 +746,7 @@ class MyFrame(wx.Frame):
                     'Area': '1:1e7',
                     'Sigma': "0.01:3",
                     'Gamma': "0.01:3",
-                    'Skew': "0.01:10"
+                    'Skew': "Fixed"
                 }
             })
 
@@ -2402,7 +2433,6 @@ class MyFrame(wx.Frame):
         elif model == "Voigt (Area, L/G, \u03c3, skew)":
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for Voigt models")
-            print("We need Skew in height to area")
             area = PeakFunctions.skewedvoigt_height_to_area(height, sigma / 2.355, gamma / 2, skew)
         elif model == "Pseudo-Voigt (Area)":
             sigma = fwhm / 2
@@ -2754,16 +2784,8 @@ class MyFrame(wx.Frame):
                                 'Gamma': '0.01:4',
                                 'Skew': '0.02:2'
                             }
-                            new_value = default_constraints[constraint_key]
+                            new_value = default_constraints[col]
                             self.peak_params_grid.SetCellValue(row, col, new_value)
-
-                        # Add this block to handle linked peaks' fill type and hatch pattern
-                        # if new_value.startswith(('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J')):
-                        #     linked_peak = ord(new_value[0]) - 65  # Convert A->0, B->1, etc.
-                        #     current_peak = row // 2
-                        #     # Copy fill type and hatch pattern from linked peak
-                        #     self.peak_fill_types[current_peak] = self.peak_fill_types[linked_peak]
-                        #     self.peak_hatch_patterns[current_peak] = self.peak_hatch_patterns[linked_peak]
 
                         peaks[correct_peak_key]['Constraints'][constraint_key] = new_value
 
@@ -2776,6 +2798,34 @@ class MyFrame(wx.Frame):
                 pass
 
         event.Skip()
+
+        # Update all data in window.Data for all peaks
+        for i in range(self.peak_params_grid.GetNumberRows() // 2):
+            row_data = i * 2  # Data row
+            row_constraint = i * 2 + 1  # Constraint row
+            peak_label = self.peak_params_grid.GetCellValue(row_data, 1)
+
+            # Update main parameters
+            peaks[peak_label] = {
+                'Position': float(self.peak_params_grid.GetCellValue(row_data, 2)),
+                'Height': float(self.peak_params_grid.GetCellValue(row_data, 3)),
+                'FWHM': float(self.peak_params_grid.GetCellValue(row_data, 4)),
+                'L/G': float(self.peak_params_grid.GetCellValue(row_data, 5)),
+                'Area': float(self.peak_params_grid.GetCellValue(row_data, 6)),
+                'Sigma': float(self.peak_params_grid.GetCellValue(row_data, 7)),
+                'Gamma': float(self.peak_params_grid.GetCellValue(row_data, 8)),
+                'Skew': float(self.peak_params_grid.GetCellValue(row_data, 9)),
+                'Fitting Model': self.peak_params_grid.GetCellValue(row_data, 13)
+            }
+
+            # Update constraints
+            if 'Constraints' not in peaks[peak_label]:
+                peaks[peak_label]['Constraints'] = {}
+
+            constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
+            for col_idx, key in enumerate(constraint_keys, start=2):
+                value = self.peak_params_grid.GetCellValue(row_constraint, col_idx)
+                peaks[peak_label]['Constraints'][key] = value
 
         # Refresh the grid to ensure it reflects the current state of self.Data
         self.refresh_peak_params_grid()
