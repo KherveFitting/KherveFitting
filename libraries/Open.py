@@ -62,8 +62,6 @@ class ExcelDropTarget(wx.FileDropTarget):
         return False
 
 
-
-
 def load_library_data_WITHEXCEL():
    wb = openpyxl.load_workbook('KherveFitting_library.xlsx')
    sheet = wb['Library']

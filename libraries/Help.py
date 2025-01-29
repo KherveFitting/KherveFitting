@@ -481,6 +481,7 @@ def show_version_log(window):
 - Added possibility of changing the reference peak for binding energy correction in Instrument settings
 - Added Linewidth settings in the preference window for residual, envelope, background
 - Added peak name above the cross when moving a peak
+- Added right-click menu to zoom in and out
 - Removed the fitting of the data when saving data
 - Improved size of Preference Window (smaller)
 - Improve Toggle by adding a third state. Removal of Raw Data, envelope

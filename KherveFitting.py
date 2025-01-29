@@ -117,7 +117,7 @@ class MyFrame(wx.Frame):
         # Variables for Undo & Redo
         self.history = []
         self.redo_stack = []
-        self.max_history = 30
+        self.max_history = 50
 
         # New attribute to track plot state for showing fit or not
         self.show_fit = True
@@ -284,7 +284,7 @@ class MyFrame(wx.Frame):
 
         # Most recent File Initialisation
         self.recent_files = []
-        self.max_recent_files = 10  # Maximum number of recent files to keep
+        self.max_recent_files = 20  # Maximum number of recent files to keep
 
         self.library_type = "TPP-2M"  # Default value
 
@@ -305,6 +305,7 @@ class MyFrame(wx.Frame):
         self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
         self.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
+        self.canvas.mpl_connect('button_press_event', self.on_right_click)
         self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press_global)
         # self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
         # self.add_cross_to_peak(self.selected_peak_index)
@@ -2224,6 +2225,20 @@ class MyFrame(wx.Frame):
             # Update background if in Adaptive Smart mode
             if self.background_method == "Multi-Regions Smart":
                 self.plot_manager.plot_background(self)
+
+    def on_right_click(self, event):
+        if event.button == 3:  # Right click
+            menu = wx.Menu()
+            zoom_in = menu.Append(-1, "Zoom In")
+            zoom_out = menu.Append(-1, "Zoom Out")
+            drag = menu.Append(-1, "Drag")
+
+            self.Bind(wx.EVT_MENU, self.on_zoom_in_tool, zoom_in)
+            self.Bind(wx.EVT_MENU, self.on_zoom_out, zoom_out)
+            self.Bind(wx.EVT_MENU, self.on_drag_tool, drag)
+
+            self.PopupMenu(menu)
+            menu.Destroy()
 
     def on_zoom_in_tool(self, event):
         self.plot_config.on_zoom_in_tool(self)

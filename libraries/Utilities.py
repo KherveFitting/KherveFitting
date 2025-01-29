@@ -448,12 +448,6 @@ class CropWindow(wx.Frame):
             'Background': new_data['Background']['Bkg Y'],
             'Transmission': new_data['Transmission']
         })
-        # df = pd.DataFrame({
-        #     'BE': x,
-        #     'Modified Data': y,
-        #     'Raw Data': self.parent.Data['Core levels'][original_sheet]['Raw Data'][:len(x)],  # Slice to match x length
-        #     'Transmission': np.ones_like(x)
-        # })
 
         with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a') as writer:
             df.to_excel(writer, sheet_name=new_name, index=False)
@@ -626,7 +620,7 @@ class PlotModWindow(wx.Frame):
         # Create DataFrame with required columns
         df = pd.DataFrame({
             'BE': x,
-            'Modified Data': y,
+            'Corrected Data': y,
             'Raw Data': self.parent.Data['Core levels'][original_sheet]['Raw Data'],
             'Transmission': np.ones_like(x)
         })
