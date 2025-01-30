@@ -482,6 +482,7 @@ def show_version_log(window):
 - Added Linewidth settings in the preference window for residual, envelope, background
 - Added peak name above the cross when moving a peak
 - Added right-click menu to zoom in and out
+- Added First time window for new users
 - Removed the fitting of the data when saving data
 - Improved size of Preference Window (smaller)
 - Improve Toggle by adding a third state. Removal of Raw Data, envelope
