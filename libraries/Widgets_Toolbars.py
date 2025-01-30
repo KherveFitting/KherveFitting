@@ -347,28 +347,6 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: window.toggle_energy_scale(), toggle_energy_item)
     window.toggle_energy_item = toggle_energy_item
 
-    # # Add theme submenu to View menu
-    # theme_submenu = wx.Menu()
-    # light_theme = theme_submenu.Append(wx.ID_ANY, "Light")
-    # dark_theme = theme_submenu.Append(wx.ID_ANY, "Dark")
-    # auto_theme = theme_submenu.Append(wx.ID_ANY, "Auto")
-    #
-    # def set_theme(color):
-    #     window.SetBackgroundColour(color)
-    #     window.panel.SetBackgroundColour(color)
-    #     window.right_frame.SetBackgroundColour(color)
-    #     window.peak_params_frame.SetBackgroundColour(color)
-    #     window.results_frame.SetBackgroundColour(color)
-    #     window.Refresh()
-    #     window.Update()
-    #
-    # window.Bind(wx.EVT_MENU, lambda evt: set_theme(wx.Colour(255, 255, 255)), light_theme)
-    # window.Bind(wx.EVT_MENU, lambda evt: set_theme(wx.Colour(50, 50, 50)), dark_theme)
-    # window.Bind(wx.EVT_MENU, lambda evt: set_theme(wx.NullColour), auto_theme)
-    #
-    # view_menu.AppendSubMenu(theme_submenu, "Theme")
-
-
     # Tools menu items
     Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve\tCtrl+A")
     window.Bind(wx.EVT_MENU, lambda event: window.on_open_background_window(), Area_item)

@@ -11,6 +11,41 @@ from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
 from scipy.integrate import cumtrapz
 
+# from KherveFitting import FIRST_TIME_USE
+
+
+def check_first_time_use(frame):
+    config = frame.load_config()
+    times_opened = config.get('times_opened', 0)
+
+    if times_opened == 0:
+        dlg = wx.MessageDialog(None,
+                               "This appears to be your first time using KherveFitting. Would you like to open the "
+                               "manual to the Getting Started section?",
+                               "Welcome to KherveFitting",
+                               wx.YES_NO | wx.ICON_QUESTION)
+
+        if dlg.ShowModal() == wx.ID_YES:
+            import os
+            import sys
+            import webbrowser
+
+            if getattr(sys, 'frozen', False):
+                # If the application is run as a bundle, get the path of the executable
+                application_path = os.path.dirname(sys.executable)
+            else:
+                # If the application is run as a script, get the path of the script
+                application_path = os.path.dirname(os.path.abspath(__file__))
+
+            manual_path = os.path.join(application_path, "Manual.pdf")
+            webbrowser.open(manual_path)
+
+        dlg.Destroy()
+
+    config['times_opened'] = times_opened + 1
+
+    with open('config.json', 'w') as f:
+        json.dump(config, f, indent=2)
 
 def _clear_peak_params_grid(window):
     num_rows = window.peak_params_grid.GetNumberRows()

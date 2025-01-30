@@ -29,6 +29,7 @@ from libraries.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
 from libraries.Export import export_results
 from libraries.PlotConfig import PlotConfig
+from libraries.Utilities import check_first_time_use
 
 from libraries.Peak_Functions import PeakFunctions
 
@@ -83,6 +84,7 @@ class MyFrame(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
 
+        FIRST_TIME_USE = True
 
         # Set the icon
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
@@ -3240,6 +3242,7 @@ class MyFrame(wx.Frame):
                 self.ref_peak_name = config.get('ref_peak_name', 'C1s C-C')
                 self.ref_peak_be = config.get('ref_peak_be', 284.8)
                 self.photons = config.get('photons', 1486.67)
+                self.times_opened = config.get('times_opened', 0)
 
         else:
             config = {}
@@ -3319,6 +3322,9 @@ class MyFrame(wx.Frame):
             'export_width': self.export_width,
             'export_height': self.export_height,
             'export_dpi': self.export_dpi,
+
+            #Tines opened
+            'times_opened': getattr(self, 'times_opened', 0),
         }
 
         with open('config.json', 'w') as f:
@@ -3611,6 +3617,8 @@ if __name__ == '__main__':
 
     if splash:
         splash.Destroy()
+
+    check_first_time_use(frame)
 
     updater = UpdateChecker()
     updater.check_update_delayed(frame)
