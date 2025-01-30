@@ -335,11 +335,12 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 height = float(peak_params_grid.GetCellValue(row, 3))
                 fwhm = float(peak_params_grid.GetCellValue(row, 4))
                 lg_ratio = float(peak_params_grid.GetCellValue(row, 5))
-                skew = float(peak_params_grid.GetCellValue(row, 9))
                 try:
                     fwhm_g = float(peak_params_grid.GetCellValue(row, 9))
+                    skew = float(peak_params_grid.GetCellValue(row, 9))
                 except ValueError:
                     fwhm_g = 0.64
+                    skew = 0.1
                 try:
                     area = float(peak_params_grid.GetCellValue(row, 6))
                 except ValueError:
@@ -442,6 +443,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     fraction_min, fraction_max, fraction_vary = parse_constraints(
                         peak_params_grid.GetCellValue(row + 1, 5),
                         fraction, peak_params_grid, i, "lg_ratio")
+
                     skew_min, skew_max, skew_vary = parse_constraints(peak_params_grid.GetCellValue(row + 1, 9),
                                                                       skew, peak_params_grid, i, "Skew")
 
@@ -478,8 +480,8 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                vary=sigma_vary / 2.355, brute_step=sigma * 0.01)
                     params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=fraction_vary,
                                brute_step=gamma * 0.01)
-                    params.add(f'{prefix}skew', value=skew, min=skew_min, max=skew_max, vary=skew_vary,
-                               brute_step=skew * 0.01)
+
+                    params.add(f'{prefix}skew', value=skew, min=skew_min, max=skew_max, vary=skew_vary)#, brute_step)=skew * 0.001)
 
                     params.add(f'{prefix}amplitude', expr=f'{prefix}area')
 
@@ -733,7 +735,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                 if peak_label in existing_peaks:
                     center = result.params[f'{prefix}center'].value
-                    if peak_model_choice in["Voigt (Area, L/G, \u03c3)","Voigt (Area, \u03c3, \u03b3)"]:
+                    if peak_model_choice in["Voigt (Area, L/G, \u03c3)","Voigt (Area, \u03c3, \u03b3)"]: #, "Voigt (Area, L/G, \u03c3, skew)"]:
                         amplitude = result.params[f'{prefix}amplitude'].value
                         sigma = result.params[f'{prefix}sigma'].value
                         gamma = result.params[f'{prefix}gamma'].value
@@ -741,6 +743,20 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         fwhm = PeakFunctions.voigt_fwhm(sigma, gamma)
                         fraction = (2*gamma) / (sigma*2.355 + 2*gamma) * 100
                         area = amplitude # * (sigma * np.sqrt(2 * np.pi))
+
+                    elif peak_model_choice == "Voigt (Area, L/G, \u03c3, skew)":
+                        amplitude = result.params[f'{prefix}amplitude'].value
+                        sigma = result.params[f'{prefix}sigma'].value
+                        gamma = result.params[f'{prefix}gamma'].value
+                        skew  = result.params[f'{prefix}skew'].value
+                        height = PeakFunctions.get_skewedvoigt_height(amplitude, sigma, gamma, skew)
+                        peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")  # Update height in grid
+                        # amplitude = height / max_height
+                        fwhm = PeakFunctions.skewed_voigt_fwhm(sigma, gamma, skew)
+                        fraction = (2 * gamma) / (sigma * 2.355 + 2 * gamma) * 100
+                        area = amplitude
+                        # print(f'Into Voigt (Area, L/G, \u03c3, skew): H {height}  w {fwhm}')
+
                     elif peak_model_choice == "Pseudo-Voigt (Area)":
                         amplitude = result.params[f'{prefix}area'].value
                         sigma = result.params[f'{prefix}sigma'].value
@@ -846,6 +862,11 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         fraction = round(fraction * 100,2)
                         area = round(float(area), 2)
                         fwhm_g = round(float(fwhm_g), 2)
+                    elif peak_model_choice in ["Voigt (Area, L/G, \u03c3, skew)"]:
+                        sigma = round(float(sigma * 2.355), 2)
+                        gamma = round(float(gamma * 2), 2)
+                        fraction = round(float(fraction), 2)
+                        area = round(float(area), 2)
                     else:
                         sigma = round(float(sigma * 2.355), 2)
                         gamma = round(float(gamma * 2), 2)
@@ -859,10 +880,13 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
                     peak_params_grid.SetCellValue(row, 6, f"{area:.0f}")
                     if peak_model_choice in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
+                                             "Voigt (Area, L/G, \u03c3, skew)",
                                              "ExpGauss.(Area, \u03c3, \u03b3)", "LA (Area, \u03c3, \u03b3)",
                                              "LA (Area, \u03c3/\u03b3, \u03b3)"]:
                         peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
                         peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                        if peak_model_choice == "Voigt (Area, L/G, \u03c3, skew)":
+                            peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
                     elif peak_model_choice in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
                         peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
                         peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
@@ -886,11 +910,53 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         'Sigma': sigma,
                         'Gamma': gamma,
                         'fwhm_g':fwhm_g,
-                        'Skew': fwhm_g,
+                        'Skew': skew,
                         'Fitting Model': peak_model_choice
                     })
                 else:
                     print(f"Warning: Peak {peak_label} not found in existing data. Skipping update for this peak.")
+
+
+                # # Immediately apply rigid constraints after fit
+                # for i in range(num_peaks):
+                #     row = i * 2
+                #     if row >= peak_params_grid.GetNumberRows():
+                #         continue
+                #
+                #     for col in [2, 3, 4, 5, 6, 7, 8, 9]:
+                #         if col >= peak_params_grid.GetNumberCols():
+                #             continue
+                #
+                #         constraint = peak_params_grid.GetCellValue(row + 1, col)
+                #         # Check if this is a rigid constraint (no error range)
+                #         if constraint and constraint[0] in 'ABCDEFGHIJKLMNOP' and '#' not in constraint:
+                #             ref_peak = ord(constraint[0]) - 65  # Convert A->0, B->1, etc
+                #             ref_row = ref_peak * 2
+                #
+                #             # Check if reference row exists
+                #             if ref_row < 0 or ref_row >= peak_params_grid.GetNumberRows():
+                #                 continue
+                #
+                #             try:
+                #                 ref_value = float(peak_params_grid.GetCellValue(ref_row, col))
+                #                 if '*' in constraint:
+                #                     factor = float(constraint.split('*')[1])
+                #                     new_value = ref_value * factor
+                #                 elif '+' in constraint:
+                #                     offset = float(constraint.split('+')[1])
+                #                     new_value = ref_value + offset
+                #                 elif '-' in constraint:
+                #                     offset = float(constraint.split('-')[1])
+                #                     new_value = ref_value - offset
+                #                 elif '/' in constraint:
+                #                     factor = float(constraint.split('/')[1])
+                #                     new_value = ref_value / factor
+                #                 else:
+                #                     continue
+                #
+                #                 peak_params_grid.SetCellValue(row, col, f"{new_value:.2f}")
+                #             except (ValueError, IndexError):
+                #                 continue
 
             window.Data['Core levels'][sheet_name]['Fitting']['Model'] = model_choice
 
@@ -955,11 +1021,15 @@ def get_peak_value(peak_params_grid, peak_name, param_name):
                 return float(peak_params_grid.GetCellValue(i, 6))
             elif param_name == 'sigma':
                 value = float(peak_params_grid.GetCellValue(i, 7))
-                return value / 2.355 if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"] else value
+                return value / 2.355 if fitting_model in ["Voigt (Area, L/G, \u03c3)",
+                        "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"] else value
             elif param_name == 'gamma':
                 value = float(peak_params_grid.GetCellValue(i, 8))
-                return value / 2 if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"] else value
+                return value / 2 if fitting_model in ["Voigt (Area, L/G, \u03c3)",
+                            "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"] else value
             elif param_name == 'fwhm_g':
+                return float(peak_params_grid.GetCellValue(i, 9))
+            elif param_name == 'skew':
                 return float(peak_params_grid.GetCellValue(i, 9))
 
     return None
@@ -1008,6 +1078,8 @@ def parse_constraints(constraint_str, current_value, peak_params_grid, peak_inde
         elif operator in ['*', '/']:
             if param_name == 'fwhm_g':
                 small_error2 = 0.01
+            if param_name == 'skew':
+                small_error2 = 0.001
             else:
                 small_error2 = 0.0001
             return f"{ref_peak}{operator}{value - small_error2}", f"{ref_peak}{operator}{value + small_error2}", True

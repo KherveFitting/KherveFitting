@@ -31,6 +31,11 @@ class ExcelDropTarget(wx.FileDropTarget):
     def OnDropFiles(self, x, y, filenames):
         from libraries.Open import open_xlsx_file, open_vamas_file
         for file in filenames:
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.vms', '.kal', '.avg', '.spe']):
+                wx.MessageBox(f"Only .xlsx (Khervefitting or Avantage), .vms (Vamas), "
+                              f".kal (Kratos), .avg (Thermo) and .spe (Phi) files can be dropped.", "Invalid File Type",
+                              wx.OK | wx.ICON_ERROR)
+                return False
             if file.lower().endswith('.xlsx'):
                 # Check if it's an Avantage file
                 try:
@@ -55,8 +60,6 @@ class ExcelDropTarget(wx.FileDropTarget):
                 wx.CallAfter(open_spe_file, self.window, file)
                 return True
         return False
-
-
 
 
 def load_library_data_WITHEXCEL():

@@ -412,6 +412,7 @@ def export_word_report(window):
         height = window.survey_word_height if is_survey else window.word_height
         dpi = window.survey_word_dpi if is_survey else window.word_dpi
 
+
         original_size = window.figure.get_size_inches()
         window.figure.set_size_inches(width, height)
         window.figure.savefig(plot_path, dpi=dpi, bbox_inches='tight')

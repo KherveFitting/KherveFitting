@@ -163,6 +163,23 @@ class PeakFunctions:
         fl = 2 * gamma
         return 0.5346 * fl + np.sqrt(0.2166 * fl ** 2 + fg ** 2)
 
+    @staticmethod
+    def skewed_voigt_fwhm(sigma, gamma, skew):
+        model = lmfit.models.SkewedVoigtModel()
+        x = np.linspace(-20 * sigma, 20 * sigma, 1000)
+        y = model.eval(x=x, center=0, amplitude=1.0, sigma=sigma, gamma=gamma, skew=skew)
+
+        max_y = np.max(y)
+        half_max = max_y / 2
+
+        # Find points where y crosses half_max
+        idx = np.where(y >= half_max)[0]
+        if len(idx) >= 2:
+            fwhm = abs(x[idx[-1]] - x[idx[0]])
+        else:
+            fwhm = 2.355 * sigma  # Fallback to Gaussian FWHM
+
+        return fwhm
 
     @staticmethod
     def pseudo_voigt_amplitude_to_height(amplitude, sigma, fraction):
@@ -243,6 +260,15 @@ class PeakFunctions:
         return model.eval(params, x=0)
 
     @staticmethod
+    def get_skewedvoigt_height(amplitude, sigma, gamma, skew):
+        """
+        Calculate the height of a Voigt profile directly using the lmfit model.
+        """
+        model = lmfit.models.SkewedVoigtModel()
+        params = model.make_params(amplitude=amplitude, center=0, sigma=sigma, gamma=gamma,skew=skew)
+        return model.eval(params, x=0)
+
+    @staticmethod
     def voigt_height_to_area(height, sigma, gamma):
         voigt = VoigtModel()
         x = np.linspace(-10 * sigma, 10 * sigma, 1000)
@@ -252,6 +278,25 @@ class PeakFunctions:
         amplitude = height / max_y
         return amplitude  # For distribution models, amplitude is equivalent to area
 
+    @staticmethod
+    def skewedvoigt_height_to_area(height, sigma, gamma, skew):
+        if sigma <= 0 or gamma < 0:
+            raise ValueError("Invalid sigma/gamma parameters")
+
+        skewedvoigt = lmfit.models.SkewedVoigtModel()
+        x_range = max(abs(skew) * sigma * 20, 10 * sigma)  # Wider range for high skew
+        x = np.linspace(-x_range, x_range, 1000)
+
+        try:
+            params = skewedvoigt.make_params(center=0, sigma=sigma, gamma=gamma, amplitude=1, skew=skew)
+            y = skewedvoigt.eval(params, x=x)
+            max_y = np.max(y)
+            if max_y <= 0:
+                raise ValueError("Invalid peak shape")
+            amplitude = height / max_y
+            return amplitude
+        except:
+            return height * (sigma * np.sqrt(2 * np.pi))  # Fallback to Gaussian area
 
     @staticmethod
     def get_pseudo_voigt_height(amplitude, sigma, fraction):

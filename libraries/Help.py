@@ -469,6 +469,7 @@ def show_version_log(window):
 
     version_log = """Version 1.4 (February 2025)
 - Progressing on the introduction of the MAC version 
+- Added Skewed Voigt model. Default to leastsq fitting method
 - Added Automatic download of new KherveFitting version
 - Added KratosC1s and KratosF1s to the library
 - Added a Toggle menu icon on the left side in line with the MAC version
@@ -480,13 +481,19 @@ def show_version_log(window):
 - Added Photon source energy in Instrument settings
 - Added a View & and edit library in the preference window/instruments.
 - Added possibility of changing the reference peak for binding energy correction in Instrument settings
+- Added Linewidth settings in the preference window for residual, envelope, background
+- Added peak name above the cross when moving a peak
+- Added right-click menu to zoom in and out
+- Added First time window for new users
 - Removed the fitting of the data when saving data
-- Improve Toggle by adding a third state. Removal of Raw Data, En
+- Improved size of Preference Window (smaller)
+- Improve Toggle by adding a third state. Removal of Raw Data, envelope
 - Improved Legend filtering 
 - Improved Check of the use of constraints in the peak fitting grid
 - Improved Measure Area window - more tools added
 - Improved Undo / Redo States 
 - Improved File checking before opening onto KherveFitting
+- Fixed KE plot for all toggles
 
 Version 1.3 (December 2024)
 - Added Tougaard background with fitting option

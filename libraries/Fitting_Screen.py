@@ -19,9 +19,9 @@ class FittingWindow(wx.Frame):
 
 
         self.SetTitle("Peak Fitting")
-        self.SetSize((305, 520))  # Increased height to accommodate new elements
-        self.SetMinSize((305, 520))
-        self.SetMaxSize((305, 520))
+        self.SetSize((325, 520))  # Increased height to accommodate new elements
+        self.SetMinSize((325, 520))
+        self.SetMaxSize((325, 520))
 
         #305 480
 
@@ -199,6 +199,7 @@ class FittingWindow(wx.Frame):
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
+                 "Voigt (Area, L/G, \u03c3, skew)",
                  "Others---------------",
                  "Area Based----------",
                  # "GL (Area)",
@@ -213,7 +214,7 @@ class FittingWindow(wx.Frame):
                  "Height Based---------",
                  "GL (Height)",
                  "SGL (Height)",
-                 # "Under Test -----------"
+                 # "Under Test -----------",
                  ]
 
 
@@ -303,7 +304,7 @@ class FittingWindow(wx.Frame):
         fit_button.SetMinSize((125, 40))
         fit_button.Bind(wx.EVT_BUTTON, self.on_fit_peaks)
 
-        fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nMultiple Times")
+        fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nN# Times")
         fit_multi_button.SetMinSize((125, 40))
         fit_multi_button.Bind(wx.EVT_BUTTON, self.on_fit_multi)
 
@@ -312,14 +313,14 @@ class FittingWindow(wx.Frame):
         fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=0)
         fitting_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL, border=0)
 
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Optimization Method:"), pos=(2, 0),
+        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Method:"), pos=(2, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence Limit:"), pos=(3, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fit Iterations:"), pos=(4, 0),
+        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
@@ -351,9 +352,20 @@ class FittingWindow(wx.Frame):
         selection = self.optimization_method.GetValue()
         return selection.split()[0]  # Get just the method name without description
 
-    def on_method_change(self, event):
+    def on_method_change_OLD(self, event):
         new_method = self.model_combobox.GetValue()
         old_method = self.parent.selected_fitting_method
+        self.parent.set_fitting_method(new_method)
+        self.update_fitting_info_button()
+
+    def on_method_change(self, event):
+        new_method = self.model_combobox.GetValue()
+        if "skew" in new_method:
+            self.optimization_method.SetValue("leastsq")
+            self.optimization_method.Enable(True)
+        else:
+            self.optimization_method.SetValue("least_squares")
+            self.optimization_method.Enable(True)
         self.parent.set_fitting_method(new_method)
         self.update_fitting_info_button()
 
@@ -512,14 +524,10 @@ class FittingWindow(wx.Frame):
         print(f'First word {first_word}')
         # element = re.match(r'([A-Z][a-z]*)', first_word).group(1)
         orbital = re.search(r'([2-5][spdf])', first_word)
-        # print(f'Element: {first_word} , Orbital:{orbital.group(1)}')
-        # if orbital:
-        #     orbital = orbital.group(1)
-        #     print(f"Looking up splitting for element: {element}, orbital: {orbital}")
 
         if not orbital:
-            wx.MessageBox("Invalid sheet name. Cannot determine orbital type. It needs to be of the form Au4f and NOT "
-                          "Au 4f", "Error", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
+                          "Error", wx.OK | wx.ICON_ERROR)
             return
 
         orbital = orbital.group()
@@ -549,7 +557,10 @@ class FittingWindow(wx.Frame):
                     x in self.parent.selected_fitting_method for x in ["LA", "GL", "SGL"]):
                 fwhm_constraint = "0.3:3.5"  # Independent FWHM for Ti2p and V2p
             else:
-                fwhm_constraint = f"{chr(65 + first_peak)}*1"
+                if "Voigt" in self.parent.selected_fitting_method:
+                    fwhm_constraint = "0.3:3.5"
+                else:
+                    fwhm_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 4, fwhm_constraint)
 
             # Height constraint
@@ -697,8 +708,12 @@ class FittingWindow(wx.Frame):
             "GL (Area)": "Gaussian-Lorentzian product function (area-based).\nEquation: Similar to GL (Height), but normalized for area",
             "SGL (Area)": "Sum of Gaussian and Lorentzian functions (area-based).\nEquation: Similar to SGL (Height), but normalized for area",
             "Pseudo-Voigt (Area)": "Linear combination of Gaussian and Lorentzian.\nEquation: I(x) = A * [η * L(x) + (1-η) * G(x)]",
-            "Voigt (Area, L/G, \u03c3)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
+            "Voigt (Area, L/G, \u03c3, skew)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
+                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
+            "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
+                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
+            "Voigt (Area, L/G, \u03c3, skew)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
                                            "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
             "ExpGauss.(Area, \u03c3, \u03b3)": "Gaussian shape model with asymmetric side. The asymmetry is modelled"
                                                "using an exponential decay as per equation: ",

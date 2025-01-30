@@ -45,13 +45,16 @@ class PlotManager:
         self.background_color = "#808080"
         self.background_alpha = 0.5
         self.background_linestyle = "--"
+        self.background_thickness = 1
         self.envelope_color = "#0000FF"
         self.envelope_alpha = 0.6
         self.envelope_linestyle = "-"
+        self.envelope_thickness = 1
         self.residual_color = "#00FF00"
         self.residual_alpha = 0.4
         self.residual_linestyle = "-"
         self.raw_data_linestyle = "-"
+        self.residual_thickness = 1
 
         self.peak_colors = []
         self.peak_alpha = 0.3
@@ -197,6 +200,18 @@ class PlotManager:
             gamma = float(peak_params.get('gamma', 0.06)) / 2
             amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+        elif fitting_model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+            peak_model = lmfit.models.SkewedVoigtModel()
+            # skew = float(peak_params.get('sigma', 0.2))
+            # sigma = float(peak_params.get('sigma', 1.2)) / 2.355
+            # gamma = float(peak_params.get('gamma', 0.06)) / 2
+            # amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0, skew=skew)
+            amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
+            sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
+            gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
+            skew =  float(window.peak_params_grid.GetCellValue(row, 9))
+
+            params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
         elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
             peak_model = lmfit.models.ExponentialGaussianModel()
             area = float(window.peak_params_grid.GetCellValue(row, 6))
@@ -227,7 +242,6 @@ class PlotManager:
             gamma = float(window.peak_params_grid.GetCellValue(row, 8))
             params = peak_model.make_params(center=x,amplitude=amplitude,fwhm=fwhm,sigma=sigma,gamma=gamma)
 
-
             # No direct equivalent to 'fraction' for LA model
             fraction = (sigma + gamma) / 2  # You could define it differently if needed
         elif fitting_model in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
@@ -238,11 +252,6 @@ class PlotManager:
             fwhm_g = float(window.peak_params_grid.GetCellValue(row, 9))
             params = peak_model.make_params(center=x,amplitude=amplitude,fwhm=fwhm,sigma=sigma,gamma=gamma,
                                             fwhm_g=fwhm_g)
-
-            # # Calculate height numerically
-            # x_range = np.linspace(x - 5 * fwhm, x + 5 * fwhm, 1000)
-            # y_values = peak_model.eval(params, x=x_range)
-            # height = np.max(y_values)
 
             # No direct equivalent to 'fraction' for LA model
             fraction = (sigma + gamma) / 2  # You could define it differently if needed
@@ -335,12 +344,16 @@ class PlotManager:
                     line_color = "yellow"
                 else:  # same_color
                     line_color = color
+                if window.energy_scale == 'KE':
 
-                self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                    self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                             linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+                else:
+                    self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
                              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
 
         else:
-            if self.energy_scale == 'KE':
+            if window.energy_scale == 'KE':
                 self.ax.plot(window.photons - x_values, peak_y, color=color, alpha=line_alpha, label=peak_label)
             else:
                 self.ax.plot(x_values, peak_y, color=color, alpha=line_alpha, label=peak_label)
@@ -529,12 +542,14 @@ class PlotManager:
                                      color=self.background_color,
                                      linestyle=self.background_linestyle,
                                      alpha=self.background_alpha,
+                                     linewidth=self.background_thickness,
                                      label='Background')
                     else:
                         self.ax.plot(x_values, window.background,
                                      color=self.background_color,
                                      linestyle=self.background_linestyle,
                                      alpha=self.background_alpha,
+                                     linewidth=self.background_thickness,
                                      label='Background')
 
             self.canvas.draw()  # Update the plot
@@ -601,8 +616,8 @@ class PlotManager:
                 # self.ax.set_position([0.1, 0.1, 0.8, 0.8])
                 self.ax.set_position([0.1, 0.125, 0.85, 0.85])
                 gs = self.figure.add_gridspec(20, 1, hspace=0.0)
-                self.ax.set_position(gs[0:17, 0].get_position(self.figure))  # Main plot takes 6/8
-                self.residuals_subplot.set_position(gs[17:, 0].get_position(self.figure))  # Residuals takes 2/8
+                self.ax.set_position(gs[0:18, 0].get_position(self.figure))  # Main plot takes 6/8
+                self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))  # Residuals takes 2/8
                 self.residuals_subplot.sharex(self.ax)
 
                 # Explicitly ensure visibility
@@ -667,12 +682,16 @@ class PlotManager:
                 height = float(window.peak_params_grid.GetCellValue(row, 3))
                 fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
                 fraction = float(window.peak_params_grid.GetCellValue(row, 5))
-                if fitting_model in ["Voigt (Area, L/G, \u03c3)","Voigt (Area, \u03c3, \u03b3)", "ExpGauss.(Area, \u03c3, \u03b3)"]:
+                if fitting_model in ["Voigt (Area, L/G, \u03c3)","Voigt (Area, \u03c3, \u03b3)",
+                                     "ExpGauss.(Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
                     sigma = float(window.peak_params_grid.GetCellValue(row, 7))
                     gamma = float(window.peak_params_grid.GetCellValue(row, 8))
+                    if fitting_model == "Voigt (Area, L/G, \u03c3, skew)":
+                        skew = float(window.peak_params_grid.GetCellValue(row, 9))
                 else:
                     sigma = 0
                     gamma = 0
+                    skew = 0.01
                 label = window.peak_params_grid.GetCellValue(row, 1)
 
             except ValueError:
@@ -747,14 +766,15 @@ class PlotManager:
                     'sigma': sigma,
                     'gamma': gamma,
                     'label': label,
+                    # 'skew' : skew,
                     'fitting_model': fitting_model
                 }
                 if window.energy_scale == 'KE':
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
-                                                color=color, alpha=alpha)
+                                                color=color, alpha=alpha) #, linewidth=self.background_thickness)
                 else:
-                    self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window, color=color,
-                                   alpha=alpha)
+                    self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
+                                                color=color, alpha=alpha)
 
 
         # Plot the background if it exists
@@ -764,11 +784,12 @@ class PlotManager:
         #     else:
         if window.energy_scale == 'KE':
             self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
-                         color=self.background_color,
-                    linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+                         color=self.background_color, linewidth=self.background_thickness,
+                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
         else:
             self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
-                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+                         linewidth=self.background_thickness)
         # Update overall fit and residuals
         if cst_unfit in ["Unfitted","D-parameter","SurveyID"] or any(x in sheet_name.lower() for x in ["survey", "wide"]):
             pass
@@ -779,10 +800,10 @@ class PlotManager:
         if "survey" in sheet_name.lower() or "wide" in sheet_name.lower():
             if window.energy_scale == 'KE':
                 self.ax.plot(window.photons - x_values, y_values, c=self.line_color, linewidth=self.line_width,
-                         alpha=self.line_alpha, linestyle=self.raw_data_linestyle) #, label='Raw Data')
+                         alpha=self.line_alpha, linestyle=self.raw_data_linestyle)
             else:
                 self.ax.plot(x_values, y_values, c=self.line_color, linewidth=self.line_width,
-                         alpha=self.line_alpha, linestyle=self.raw_data_linestyle) #, label='Raw Data')
+                         alpha=self.line_alpha, linestyle=self.raw_data_linestyle)
         elif self.plot_style == "scatter":
             if window.energy_scale == 'KE':
                 self.ax.scatter(window.photons - x_values, y_values, c=self.scatter_color, s=self.scatter_size,
@@ -791,19 +812,19 @@ class PlotManager:
                 self.ax.scatter(x_values, y_values, c=self.scatter_color, s=self.scatter_size,
                                 marker=self.scatter_marker, label='Raw Data')
         else:
-            self.ax.plot(x_values, y_values, c=self.line_color, linewidth=self.line_width,
-                         alpha=self.line_alpha, linestyle=self.raw_data_linestyle, label='Raw Data')
+            if window.energy_scale == 'KE':
+                self.ax.plot(x_values, y_values, c=self.line_color, linewidth=self.line_width,
+                             alpha=self.line_alpha, linestyle=self.raw_data_linestyle, label='Raw Data')
+            else:
+                self.ax.plot(window.photons - x_values, y_values, c=self.line_color, linewidth=self.line_width,
+                             alpha=self.line_alpha, linestyle=self.raw_data_linestyle, label='Raw Data')
 
         # Assuming 'ax' is your axes object
         for spine in self.ax.spines.values():
             spine.set_linewidth(1)  # Adjust this value to increase or decrease thickness
 
+
         # Update the legend
-        # if "survey" in sheet_name.lower() or "wide" in sheet_name.lower():
-        #     # self.ax.legend().remove()  # Remove the legend for survey or wide scans
-        #     pass
-        # else:
-            # Update the legend
         if self.legend_visible:
             self.ax.legend(loc='upper left')
             self.update_legend(window)
@@ -880,46 +901,6 @@ class PlotManager:
 
         return False
 
-    # def is_part_of_doublet(self, current_label, next_label):
-    #     current_parts = current_label.split()
-    #     next_parts = next_label.split()
-    #
-    #     if len(current_parts) < 1 or len(next_parts) < 1:
-    #         return False
-    #
-    #     # Extract core level without spin-orbit component
-    #     def extract_core_level(label):
-    #         match = re.match(r'([A-Za-z]+\d+[spdf])', label)
-    #         return match.group(1) if match else label
-    #
-    #     current_core_level = extract_core_level(current_parts[0])
-    #     next_core_level = extract_core_level(next_parts[0])
-    #
-    #     if current_core_level != next_core_level:
-    #         return False
-    #
-    #     # Compare all parts after the first word
-    #     if current_parts[1:] != next_parts[1:]:
-    #         return False
-    #
-    #     orbital = re.search(r'\d([spdf])', current_core_level)
-    #     if not orbital:
-    #         return False
-    #
-    #     orbital = orbital.group(1)
-    #
-    #     def has_component(parts, component):
-    #         return any(component in part for part in parts)
-    #
-    #     if orbital == 'p':
-    #         return ((has_component(current_parts, '3/2') and has_component(next_parts, '1/2')))
-    #     elif orbital == 'd':
-    #         return ((has_component(current_parts, '5/2') and has_component(next_parts, '3/2')))
-    #     elif orbital == 'f':
-    #         return ((has_component(current_parts, '7/2') and has_component(next_parts, '5/2')))
-    #
-    #     return False
-
     def update_peak_plot(self, window, x, y, remove_old_peaks=True):
         """
         Updates the plot for a selected peak when its position or height is changed.
@@ -966,6 +947,11 @@ class PlotManager:
                 peak_model = lmfit.models.VoigtModel()
                 amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
                 params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+            elif window.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+                peak_model = lmfit.models.SkewedVoigtModel()
+                skew = float(window.peak_params_grid.GetCellValue(row, 9))
+                amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0, skew=skew)
+                params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
             elif window.selected_fitting_method in ["ExpGauss.(Area, \u03c3, \u03b3)"]:
                 peak_model = lmfit.models.VoigtModel()
                 amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
@@ -1102,6 +1088,16 @@ class PlotManager:
                 gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
                 amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+            elif fitting_model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+                peak_model = lmfit.models.SkewedVoigtModel()
+                skew = float(window.peak_params_grid.GetCellValue(row, 9))
+                sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
+                # sigma = float(window.peak_params_grid.GetCellValue(row, 7))
+                gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
+                # gamma = float(window.peak_params_grid.GetCellValue(row, 8))
+                # amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0, skew=skew)
+                amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
             elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
                 peak_model = lmfit.models.ExponentialGaussianModel()
                 area = float(window.peak_params_grid.GetCellValue(row, 6))
@@ -1198,11 +1194,13 @@ class PlotManager:
             if window.energy_scale == 'KE':
                 self.ax.plot(window.photons - window.x_values, overall_fit, color=self.envelope_color,
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                             linewidth=self.envelope_thickness,
                              label='D-parameter' if fitting_model == "D-parameter" else 'Overall Fit')
             else:
                 # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
                 self.ax.plot(x_plot, y_plot, color=self.envelope_color,
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                             linewidth=self.envelope_thickness,
                              label='D-parameter' if fitting_model == "D-parameter" else 'Overall Fit')
         except:
             return
@@ -1213,15 +1211,23 @@ class PlotManager:
                 residual_height = 1.07 * max(window.y_values)
                 residual_base = self.ax.axhline(y=residual_height, color='grey', linestyle='-.', alpha=0.1)
 
-                residual_line = self.ax.plot(window.x_values, masked_residuals + residual_height,
-                                             color=self.residual_color, linestyle=self.residual_linestyle,
-                                             alpha=self.residual_alpha, label='Residuals')
+                if window.energy_scale == 'KE':
+                    residual_line = self.ax.plot(window.photons - window.x_values, masked_residuals + residual_height,
+                                                 color=self.residual_color, linestyle=self.residual_linestyle,
+                                                 alpha=self.residual_alpha, label='Residuals',
+                                                 linewidth=self.residual_thickness)
+                else:
+                    residual_line = self.ax.plot(window.x_values, masked_residuals + residual_height,
+                                                 color=self.residual_color, linestyle=self.residual_linestyle,
+                                                 alpha=self.residual_alpha, label='Residuals',
+                                                 linewidth=self.residual_thickness)
 
                 residual_line[0].set_visible(True)
                 residual_base.set_visible(True)
                 self.ax.get_xaxis().set_visible(True)
             elif self.residuals_state == 2:  # Separate subplot
-                self.setup_residual_subplot(window, x_values, masked_residuals, scaling_factor=1.0)
+                self.setup_residual_subplot(window, x_values, masked_residuals, self.residual_thickness,
+                                            scaling_factor=1.0)
 
             else:
                 self.ax.get_xaxis().set_visible(True)
@@ -1234,7 +1240,10 @@ class PlotManager:
                 y_max = self.ax.get_ylim()[1]
                 residual_height = 1.07 * max(window.y_values)
                 if residual_height <= y_max:
-                    x_min = self.ax.get_xlim()[1] + 0.4
+                    if window.energy_scale == 'KE':
+                        x_min = self.ax.get_xlim()[1] - 0.4
+                    else:
+                        x_min = self.ax.get_xlim()[1] + 0.4
                     if self.rsd_text:
                         self.rsd_text.remove()
                     self.rsd_text = self.ax.text(x_min, residual_height,
@@ -1247,7 +1256,10 @@ class PlotManager:
                                                  bbox=dict(facecolor='white', edgecolor='none'))
             elif self.residuals_state == 2:  # For subplot, don't check plot limits
                 if self.residuals_subplot:
-                    x_min = self.residuals_subplot.get_xlim()[1] + 0.4
+                    if window.energy_scale == 'KE':
+                        x_min = self.residuals_subplot.get_xlim()[1] - 0.4
+                    else:
+                        x_min = self.residuals_subplot.get_xlim()[1] + 0.4
                     y_pos = np.mean(self.residuals_subplot.get_ylim())
                     if self.rsd_text:
                         self.rsd_text.remove()
@@ -1269,13 +1281,13 @@ class PlotManager:
         self.canvas.draw_idle()
         return residuals
 
-    def setup_residual_subplot(self, window, x_values, masked_residuals, scaling_factor=1.0):
+    def setup_residual_subplot(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
         # Create gridspec at start
         gs = self.figure.add_gridspec(20, 1, hspace=0.0)
 
         if not self.residuals_subplot:
-            self.ax.set_position(gs[0:17, 0].get_position(self.figure))
-            self.residuals_subplot = self.figure.add_subplot(gs[17:, 0])
+            self.ax.set_position(gs[0:18, 0].get_position(self.figure))
+            self.residuals_subplot = self.figure.add_subplot(gs[18:, 0])
 
         self.residuals_subplot.clear()
 
@@ -1283,18 +1295,20 @@ class PlotManager:
         x_plot = window.photons - x_values if window.energy_scale == 'KE' else x_values
 
         # Plot residuals
-        self.residuals_subplot.plot(x_plot, masked_residuals,
+        self.residuals_subplot.plot(x_plot, masked_residuals * scaling_factor,
                                     color=self.residual_color,
                                     linestyle=self.residual_linestyle,
                                     alpha=self.residual_alpha,
-                                    linewidth=2)
+                                    linewidth=residual_thickness)
 
         # Configure main plot
         self.ax.get_xaxis().set_visible(False)
 
         # Configure subplot
         self.residuals_subplot.set_ylabel('Res.')
-        self.residuals_subplot.set_xlabel('Binding Energy (eV)')
+        x_label = "Kinetic Energy (eV)" if window.energy_scale == 'KE' else "Binding Energy (eV)"
+        self.residuals_subplot.set_xlabel(x_label)
+        # self.residuals_subplot.set_xlabel('Binding Energy (eV)')
         self.residuals_subplot.tick_params(axis='x', bottom=True, labelbottom=True,
                                            labelsize=window.axis_number_size, pad=8)
         self.residuals_subplot.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
@@ -1306,16 +1320,14 @@ class PlotManager:
 
         # Set y limits with margin
         y_min, y_max = np.min(masked_residuals), np.max(masked_residuals)
-        margin = 0.3 * (y_max - y_min)
+        margin = 0.1 * (y_max - y_min)
         self.residuals_subplot.set_ylim(y_min - margin, y_max + margin)
 
         # Get current main plot limits
         main_xlim = self.ax.get_xlim()
 
-        if window.energy_scale == 'KE':
-            self.residuals_subplot.set_xlim(window.photons - main_xlim[1], window.photons - main_xlim[0])
-        else:
-            self.residuals_subplot.set_xlim(main_xlim[0], main_xlim[1])
+        self.residuals_subplot.set_xlim(main_xlim[0], main_xlim[1])
+
 
         # Set subplot to share x axis
         self.residuals_subplot.sharex(self.ax)
@@ -1323,7 +1335,7 @@ class PlotManager:
         # Final styling
         self.residuals_subplot.tick_params(axis='both', labelsize=window.axis_number_size)
         self.residuals_subplot.grid(True, alpha=0.8)
-        self.residuals_subplot.set_position(gs[17:, 0].get_position(self.figure))
+        self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))
         self.residuals_subplot.set_visible(True)
         self.residuals_subplot.yaxis.set_visible(self.y_axis_visible)
 
@@ -1374,6 +1386,15 @@ class PlotManager:
             # Plot new cross
             self.cross, = self.ax.plot(peak_x, peak_y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                        linewidth=3)
+
+            # Get peak letter (A, B, C etc)
+            peak_letter = chr(65 + index)
+
+            # Add letter above cross with offset
+            max_y = window.ax.get_ylim()[1]
+            y_offset = max_y * 0.02  # 2% of plot height for offset
+            self.ax.text(peak_x, peak_y + y_offset, peak_letter,
+                         ha='center', va='bottom', fontsize=12)
 
             # Connect event handlers
             self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers
@@ -1631,7 +1652,9 @@ class PlotManager:
                           background_color, background_alpha, background_linestyle,
                           envelope_color, envelope_alpha, envelope_linestyle,
                           residual_color, residual_alpha, residual_linestyle,
-                          raw_data_linestyle, peak_colors, peak_alpha):
+                          raw_data_linestyle, peak_colors, peak_alpha,
+                          background_thickness, envelope_thickness, residual_thickness
+    ):
         self.plot_style = style
         self.scatter_size = scatter_size
         self.line_width = line_width
@@ -1651,6 +1674,9 @@ class PlotManager:
         self.raw_data_linestyle = raw_data_linestyle
         self.peak_colors = peak_colors
         self.peak_alpha = peak_alpha
+        self.background_thickness = background_thickness
+        self.envelope_thickness = envelope_thickness
+        self.residual_thickness = residual_thickness
 
     def toggle_peak_fill(self):
         self.peak_fill_enabled = not self.peak_fill_enabled
@@ -1719,7 +1745,8 @@ class PlotManager:
             window.background = background_filtered
 
             # Plot the calculated background
-            self.ax.plot(x_values, window.background, color='grey', linestyle='--', label=label)
+            self.ax.plot(x_values, window.background, color='grey', linestyle='--', label=label,
+                         linewidth=self.background_thickness)
 
             # Replot everything if peaks exist
             if window.peak_params_grid.GetNumberRows() > 0:

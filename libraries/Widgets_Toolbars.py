@@ -347,28 +347,6 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: window.toggle_energy_scale(), toggle_energy_item)
     window.toggle_energy_item = toggle_energy_item
 
-    # # Add theme submenu to View menu
-    # theme_submenu = wx.Menu()
-    # light_theme = theme_submenu.Append(wx.ID_ANY, "Light")
-    # dark_theme = theme_submenu.Append(wx.ID_ANY, "Dark")
-    # auto_theme = theme_submenu.Append(wx.ID_ANY, "Auto")
-    #
-    # def set_theme(color):
-    #     window.SetBackgroundColour(color)
-    #     window.panel.SetBackgroundColour(color)
-    #     window.right_frame.SetBackgroundColour(color)
-    #     window.peak_params_frame.SetBackgroundColour(color)
-    #     window.results_frame.SetBackgroundColour(color)
-    #     window.Refresh()
-    #     window.Update()
-    #
-    # window.Bind(wx.EVT_MENU, lambda evt: set_theme(wx.Colour(255, 255, 255)), light_theme)
-    # window.Bind(wx.EVT_MENU, lambda evt: set_theme(wx.Colour(50, 50, 50)), dark_theme)
-    # window.Bind(wx.EVT_MENU, lambda evt: set_theme(wx.NullColour), auto_theme)
-    #
-    # view_menu.AppendSubMenu(theme_submenu, "Theme")
-
-
     # Tools menu items
     Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve\tCtrl+A")
     window.Bind(wx.EVT_MENU, lambda event: window.on_open_background_window(), Area_item)
@@ -477,8 +455,7 @@ def create_horizontal_toolbar(window):
 
     # File operations
     open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
-    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path, "refresh-25.png"),
-                                                                                     wx.BITMAP_TYPE_PNG), shortHelp="Refresh Excel File")
+
     save_tool = toolbar.AddTool(wx.ID_ANY, 'Save', wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save the Fitted Results to Excel for this Core Level \tCtrl+S")
     save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Save Plot', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save this Figure to Excel")
     save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets', wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save all sheets with plots")
@@ -502,6 +479,10 @@ def create_horizontal_toolbar(window):
     window.sheet_combobox.SetToolTip("Select Sheet")
     toolbar.AddControl(window.sheet_combobox)
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected(window, event))
+
+    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path, "refresh-25.png"),
+                                                                                     wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Refresh Excel File. Used when the Excel File has more sheets")
 
     delete_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Delete Core Level/Survey',
                                         wx.Bitmap(os.path.join(icon_path, "delete-25.png"), wx.BITMAP_TYPE_PNG),
