@@ -6,7 +6,6 @@ import webbrowser
 import urllib.parse
 # import pygame
 
-print("hello")
 
 def show_libraries_used(window):
     text = """-------------------
