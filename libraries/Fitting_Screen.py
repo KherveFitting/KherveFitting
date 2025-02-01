@@ -19,9 +19,9 @@ class FittingWindow(wx.Frame):
 
 
         self.SetTitle("Peak Fitting")
-        self.SetSize((325, 520))  # Increased height to accommodate new elements
-        self.SetMinSize((325, 520))
-        self.SetMaxSize((325, 520))
+        self.SetSize((325, 495))  # Increased height to accommodate new elements
+        self.SetMinSize((325, 495))
+        self.SetMaxSize((325, 495))
 
         #305 480
 
@@ -173,7 +173,7 @@ class FittingWindow(wx.Frame):
         background_sizer.Add(self.cross_section3, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
 
-        background_sizer.Add(reset_vlines_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        background_sizer.Add(reset_vlines_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=5)
         background_sizer.Add(clear_between_vlines_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=5)
         background_sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=5)
         background_sizer.Add(clear_background_only_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
@@ -271,18 +271,22 @@ class FittingWindow(wx.Frame):
         # self.chi_squared_label = wx.StaticText(self.fitting_panel, label="Chi²:")
         # self.chi_squared_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
 
-        self.rsd_label = wx.StaticText(self.fitting_panel, label="RSD:")
-        self.rsd_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
+        # self.rsd_label = wx.StaticText(self.fitting_panel, label="RSD:")
+        # self.rsd_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
 
 
         self.red_chi_squared_label = wx.StaticText(self.fitting_panel, label="Red. Chi²:")
         self.red_chi_squared_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
 
-        self.actual_iter_label = wx.StaticText(self.fitting_panel, label="Actual Iterations:")
-        self.actual_iter_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
+        # self.actual_iter_label = wx.StaticText(self.fitting_panel, label="Actual Iterations:")
+        # self.actual_iter_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
 
         self.current_fit_label = wx.StaticText(self.fitting_panel, label="Current Fit:")
         self.current_fit_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
+
+        fit_report_button = wx.Button(self.fitting_panel, label="Report")
+        fit_report_button.SetMinSize((125, 30))
+        fit_report_button.Bind(wx.EVT_BUTTON, self.on_fit_report)
 
         add_peak_button = wx.Button(self.fitting_panel, label="Add 1 Peak\nSinglet")
         add_peak_button.SetMinSize((125, 40))
@@ -326,27 +330,55 @@ class FittingWindow(wx.Frame):
 
         fitting_sizer.Add(self.r_squared_label, pos=(5, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.r_squared_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+        # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(self.red_chi_squared_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+        fitting_sizer.Add(self.red_chi_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
-        fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.current_fit_label, pos=(9, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.current_fit_text, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+        # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(self.current_fit_label, pos=(7, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+        fitting_sizer.Add(self.current_fit_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
-        fitting_sizer.Add(add_peak_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(fit_report_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
-        fitting_sizer.Add(remove_peak_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(add_peak_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(add_doublet_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
-        fitting_sizer.Add(fit_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(fit_multi_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(remove_peak_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
+
+        fitting_sizer.Add(fit_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(fit_multi_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
         self.fitting_panel.SetSizer(fitting_sizer)
         notebook.AddPage(self.fitting_panel, "Peak Fitting")
+
+    def on_fit_report(self, event):
+        if hasattr(self.parent, 'fit_results') and 'result' in self.parent.fit_results:
+            dlg = wx.Frame(self, title="Fit Report", size=(600, 400))
+            text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
+
+            result = self.parent.fit_results['result']
+            report = result.fit_report()
+            report += "\n\nAdditional Information:"
+            report += f"\nNumber of function evaluations: {result.nfev}"
+            report += f"\nNumber of variables: {result.nvarys}"
+            report += f"\nNumber of data points: {result.ndata}"
+            report += f"\nDegrees of freedom: {result.nfree}"
+            report += f"\nAborted: {result.aborted}"
+            report += f"\nError flags: {result.errorbars}"
+            report += f"\nCovariance matrix: \n{result.covar}"
+
+            text.SetValue(report)
+
+            sizer = wx.BoxSizer(wx.VERTICAL)
+            sizer.Add(text, 1, wx.EXPAND | wx.ALL, 5)
+
+            dlg.SetSizer(sizer)
+            dlg.Show()
+        else:
+            wx.MessageBox("No fit report available. Please perform a fit first.", "No Report")
 
     def get_optimization_method(self):
         selection = self.optimization_method.GetValue()
@@ -452,7 +484,7 @@ class FittingWindow(wx.Frame):
             if result:
                 r_squared, rsd, red_chi_square = result
                 self.update_fit_indicators(r_squared, rsd, red_chi_square)
-                self.actual_iter_text.SetValue(str(self.parent.fit_results['nfev']))
+                # self.actual_iter_text.SetValue(str(self.parent.fit_results['nfev']))
             self.parent.clear_and_replot()
             wx.Yield()
         self.current_fit_text.SetValue("Complete")
@@ -469,7 +501,7 @@ class FittingWindow(wx.Frame):
 
     def update_fit_indicators(self, r_squared, rsd, red_chi_squared):
         self.r_squared_text.SetValue(f"{r_squared:.5f}")
-        self.rsd_text.SetValue(f"{rsd:.5f}")
+        # self.rsd_text.SetValue(f"{rsd:.5f}")
         self.red_chi_squared_text.SetValue(f"{red_chi_squared:.2f}")
         self.Layout()
 
