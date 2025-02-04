@@ -2,6 +2,7 @@ import wx
 import os
 import json
 import openpyxl
+import xlrd
 import wx
 import re
 import sys
@@ -31,13 +32,12 @@ class ExcelDropTarget(wx.FileDropTarget):
     def OnDropFiles(self, x, y, filenames):
         from libraries.Open import open_xlsx_file, open_vamas_file
         for file in filenames:
-            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.vms', '.kal', '.avg', '.spe']):
-                wx.MessageBox(f"Only .xlsx (Khervefitting or Avantage), .vms (Vamas), "
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe']):
+                wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
                               f".kal (Kratos), .avg (Thermo) and .spe (Phi) files can be dropped.", "Invalid File Type",
                               wx.OK | wx.ICON_ERROR)
                 return False
             if file.lower().endswith('.xlsx'):
-                # Check if it's an Avantage file
                 try:
                     wb = openpyxl.load_workbook(file)
                     if "Titles" in wb.sheetnames:
@@ -46,6 +46,17 @@ class ExcelDropTarget(wx.FileDropTarget):
                         wx.CallAfter(open_xlsx_file, self.window, file)
                     return True
                 except Exception:
+                    return False
+            elif file.lower().endswith('.xls'):
+                try:
+                    wb = xlrd.open_workbook(file)
+                    if "Titles" in wb.sheet_names():
+                        wx.CallAfter(import_avantage_file_direct_xls, self.window, file)
+                    else:
+                        wx.CallAfter(open_xlsx_file, self.window, file)
+                    return True
+                except Exception:
+                    print("Error opening Excel file:", sys.exc_info())
                     return False
             elif file.lower().endswith('.vms'):
                 wx.CallAfter(open_vamas_file, self.window, file)
@@ -463,7 +474,7 @@ def import_mrs_file(window):
         wx.MessageBox(f"Error processing MRS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-def import_avantage_file_direct(window, file_path):
+def import_avantage_file_direct_OLD(window, file_path):
     wb = openpyxl.load_workbook(file_path)
     new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
 
@@ -490,6 +501,75 @@ def import_avantage_file_direct(window, file_path):
         del wb[sheet_name]
 
     wb.save(new_file_path)
+    open_xlsx_file(window, new_file_path)
+
+
+def import_avantage_file_direct(window, file_path):
+    wb = openpyxl.load_workbook(file_path)
+    new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
+
+    sheets_to_remove = []
+    for sheet_name in wb.sheetnames:
+        sheet = wb[sheet_name]
+        if "Survey" in sheet_name or "Scan" in sheet_name:
+            new_name = "Survey XPS" if "Survey" in sheet_name or "survey" in sheet_name else sheet_name.split()[0]
+            wb.create_sheet(new_name)
+            new_sheet = wb[new_name]
+            new_sheet['A1'] = "Binding Energy"
+            new_sheet['B1'] = "Raw Data"
+
+            start_row = 17
+            for row_idx in range(1, sheet.max_row + 1):
+                if sheet.cell(row=row_idx, column=1).value == "eV":
+                    start_row = row_idx + 1
+                    break
+
+            for row in sheet.iter_rows(min_row=start_row, values_only=True):
+                new_sheet.append([row[0]] + list(row[2:]))
+            sheets_to_remove.append(sheet_name)
+
+            for col in new_sheet.iter_cols(min_col=3, max_col=24):
+                for cell in col:
+                    cell.value = None
+        else:
+            sheets_to_remove.append(sheet_name)
+
+    for sheet_name in sheets_to_remove:
+        del wb[sheet_name]
+
+    wb.save(new_file_path)
+    open_xlsx_file(window, new_file_path)
+
+def import_avantage_file_direct_xls(window, file_path):
+    import xlrd
+    wb_xls = xlrd.open_workbook(file_path)
+    wb_new = openpyxl.Workbook()
+    wb_new.remove(wb_new.active)
+
+    for sheet_name in wb_xls.sheet_names():
+        sheet = wb_xls.sheet_by_name(sheet_name)
+        if "Survey" in sheet_name or "Scan" in sheet_name:
+            new_name = "Survey XPS" if "Survey" in sheet_name or "survey" in sheet_name else sheet_name.split()[0]
+            new_sheet = wb_new.create_sheet(new_name)
+            new_sheet['A1'] = "Binding Energy"
+            new_sheet['B1'] = "Raw Data"
+
+            start_row = 17
+            for row_idx in range(sheet.nrows):
+                if sheet.cell_value(row_idx, 0) == "eV":
+                    start_row = row_idx + 1
+                    break
+
+            for row_idx in range(start_row, sheet.nrows):
+                row_values = sheet.row_values(row_idx)
+                new_sheet.append([row_values[0]] + row_values[2:])
+
+            for col in new_sheet.iter_cols(min_col=3, max_col=24):
+                for cell in col:
+                    cell.value = None
+
+    new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
+    wb_new.save(new_file_path)
     open_xlsx_file(window, new_file_path)
 
 

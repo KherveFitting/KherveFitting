@@ -45,7 +45,9 @@ def export_results(window):
     window.results_grid.ForceRefresh()
     window.update_checkboxes_from_data()
 
-    _bind_grid_events(window)
+
+    # Try to solve the double duplicate
+    # _bind_grid_events(window) # Bind events to the results grid
 
     window.update_atomic_percentages()
 
@@ -247,8 +249,12 @@ def _calculate_peak_areas(window, peak_params, row):
             window.analysis_angle
         )
 
+    # Transmission function because it is corrected in the Excel page
     txfn = 1.0
-    normalized_area = area / (rsf * txfn * ecf * angular_correction)
+    if rsf == 0 or txfn == 0 or ecf == 0:
+        normalized_area = 0
+    else:
+        normalized_area = area / (rsf * txfn * ecf * angular_correction)
     rel_area = normalized_area
 
     return round(area, 2), round(normalized_area, 2), round(rel_area, 2)
@@ -279,7 +285,6 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
         window.results_grid.SetCellValue(row, 10, "EAL")
     else:
         window.results_grid.SetCellValue(row, 10, "1.0")
-
 
     window.results_grid.SetCellValue(row, 11, window.current_instrument)
     window.results_grid.SetCellValue(row, 12, fitting_model)

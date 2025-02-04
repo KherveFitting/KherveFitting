@@ -2283,6 +2283,23 @@ class MyFrame(wx.Frame):
                         self.results_grid.RefreshAttr(row, 7)
         self.results_grid.ForceRefresh()
 
+    def update_checkboxes_from_data_NEW(self):
+        if 'Results' in self.Data and 'Peak' in self.Data['Results']:
+            for row in range(self.results_grid.GetNumberRows()):
+                peak_label = f"Peak_{row}"
+                peak_data = self.Data['Results']['Peak'].get(peak_label)
+                if peak_data:
+                    atomic_conc = float(self.results_grid.GetCellValue(row, 6))
+                    checkbox_state = '0' if atomic_conc == 0 else peak_data.get('Checkbox', '0')
+
+                    current_grid_state = self.results_grid.GetCellValue(row, 7)
+                    if checkbox_state != current_grid_state:
+                        self.results_grid.SetCellValue(row, 7, checkbox_state)
+                        self.results_grid.RefreshAttr(row, 7)
+                        self.Data['Results']['Peak'][peak_label]['Checkbox'] = checkbox_state
+        self.results_grid.ForceRefresh()
+
+
     def on_plot_mouse_release(self, event):
         self.update_checkboxes_from_data()
         # No need to call event.Skip() for Matplotlib events
@@ -2300,7 +2317,7 @@ class MyFrame(wx.Frame):
         save_state(self)
         export_results(self)
 
-    def on_cell_changed(self, event):
+    def on_cell_changed_OLD(self, event):
         row = event.GetRow()
         col = event.GetCol()
 
@@ -2335,8 +2352,11 @@ class MyFrame(wx.Frame):
                 else:
                     ecf = 1.0
 
-                txfn = 1.0  # Transmission function
-                new_rel_area = area / (rsf * txfn * ecf)
+                txfn = 1.0  # Transmission function because it is corrected in the Excel page
+                if rsf == 0 or txfn == 0 or ecf == 0:
+                    new_rel_area = 0
+                else:
+                    new_rel_area = area / (rsf * txfn * ecf)
                 self.results_grid.SetCellValue(row, 13, f"{new_rel_area:.2f}")
 
                 # Update the atomic percentages
@@ -2346,6 +2366,9 @@ class MyFrame(wx.Frame):
 
         except ValueError:
             wx.MessageBox("Invalid value entered", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_cell_changed(self, event):
+        return
 
     def update_atomic_percentages(self):
         current_rows = self.results_grid.GetNumberRows()
@@ -2384,6 +2407,9 @@ class MyFrame(wx.Frame):
                 # Get raw area and RSF
                 area = float(self.results_grid.GetCellValue(i, 5))
                 rsf = float(self.results_grid.GetCellValue(i, 8))
+                if rsf == 0:
+                    self.results_grid.SetCellValue(i, 6, "0.00")
+                    continue
 
 
                 # Calculate Transmission function
@@ -3020,26 +3046,40 @@ class MyFrame(wx.Frame):
                     self.peak_params_grid.SetCellValue(row, 6, "ER! REFRESH PEAK")
             self.peak_params_grid.ForceRefresh()
 
+
     def on_checkbox_update(self, event):
         row = event.GetRow()
         col = event.GetCol()
 
-        if col == 7:  # Checkbox column
-            current_value = self.results_grid.GetCellValue(row, col)
-            new_value = '1' if current_value == '0' else '0'
-            self.results_grid.SetCellValue(row, col, new_value)
+        if col == 7:
+            try:
+                # Force current_value to be either '0' or '1'
+                current_value = self.results_grid.GetCellValue(row, col)
+                current_value = '1' if current_value == '1' else '0'
 
-            sheet_name = self.sheet_combobox.GetValue()
-            peak_label = f"Peak_{row}"  # Construct the peak_label based on the row
-            if 'Results' in self.Data and 'Peak' in self.Data['Results'] and peak_label in self.Data['Results']['Peak']:
-                self.Data['Results']['Peak'][peak_label]['Checkbox'] = new_value
+                new_value = '0' if current_value == '1' else '1'
 
-            print(f"Checkbox updated: {peak_label}, New value: {new_value}")
-            self.update_atomic_percentages()
-            self.results_grid.ForceRefresh()
+                self.results_grid.SetCellEditor(row, col, wx.grid.GridCellBoolEditor())
+                self.results_grid.SetCellRenderer(row, col, wx.grid.GridCellBoolRenderer())
+                self.results_grid.SetCellValue(row, col, new_value)
 
-            # undo & redo state
-            save_state(self)
+                peak_label = f"Peak_{row}"
+                if 'Results' in self.Data and 'Peak' in self.Data['Results'] and peak_label in self.Data['Results'][
+                    'Peak']:
+                    self.Data['Results']['Peak'][peak_label]['Checkbox'] = new_value
+
+                self.update_atomic_percentages()
+                self.results_grid.RefreshAttr(row, col)
+                # self.results_grid.ForceRefresh()
+
+                # Simulate plot click behavior
+                self.update_checkboxes_from_data()
+                self.plot_manager.clear_and_replot(self)
+                self.canvas.draw_idle()
+                save_state(self)
+
+            except Exception as e:
+                print(f"Error updating checkbox: {e}")
 
         event.Skip()
 
