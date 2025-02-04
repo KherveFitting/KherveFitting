@@ -1266,7 +1266,11 @@ class PlotManager:
                         x_min = self.residuals_subplot.get_xlim()[1] + 0.4
                     y_pos = np.mean(self.residuals_subplot.get_ylim())
                     if self.rsd_text:
-                        self.rsd_text.remove()
+                        try:
+                            self.rsd_text.remove()
+                        except:
+                            print("Error: RSD text removal failed.")
+                            pass
                     self.rsd_text = self.residuals_subplot.text(x_min, y_pos,
                                                                 f'RSD: {rsd:.2f}',
                                                                 horizontalalignment='right',
