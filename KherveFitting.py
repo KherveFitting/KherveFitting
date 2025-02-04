@@ -264,6 +264,7 @@ class MyFrame(wx.Frame):
         self.residual_linestyle = "-"
         self.raw_data_linestyle = "-"
         self.residual_thickness = 1
+        self.hatch_density = 2
 
         self.peak_colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF",
                             "#00FFFF", "#800000", "#008000", "#000080", "#808000",
