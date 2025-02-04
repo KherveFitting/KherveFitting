@@ -1245,7 +1245,11 @@ class PlotManager:
                     else:
                         x_min = self.ax.get_xlim()[1] + 0.4
                     if self.rsd_text:
-                        self.rsd_text.remove()
+                        try:
+                            self.rsd_text.remove()
+                        except:
+                            print("Error: RSD text removal failed.")
+                            pass
                     self.rsd_text = self.ax.text(x_min, residual_height,
                                                  f'RSD: {rsd:.2f}',
                                                  horizontalalignment='right',
