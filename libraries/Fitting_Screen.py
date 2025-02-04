@@ -415,7 +415,7 @@ class FittingWindow(wx.Frame):
         self.update_tougaard_controls_visibility(new_method)
 
     def update_tougaard_controls_visibility(self,new_method):
-        if new_method.startswith("U4-Tougaard"):
+        if new_method.startswith("1x U4-Tougaard"):
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
@@ -423,7 +423,7 @@ class FittingWindow(wx.Frame):
             self.cross_section2_label.Enable(False)
             self.cross_section3.Enable(False)
             self.cross_section3_label.Enable(False)
-        elif new_method.startswith("Double U4-Tougaard"):
+        elif new_method.startswith("2x U4-Tougaard"):
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
@@ -431,7 +431,7 @@ class FittingWindow(wx.Frame):
             self.cross_section2_label.Enable(True)
             self.cross_section3.Enable(False)
             self.cross_section3_label.Enable(False)
-        elif new_method.startswith("Triple U4-Tougaard"):
+        elif new_method.startswith("3x U4-Tougaard"):
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)

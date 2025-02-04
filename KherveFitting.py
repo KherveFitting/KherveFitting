@@ -254,13 +254,16 @@ class MyFrame(wx.Frame):
         self.background_color = "#808080"
         self.background_alpha = 0.5
         self.background_linestyle = "--"
+        self.background_thickness = 1
         self.envelope_color = "#0000FF"
         self.envelope_alpha = 0.6
         self.envelope_linestyle = "-"
+        self.envelope_thickness = 1
         self.residual_color = "#00FF00"
         self.residual_alpha = 0.4
         self.residual_linestyle = "-"
         self.raw_data_linestyle = "-"
+        self.residual_thickness = 1
 
         self.peak_colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF",
                             "#00FFFF", "#800000", "#008000", "#000080", "#808000",
