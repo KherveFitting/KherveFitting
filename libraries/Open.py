@@ -474,36 +474,6 @@ def import_mrs_file(window):
         wx.MessageBox(f"Error processing MRS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-def import_avantage_file_direct_OLD(window, file_path):
-    wb = openpyxl.load_workbook(file_path)
-    new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
-
-    sheets_to_remove = []
-    for sheet_name in wb.sheetnames:
-        sheet = wb[sheet_name]
-        if "Survey" in sheet_name or "Scan" in sheet_name:
-            new_name = "Survey XPS" if "Survey" in sheet_name or "survey" in sheet_name else sheet_name.split()[0]
-            wb.create_sheet(new_name)
-            new_sheet = wb[new_name]
-            new_sheet['A1'] = "Binding Energy"
-            new_sheet['B1'] = "Raw Data"
-            for row in sheet.iter_rows(min_row=17, values_only=True):
-                new_sheet.append([row[0]] + list(row[2:]))
-            sheets_to_remove.append(sheet_name)
-
-            for col in new_sheet.iter_cols(min_col=3, max_col=24):
-                for cell in col:
-                    cell.value = None
-        else:
-            sheets_to_remove.append(sheet_name)
-
-    for sheet_name in sheets_to_remove:
-        del wb[sheet_name]
-
-    wb.save(new_file_path)
-    open_xlsx_file(window, new_file_path)
-
-
 def import_avantage_file_direct(window, file_path):
     wb = openpyxl.load_workbook(file_path)
     new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
@@ -578,60 +548,18 @@ def open_avg_file_direct(window, avg_file_path):
     open_xlsx_file(window, excel_file_path)
 
 def import_avantage_file(window):
-    # Open file dialog to select the Avantage Excel file
-    with wx.FileDialog(window, "Open Avantage Excel file", wildcard="Excel files (*.xlsx)|*.xlsx",
+    # Opens a file dialog for user to select file
+    with wx.FileDialog(window, "Open Avantage Excel file", wildcard="Excel files (*.xlsx;*.xls)|*.xlsx;*.xls",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
         if fileDialog.ShowModal() == wx.ID_CANCEL:
             return
-
         file_path = fileDialog.GetPath()
 
-    # Load the selected workbook
-    wb = openpyxl.load_workbook(file_path)
-
-    # List to keep track of sheets to be removed
-    sheets_to_remove = []
-
-    # Iterate through all sheets in the workbook
-    for sheet_name in wb.sheetnames:
-        sheet = wb[sheet_name]
-
-        if "Survey" in sheet_name or "Scan" in sheet_name:
-            # Process Survey or Scan sheets
-            if "Survey" in sheet_name or "survey" in sheet_name:
-                new_name = "Survey XPS"
-            else:
-                new_name = sheet_name.split()[0]
-
-            wb.create_sheet(new_name)
-            new_sheet = wb[new_name]
-            new_sheet['A1'] = "Binding Energy"
-            new_sheet['B1'] = "Raw Data"
-            # Copy data starting from row 17, skipping column B
-            for row in sheet.iter_rows(min_row=17, values_only=True):
-                new_sheet.append([row[0]] + list(row[2:]))
-            sheets_to_remove.append(sheet_name)
-
-            # Remove data from columns C to X
-            for col in new_sheet.iter_cols(min_col=3, max_col=24):
-                for cell in col:
-                    cell.value = None
-
-        else:
-            # Mark other sheets for removal
-            sheets_to_remove.append(sheet_name)
-
-    # Remove the original sheets
-    for sheet_name in sheets_to_remove:
-        del wb[sheet_name]
-
-    # Save the modified workbook with a new name
-    new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
-    wb.save(new_file_path)
-
-    # Open the newly created file using the existing open_xlsx_file function
-    from libraries.Open import open_xlsx_file
-    open_xlsx_file(window, new_file_path)
+        # Call appropriate function based on extension
+        if file_path.lower().endswith('.xlsx'):
+            import_avantage_file_direct_xlsx(window, file_path)
+        elif file_path.lower().endswith('.xls'):
+            import_avantage_file_direct_xls(window, file_path)
 
 
 def parse_avg_file(file_path):

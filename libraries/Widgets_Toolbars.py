@@ -269,7 +269,7 @@ def create_menu(window):
     import_vamas_item = import_menu.Append(wx.NewId(), "Import Vamas Data file (.vms)")
     window.Bind(wx.EVT_MENU, lambda event: open_vamas_file_dialog(window), import_vamas_item)
 
-    import_avantage_item = import_menu.Append(wx.NewId(), "Import Avantage Data file (.xlsx)")
+    import_avantage_item = import_menu.Append(wx.NewId(), "Import Avantage Data file (.xlsx or .xls)")
     window.Bind(wx.EVT_MENU, lambda event: import_avantage_file(window), import_avantage_item)
 
     import_kal_item = import_menu.Append(wx.NewId(), "Import Kratos Data file (.kal)")
