@@ -11,9 +11,9 @@ class PreferenceWindow(wx.Frame):
         self.parent = parent
 
         self.SetTitle("Preferences")
-        self.SetSize((500, 620))
-        self.SetMinSize((500, 620))
-        self.SetMaxSize((500, 620))
+        self.SetSize((495, 620))
+        self.SetMinSize((495, 620))
+        self.SetMaxSize((495, 620))
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -449,7 +449,7 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.residual_alpha_label, pos=(11, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.residual_alpha_spin, pos=(11, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
-        self.residual_thickness_label = wx.StaticText(self.plot_tab, label="Residual Thickness:")
+        self.residual_thickness_label = wx.StaticText(self.plot_tab, label="Residual Width:")
         self.residual_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
         self.residual_thickness_spin.SetMinSize((100, -1))
         sizer.Add(self.residual_thickness_label, pos=(12, 0), flag=wx.BOTTOM | wx.TOP, border=0)
@@ -475,7 +475,7 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.background_alpha_label, pos=(16, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.background_alpha_spin, pos=(16, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
-        self.background_thickness_label = wx.StaticText(self.plot_tab, label="Background Thickness:")
+        self.background_thickness_label = wx.StaticText(self.plot_tab, label="Background Width: ")
         self.background_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
         self.background_thickness_spin.SetMinSize((100, -1))
         sizer.Add(self.background_thickness_label, pos=(17, 0), flag=wx.BOTTOM | wx.TOP, border=0)
@@ -501,7 +501,7 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.envelope_alpha_spin, pos=(1, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Envelope thickness
-        self.envelope_thickness_label = wx.StaticText(self.plot_tab, label="Envelope Thickness:")
+        self.envelope_thickness_label = wx.StaticText(self.plot_tab, label="Envelope Width:")
         self.envelope_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
         self.envelope_thickness_spin.SetMinSize((100, -1))
         sizer.Add(self.envelope_thickness_label, pos=(2, 4), flag=wx.BOTTOM | wx.TOP, border=0)
@@ -583,14 +583,14 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.peak_line_style_combo, pos=(11, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line thickness
-        self.peak_line_thickness_label = wx.StaticText(self.plot_tab, label="Peak Line Thickness:")
+        self.peak_line_thickness_label = wx.StaticText(self.plot_tab, label="Peak Line Width: ")
         self.peak_line_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
         self.peak_line_thickness_spin.SetMinSize((100, -1))
         sizer.Add(self.peak_line_thickness_label, pos=(12, 4), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.peak_line_thickness_spin, pos=(12, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
         # Peak line alpha
-        self.peak_line_alpha_label = wx.StaticText(self.plot_tab, label="Peak Line Alpha:")
+        self.peak_line_alpha_label = wx.StaticText(self.plot_tab, label="Peak Line Alpha: ")
         self.peak_line_alpha_spin = wx.SpinCtrlDouble(self.plot_tab, value="0.7", min=0, max=1, inc=0.1)
         self.peak_line_alpha_spin.SetMinSize((100, -1))
         sizer.Add(self.peak_line_alpha_label, pos=(13, 4), flag= wx.BOTTOM | wx.TOP, border=0)

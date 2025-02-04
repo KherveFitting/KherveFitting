@@ -384,6 +384,9 @@ class MyFrame(wx.Frame):
 
 
     def add_peak_params(self):
+        if hasattr(self, 'fitting_window'):
+            self.selected_fitting_method = self.fitting_window.model_combobox.GetValue()
+            print(f'Fitting method: {self.selected_fitting_method}')
         save_state(self)
         sheet_name = self.sheet_combobox.GetValue()
 
@@ -2317,55 +2320,55 @@ class MyFrame(wx.Frame):
         save_state(self)
         export_results(self)
 
-    def on_cell_changed_OLD(self, event):
-        row = event.GetRow()
-        col = event.GetCol()
-
-        try:
-            if col in [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
-                event.Veto()
-                return
-            elif col in [8]:  # RSF column
-                rsf = float(self.results_grid.GetCellValue(row, 8))
-                area = float(self.results_grid.GetCellValue(row, 5))
-                binding_energy = float(self.results_grid.GetCellValue(row, 1))
-                kinetic_energy = self.photons - binding_energy
-
-                # Calculate ECF based on method
-                if self.library_type == "Scofield":
-                    ecf = kinetic_energy ** 0.6
-                elif self.library_type == "Wagner":
-                    ecf = kinetic_energy ** 1.0
-                elif self.library_type == "TPP-2M":
-                    # Calculate IMFP using TPP-2M using the average matrix
-                    imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
-
-                    # 26.2 is a factor added by Avantage to match KE^0.6
-                    ecf = imfp * 26.2
-                elif window.library_type == "EAL":
-                    z_avg = 50  # Default values
-                    eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
-                    ecf = eal
-
-                elif self.library_type == "None":
-                    ecf = 1.0
-                else:
-                    ecf = 1.0
-
-                txfn = 1.0  # Transmission function because it is corrected in the Excel page
-                if rsf == 0 or txfn == 0 or ecf == 0:
-                    new_rel_area = 0
-                else:
-                    new_rel_area = area / (rsf * txfn * ecf)
-                self.results_grid.SetCellValue(row, 13, f"{new_rel_area:.2f}")
-
-                # Update the atomic percentages
-                self.update_atomic_percentages()
-            elif col in [16, 17, 18, 19]:  # Constraint columns
-                pass
-
-        except ValueError:
-            wx.MessageBox("Invalid value entered", "Error", wx.OK | wx.ICON_ERROR)
+    # def on_cell_changed_OLD(self, event):
+    #     row = event.GetRow()
+    #     col = event.GetCol()
+    #
+    #     try:
+    #         if col in [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+    #             event.Veto()
+    #             return
+    #         elif col in [8]:  # RSF column
+    #             rsf = float(self.results_grid.GetCellValue(row, 8))
+    #             area = float(self.results_grid.GetCellValue(row, 5))
+    #             binding_energy = float(self.results_grid.GetCellValue(row, 1))
+    #             kinetic_energy = self.photons - binding_energy
+    #
+    #             # Calculate ECF based on method
+    #             if self.library_type == "Scofield":
+    #                 ecf = kinetic_energy ** 0.6
+    #             elif self.library_type == "Wagner":
+    #                 ecf = kinetic_energy ** 1.0
+    #             elif self.library_type == "TPP-2M":
+    #                 # Calculate IMFP using TPP-2M using the average matrix
+    #                 imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
+    #
+    #                 # 26.2 is a factor added by Avantage to match KE^0.6
+    #                 ecf = imfp * 26.2
+    #             elif window.library_type == "EAL":
+    #                 z_avg = 50  # Default values
+    #                 eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
+    #                 ecf = eal
+    #
+    #             elif self.library_type == "None":
+    #                 ecf = 1.0
+    #             else:
+    #                 ecf = 1.0
+    #
+    #             txfn = 1.0  # Transmission function because it is corrected in the Excel page
+    #             if rsf == 0 or txfn == 0 or ecf == 0:
+    #                 new_rel_area = 0
+    #             else:
+    #                 new_rel_area = area / (rsf * txfn * ecf)
+    #             self.results_grid.SetCellValue(row, 13, f"{new_rel_area:.2f}")
+    #
+    #             # Update the atomic percentages
+    #             self.update_atomic_percentages()
+    #         elif col in [16, 17, 18, 19]:  # Constraint columns
+    #             pass
+    #
+    #     except ValueError:
+    #         wx.MessageBox("Invalid value entered", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_cell_changed(self, event):
         return
