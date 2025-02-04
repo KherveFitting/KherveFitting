@@ -3459,10 +3459,19 @@ class MyFrame(wx.Frame):
         self.be_correction = correction
         self.Data['BEcorrection'] = correction
 
+        # # Update all sheets
+        # for sheet_name, sheet_data in self.Data['Core levels'].items():
+        #     # Update B.E. values
+        #     sheet_data['B.E.'] = [be + delta_correction for be in sheet_data['B.E.']]
+
         # Update all sheets
         for sheet_name, sheet_data in self.Data['Core levels'].items():
-            # Update B.E. values
-            sheet_data['B.E.'] = [be + delta_correction for be in sheet_data['B.E.']]
+            # Update B.E. values handling negative numbers
+            try:
+                sheet_data['B.E.'] = [float(str(be).strip()) + delta_correction for be in sheet_data['B.E.']]
+            except (ValueError, TypeError):
+                print(f"Warning: Invalid BE data in sheet {sheet_name}")
+                continue
 
             # Update Background
             if 'Background' in sheet_data:
@@ -3475,6 +3484,13 @@ class MyFrame(wx.Frame):
             if 'Fitting' in sheet_data and 'Peaks' in sheet_data['Fitting']:
                 for peak in sheet_data['Fitting']['Peaks'].values():
                     peak['Position'] += delta_correction
+                    if 'Constraints' in peak:
+                        pos_constraint = peak['Constraints'].get('Position', '')
+                        if pos_constraint and ',' in pos_constraint and not any(
+                                c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                            min_val, max_val = map(float, pos_constraint.split(','))
+                            peak['Constraints'][
+                                'Position'] = f"{min_val + delta_correction:.2f},{max_val + delta_correction:.2f}"
 
         # Update plot limits
         for sheet_name in self.Data['Core levels']:
@@ -3482,6 +3498,11 @@ class MyFrame(wx.Frame):
                 limits = self.plot_config.plot_limits[sheet_name]
                 limits['Xmin'] += delta_correction
                 limits['Xmax'] += delta_correction
+
+                # Also store in main Data structure
+                if 'Plot_Limits' not in self.Data['Core levels'][sheet_name]:
+                    self.Data['Core levels'][sheet_name]['Plot_Limits'] = {}
+                self.Data['Core levels'][sheet_name]['Plot_Limits'] = limits.copy()
 
         # Update Results grid
         for row in range(self.results_grid.GetNumberRows()):
@@ -3498,8 +3519,8 @@ class MyFrame(wx.Frame):
         current_sheet = self.sheet_combobox.GetValue()
         on_sheet_selected(self, current_sheet)
 
-        # Update plots
-        self.plot_manager.update_plots_be_correction(self, delta_correction)
+        # # Update plots
+        # self.plot_manager.update_plots_be_correction(self, delta_correction)
 
         print(f"Applied BE correction of {correction:.2f} eV")
 
@@ -3655,7 +3676,7 @@ if __name__ == '__main__':
     app = wx.App(False)
     splash = show_splash(duration=3000, delay=0)
 
-    frame = MyFrame(None, "KherveFitting - V1.4 - Feb 2025")
+    frame = MyFrame(None, "KherveFitting - v1.4 - Feb 2025")
     frame.Show(True)
 
     if splash:

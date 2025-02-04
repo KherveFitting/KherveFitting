@@ -515,7 +515,8 @@ def create_horizontal_toolbar(window):
     toolbar.AddSeparator()
 
     # BE correction
-    window.be_correction_spinbox = wx.SpinCtrlDouble(toolbar, value='0.00', min=-20.00, max=20.00, inc=0.01, size=(70, -1))
+    window.be_correction_spinbox = wx.SpinCtrlDouble(toolbar, value='0.00', min=-10000.00, max=10000.00, inc=0.01,
+                                                     size=(70, -1))
     window.be_correction_spinbox.SetDigits(2)
     window.be_correction_spinbox.SetToolTip("BE Correction")
     toolbar.AddControl(window.be_correction_spinbox)

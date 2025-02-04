@@ -1004,14 +1004,14 @@ class PlotManager:
 
             peak_label = window.peak_params_grid.GetCellValue(row, 1)  # Get peak label from grid
 
-            # Update the selected peak plot line
-            for line in self.ax.get_lines():
-                if line.get_label() == peak_label:
-                    line.set_ydata(peak_y)
-                    break
-                else:
-                    print("I AM NOT SURE WHAT THIS DO")
-                    self.ax.plot(window.x_values, peak_y, label=peak_label)
+            # # Update the selected peak plot line
+            # for line in self.ax.get_lines():
+            #     if line.get_label() == peak_label:
+            #         line.set_ydata(peak_y)
+            #         break
+            #     else:
+            #         print("I AM NOT SURE WHAT THIS DO")
+            #         self.ax.plot(window.x_values, peak_y, label=peak_label)
 
             # Remove previous squares
             for line in self.ax.get_lines():
