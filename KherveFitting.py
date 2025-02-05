@@ -84,6 +84,7 @@ class MyFrame(wx.Frame):
         # if 'wxMac' in wx.PlatformInfo:
         #     self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
 
+
         FIRST_TIME_USE = True
 
         # Set the icon
