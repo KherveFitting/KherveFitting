@@ -77,34 +77,34 @@ class PreferenceWindow(wx.Frame):
 
         # Core level name font size
         core_level_label = wx.StaticText(self.text_tab, label="Title Font Size:")
-        self.core_level_spin = wx.SpinCtrl(self.text_tab, min=8, max=24, initial=15)
+        self.core_level_spin = wx.SpinCtrl(self.text_tab, min=2, max=24, initial=15)
         self.core_level_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(core_level_label, pos=(1, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         text_sizer.Add(self.core_level_spin, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Legend font size
         legend_size_label = wx.StaticText(self.text_tab, label="Legend Font Size:")
-        self.legend_size_spin = wx.SpinCtrl(self.text_tab, min=6, max=16, initial=8)
+        self.legend_size_spin = wx.SpinCtrl(self.text_tab, min=2, max=24, initial=8)
         self.legend_size_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(legend_size_label, pos=(2, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         text_sizer.Add(self.legend_size_spin, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         label_size_label = wx.StaticText(self.text_tab, label="Label Font Size:")
-        self.label_size_spin = wx.SpinCtrl(self.text_tab, min=6, max=16, initial=8)
+        self.label_size_spin = wx.SpinCtrl(self.text_tab, min=2, max=24, initial=8)
         self.label_size_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(label_size_label, pos=(3, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         text_sizer.Add(self.label_size_spin, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Axis title font size
         axis_title_label = wx.StaticText(self.text_tab, label="Axis Title Font Size:")
-        self.axis_title_spin = wx.SpinCtrl(self.text_tab, min=8, max=20, initial=12)
+        self.axis_title_spin = wx.SpinCtrl(self.text_tab, min=2, max=24, initial=12)
         self.axis_title_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(axis_title_label, pos=(4, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         text_sizer.Add(self.axis_title_spin, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Axis numbers font size
         axis_num_label = wx.StaticText(self.text_tab, label="Axis Numbers Font Size:")
-        self.axis_num_spin = wx.SpinCtrl(self.text_tab, min=8, max=20, initial=10)
+        self.axis_num_spin = wx.SpinCtrl(self.text_tab, min=2, max=24, initial=10)
         self.axis_num_spin.Bind(wx.EVT_SPINCTRL, self.on_text_change)
         text_sizer.Add(axis_num_label, pos=(5, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         text_sizer.Add(self.axis_num_spin, pos=(5, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)

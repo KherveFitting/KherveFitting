@@ -75,14 +75,14 @@ class MyFrame(wx.Frame):
         # Construct the path to the icon file
         icon_path = os.path.join(current_dir, "Icons", "Icon.ico")
 
-        # Mac scaling issues
-        wx.SystemOptions.SetOption("mac.window-plain-transition", 1)
-        wx.SystemOptions.SetOption("mac.scrollbar-autohide", 0)
-        wx.SystemOptions.SetOption("osx.opengl.force-enable-angle", 0)
-        wx.SystemOptions.SetOption("mac.listctrl.always_use_generic", "1")
-
-        if 'wxMac' in wx.PlatformInfo:
-            self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        # # Mac scaling issues
+        # wx.SystemOptions.SetOption("mac.window-plain-transition", 1)
+        # wx.SystemOptions.SetOption("mac.scrollbar-autohide", 0)
+        # wx.SystemOptions.SetOption("osx.opengl.force-enable-angle", 0)
+        # wx.SystemOptions.SetOption("mac.listctrl.always_use_generic", "1")
+        #
+        # if 'wxMac' in wx.PlatformInfo:
+        #     self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
 
         FIRST_TIME_USE = True
 
