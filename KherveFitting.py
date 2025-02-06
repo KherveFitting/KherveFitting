@@ -2914,52 +2914,6 @@ class MyFrame(wx.Frame):
 
         save_state(self)
 
-    def update_ratios_OLD(self):
-        num_peaks = self.peak_params_grid.GetNumberRows() // 2
-        if num_peaks < 1:
-            return  # No peaks to calculate ratios for
-
-        # Set first peak's ratios and split to 0.00
-        self.peak_params_grid.SetCellValue(0, 10, "100")  # I ratio
-        self.peak_params_grid.SetCellValue(0, 11, "100")  # A ratio
-        self.peak_params_grid.SetCellValue(0, 12, "0.00")  # Split
-
-        if num_peaks < 2:
-            return  # No other ratios to calculate with only one peak
-
-        # Get first peak's height and area
-        try:
-            first_position = float(self.peak_params_grid.GetCellValue(0, 2))
-            first_height = float(self.peak_params_grid.GetCellValue(0, 3))
-            first_area = float(self.peak_params_grid.GetCellValue(0, 6))
-        except ValueError:
-            # If we can't get the first peak's data, we can't calculate ratios
-
-            # print("Warning: Unable to get first peak's data for ratio calculation")
-            return
-
-        for i in range(1, num_peaks):
-            row = i * 2
-            try:
-                position = float(self.peak_params_grid.GetCellValue(row, 2))
-                height = float(self.peak_params_grid.GetCellValue(row, 3))
-                area = float(self.peak_params_grid.GetCellValue(row, 6))
-            except ValueError:
-                # Skip this peak if we can't get its data
-                # print(f"Warning: Unable to get data for peak {i + 1} for ratio calculation")
-                continue
-
-            # Calculate ratios
-            i_ratio = height / first_height if first_height != 0 else 0
-            a_ratio = area / first_area if first_area != 0 else 0
-            split = position - first_position
-
-            # Update grid
-            self.peak_params_grid.SetCellValue(row, 10, f"{i_ratio * 100:.1f}")
-            self.peak_params_grid.SetCellValue(row, 11, f"{a_ratio * 100:.1f}")
-            self.peak_params_grid.SetCellValue(row, 12, f"{split:.2f}")
-
-        self.peak_params_grid.ForceRefresh()
 
     def update_ratios(self):
         num_peaks = self.peak_params_grid.GetNumberRows() // 2
