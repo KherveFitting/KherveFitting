@@ -603,6 +603,9 @@ class PlotModWindow(wx.Frame):
         grid_sizer.Add(int_sizer, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=5)
         grid_sizer.Add(const_sizer, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=5)
 
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
         panel.SetSizer(grid_sizer)
         self.Centre()
 

@@ -67,9 +67,6 @@ class MyFrame(wx.Frame):
     def __init__(self, parent, title):
         super().__init__(parent, title=title, size=(1640, 740))
 
-        from libraries.ConfigFile import set_consistent_fonts
-        set_consistent_fonts(self)
-
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -86,6 +83,7 @@ class MyFrame(wx.Frame):
         #     self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
 
 
+        # Check if it is the first time the program is being used
         FIRST_TIME_USE = True
 
         # Set the icon
@@ -94,7 +92,7 @@ class MyFrame(wx.Frame):
 
         self.SetMinSize((800, 600))
         self.panel = wx.Panel(self)
-        # self.panel.SetBackgroundColour(wx.Colour(255, 255, 255))  # Set background color to white
+
 
 
 
@@ -302,13 +300,15 @@ class MyFrame(wx.Frame):
         self.load_config()
 
         create_widgets(self)
-        # self.create_widgets()
         create_menu(self)
-
         load_recent_files_from_config(self)
 
 
+
         create_statusbar(self)
+
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
 
 
         self.canvas.mpl_connect("button_press_event", self.on_click)

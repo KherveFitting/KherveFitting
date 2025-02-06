@@ -324,7 +324,7 @@ class FittingWindow(wx.Frame):
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence Limit:"), pos=(3, 0),
+        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence: "), pos=(3, 0),
                           flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=5)
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
@@ -1010,6 +1010,9 @@ class TougaardFitWindow(wx.Frame):
         self.max_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
         self.num_tougaard.Bind(wx.EVT_SPINCTRL, self.on_num_tougaard_change)
         self.panel.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
+
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
 
     def on_key_press(self, event):
         if event.ControlDown():

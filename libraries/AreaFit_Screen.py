@@ -167,6 +167,9 @@ class BackgroundWindow(wx.Frame):
 
         self.method_combobox.Bind(wx.EVT_COMBOBOX, self.on_bkg_method_change)
 
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
         panel.SetSizer(sizer)
 
     def update_tougaard_controls_visibility(self, new_method):

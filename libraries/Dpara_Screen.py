@@ -76,6 +76,9 @@ class DParameterWindow(wx.Frame):
         main_sizer.Add(d_sizer, 0, wx.ALL | wx.EXPAND, 5)
         main_sizer.Add(btn_sizer, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
         panel.SetSizer(main_sizer)
 
     def on_clear(self, event):

@@ -62,6 +62,9 @@ class PreferenceWindow(wx.Frame):
         self.init_save_settings_tab()
         self.LoadSettings()
 
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
     def init_text_tab(self):
         text_sizer = wx.GridBagSizer(5, 5)
 

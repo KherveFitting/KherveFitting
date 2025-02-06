@@ -3,6 +3,7 @@
 # -------------------------------------------------------------
 import pandas as pd
 import wx
+import matplotlib.pyplot as plt
 
 def Init_Measurement_Data2(window):
     Data = {
@@ -165,9 +166,11 @@ def set_consistent_fonts(window):
         default_font = 'Helvetica'
         # default_font = 'Calibri'
         # default_font = 'Arial'
+        # default_font = 'Aptos'
     else:
-        default_font = 'Arial'
-
+        # default_font = 'Arial'
+        # default_font = 'Helvetica'
+        default_font = 'Calibri'
     STANDARD_FONT_SIZE = 9
     # STANDARD_FONT_SIZE = 5
     HEADER_FONT_SIZE = 10
