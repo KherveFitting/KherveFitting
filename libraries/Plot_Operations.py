@@ -67,13 +67,45 @@ class PlotManager:
 
         self.y_axis_visible = True
 
-    def toggle_y_axis(self):
+    def toggle_y_axis_OLD(self):
         self.y_axis_visible = not self.y_axis_visible
         self.ax.yaxis.set_visible(self.y_axis_visible)
 
         # Also toggle y-axis for residuals subplot if it exists
         if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
             self.residuals_subplot.yaxis.set_visible(self.y_axis_visible)
+
+        self.canvas.draw_idle()
+
+    def toggle_y_axis(self):
+        if not hasattr(self, 'y_axis_state'):
+            self.y_axis_state = 0
+
+        self.y_axis_state = (self.y_axis_state + 1) % 3
+
+        if self.y_axis_state == 0:
+            # Show label and values
+            self.ax.yaxis.set_visible(True)
+            self.ax.set_ylabel("Intensity (CPS)")
+            self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+            self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+            if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
+                self.residuals_subplot.yaxis.set_visible(True)
+                self.residuals_subplot.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+                self.residuals_subplot.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+        elif self.y_axis_state == 1:
+            # Hide everything
+            self.ax.yaxis.set_visible(False)
+            if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
+                self.residuals_subplot.yaxis.set_visible(False)
+        else:
+            # Show "Intensity (a.u.)" but hide values
+            self.ax.yaxis.set_visible(True)
+            self.ax.set_ylabel("Intensity (a.u.)")
+            self.ax.yaxis.set_ticklabels([])
+            if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
+                self.residuals_subplot.yaxis.set_visible(True)
+                self.residuals_subplot.yaxis.set_ticklabels([])
 
         self.canvas.draw_idle()
 

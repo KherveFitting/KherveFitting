@@ -67,7 +67,8 @@ class MyFrame(wx.Frame):
     def __init__(self, parent, title):
         super().__init__(parent, title=title, size=(1640, 740))
 
-
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
 
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -224,6 +225,8 @@ class MyFrame(wx.Frame):
 
         # Apply text settings
         plt.rcParams['font.family'] = self.plot_font
+        plt.rcParams['figure.dpi'] = 100
+        plt.rcParams['savefig.dpi'] = 100
         self.ax.tick_params(axis='both', labelsize=self.axis_number_size)
         if self.x_sublines > 0:
             self.ax.xaxis.set_minor_locator(AutoMinorLocator(self.x_sublines + 1))
@@ -3633,6 +3636,14 @@ if __name__ == '__main__':
     set_high_priority()
 
     app = wx.App(False)
+
+    # Force Light theme on macOS
+    if 'wxMac' in wx.PlatformInfo:
+        os.environ['WMCOLOR'] = '1'  # Force light mode
+        wx.SystemOptions.SetOption("osx.window-plain-transition", 1)
+        wx.SystemOptions.SetOption("osx.window-frame-appearance", "light")
+
+    # Create Splash Screen
     splash = show_splash(duration=3000, delay=0)
 
     frame = MyFrame(None, "KherveFitting - v1.4 - Feb 2025")

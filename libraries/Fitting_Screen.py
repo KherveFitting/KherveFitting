@@ -31,6 +31,9 @@ class FittingWindow(wx.Frame):
         self.library_data = self.parent.library_data
         self.doublet_splittings = self.load_doublet_splittings(self.parent.library_data)
 
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
 
 
 

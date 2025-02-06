@@ -158,3 +158,69 @@ def add_peak_to_core_level_Data(data, core_name, peak_data):
         fitting.update(peak_data)
     else:
         print(f"Core level {core_name} does not exist.")
+
+
+def set_consistent_fonts(window):
+    if 'wxMac' in wx.PlatformInfo:
+        default_font = 'Helvetica'
+        # default_font = 'Calibri'
+        # default_font = 'Arial'
+    else:
+        default_font = 'Arial'
+
+    STANDARD_FONT_SIZE = 9
+    # STANDARD_FONT_SIZE = 5
+    HEADER_FONT_SIZE = 10
+    # HEADER_FONT_SIZE = 5
+    LABEL_FONT_SIZE = 9
+    # LABEL_FONT_SIZE = 5
+
+    window.SetFont(wx.Font(STANDARD_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                           faceName=default_font))
+
+    # Handle all wx widgets including buttons
+    def set_font_recursive(widget):
+        widget.SetFont(wx.Font(STANDARD_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                               faceName=default_font))
+        if isinstance(widget, wx.Button):
+            widget.SetFont(wx.Font(STANDARD_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                                   faceName=default_font))
+        for child in widget.GetChildren():
+            set_font_recursive(child)
+
+    set_font_recursive(window)
+
+    # Handle matplotlib
+    if hasattr(window, 'ax'):
+        plt.rcParams['font.family'] = default_font
+        window.ax.tick_params(axis='both', labelsize=STANDARD_FONT_SIZE)
+        window.ax.set_xlabel(window.ax.get_xlabel(), fontsize=STANDARD_FONT_SIZE, fontname=default_font)
+        window.ax.set_ylabel(window.ax.get_ylabel(), fontsize=STANDARD_FONT_SIZE, fontname=default_font)
+        if window.ax.get_title():
+            window.ax.set_title(window.ax.get_title(), fontsize=HEADER_FONT_SIZE, fontname=default_font)
+
+    # Handle grids
+    if hasattr(window, 'peak_params_grid'):
+        window.peak_params_grid.SetDefaultCellFont(
+            wx.Font(STANDARD_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                    faceName=default_font))
+        window.peak_params_grid.SetLabelFont(
+            wx.Font(LABEL_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                    faceName=default_font))
+
+    if hasattr(window, 'results_grid'):
+        window.results_grid.SetDefaultCellFont(
+            wx.Font(STANDARD_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                    faceName=default_font))
+        window.results_grid.SetLabelFont(
+            wx.Font(LABEL_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                    faceName=default_font))
+
+    if hasattr(window, 'fitting_window') and window.fitting_window:
+        set_consistent_fonts(window.fitting_window)
+
+    if hasattr(window, 'background_window') and window.background_window:
+        set_consistent_fonts(window.background_window)
+
+    if hasattr(window, 'canvas'):
+        window.canvas.draw_idle()
