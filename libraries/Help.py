@@ -467,7 +467,7 @@ def show_version_log(window):
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
     version_log = """Version 1.4 (February 2025)
-- Progressing on the introduction of the MAC version 
+- Mac version coming soon
 - Added Skewed Voigt model. Default to leastsq fitting method
 - Added Automatic download of new KherveFitting version
 - Added KratosC1s and KratosF1s to the library
@@ -484,8 +484,9 @@ def show_version_log(window):
 - Added peak name above the cross when moving a peak
 - Added right-click menu to zoom in and out
 - Added First time window for new users
+- Homogeneous font type and size throughout all platforms
 - Added .xls compatibility for the import of the data 
-- Removed the fitting of the data when saving data
+- Removed the fitting of the data when saving data. it should only be done during fitting
 - Improved size of Preference Window (smaller)
 - Improve Toggle by adding a third state. Removal of Raw Data, envelope
 - Improved Legend filtering 
