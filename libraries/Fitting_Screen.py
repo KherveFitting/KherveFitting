@@ -344,7 +344,7 @@ class FittingWindow(wx.Frame):
         fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        fitting_sizer.Add(fit_report_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(fit_report_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         fitting_sizer.Add(add_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         fitting_sizer.Add(add_doublet_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)

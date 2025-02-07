@@ -9,9 +9,9 @@ class BackgroundWindow(wx.Frame):
         super(BackgroundWindow, self).__init__(parent, *args, **kw, style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
         self.parent = parent
         self.SetTitle("Measure Area")
-        self.SetSize((290, 540))
-        self.SetMinSize((290, 540))
-        self.SetMaxSize((290, 540))
+        self.SetSize((300, 440))
+        self.SetMinSize((300, 440))
+        self.SetMaxSize((300, 440))
 
         panel = wx.Panel(self)
         panel.SetBackgroundColour(wx.Colour(250, 250, 230))
@@ -53,7 +53,7 @@ class BackgroundWindow(wx.Frame):
 
         # Add Tougaard model button
         self.tougaard_fit_btn = wx.Button(panel, label="Create Tougaard\nModel")
-        self.tougaard_fit_btn.SetMinSize((110, 40))
+        self.tougaard_fit_btn.SetMinSize((140, 40))
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, self.on_tougaard_model)
 
         # Add remove last peak button
@@ -75,7 +75,7 @@ class BackgroundWindow(wx.Frame):
 
 
         reset_vlines_button = wx.Button(panel, label="Reset \nVertical Lines")
-        reset_vlines_button.SetMinSize((110, 40))
+        reset_vlines_button.SetMinSize((140, 40))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
 
@@ -87,37 +87,35 @@ class BackgroundWindow(wx.Frame):
         area_button.SetMinSize((110, 40))
         area_button.Bind(wx.EVT_BUTTON, self.on_area)
 
-        peak_label_text_label = wx.StaticText(panel, label="Area Name")
+        peak_label_text_label = wx.StaticText(panel, label="Area Name      ")
         self.peak_label_text = wx.TextCtrl(panel, value="")
 
 
 
         # Layout with a GridBagSizer
-        sizer = wx.GridBagSizer(hgap=5, vgap=5)
+        sizer = wx.GridBagSizer(hgap=0, vgap=0)
 
         # First row: Method
-        sizer.Add(method_label, pos=(0, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=5)
-
-
+        sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.method_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # second Third row: Offset (H) and Offset (L)
-        sizer.Add(offset_h_label, pos=(1, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        sizer.Add(self.offset_h_text, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(offset_l_label, pos=(2, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        sizer.Add(self.offset_l_text, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        sizer.Add(offset_h_label, pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.offset_h_text, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(offset_l_label, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.offset_l_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Fourth row: Averaging Points
-        sizer.Add(averaging_points_label, pos=(3, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        sizer.Add(self.averaging_points_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        sizer.Add(averaging_points_label, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.averaging_points_text, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Fourth row: Tougaard parameters
-        sizer.Add(self.cross_section_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(self.cross_section, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(self.cross_section2_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(self.cross_section2, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(self.cross_section3_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(self.cross_section3, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        sizer.Add(self.cross_section_label, pos=(5, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.cross_section, pos=(5, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.cross_section2_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.cross_section2, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.cross_section3_label, pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.cross_section3, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Area row
         area_box = wx.StaticBox(panel, label="Area Calculation")
@@ -127,31 +125,33 @@ class BackgroundWindow(wx.Frame):
         # sizer.Add(self.peak_label_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
         text_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        text_sizer.Add(peak_label_text_label, 0, wx.ALL | wx.EXPAND, 5) # | wx.ALIGN_CENTER_VERTICAL, 5)
-        text_sizer.Add(self.peak_label_text, 1, wx.ALL | wx.EXPAND, 5) #| wx.EXPAND, 5)
+        text_sizer.Add(peak_label_text_label, 0, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=5) #wx.ALL | wx.EXPAND,
+        # 5) # | wx.ALIGN_CENTER_VERTICAL, 5)
+        text_sizer.Add(self.peak_label_text, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=5) #wx.ALL | wx.EXPAND,
+        # 5) #| wx.EXPAND, 5)
 
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        button_sizer.Add(area_button, 1, wx.ALL | wx.EXPAND, 5)
-        button_sizer.Add(remove_peak_button, 1, wx.ALL | wx.EXPAND, 5)
+        button_sizer.Add(area_button, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        button_sizer.Add(remove_peak_button, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         area_sizer.Add(text_sizer, 0, wx.EXPAND)
-        area_sizer.Add(button_sizer, 0, wx.EXPAND)
+        area_sizer.Add(button_sizer, 1, wx.EXPAND)
 
-        sizer.Add(area_sizer, pos=(7, 0), span=(2, 2), flag=wx.ALL | wx.EXPAND, border=5)
+        sizer.Add(area_sizer, pos=(9, 0), span=(2, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # sizer.Add(area_button, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=5)
         # sizer.Add(remove_peak_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
         # Seventh row: Remove peak and Export buttons
-        sizer.Add(self.tougaard_fit_btn, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(reset_vlines_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(reset_vlines_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
 
         # Sixth row: Background and Clear Background buttons
         # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(background_only_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        sizer.Add(clear_background_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        sizer.Add(background_only_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         # Initially disable all Tougaard controls
