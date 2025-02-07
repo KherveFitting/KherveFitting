@@ -3637,19 +3637,6 @@ if __name__ == '__main__':
 
     app = wx.App(False)
 
-    # Force Light theme on macOS
-    if 'wxMac' in wx.PlatformInfo:
-        os.environ['NSRequiresAquaSystemAppearance'] = '1'
-        wx.SystemOptions.SetOption("mac.window-plain-transition", 1)
-        try:
-            from AppKit import NSApp, NSAppearanceNameAqua
-
-            NSApp.setAppearance_(NSAppearanceNameAqua)
-        except:
-            print("light mode did not suceed")
-            pass
-
-
     # Create Splash Screen
     splash = show_splash(duration=2000, delay=0)
 

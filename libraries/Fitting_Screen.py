@@ -44,15 +44,23 @@ class FittingWindow(wx.Frame):
 
     def init_ui(self):
         panel = wx.Panel(self)
-        # panel.SetBackgroundColour(wx.Colour(255, 255, 255))
-        # panel.SetBackgroundColour(wx.Colour(250, 250, 250))
-        panel.SetBackgroundColour(wx.Colour(230, 250, 250))
+        def detect_dark_mode():
+            if 'wxMac' in wx.PlatformInfo:  # Mac
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxMSW' in wx.PlatformInfo:  # Windows
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            return False
+
+        if not detect_dark_mode():
+            panel.SetBackgroundColour(wx.Colour(230, 250, 250))
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
 
         notebook = wx.Notebook(panel)
-        notebook.SetBackgroundColour(wx.Colour(240, 250, 250))
+
+        if not detect_dark_mode():
+            notebook.SetBackgroundColour(wx.Colour(240, 250, 250))
         self.init_background_tab(notebook)
         self.init_fitting_tab(notebook)
 

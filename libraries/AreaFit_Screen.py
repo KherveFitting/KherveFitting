@@ -16,13 +16,10 @@ class BackgroundWindow(wx.Frame):
         panel = wx.Panel(self)
 
         def detect_dark_mode():
-            print('Detecting dark mode')
-            if 'wxMac' in wx.PlatformInfo:
-                try:
-                    from AppKit import NSApp
-                    return NSApp.effectiveAppearance().name().endswith('DarkAqua')
-                except:
-                    return False
+            if 'wxMac' in wx.PlatformInfo:  # Mac
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxMSW' in wx.PlatformInfo:  # Windows
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
             return False
 
         if not detect_dark_mode():
