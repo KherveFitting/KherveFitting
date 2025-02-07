@@ -3646,6 +3646,7 @@ if __name__ == '__main__':
 
             NSApp.setAppearance_(NSAppearanceNameAqua)
         except:
+            print("light mode did not suceed")
             pass
 
 
