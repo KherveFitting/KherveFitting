@@ -484,7 +484,8 @@ def show_version_log(window):
 - Added peak name above the cross when moving a peak
 - Added right-click menu to zoom in and out
 - Added First time window for new users
-- Homogeneous font type and size throughout all platforms
+- Homogeneous font type and size throughout all platforms Mac and Windows
+- Reduced Size of Peak fitting window
 - Added .xls compatibility for the import of the data 
 - Removed the fitting of the data when saving data. it should only be done during fitting
 - Improved size of Preference Window (smaller)

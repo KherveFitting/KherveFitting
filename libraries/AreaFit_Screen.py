@@ -14,7 +14,19 @@ class BackgroundWindow(wx.Frame):
         self.SetMaxSize((300, 440))
 
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(250, 250, 230))
+
+        def detect_dark_mode():
+            print('Detecting dark mode')
+            if 'wxMac' in wx.PlatformInfo:
+                try:
+                    from AppKit import NSApp
+                    return NSApp.effectiveAppearance().name().endswith('DarkAqua')
+                except:
+                    return False
+            return False
+
+        if not detect_dark_mode():
+            panel.SetBackgroundColour(wx.Colour(250, 250, 230))
 
         # Create controls
         method_label = wx.StaticText(panel, label="Method:")

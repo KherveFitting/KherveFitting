@@ -167,11 +167,11 @@ def set_consistent_fonts(window):
         # default_font = 'Calibri'
         # default_font = 'Arial'
 
-        STANDARD_FONT_SIZE = 11
+        STANDARD_FONT_SIZE = 12
         # STANDARD_FONT_SIZE = 5
-        HEADER_FONT_SIZE = 12
+        HEADER_FONT_SIZE = 13
         # HEADER_FONT_SIZE = 5
-        LABEL_FONT_SIZE = 11
+        LABEL_FONT_SIZE = 12
         # LABEL_FONT_SIZE = 5
     else:
         # default_font = 'Arial'
