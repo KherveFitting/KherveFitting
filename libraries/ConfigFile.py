@@ -166,17 +166,24 @@ def set_consistent_fonts(window):
         default_font = 'Helvetica'
         # default_font = 'Calibri'
         # default_font = 'Arial'
-        # default_font = 'Aptos'
+
+        STANDARD_FONT_SIZE = 11
+        # STANDARD_FONT_SIZE = 5
+        HEADER_FONT_SIZE = 12
+        # HEADER_FONT_SIZE = 5
+        LABEL_FONT_SIZE = 11
+        # LABEL_FONT_SIZE = 5
     else:
         # default_font = 'Arial'
         # default_font = 'Helvetica'
         default_font = 'Calibri'
-    STANDARD_FONT_SIZE = 9
-    # STANDARD_FONT_SIZE = 5
-    HEADER_FONT_SIZE = 10
-    # HEADER_FONT_SIZE = 5
-    LABEL_FONT_SIZE = 9
-    # LABEL_FONT_SIZE = 5
+
+        STANDARD_FONT_SIZE = 9
+        # STANDARD_FONT_SIZE = 5
+        HEADER_FONT_SIZE = 10
+        # HEADER_FONT_SIZE = 5
+        LABEL_FONT_SIZE = 9
+        # LABEL_FONT_SIZE = 5
 
     window.SetFont(wx.Font(STANDARD_FONT_SIZE, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
                            faceName=default_font))
