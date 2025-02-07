@@ -3643,8 +3643,9 @@ if __name__ == '__main__':
         wx.SystemOptions.SetOption("osx.window-plain-transition", 1)
         wx.SystemOptions.SetOption("osx.window-frame-appearance", "light")
 
+
     # Create Splash Screen
-    splash = show_splash(duration=3000, delay=0)
+    splash = show_splash(duration=2000, delay=0)
 
     frame = MyFrame(None, "KherveFitting - v1.4 - Feb 2025")
     frame.Show(True)

@@ -19,9 +19,9 @@ class FittingWindow(wx.Frame):
 
 
         self.SetTitle("Peak Fitting")
-        self.SetSize((325, 495))  # Increased height to accommodate new elements
-        self.SetMinSize((325, 495))
-        self.SetMaxSize((325, 495))
+        self.SetSize((340, 435))  # Increased height to accommodate new elements
+        self.SetMinSize((340, 435))
+        self.SetMaxSize((340, 435))
 
         #305 480
 
@@ -143,11 +143,11 @@ class FittingWindow(wx.Frame):
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         reset_vlines_button = wx.Button(self.background_panel, label="Reset \nVertical Lines")
-        reset_vlines_button.SetMinSize((125, 40))
+        reset_vlines_button.SetMinSize((158, 40))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
         clear_between_vlines_button = wx.Button(self.background_panel, label="Clear Between\nVertical Lines")
-        clear_between_vlines_button.SetMinSize((125, 40))
+        clear_between_vlines_button.SetMinSize((158, 40))
         clear_between_vlines_button.Bind(wx.EVT_BUTTON, self.on_clear_between_vlines)
 
         clear_background_only_button = wx.Button(self.background_panel, label="Clear\nBackground")
@@ -159,29 +159,29 @@ class FittingWindow(wx.Frame):
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, lambda evt: TougaardFitWindow(self).Show())
 
         # Layout Background Tab
-        background_sizer.Add(method_label, pos=(0, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        background_sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=0)
-        background_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL, border=0)
-        background_sizer.Add(offset_h_label, pos=(2, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        background_sizer.Add(self.offset_h_text, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(offset_l_label, pos=(3, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        background_sizer.Add(self.offset_l_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(averaging_points_label, pos=(4, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.cross_section_label,  pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.cross_section, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.cross_section2_label,  pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.cross_section2, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.cross_section3_label,  pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.cross_section3, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        background_sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.method_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(offset_h_label, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.offset_h_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(offset_l_label, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.offset_l_text, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(averaging_points_label, pos=(4, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.cross_section_label,  pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.cross_section2_label,  pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.cross_section2, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.cross_section3_label,  pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.cross_section3, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-        background_sizer.Add(reset_vlines_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(clear_between_vlines_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(clear_background_only_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(background_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        background_sizer.Add(clear_background_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        background_sizer.Add(reset_vlines_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(clear_background_only_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(background_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        background_sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.background_panel.SetSizer(background_sizer)
         notebook.AddPage(self.background_panel, "Background")
@@ -291,8 +291,9 @@ class FittingWindow(wx.Frame):
         fit_report_button.SetMinSize((125, 30))
         fit_report_button.Bind(wx.EVT_BUTTON, self.on_fit_report)
 
+        # This button size controls all the size of the button on the left side
         add_peak_button = wx.Button(self.fitting_panel, label="Add 1 Peak\nSinglet")
-        add_peak_button.SetMinSize((125, 40))
+        add_peak_button.SetMinSize((155, 40))
         add_peak_button.Bind(wx.EVT_BUTTON, self.on_add_peak)
 
         add_doublet_button = wx.Button(self.fitting_panel, label="Add 2 Peaks\nDoublet")
@@ -316,43 +317,43 @@ class FittingWindow(wx.Frame):
         fit_multi_button.Bind(wx.EVT_BUTTON, self.on_fit_multi)
 
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fitting Model:"), pos=(0, 0),
-                          flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=0)
-        fitting_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL, border=0)
+                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(info_button, pos=(1, 1), flag= wx.ALL | wx.BOTTOM | wx.TOP, border=0)
 
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Method:"), pos=(2, 0),
-                          flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=0)
+                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence: "), pos=(3, 0),
-                          flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=5)
+                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
-                          flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=5)
+                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        fitting_sizer.Add(self.r_squared_label, pos=(5, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.r_squared_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.red_chi_squared_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.red_chi_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.current_fit_label, pos=(7, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        fitting_sizer.Add(self.current_fit_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        fitting_sizer.Add(fit_report_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(fit_report_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        fitting_sizer.Add(add_peak_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(add_doublet_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(add_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(add_doublet_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        fitting_sizer.Add(remove_peak_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(remove_peak_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(export_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        fitting_sizer.Add(fit_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(fit_multi_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=5)
+        fitting_sizer.Add(fit_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        fitting_sizer.Add(fit_multi_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.fitting_panel.SetSizer(fitting_sizer)
         notebook.AddPage(self.fitting_panel, "Peak Fitting")
