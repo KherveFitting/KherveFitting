@@ -19,9 +19,14 @@ class FittingWindow(wx.Frame):
 
 
         self.SetTitle("Peak Fitting")
-        self.SetSize((340, 435))  # Increased height to accommodate new elements
-        self.SetMinSize((340, 435))
-        self.SetMaxSize((340, 435))
+        if 'wxMac' in wx.PlatformInfo:
+            self.SetSize((330, 425))  # Increased height to accommodate new elements
+            self.SetMinSize((330, 425))
+            self.SetMaxSize((330, 425))
+        else:
+            self.SetSize((340, 435))  # Increased height to accommodate new elements
+            self.SetMinSize((340, 435))
+            self.SetMaxSize((340, 435))
 
         #305 480
 
