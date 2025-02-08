@@ -473,7 +473,7 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row, 7, "2.7")  # sigma
             self.peak_params_grid.SetCellValue(row, 8, '2.7')  # gamma
             self.peak_params_grid.SetCellValue(row, 9, '0')  # skew
-        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             self.peak_params_grid.SetCellValue(row, 5, "20")
             self.peak_params_grid.SetCellValue(row, 7, "1.2")  # sigma
             self.peak_params_grid.SetCellValue(row, 8, '0.4')  # gamma
@@ -516,7 +516,7 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:10")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:10")
             self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')  # skew
-        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             self.peak_params_grid.SetCellValue(row + 1, 5, "15:85")
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
@@ -550,7 +550,7 @@ class MyFrame(wx.Frame):
                 self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
-        elif self.selected_fitting_method == "Voigt (Area, L/G, \u03c3, skew)":
+        elif self.selected_fitting_method == "Voigt (Area, L/G, \u03c3, S)":
             for col in [3, 4, 8]:  # Columns for Height, FWHM, L/G ratio
                 self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
@@ -646,7 +646,7 @@ class MyFrame(wx.Frame):
 
 
 
-        if self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        if self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             peak_data = {
                 'Position': peak_x,
                 'Height': peak_y,
@@ -747,7 +747,7 @@ class MyFrame(wx.Frame):
                     'Gamma': "0.01:3"
                 }
             })
-        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             peak_data.update({
                 'Sigma': 1,
                 'Gamma': 0.5,
@@ -1138,7 +1138,7 @@ class MyFrame(wx.Frame):
         if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
             # For Voigt, this is an approximation
             return area / (fwhm * np.sqrt(np.pi / (4 * np.log(2))))
-        elif model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
             if row is None:
                 raise ValueError("Row must be provided for Skewed Voigt model")
             center = float(self.peak_params_grid.GetCellValue(row, 2))
@@ -1265,7 +1265,7 @@ class MyFrame(wx.Frame):
                 new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
                 self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
                 self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
-        elif model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
             sigma_constraint = self.peak_params_grid.GetCellValue(constraint_row, 7)
             current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
             lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
@@ -1304,7 +1304,7 @@ class MyFrame(wx.Frame):
                 if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"] and new_sigma is not None:
                     peaks[peak_label]['Sigma'] = new_sigma
                     peaks[peak_label]['Gamma'] = new_gamma
-                elif model in ["Voigt (Area, L/G, \u03c3, skew)"] and new_sigma is not None:
+                elif model in ["Voigt (Area, L/G, \u03c3, S)"] and new_sigma is not None:
                     peaks[peak_label]['Sigma'] = new_sigma
                     peaks[peak_label]['Gamma'] = new_gamma
                 elif model == "ExpGauss.(Area, \u03c3, \u03b3)" and new_gamma is not None:
@@ -1351,7 +1351,7 @@ class MyFrame(wx.Frame):
                 row = peak_index * 2
                 model = self.peak_params_grid.GetCellValue(row, 13)
 
-                if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
+                if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, S)"]:
                     original_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                     original_lg = float(self.peak_params_grid.GetCellValue(row, 5))
                     linked_sigma = original_sigma
@@ -1378,7 +1378,7 @@ class MyFrame(wx.Frame):
             model = self.peak_params_grid.GetCellValue(row, 13)
             delta_x = x - self.initial_x
 
-            if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
+            if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, S)"]:
                 current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                 lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
                 new_sigma = max(current_sigma + delta_x * 1, 0.4)
@@ -1406,7 +1406,7 @@ class MyFrame(wx.Frame):
                 if peak_label in peaks:
                     peaks[peak_label]['FWHM'] = new_fwhm
                     if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
-                                 "ExpGauss.(Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
+                                 "ExpGauss.(Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, S)"]:
                         peaks[peak_label]['Sigma'] = new_sigma
                         peaks[peak_label]['Gamma'] = new_gamma
 
@@ -1429,7 +1429,7 @@ class MyFrame(wx.Frame):
 
         if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "ExpGauss.(Area, \u03c3, \u03b3)",
                      "LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)", "LA*G (Area, \u03c3/\u03b3, "
-                        "\u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
+                        "\u03b3)", "Voigt (Area, L/G, \u03c3, S)"]:
             sigma = float(self.peak_params_grid.GetCellValue(row, 7))
             gamma = float(self.peak_params_grid.GetCellValue(row, 8))
             skew = float(self.peak_params_grid.GetCellValue(row, 9))
@@ -1797,14 +1797,14 @@ class MyFrame(wx.Frame):
                 current_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
                 new_fwhm = current_fwhm
 
-                if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
+                if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, S)"]:
                     current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                     lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
                     new_sigma = max(current_sigma + delta, 0.4)
                     new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
                     self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
                     self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
-                    if model == "Voigt (Area, L/G, \u03c3, skew)":
+                    if model == "Voigt (Area, L/G, \u03c3, S)":
                         skew = float(self.peak_params_grid.GetCellValue(row, 9))
                 elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
                     current_gamma = float(self.peak_params_grid.GetCellValue(row, 8))
@@ -2480,11 +2480,11 @@ class MyFrame(wx.Frame):
                 wx.MessageBox("Invalid height value", "Error", wx.OK | wx.ICON_ERROR)
 
     def calculate_peak_area(self, model, height, fwhm, fraction, sigma=None, gamma=None, skew=None):
-        if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:#, "Voigt (Area, L/G, \u03c3, skew)"]:
+        if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:#, "Voigt (Area, L/G, \u03c3, S)"]:
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for Voigt models")
             area = PeakFunctions.voigt_height_to_area(height, sigma / 2.355, gamma / 2)
-        elif model == "Voigt (Area, L/G, \u03c3, skew)":
+        elif model == "Voigt (Area, L/G, \u03c3, S)":
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for Voigt models")
             area = PeakFunctions.skewedvoigt_height_to_area(height, sigma / 2.355, gamma / 2, skew)
@@ -2778,7 +2778,7 @@ class MyFrame(wx.Frame):
                                 self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
                             elif col == 8:
                                 pass
-                        elif model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+                        elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
                             if col == 5: # L/G ratio changed
                                 sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                                 gamma = (fraction / 100) * sigma / (1 - fraction / 100)

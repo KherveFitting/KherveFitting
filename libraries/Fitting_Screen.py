@@ -20,9 +20,9 @@ class FittingWindow(wx.Frame):
 
         self.SetTitle("Peak Fitting")
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize((330, 425))  # Increased height to accommodate new elements
-            self.SetMinSize((330, 425))
-            self.SetMaxSize((330, 425))
+            self.SetSize((320, 405))  # Increased height to accommodate new elements
+            self.SetMinSize((320, 405))
+            self.SetMaxSize((320, 405))
         else:
             self.SetSize((340, 435))  # Increased height to accommodate new elements
             self.SetMinSize((340, 435))
@@ -215,7 +215,7 @@ class FittingWindow(wx.Frame):
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
-                 "Voigt (Area, L/G, \u03c3, skew)",
+                 "Voigt (Area, L/G, \u03c3, S)",
                  "Others---------------",
                  "Area Based----------",
                  # "GL (Area)",
@@ -306,67 +306,127 @@ class FittingWindow(wx.Frame):
 
         # This button size controls all the size of the button on the left side
         add_peak_button = wx.Button(self.fitting_panel, label="Add 1 Peak\nSinglet")
-        add_peak_button.SetMinSize((155, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            add_peak_button.SetMinSize((150, 30))
+        else:
+            add_peak_button.SetMinSize((155, 40))
         add_peak_button.Bind(wx.EVT_BUTTON, self.on_add_peak)
 
         add_doublet_button = wx.Button(self.fitting_panel, label="Add 2 Peaks\nDoublet")
-        add_doublet_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            add_doublet_button.SetMinSize((125, 30))
+        else:
+            add_doublet_button.SetMinSize((125, 40))
         add_doublet_button.Bind(wx.EVT_BUTTON, self.on_add_doublet)
 
         remove_peak_button = wx.Button(self.fitting_panel, label="Remove\nLast Peak")
-        remove_peak_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            remove_peak_button.SetMinSize((125, 30))
+        else:
+            remove_peak_button.SetMinSize((125, 40))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
         export_button = wx.Button(self.fitting_panel, label="Export to\nResults Grid")
-        export_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            export_button.SetMinSize((125, 30))
+        else:
+           export_button.SetMinSize((125, 40))
         export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
         fit_button = wx.Button(self.fitting_panel, label="Fit \nOne Time")
-        fit_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            fit_button.SetMinSize((125, 30))
+        else:
+            fit_button.SetMinSize((125, 40))
         fit_button.Bind(wx.EVT_BUTTON, self.on_fit_peaks)
 
         fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nN# Times")
-        fit_multi_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            fit_multi_button.SetMinSize((125, 30))
+        else:
+            fit_multi_button.SetMinSize((125, 40))
         fit_multi_button.Bind(wx.EVT_BUTTON, self.on_fit_multi)
 
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fitting Model:"), pos=(0, 0),
-                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(info_button, pos=(1, 1), flag= wx.ALL | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxMac' in wx.PlatformInfo:
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fitting Model:"), pos=(0, 0),
+                              flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag=wx.ALL, border=0)
+            fitting_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL, border=0)
 
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Method:"), pos=(2, 0),
-                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Method:"), pos=(2, 0),
+                              flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence: "), pos=(3, 0),
-                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
-                          flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence: "), pos=(3, 0),
+                              flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
+                              flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+            # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
+            fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
-        # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
-        fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+            # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
+            fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        fitting_sizer.Add(fit_report_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(fit_report_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        fitting_sizer.Add(add_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(add_doublet_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(add_peak_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        fitting_sizer.Add(remove_peak_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(export_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(remove_peak_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        fitting_sizer.Add(fit_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        fitting_sizer.Add(fit_multi_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # fitting_sizer.Add(fit_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(fit_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            # fitting_sizer.Add(fit_multi_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(fit_multi_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fitting Model:"), pos=(0, 0),
+                              flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(info_button, pos=(1, 1), flag= wx.ALL | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Method:"), pos=(2, 0),
+                              flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.optimization_method, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Convergence: "), pos=(3, 0),
+                              flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.max_iter_spin, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
+                              flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+            # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
+            fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+            # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
+            fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(fit_report_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(add_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(add_doublet_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(remove_peak_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(export_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(fit_button, pos=(13, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(fit_multi_button, pos=(13, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.fitting_panel.SetSizer(fitting_sizer)
         notebook.AddPage(self.fitting_panel, "Peak Fitting")
@@ -757,12 +817,12 @@ class FittingWindow(wx.Frame):
             "GL (Area)": "Gaussian-Lorentzian product function (area-based).\nEquation: Similar to GL (Height), but normalized for area",
             "SGL (Area)": "Sum of Gaussian and Lorentzian functions (area-based).\nEquation: Similar to SGL (Height), but normalized for area",
             "Pseudo-Voigt (Area)": "Linear combination of Gaussian and Lorentzian.\nEquation: I(x) = A * [η * L(x) + (1-η) * G(x)]",
-            "Voigt (Area, L/G, \u03c3, skew)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
+            "Voigt (Area, L/G, \u03c3, S)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
                                            "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
                                            "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
-            "Voigt (Area, L/G, \u03c3, skew)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
+            "Voigt (Area, L/G, \u03c3, S)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
                                            "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
             "ExpGauss.(Area, \u03c3, \u03b3)": "Gaussian shape model with asymmetric side. The asymmetry is modelled"
                                                "using an exponential decay as per equation: ",

@@ -232,7 +232,7 @@ class PlotManager:
             gamma = float(peak_params.get('gamma', 0.06)) / 2
             amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma)
-        elif fitting_model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+        elif fitting_model in ["Voigt (Area, L/G, \u03c3, S)"]:
             peak_model = lmfit.models.SkewedVoigtModel()
             # skew = float(peak_params.get('sigma', 0.2))
             # sigma = float(peak_params.get('sigma', 1.2)) / 2.355
@@ -715,10 +715,10 @@ class PlotManager:
                 fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
                 fraction = float(window.peak_params_grid.GetCellValue(row, 5))
                 if fitting_model in ["Voigt (Area, L/G, \u03c3)","Voigt (Area, \u03c3, \u03b3)",
-                                     "ExpGauss.(Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, skew)"]:
+                                     "ExpGauss.(Area, \u03c3, \u03b3)", "Voigt (Area, L/G, \u03c3, S)"]:
                     sigma = float(window.peak_params_grid.GetCellValue(row, 7))
                     gamma = float(window.peak_params_grid.GetCellValue(row, 8))
-                    if fitting_model == "Voigt (Area, L/G, \u03c3, skew)":
+                    if fitting_model == "Voigt (Area, L/G, \u03c3, S)":
                         skew = float(window.peak_params_grid.GetCellValue(row, 9))
                 else:
                     sigma = 0
@@ -979,7 +979,7 @@ class PlotManager:
                 peak_model = lmfit.models.VoigtModel()
                 amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
                 params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma)
-            elif window.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, skew)"]:
+            elif window.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
                 peak_model = lmfit.models.SkewedVoigtModel()
                 skew = float(window.peak_params_grid.GetCellValue(row, 9))
                 amplitude = y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0, skew=skew)
@@ -1120,7 +1120,7 @@ class PlotManager:
                 gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
                 amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
-            elif fitting_model in ["Voigt (Area, L/G, \u03c3, skew)"]:
+            elif fitting_model in ["Voigt (Area, L/G, \u03c3, S)"]:
                 peak_model = lmfit.models.SkewedVoigtModel()
                 skew = float(window.peak_params_grid.GetCellValue(row, 9))
                 sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355

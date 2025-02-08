@@ -1,5 +1,5 @@
 {
-  "FilePath": "C:\\Users\\gwilh\\OneDrive - Imperial College London\\Documents\\MEGAsync\\Programs\\Python\\KherveFitting\\DATA\\UKSAF\\LaSrTiO3.xlsx",
+  "FilePath": "/Users/gkerherv/Documents/PycharmProjects/KherveFitting/DATA/UKSAF/LaSrTiO3.xlsx",
   "Number of Core levels": 6,
   "Core levels": {
     "Sr3d": {
@@ -674,25 +674,25 @@
       "Fitting": {
         "Peaks": {
           "Sr3d5/2 p1": {
-            "Position": 132.69,
-            "Height": 3329.07,
-            "FWHM": 1.6,
-            "L/G": 20.0,
-            "Area": 5669.9,
-            "Sigma": 1.6,
-            "Gamma": 0.27,
+            "Position": 133.6,
+            "Height": 3998.04,
+            "FWHM": 1.47,
+            "L/G": 22.64,
+            "Area": 6256.0,
+            "Sigma": 1.47,
+            "Gamma": 0.28,
             "Skew": 0.0,
             "fwhm_g": 0.0,
             "Fitting Model": "GL (Area)"
           },
           "Sr3d3/2 p2": {
-            "Position": 134.39,
-            "Height": 2220.49,
-            "FWHM": 1.6,
-            "L/G": 20.0,
-            "Area": 3781.82,
-            "Sigma": 3.77,
-            "Gamma": 0.54,
+            "Position": 135.35,
+            "Height": 2581.85,
+            "FWHM": 1.47,
+            "L/G": 22.64,
+            "Area": 4040.0,
+            "Sigma": 3.46,
+            "Gamma": 0.56,
             "Skew": 0.0,
             "Fitting Model": "GL (Area)",
             "Bkg Type": "Multi-Regions Smart",
@@ -711,6 +711,62 @@
               "Skew": "A*1"
             },
             "Name": "Sr3d3/2 p2",
+            "fwhm_g": 0.0
+          },
+          "Sr3d5/2 p3": {
+            "Position": 135.37,
+            "Height": 269.69,
+            "FWHM": 1.47,
+            "L/G": 22.64,
+            "Area": 422.0,
+            "Sigma": 8.15,
+            "Gamma": 1.12,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 126.08,
+            "Bkg High": 142.08,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "126.08,142.08",
+              "Height": "1:1e7",
+              "FWHM": "A*1",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "0.01:1",
+              "Gamma": "0.01:3",
+              "Skew": "0.01:2"
+            },
+            "Name": "Sr3d5/2 p3",
+            "fwhm_g": 0.0
+          },
+          "Sr3d3/2 p4": {
+            "Position": 136.87,
+            "Height": 185.33,
+            "FWHM": 1.47,
+            "L/G": 22.64,
+            "Area": 290.0,
+            "Sigma": 19.19,
+            "Gamma": 2.24,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 126.08,
+            "Bkg High": 142.08,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "C+1.7#0.2",
+              "Height": "C*0.667#0.05",
+              "FWHM": "C*1",
+              "L/G": "C*1",
+              "Area": "C*0.667#0.05",
+              "Sigma": "C*1",
+              "Gamma": "C*1",
+              "Skew": "C*1"
+            },
+            "Name": "Sr3d3/2 p4",
             "fwhm_g": 0.0
           }
         },
