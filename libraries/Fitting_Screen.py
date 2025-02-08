@@ -742,7 +742,7 @@ class FittingWindow(wx.Frame):
             # Sigma constraint
             if any(element in sheet_name for element in ['Ti2p', 'V2p']) and any(
                     x in self.parent.selected_fitting_method for x in ["Voigt"]):
-                sigma_constraint = "0.01:3"  # Independent FWHM for Ti2p and V2p
+                sigma_constraint = "0.3:3"  # Independent FWHM for Ti2p and V2p
             else:
                 sigma_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 7, sigma_constraint)

@@ -522,8 +522,8 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:0.7')  # skew
         else:
-            self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:3")
-            self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:3")
+            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
+            self.peak_params_grid.SetCellValue(row + 1, 8, "0.3:3")
             self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')  # skew
         self.peak_params_grid.ForceRefresh()
 
@@ -668,8 +668,8 @@ class MyFrame(wx.Frame):
                     'FWHM': "0.3:3.5",
                     'L/G': "2:80",
                     'Area': '1:1e7',
-                    'Sigma': "0.01:1",
-                    'Gamma': "0.01:3",
+                    'Sigma': "0.3:3",
+                    'Gamma': "0.3:3",
                     'Skew': "0.01:2"
                 }
             }
@@ -695,8 +695,8 @@ class MyFrame(wx.Frame):
                     'FWHM': "0.3:3.5",
                     'L/G': "2:80",
                     'Area': '1:1e7',
-                    'Sigma': "0.01:1",
-                    'Gamma': "0.01:3",
+                    'Sigma': "0.3:3",
+                    'Gamma': "0.3:3",
                     'Skew': "0.01:2"
                 }
             }
@@ -743,8 +743,8 @@ class MyFrame(wx.Frame):
                     'FWHM': "0.3:3.5",
                     'L/G': "1:80",  # Full range for Voigt models
                     'Area': '1:1e7',
-                    'Sigma': "0.01:3",
-                    'Gamma': "0.01:3"
+                    'Sigma': "0.3:3",
+                    'Gamma': "0.3:3"
                 }
             })
         elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
@@ -758,8 +758,8 @@ class MyFrame(wx.Frame):
                     'FWHM': "0.3:3.5",
                     'L/G': "1:80",  # Full range for Voigt models
                     'Area': '1:1e7',
-                    'Sigma': "0.01:3",
-                    'Gamma': "0.01:3",
+                    'Sigma': "0.3:3",
+                    'Gamma': "0.3:3",
                     'Skew': "0.01:0.7"
                 }
             })
