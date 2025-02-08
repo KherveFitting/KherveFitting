@@ -20,9 +20,9 @@ class FittingWindow(wx.Frame):
 
         self.SetTitle("Peak Fitting")
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize((320, 405))  # Increased height to accommodate new elements
-            self.SetMinSize((320, 405))
-            self.SetMaxSize((320, 405))
+            self.SetSize((262, 380))  # Increased height to accommodate new elements
+            self.SetMinSize((262, 380))
+            self.SetMaxSize((262, 380))
         else:
             self.SetSize((340, 435))  # Increased height to accommodate new elements
             self.SetMinSize((340, 435))
@@ -90,6 +90,8 @@ class FittingWindow(wx.Frame):
         self.method_combobox = wx.ComboBox(self.background_panel, choices=["Multi-Regions Smart", "Smart", "Shirley",
                                             "Linear", '1x U4-Tougaard', "2x U4-Tougaard", "3x U4-Tougaard"],
                                            style=wx.CB_READONLY)
+        self.method_combobox.SetMaxSize((125,25))
+
         method_index = self.method_combobox.FindString(self.parent.background_method)
         self.method_combobox.SetSelection(method_index)
         self.method_combobox.Bind(wx.EVT_COMBOBOX, self.on_bkg_method_change)
@@ -148,53 +150,95 @@ class FittingWindow(wx.Frame):
             self.cross_section2.SetValue(','.join(map(str, saved_values3)))
 
         background_button = wx.Button(self.background_panel, label="Create\nBackground")
-        background_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            background_button.SetMinSize((125, 30))
+        else:
+            background_button.SetMinSize((125, 40))
         background_button.Bind(wx.EVT_BUTTON, self.on_background)
 
         clear_background_button = wx.Button(self.background_panel, label="Clear\nAll")
-        clear_background_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            clear_background_button.SetMinSize((125, 30))
+        else:
+            clear_background_button.SetMinSize((125, 40))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         reset_vlines_button = wx.Button(self.background_panel, label="Reset \nVertical Lines")
-        reset_vlines_button.SetMinSize((158, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            reset_vlines_button.SetMinSize((125, 30))
+        else:
+            reset_vlines_button.SetMinSize((158, 40))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
         clear_between_vlines_button = wx.Button(self.background_panel, label="Clear Between\nVertical Lines")
-        clear_between_vlines_button.SetMinSize((158, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            clear_between_vlines_button.SetMinSize((125, 30))
+        else:
+            clear_between_vlines_button.SetMinSize((158, 40))
         clear_between_vlines_button.Bind(wx.EVT_BUTTON, self.on_clear_between_vlines)
 
         clear_background_only_button = wx.Button(self.background_panel, label="Clear\nBackground")
-        clear_background_only_button.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            clear_background_only_button.SetMinSize((125, 30))
+        else:
+            clear_background_only_button.SetMinSize((125, 40))
         clear_background_only_button.Bind(wx.EVT_BUTTON, self.on_clear_background_only)
 
         self.tougaard_fit_btn = wx.Button(self.background_panel, label="Create Tougaard\n Model")
-        self.tougaard_fit_btn.SetMinSize((125, 40))
+        if 'wxMac' in wx.PlatformInfo:
+            self.tougaard_fit_btn.SetMinSize((125, 30))
+        else:
+            self.tougaard_fit_btn.SetMinSize((125, 40))
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, lambda evt: TougaardFitWindow(self).Show())
 
+        if 'wxMac' in wx.PlatformInfo:
         # Layout Background Tab
-        background_sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.method_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(offset_h_label, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.offset_h_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(offset_l_label, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.offset_l_text, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(averaging_points_label, pos=(4, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.cross_section_label,  pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.cross_section2_label,  pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.cross_section2, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.cross_section3_label,  pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.cross_section3, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(method_label, pos=(0, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(offset_h_label, pos=(2, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.offset_h_text, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(offset_l_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.offset_l_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(averaging_points_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section_label,  pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section2_label,  pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section2, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section3_label,  pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section3, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+            background_sizer.Add(reset_vlines_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(clear_background_only_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(background_button, pos=(13, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(clear_background_button, pos=(13, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            background_sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.method_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(info_button, pos=(1, 1), flag=wx.ALL | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(offset_h_label, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.offset_h_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(offset_l_label, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.offset_l_text, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(averaging_points_label, pos=(4, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section_label,  pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section2_label,  pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section2, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section3_label,  pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section3, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-        background_sizer.Add(reset_vlines_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(clear_background_only_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(background_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        background_sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(reset_vlines_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_only_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(background_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.background_panel.SetSizer(background_sizer)
         notebook.AddPage(self.background_panel, "Background")
@@ -208,6 +252,7 @@ class FittingWindow(wx.Frame):
 
 
         self.model_combobox = CustomComboBox(self.fitting_panel, style=wx.CB_READONLY)
+        self.model_combobox.SetMaxSize((125, 25))
 
         # Set items and green items
         items = ["Preferred Models-----",
@@ -253,6 +298,7 @@ class FittingWindow(wx.Frame):
 
         info_button = self.create_info_button(self.fitting_panel,
                                               self.get_fitting_description(self.parent.selected_fitting_method))
+        info_button.SetMaxSize((20,20))
 
         self.optimization_method = wx.ComboBox(self.fitting_panel, choices=[
             "leastsq",
@@ -307,7 +353,8 @@ class FittingWindow(wx.Frame):
         # This button size controls all the size of the button on the left side
         add_peak_button = wx.Button(self.fitting_panel, label="Add 1 Peak\nSinglet")
         if 'wxMac' in wx.PlatformInfo:
-            add_peak_button.SetMinSize((150, 30))
+            add_peak_button.SetMinSize((125, 30))
+            pass
         else:
             add_peak_button.SetMinSize((155, 40))
         add_peak_button.Bind(wx.EVT_BUTTON, self.on_add_peak)
@@ -364,19 +411,19 @@ class FittingWindow(wx.Frame):
                               flag=wx.ALL | wx.EXPAND, border=1)
             fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.r_squared_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.r_squared_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
             # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
             # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
-            fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.red_chi_squared_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.red_chi_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
             # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
-            fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.current_fit_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.current_fit_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            fitting_sizer.Add(fit_report_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(fit_report_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             fitting_sizer.Add(add_peak_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
             fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
