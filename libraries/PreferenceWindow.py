@@ -453,7 +453,8 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.residual_alpha_spin, pos=(11, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
         self.residual_thickness_label = wx.StaticText(self.plot_tab, label="Residual Width:")
-        self.residual_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1", min=1, max=5)
+        # self.residual_thickness_spin = wx.SpinCtrlDouble(self.plot_tab, value="1.0", min=0.1, inc=0.1, max=5)
+        self.residual_thickness_spin = wx.SpinCtrl(self.plot_tab, value="1.0", min=1, max=5)
         self.residual_thickness_spin.SetMinSize((100, -1))
         sizer.Add(self.residual_thickness_label, pos=(12, 0), flag=wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.residual_thickness_spin, pos=(12, 1), flag=wx.BOTTOM | wx.TOP, border=0)

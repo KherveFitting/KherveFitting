@@ -14,9 +14,9 @@ class BackgroundWindow(wx.Frame):
             self.SetMinSize((260, 385))
             self.SetMaxSize((260, 385))
         else:
-            self.SetSize((300, 440))
-            self.SetMinSize((300, 440))
-            self.SetMaxSize((300, 440))
+            self.SetSize((267, 400))
+            self.SetMinSize((267, 400))
+            self.SetMaxSize((267, 400))
 
         panel = wx.Panel(self)
 
@@ -71,7 +71,7 @@ class BackgroundWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             self.tougaard_fit_btn.SetMinSize((125, 30))
         else:
-            self.tougaard_fit_btn.SetMinSize((140, 40))
+            self.tougaard_fit_btn.SetMinSize((125, 35))
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, self.on_tougaard_model)
 
         # Add remove last peak button
@@ -79,14 +79,14 @@ class BackgroundWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             remove_peak_button.SetMinSize((90, 30))
         else:
-            remove_peak_button.SetMinSize((110, 40))
+            remove_peak_button.SetMinSize((90, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
         clear_background_button = wx.Button(panel, label="Clear\nAll")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_button.SetMinSize((125, 30))
         else:
-            clear_background_button.SetMinSize((110, 40))
+            clear_background_button.SetMinSize((110, 35))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         # export_button = wx.Button(panel, label="Export to\nResults Grid")
@@ -98,7 +98,7 @@ class BackgroundWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             reset_vlines_button.SetMinSize((125, 30))
         else:
-            reset_vlines_button.SetMinSize((140, 40))
+            reset_vlines_button.SetMinSize((125, 35))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
 
@@ -106,14 +106,14 @@ class BackgroundWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             background_only_button.SetMinSize((125, 30))
         else:
-            background_only_button.SetMinSize((110, 40))
+            background_only_button.SetMinSize((125, 35))
         background_only_button.Bind(wx.EVT_BUTTON, self.on_background_only)
 
         area_button = wx.Button(panel, label="Calculate\nArea")
         if 'wxMac' in wx.PlatformInfo:
             area_button.SetMinSize((90, 30))
         else:
-            area_button.SetMinSize((110, 40))
+            area_button.SetMinSize((90, 35))
         area_button.Bind(wx.EVT_BUTTON, self.on_area)
 
         peak_label_text_label = wx.StaticText(panel, label="Area Name      ")
@@ -233,14 +233,14 @@ class BackgroundWindow(wx.Frame):
             # sizer.Add(remove_peak_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(reset_vlines_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(reset_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
             # Sixth row: Background and Clear Background buttons
             # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            sizer.Add(background_only_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(background_only_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         # Initially disable all Tougaard controls

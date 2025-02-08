@@ -24,9 +24,9 @@ class FittingWindow(wx.Frame):
             self.SetMinSize((262, 380))
             self.SetMaxSize((262, 380))
         else:
-            self.SetSize((340, 435))  # Increased height to accommodate new elements
-            self.SetMinSize((340, 435))
-            self.SetMaxSize((340, 435))
+            self.SetSize((275, 400))  # Increased height to accommodate new elements
+            self.SetMinSize((275, 400))
+            self.SetMaxSize((275, 400))
 
         #305 480
 
@@ -153,42 +153,42 @@ class FittingWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             background_button.SetMinSize((125, 30))
         else:
-            background_button.SetMinSize((125, 40))
+            background_button.SetMinSize((125, 35))
         background_button.Bind(wx.EVT_BUTTON, self.on_background)
 
         clear_background_button = wx.Button(self.background_panel, label="Clear\nAll")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_button.SetMinSize((125, 30))
         else:
-            clear_background_button.SetMinSize((125, 40))
+            clear_background_button.SetMinSize((125, 35))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         reset_vlines_button = wx.Button(self.background_panel, label="Reset \nVertical Lines")
         if 'wxMac' in wx.PlatformInfo:
             reset_vlines_button.SetMinSize((125, 30))
         else:
-            reset_vlines_button.SetMinSize((158, 40))
+            reset_vlines_button.SetMinSize((125, 35))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
         clear_between_vlines_button = wx.Button(self.background_panel, label="Clear Between\nVertical Lines")
         if 'wxMac' in wx.PlatformInfo:
             clear_between_vlines_button.SetMinSize((125, 30))
         else:
-            clear_between_vlines_button.SetMinSize((158, 40))
+            clear_between_vlines_button.SetMinSize((125, 35))
         clear_between_vlines_button.Bind(wx.EVT_BUTTON, self.on_clear_between_vlines)
 
         clear_background_only_button = wx.Button(self.background_panel, label="Clear\nBackground")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_only_button.SetMinSize((125, 30))
         else:
-            clear_background_only_button.SetMinSize((125, 40))
+            clear_background_only_button.SetMinSize((125, 35))
         clear_background_only_button.Bind(wx.EVT_BUTTON, self.on_clear_background_only)
 
         self.tougaard_fit_btn = wx.Button(self.background_panel, label="Create Tougaard\n Model")
         if 'wxMac' in wx.PlatformInfo:
             self.tougaard_fit_btn.SetMinSize((125, 30))
         else:
-            self.tougaard_fit_btn.SetMinSize((125, 40))
+            self.tougaard_fit_btn.SetMinSize((125, 35))
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, lambda evt: TougaardFitWindow(self).Show())
 
         if 'wxMac' in wx.PlatformInfo:
@@ -233,12 +233,14 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.cross_section3, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-            background_sizer.Add(reset_vlines_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_background_only_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(background_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(reset_vlines_button, pos=(10, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_between_vlines_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
+                                 border=0)
+            background_sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_only_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
+                                 border=0)
+            background_sizer.Add(background_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.background_panel.SetSizer(background_sizer)
         notebook.AddPage(self.background_panel, "Background")
@@ -356,42 +358,42 @@ class FittingWindow(wx.Frame):
             add_peak_button.SetMinSize((125, 30))
             pass
         else:
-            add_peak_button.SetMinSize((155, 40))
+            add_peak_button.SetMinSize((125, 35))
         add_peak_button.Bind(wx.EVT_BUTTON, self.on_add_peak)
 
         add_doublet_button = wx.Button(self.fitting_panel, label="Add 2 Peaks\nDoublet")
         if 'wxMac' in wx.PlatformInfo:
             add_doublet_button.SetMinSize((125, 30))
         else:
-            add_doublet_button.SetMinSize((125, 40))
+            add_doublet_button.SetMinSize((125, 35))
         add_doublet_button.Bind(wx.EVT_BUTTON, self.on_add_doublet)
 
         remove_peak_button = wx.Button(self.fitting_panel, label="Remove\nLast Peak")
         if 'wxMac' in wx.PlatformInfo:
             remove_peak_button.SetMinSize((125, 30))
         else:
-            remove_peak_button.SetMinSize((125, 40))
+            remove_peak_button.SetMinSize((125, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
         export_button = wx.Button(self.fitting_panel, label="Export to\nResults Grid")
         if 'wxMac' in wx.PlatformInfo:
             export_button.SetMinSize((125, 30))
         else:
-           export_button.SetMinSize((125, 40))
+           export_button.SetMinSize((125, 35))
         export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
         fit_button = wx.Button(self.fitting_panel, label="Fit \nOne Time")
         if 'wxMac' in wx.PlatformInfo:
             fit_button.SetMinSize((125, 30))
         else:
-            fit_button.SetMinSize((125, 40))
+            fit_button.SetMinSize((125, 35))
         fit_button.Bind(wx.EVT_BUTTON, self.on_fit_peaks)
 
         fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nN# Times")
         if 'wxMac' in wx.PlatformInfo:
             fit_multi_button.SetMinSize((125, 30))
         else:
-            fit_multi_button.SetMinSize((125, 40))
+            fit_multi_button.SetMinSize((125, 35))
         fit_multi_button.Bind(wx.EVT_BUTTON, self.on_fit_multi)
 
         if 'wxMac' in wx.PlatformInfo:
@@ -466,14 +468,14 @@ class FittingWindow(wx.Frame):
 
             fitting_sizer.Add(fit_report_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-            fitting_sizer.Add(add_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            fitting_sizer.Add(add_doublet_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(add_peak_button, pos=(10, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-            fitting_sizer.Add(remove_peak_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            fitting_sizer.Add(export_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(remove_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(export_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-            fitting_sizer.Add(fit_button, pos=(13, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            fitting_sizer.Add(fit_multi_button, pos=(13, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(fit_button, pos=(12, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(fit_multi_button, pos=(12, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.fitting_panel.SetSizer(fitting_sizer)
         notebook.AddPage(self.fitting_panel, "Peak Fitting")
