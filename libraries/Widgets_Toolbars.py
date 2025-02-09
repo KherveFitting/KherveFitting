@@ -111,7 +111,7 @@ def create_widgets(window):
     bind_events_widgets(window)
 
 
-def create_grids_panel(window):
+def create_grids_panel_OLD(window):
     grids_panel = wx.Panel(window.splitter)
     grids_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -126,6 +126,43 @@ def create_grids_panel(window):
     grids_panel.SetSizer(grids_sizer)
     return grids_panel
 
+
+def create_grids_panel(window):
+    grids_panel = wx.Panel(window.splitter)
+
+    # Create splitter window
+    inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
+
+    # Create peak params panel and grid
+    peak_params_panel = wx.Panel(inner_splitter)
+    peak_params_sizer = create_peak_params_grid(window, peak_params_panel)
+    peak_params_panel.SetSizer(peak_params_sizer)
+
+    # Create results panel and grid
+    results_panel = wx.Panel(inner_splitter)
+    results_sizer = create_results_grid(window, results_panel)
+    results_panel.SetSizer(results_sizer)
+
+    # Add splitter to main sizer
+    sizer = wx.BoxSizer(wx.VERTICAL)
+    sizer.Add(inner_splitter, 1, wx.EXPAND)
+    grids_panel.SetSizer(sizer)
+
+    # Split horizontally
+    window_height = grids_panel.GetSize().GetHeight()
+    split_position = window_height // 2
+    inner_splitter.SplitHorizontally(peak_params_panel, results_panel, split_position)
+    inner_splitter.SetMinimumPaneSize(100)
+
+    # Bind size event to maintain 50-50 split
+    def on_size(event):
+        size = inner_splitter.GetSize()
+        inner_splitter.SetSashPosition(size.GetHeight() // 2)
+        event.Skip()
+
+    inner_splitter.Bind(wx.EVT_SIZE, on_size)
+
+    return grids_panel
 
 def create_peak_params_grid(window, parent):
     peak_params_frame_box = wx.StaticBox(parent, label="Peak Fitting Parameters")
