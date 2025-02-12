@@ -596,9 +596,11 @@ class FittingWindow(wx.Frame):
         self.parent.add_peak_params()
 
     def on_remove_peak(self, event):
+        save_state(self.parent)
         remove_peak(self.parent)
 
     def on_fit_multi(self, event):
+        save_state(self.parent)
         if self.parent.peak_params_grid.GetNumberRows() == 0:
             wx.MessageBox("No peaks to fit. Add at least one peak first.", "Error", wx.OK | wx.ICON_ERROR)
             return
@@ -614,7 +616,7 @@ class FittingWindow(wx.Frame):
             self.parent.clear_and_replot()
             wx.Yield()
         self.current_fit_text.SetValue("Complete")
-        save_state(self.parent)
+
 
     def on_fit_peaks(self, event):
         save_state(self.parent)
@@ -632,6 +634,7 @@ class FittingWindow(wx.Frame):
         self.Layout()
 
     def on_export_results(self, event):
+        save_state(self.parent)
         self.parent.export_results()
 
     def load_doublet_splittings(self, library_data):
@@ -669,6 +672,7 @@ class FittingWindow(wx.Frame):
 
 
     def on_add_doublet(self, event):
+        save_state(self.parent)
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
             return
@@ -808,6 +812,7 @@ class FittingWindow(wx.Frame):
         self.parent.clear_and_replot()
 
     def on_background(self, event):
+        save_state(self.parent)
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             sheet_name = self.parent.sheet_combobox.GetValue()
             x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
@@ -826,21 +831,26 @@ class FittingWindow(wx.Frame):
             if 'Background' in core_level_data:
                 self.parent.bg_min_energy = core_level_data['Background']['Bkg Low']
                 self.parent.bg_max_energy = core_level_data['Background']['Bkg High']
-
         save_state(self.parent)
 
+
+
     def on_clear_background(self, event):
+        save_state(self.parent)
         self.parent.plot_manager.clear_background(self.parent)
         self.parent.bg_min_energy = None
         self.parent.bg_max_energy = None
         self.parent.plot_data()
         save_state(self.parent)
 
+
     def on_offset_h_change(self, event):
+        save_state(self.parent)
         offset_h_value = self.offset_h_text.GetValue()
         self.parent.set_offset_h(offset_h_value)
 
     def on_offset_l_change(self, event):
+        save_state(self.parent)
         offset_l_value = self.offset_l_text.GetValue()
         self.parent.set_offset_l(offset_l_value)
 

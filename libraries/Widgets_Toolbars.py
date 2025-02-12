@@ -11,6 +11,7 @@ from libraries.Open import ExcelDropTarget, open_xlsx_file
 from libraries.Plot_Operations import PlotManager
 from Functions import toggle_Col_1
 from libraries.Save import update_undo_redo_state
+from libraries.Save import save_state, undo, redo
 from libraries.Save import save_peaks_library, load_peaks_library
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.Export import export_word_report
@@ -470,21 +471,6 @@ def create_horizontal_toolbar(window):
     # toolbar.SetBackgroundColour(wx.Colour(220, 220, 220))
     toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-    # import ctypes
-    # user32 = ctypes.windll.user32
-    # user32.SetProcessDPIAware()
-    # dpi = user32.GetDpiForSystem()
-    # user32.SetProcessDPIAware(False)  # Remove DPI awareness
-    # scale_factor = dpi / 96
-    #
-    # print(f'Scale Factor: {scale_factor}')
-    # screen_height = wx.DisplaySize()[1] / scale_factor
-    # icon_size = int(screen_height * 0.04)
-    # toolbar.SetToolBitmapSize(wx.Size(icon_size, icon_size))
-
-    # toolbar.SetToolBitmapSize(wx.Size(20, 20))
-
-
     current_dir = os.path.dirname(os.path.abspath(__file__))
     icon_path = os.path.join(current_dir, "Icons")
 
@@ -502,14 +488,6 @@ def create_horizontal_toolbar(window):
     window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
     # toolbar.AddSeparator()
 
-    # toolbar.AddSeparator()
-    # add_vertical_separator(toolbar, separators)
-    # toolbar.AddSeparator()
-
-    # # Skip rows spinbox
-    # window.skip_rows_spinbox = wx.SpinCtrl(toolbar, min=0, max=200, initial=0, size=(60, -1))
-    # window.skip_rows_spinbox.SetToolTip("Set the number of rows to skip in the sheet of the Excel file")
-    # toolbar.AddControl(window.skip_rows_spinbox)
 
     # Sheet selection
     window.sheet_combobox = wx.ComboBox(toolbar, style=wx.CB_READONLY)
@@ -562,19 +540,6 @@ def create_horizontal_toolbar(window):
 
 
     toolbar.AddSeparator()
-
-    # # Plot adjustment tools
-    # plot_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Plot', wx.Bitmap(os.path.join(icon_path, "scatter-plot-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Toggle between Raw Data and Fit")
-    # toggle_peak_fill_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill', wx.Bitmap(os.path.join(icon_path,
-    #                                                                                               "STO-25-2.png"),
-    #                                                                                  wx.BITMAP_TYPE_PNG), shortHelp="Toggle Peak Fill")
-    # toggle_y_axis_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis', wx.Bitmap(os.path.join(icon_path, "Y-25.png"),
-    #                                                                            wx.BITMAP_TYPE_PNG), shortHelp="Toggle Y Axis Label and Values")
-    # toggle_legend_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Legend', wx.Bitmap(os.path.join(icon_path, "Legend-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Toggle Legend")
-    # toggle_fit_results_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results', wx.Bitmap(os.path.join(icon_path, "ToggleFit-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Toggle Fit Results")
-    # toggle_residuals_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals', wx.Bitmap(os.path.join(icon_path, "Res-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Toggle Residuals")
-    #
-    # toolbar.AddSeparator()
 
     # Analysis tools
     bkg_tool = toolbar.AddTool(wx.ID_ANY, 'Background', wx.Bitmap(os.path.join(icon_path, "BKG-25.png"),
@@ -630,6 +595,15 @@ def create_horizontal_toolbar(window):
                                       shortHelp="Load peaks parameters from library")
     export_tool = toolbar.AddTool(wx.ID_ANY, 'Export Results', wx.Bitmap(os.path.join(icon_path, "Export-25g.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export to Results Grid")
 
+
+    # Create delete toolbar instance
+    window.delete_toolbar = DeleteToolbar(window)
+
+    # Add delete master toggle tool
+    delete_master_tool = toolbar.AddTool(wx.ID_ANY, 'Delete',
+                                         wx.Bitmap(os.path.join(icon_path, "DeleteRow-25.png"), wx.BITMAP_TYPE_PNG),
+                                         shortHelp="Delete Options for Results Grid")
+
     Setting_tool = toolbar.AddTool(wx.ID_ANY, 'Load Settings',
                                       wx.Bitmap(os.path.join(icon_path, "Settings-25.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Open Preference Window")
@@ -638,6 +612,18 @@ def create_horizontal_toolbar(window):
 
     toggle_Col_1_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals', wx.Bitmap(os.path.join(icon_path, "HideColumn-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Toggle Columns Peak Fitting Parameters")
     window.toggle_right_panel_tool = window.add_toggle_tool(toolbar, "Toggle Right Panel", wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR))
+
+    def show_delete_toolbar(event):
+        if not window.delete_toolbar.IsShown():
+            pos = toolbar.GetScreenPosition()
+            window.delete_toolbar.SetPosition((pos.x + toolbar.GetSize().width - 100, pos.y + 30))
+            window.delete_toolbar.Show()
+
+
+    window.Bind(wx.EVT_TOOL, show_delete_toolbar, delete_master_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: on_delete_all(window, evt), window.delete_toolbar.delete_all_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: on_delete_last(window, evt), window.delete_toolbar.delete_last_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: on_delete_first(window, evt), window.delete_toolbar.delete_first_tool)
 
     toolbar.Realize()
 
@@ -658,6 +644,31 @@ def create_horizontal_toolbar(window):
 
 
     return toolbar
+
+
+
+
+
+# Bind the delete toolbar tools
+def on_delete_all(window, event):
+    window.results_grid.DeleteRows(0, window.results_grid.GetNumberRows())
+    window.Data['Results']['Peak'] = {}
+    save_state(window)
+
+def on_delete_last(window, event):
+    last_row = window.results_grid.GetNumberRows() - 1
+    window.results_grid.DeleteRows(last_row)
+    peak_keys = list(window.Data['Results']['Peak'].keys())
+    if peak_keys:
+        del window.Data['Results']['Peak'][peak_keys[-1]]
+    save_state(window)
+
+def on_delete_first(window, event):
+    window.results_grid.DeleteRows(0)
+    peak_keys = list(window.Data['Results']['Peak'].keys())
+    if peak_keys:
+        del window.Data['Results']['Peak'][peak_keys[0]]
+    save_state(window)
 
 def add_vertical_separator(toolbar, separators):
     separators.append(wx.StaticLine(toolbar, style=wx.LI_VERTICAL))
@@ -908,6 +919,43 @@ class ToggleToolbar(wx.Frame):
         self.SetSize(self.toolbar.GetBestSize())
 
         # Bind close event
+        self.Bind(wx.EVT_KILL_FOCUS, self.on_lose_focus)
+
+
+
+    def on_lose_focus(self, event):
+        self.Hide()
+        event.Skip()
+
+
+class DeleteToolbar(wx.Frame):
+    def __init__(self, parent):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(current_dir, "Icons")
+        super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
+
+        self.toolbar = wx.ToolBar(self, style=wx.TB_VERTICAL | wx.TB_FLAT)
+        self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+        # Add tools
+        self.delete_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete All Results',
+                                                    wx.Bitmap(os.path.join(icon_path, "AllRow-25.png"),
+                                                              wx.BITMAP_TYPE_PNG), shortHelp="Delete All Rows of "
+                                                                                             "the Results Grid")
+
+        self.delete_last_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete Last Row',
+                                                     wx.Bitmap(os.path.join(icon_path, "LastRow-25.png"),
+                                                               wx.BITMAP_TYPE_PNG), shortHelp="Delete Last Row of "
+                                                                                              "the Results Grid")
+
+        self.delete_first_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete First Row',
+                                                      wx.Bitmap(os.path.join(icon_path, "TopRow-25.png"),
+                                                                wx.BITMAP_TYPE_PNG), shortHelp="Delete First Row of "
+                                                                                               "the Results Grid")
+
+        self.toolbar.Realize()
+        self.SetSize(self.toolbar.GetBestSize())
+
         self.Bind(wx.EVT_KILL_FOCUS, self.on_lose_focus)
 
     def on_lose_focus(self, event):

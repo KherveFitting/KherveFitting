@@ -483,6 +483,7 @@ def show_version_log(window):
 - Added Linewidth settings in the preference window for residual, envelope, background
 - Added peak name above the cross when moving a peak
 - Added right-click menu to zoom in and out
+- Added Delete icons to delete rows in the peak fitting grid
 - Added First time window for new users
 - Homogeneous font type and size throughout all platforms Mac and Windows
 - Reduced Size of Peak fitting window
