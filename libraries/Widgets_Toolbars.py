@@ -593,8 +593,8 @@ def create_horizontal_toolbar(window):
     open_peaks_tool = toolbar.AddTool(wx.ID_ANY, 'Open Peaks Library',
                                       wx.Bitmap(os.path.join(icon_path, "LibOpen.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Load peaks parameters from library")
-    export_tool = toolbar.AddTool(wx.ID_ANY, 'Export Results', wx.Bitmap(os.path.join(icon_path, "Export-25g.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export to Results Grid")
 
+    export_tool = toolbar.AddTool(wx.ID_ANY, 'Export Results', wx.Bitmap(os.path.join(icon_path, "Export-25g.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export to Results Grid")
 
     # Create delete toolbar instance
     window.delete_toolbar = DeleteToolbar(window)
@@ -934,7 +934,7 @@ class DeleteToolbar(wx.Frame):
         icon_path = os.path.join(current_dir, "Icons")
         super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
 
-        self.toolbar = wx.ToolBar(self, style=wx.TB_VERTICAL | wx.TB_FLAT)
+        self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
         self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
         # Add tools
