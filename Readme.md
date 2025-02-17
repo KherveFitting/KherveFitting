@@ -150,7 +150,8 @@ Use the Noise Analysis tool to assess data quality and determine the signal-to-n
 
 ## License
 
-KherveFitting is distributed under the BSD-3 License. See the [LICENSE](LICENSE) file for more details.
+KherveFitting is distributed under the BSD-3 License allowing for broad use, modification, and distribu-
+tion.
 
 ## Contact
 
