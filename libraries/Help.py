@@ -471,6 +471,7 @@ def show_version_log(window):
 - Added Skewed Voigt model. Default to leastsq fitting method
 - Added Automatic download of new KherveFitting version
 - Added KratosC1s and KratosF1s to the library
+- Created values for all spin orbit coupling for the KratosC1s and KratosF1s libraries
 - Added a Toggle menu icon on the left side in line with the MAC version
 - Added Settings Icon in the toolbar
 - Added Bugs report
