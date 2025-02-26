@@ -239,6 +239,9 @@ def on_sheet_selected(window, event):
             # If no data for this sheet, ensure the grid is empty
             _clear_peak_params_grid(window)
 
+        # Apply choice editors to the fitting model column
+        window.set_model_choice_editors(window)
+
         # Refresh the grid display
         window.peak_params_grid.ForceRefresh()
 

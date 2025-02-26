@@ -3,6 +3,7 @@ import os
 import sys
 import wx
 import webbrowser
+import subprocess
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
@@ -13,6 +14,7 @@ from Functions import toggle_Col_1
 from libraries.Save import update_undo_redo_state
 from libraries.Save import save_state, undo, redo
 from libraries.Save import save_peaks_library, load_peaks_library
+from libraries.Save import on_save_as
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, PlotModWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
@@ -21,8 +23,6 @@ from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots
                        import_multiple_avg_files, create_plot_script_from_excel, on_save_plot, \
     on_save_plot_pdf, on_save_plot_svg, on_exit, undo, redo, toggle_plot, show_shortcuts, show_mini_game, on_about)
 from libraries.Utilities import add_draggable_text
-
-
 from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1, undo, redo
 
 
@@ -206,6 +206,51 @@ def create_peak_params_grid(window, parent):
     for i, size in enumerate(col_sizes):
         window.peak_params_grid.SetColSize(i, size)
 
+    # Store the fitting models as a window attribute
+    window.fitting_models = [
+        "GL (Area)",
+        "SGL (Area)",
+        "LA (Area, \u03c3/\u03b3, \u03b3)",
+        "Voigt (Area, L/G, \u03c3)",
+        "Voigt (Area, \u03c3, \u03b3)",
+        "Voigt (Area, L/G, \u03c3, S)",
+        "LA (Area, \u03c3, \u03b3)",
+        "LA*G (Area, \u03c3/\u03b3, \u03b3)",
+        "Pseudo-Voigt (Area)",
+        "ExpGauss.(Area, \u03c3, \u03b3)",
+        "GL (Height)",
+        "SGL (Height)"
+    ]
+
+    # For initial setup, create a new editor for each cell
+    for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+        # Create a fresh editor instance for each cell
+        fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
+        window.peak_params_grid.SetCellEditor(row, 13, fresh_editor)
+
+    # Define the helper function with the same approach
+    def set_model_choice_editors(window):
+        """Apply choice editors to the fitting model column (13) for all parameter rows."""
+        for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+            # Create a new editor instance for each cell
+            fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
+            window.peak_params_grid.SetCellEditor(row, 13, fresh_editor)
+
+    # Save the function as an attribute of the window
+    window.set_model_choice_editors = set_model_choice_editors
+
+    # Similar approach for the new row handler
+    def add_choice_editor_to_new_row(grid, row_num):
+        if row_num % 2 == 0:  # Only for parameter rows
+            # Create a new editor instance
+            fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
+            grid.SetCellEditor(row_num, 13, fresh_editor)
+
+    # Store this function in the window object
+    window.add_choice_editor_to_new_row = add_choice_editor_to_new_row
+
+
+
     peak_params_sizer_inner.Add(window.peak_params_grid, 1, wx.EXPAND | wx.ALL, 5)
     window.peak_params_frame.SetSizer(peak_params_sizer_inner)
     peak_params_sizer.Add(window.peak_params_frame, 1, wx.EXPAND | wx.ALL, 5)
@@ -285,6 +330,11 @@ def create_menu(window):
     save_menu = wx.Menu()
 
     # File menu items
+
+    # Add "New Instance" option to File menu
+    new_instance_item = file_menu.Append(wx.NewId(), "New File\tCtrl+N")
+    window.Bind(wx.EVT_MENU, lambda event: launch_new_instance(), new_instance_item)
+
     open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")
     window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_item)
 
@@ -302,6 +352,9 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: save_results_table(window), save_Table_item)
 
     file_menu.AppendSubMenu(save_menu, "Save")
+
+    save_as_item = file_menu.Append(wx.ID_SAVEAS, "Save As...\tCtrl+Shift+S")
+    window.Bind(wx.EVT_MENU, lambda event: on_save_as(window), save_as_item)
 
     # Import submenu items
     import_vamas_item = import_menu.Append(wx.NewId(), "Import Vamas Data file (.vms)")
@@ -465,6 +518,18 @@ def create_rightside_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), r_open_peaks_tool)
 
     return r_toolbar
+
+def launch_new_instance():
+    """Launch a new instance of the application"""
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        executable = sys.executable
+        subprocess.Popen([executable])
+    else:
+        # Running as script
+        script_path = sys.argv[0]
+        subprocess.Popen([sys.executable, script_path])
+
 
 def create_horizontal_toolbar(window):
     toolbar = window.CreateToolBar(style=  wx.TB_FLAT)

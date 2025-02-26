@@ -59,7 +59,6 @@ from libraries.Open import open_xlsx_file
 
 from libraries.Peak_Functions import OtherCalc, AtomicConcentrations
 from libraries.Dpara_Screen import DParameterWindow
-
 from libraries.Update import UpdateChecker
 
 
@@ -439,6 +438,7 @@ class MyFrame(wx.Frame):
 
         # Add new rows to the grid
         self.peak_params_grid.AppendRows(2)
+        self.add_choice_editor_to_new_row(self.peak_params_grid, self.peak_params_grid.GetNumberRows() - 2)
         row = self.peak_params_grid.GetNumberRows() - 2
 
         # Assign letter IDs

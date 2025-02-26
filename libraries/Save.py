@@ -17,6 +17,7 @@ from openpyxl.styles import Border, Side, PatternFill, Font
 from openpyxl import load_workbook
 from libraries.Sheet_Operations import on_sheet_selected
 from copy import deepcopy
+import shutil
 # from Functions import convert_to_serializable_and_round
 
 
@@ -1045,3 +1046,116 @@ def load_peaks_from_github(window):
 
     except requests.exceptions.RequestException:
         wx.MessageBox("Error accessing peaks library. Check your internet connection.", "Error")
+
+
+# Add this to save.py (without importing from Open.py at the top level)
+
+def on_save_as(window, event=None):
+    """
+    Save the current data to new Excel and JSON files.
+    """
+    import os
+    import json
+    import shutil
+    import wx
+
+    current_file_path = window.Data.get('FilePath')
+
+    if not current_file_path:
+        wx.MessageBox("No file is currently open.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    # Get default directory and filename from current file
+    default_dir = os.path.dirname(current_file_path)
+    default_file = os.path.basename(current_file_path)
+
+    # Create and display the file dialog
+    with wx.FileDialog(
+            window,
+            "Save As",
+            defaultDir=default_dir,
+            defaultFile=default_file,
+            wildcard="Excel files (*.xlsx)|*.xlsx",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+    ) as fileDialog:
+
+        if fileDialog.ShowModal() == wx.ID_CANCEL:
+            return  # User canceled
+
+        # Get the new file path
+        new_file_path = fileDialog.GetPath()
+
+        # Ensure it has .xlsx extension
+        if not new_file_path.lower().endswith('.xlsx'):
+            new_file_path += '.xlsx'
+
+        # Get the JSON path for the current file
+        current_json_path = os.path.splitext(current_file_path)[0] + '.json'
+
+        # Calculate the new JSON path
+        new_json_path = os.path.splitext(new_file_path)[0] + '.json'
+
+        try:
+            # Save the Excel file
+            if os.path.exists(current_file_path):
+                # If the original Excel file exists, make a copy
+                shutil.copy2(current_file_path, new_file_path)
+            else:
+                wx.MessageBox("Original Excel file not found. Only JSON data will be saved.",
+                              "Warning", wx.OK | wx.ICON_WARNING)
+
+            # Save the JSON data
+            if os.path.exists(current_json_path):
+                # If JSON file exists, copy it with modifications
+                with open(current_json_path, 'r') as f:
+                    data = json.load(f)
+
+                # Update the FilePath in the data
+                data['FilePath'] = new_file_path
+
+                with open(new_json_path, 'w') as f:
+                    json.dump(data, f, indent=2)
+            else:
+                # Save current window data
+                data = convert_to_serializable_and_round(window.Data)
+                data['FilePath'] = new_file_path
+
+                with open(new_json_path, 'w') as f:
+                    json.dump(data, f, indent=2)
+
+            # Update the file path in the current window
+            window.Data['FilePath'] = new_file_path
+            window.SetStatusText(f"Selected File: {new_file_path}", 0)
+
+            # Update recent files list - Fixed the variable name from file_path to new_file_path
+            if new_file_path in window.recent_files:
+                window.recent_files.remove(new_file_path)
+            window.recent_files.insert(0, new_file_path)
+            window.recent_files = window.recent_files[:window.max_recent_files]
+
+            # Update menu
+            if hasattr(window, 'recent_files_menu'):
+                # Clear existing items
+                for item in window.recent_files_menu.GetMenuItems():
+                    window.recent_files_menu.DestroyItem(item)
+
+                # Add new items
+                for i, file_path in enumerate(window.recent_files):
+                    item = window.recent_files_menu.Append(wx.ID_ANY, os.path.basename(file_path))
+                    # Late import for the open_xlsx_file function
+                    from libraries.Open import open_xlsx_file
+                    window.Bind(wx.EVT_MENU, lambda evt, fp=file_path: open_xlsx_file(window, fp), item)
+
+            window.save_config()
+
+            # Also save the current state to the new file
+            data = window.get_data_for_save()
+            save_to_excel(window, data, new_file_path, window.sheet_combobox.GetValue())
+            save_plot_to_excel(window)
+
+            window.show_popup_message2("Save As Successful", f"File saved as:\n{new_file_path}")
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            wx.MessageBox(f"Error saving file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
