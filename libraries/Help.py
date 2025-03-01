@@ -469,7 +469,7 @@ def show_version_log(window):
     version_log = """Version 1.5 (April 2025)
 - Added File > New File in the menu
 - Added File > Save as... in the menu
-- Added File > Test 2
+- Added File > Test 3
 Version 1.4 (February 2025)
 - Mac version coming soon
 - Added Skewed Voigt model. Default to leastsq fitting method
