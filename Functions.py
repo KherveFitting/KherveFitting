@@ -225,10 +225,11 @@ def on_save_plot_svg(window):
 
 
 def on_save(window):
-    from libraries.Save import save_data
+    from libraries.Save import save_data, save_results_table
     data = window.get_data_for_save()
-    save_data(window,data)
-    # save_data(window, data)
+    save_data(window, data)
+    # save_results_table(window)  # Add this line to also save results table
+
 
 def on_save_all_sheets(window, event):
     from libraries.Save import save_all_sheets_with_plots

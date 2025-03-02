@@ -83,6 +83,10 @@ def save_data(window, data):
             json.dump(json_data, json_file, indent=2)
 
         # print(json.dumps(window.Data['Results']['Peak'], indent=2))
+
+        # Save results table
+        save_results_table(window)
+
         print("Data Saved")
     except Exception as e:
         wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -660,7 +664,7 @@ def save_results_table(window):
 
         wb.save(file_path)
 
-        window.show_popup_message2("Table Saved","Results table has been saved to the Excel file.")
+        # window.show_popup_message2("Table Saved","Results table has been saved to the Excel file.")
 
     except Exception as e:
         wx.MessageBox(f"Error saving results table: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)

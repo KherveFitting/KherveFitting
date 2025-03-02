@@ -338,18 +338,16 @@ def create_menu(window):
     open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")
     window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_item)
 
-    save_Excel_item = file_menu.Append(wx.ID_SAVE, "Save Sheet \tCtrl+S")
-    window.Bind(wx.EVT_MENU, lambda event: on_save(window), save_Excel_item)
+    # Recent files submenu
+    window.recent_files_menu = wx.Menu()
+    file_menu.AppendSubMenu(window.recent_files_menu, "Recent Files")
 
     # Save submenu items
+    save_Excel_item = save_menu.Append(wx.NewId(), "Save Sheet")
+    window.Bind(wx.EVT_MENU, lambda event: on_save(window), save_Excel_item)
+
     save_all_item = save_menu.Append(wx.NewId(), "Save All")
     window.Bind(wx.EVT_MENU, lambda event: save_all_sheets_with_plots(window), save_all_item)
-
-    save_Excel_item2 = save_menu.Append(wx.NewId(), "Save Sheet")
-    window.Bind(wx.EVT_MENU, lambda event: on_save(window), save_Excel_item2)
-
-    save_Table_item = save_menu.Append(wx.NewId(), "Save Results Table")
-    window.Bind(wx.EVT_MENU, lambda event: save_results_table(window), save_Table_item)
 
     file_menu.AppendSubMenu(save_menu, "Save")
 
@@ -394,10 +392,6 @@ def create_menu(window):
     export_menu.AppendSeparator()
     word_report_item = export_menu.Append(wx.NewId(), "Create Report (.docx)")
     window.Bind(wx.EVT_MENU, lambda event: export_word_report(window), word_report_item)
-
-    # Recent files submenu
-    window.recent_files_menu = wx.Menu()
-    file_menu.AppendSubMenu(window.recent_files_menu, "Recent Files")
 
     open_location_item = file_menu.Append(wx.NewId(), "Open File Location")
     window.Bind(wx.EVT_MENU, lambda event: open_file_location(window), open_location_item)
@@ -545,7 +539,7 @@ def create_horizontal_toolbar(window):
     open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
 
     save_tool = toolbar.AddTool(wx.ID_ANY, 'Save', wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save the Fitted Results to Excel for this Core Level \tCtrl+S")
-    save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Save Plot', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save this Figure to Excel")
+    save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Save Plot', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save this Figure as PNG")
     save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets', wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save all sheets with plots")
 
     # toolbar.AddSeparator()
