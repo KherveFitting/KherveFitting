@@ -3,7 +3,7 @@ import json
 import os
 import openpyxl
 from libraries.Open import load_library_data
-
+import platform
 
 class PreferenceWindow(wx.Frame):
     def __init__(self, parent):
@@ -62,6 +62,10 @@ class PreferenceWindow(wx.Frame):
         self.init_text_tab()
         self.init_save_settings_tab()
         self.LoadSettings()
+
+        # # Test for MAC to see why preference window does not change
+        # self.background_linestyle.SetStringSelection("--")
+        # self.background_linestyle.Refresh()
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
@@ -381,12 +385,14 @@ class PreferenceWindow(wx.Frame):
 
         # Plot style
         plot_style_label = wx.StaticText(self.plot_tab, label="Plot Style:")
-        self.plot_style = wx.Choice(self.plot_tab, choices=["Scatter", "Line"])
+        if platform.system() == 'Darwin':  # macOS
+            self.plot_style = wx.ComboBox(self.plot_tab, choices=["Scatter", "Line"], style=wx.CB_READONLY)
+        else:
+            self.plot_style = wx.Choice(self.plot_tab, choices=["Scatter", "Line"])
+
         self.plot_style.SetMinSize((100,30))
         self.plot_style.Bind(wx.EVT_CHOICE, self.OnPlotStyleChange)
-        # sizer.Add(plot_style_label, pos=(0, 0), flag=wx.LEFT | wx.RIGHT, border=5)
         sizer.Add(plot_style_label, pos=(0, 0), flag= wx.BOTTOM | wx.TOP, border=0)
-        # sizer.Add(self.plot_style, pos=(0, 1), flag=wx.LEFT | wx.RIGHT, border=5)
         sizer.Add(self.plot_style, pos=(0, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
 
@@ -400,8 +406,16 @@ class PreferenceWindow(wx.Frame):
 
         # Scatter marker
         marker_label = wx.StaticText(self.plot_tab, label="Scatter Marker:")
-        self.marker_choice = wx.Choice(self.plot_tab, choices=['.', ',', 'o', 'v', '^', '<', '>', '1', '2', '3', '4', '8', 's', 'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_'] )# ["o", "s", "^", "D", "*"])
-        self.marker_choice.SetMinSize((100, -1))
+        if platform.system() == 'Darwin':
+            self.marker_choice = wx.ComboBox(self.plot_tab,
+                                             choices=['.', ',', 'o', 'v', '^', '<', '>', '1', '2', '3', '4', '8', 's',
+                                                      'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_'],
+                                             style=wx.CB_READONLY)
+        else:
+            self.marker_choice = wx.Choice(self.plot_tab,
+                                           choices=['.', ',', 'o', 'v', '^', '<', '>', '1', '2', '3', '4', '8', 's',
+                                                    'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_'])
+
         sizer.Add(marker_label, pos=(2, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.marker_choice, pos=(2, 1), flag= wx.BOTTOM | wx.TOP, border=0)
 
@@ -414,7 +428,10 @@ class PreferenceWindow(wx.Frame):
 
         # Raw data linestyle
         self.raw_data_linestyle_label = wx.StaticText(self.plot_tab, label="Raw Data Line:")
-        self.raw_data_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
+        if platform.system() == 'Darwin':
+            self.raw_data_linestyle = wx.ComboBox(self.plot_tab, choices=["-", "--", "-.", ":"], style=wx.CB_READONLY)
+        else:
+            self.raw_data_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.raw_data_linestyle.SetMinSize((100, -1))
         sizer.Add(self.raw_data_linestyle_label, pos=(5, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.raw_data_linestyle, pos=(5, 1), flag= wx.BOTTOM | wx.TOP, border=0)
@@ -442,7 +459,10 @@ class PreferenceWindow(wx.Frame):
 
         # Residual options
         self.residual_linestyle_label = wx.StaticText(self.plot_tab, label="Residual Line:")
-        self.residual_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
+        if platform.system() == 'Darwin':
+            self.residual_linestyle = wx.ComboBox(self.plot_tab, choices=["-", "--", "-.", ":"], style=wx.CB_READONLY)
+        else:
+            self.residual_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.residual_linestyle.SetMinSize((100, -1))
         sizer.Add(self.residual_linestyle_label, pos=(10, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.residual_linestyle, pos=(10, 1), flag= wx.BOTTOM | wx.TOP, border=0)
@@ -469,7 +489,10 @@ class PreferenceWindow(wx.Frame):
 
         # Background options
         self.background_linestyle_label = wx.StaticText(self.plot_tab, label="Background Line:")
-        self.background_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
+        if platform.system() == 'Darwin':
+            self.background_linestyle = wx.ComboBox(self.plot_tab, choices=["-", "--", "-.", ":"], style=wx.CB_READONLY)
+        else:
+            self.background_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.background_linestyle.SetMinSize((100, -1))
         sizer.Add(self.background_linestyle_label, pos=(15, 0), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.background_linestyle, pos=(15, 1), flag= wx.BOTTOM | wx.TOP, border=0)
@@ -494,7 +517,10 @@ class PreferenceWindow(wx.Frame):
 
         # Envelope options
         self.envelope_linestyle_label = wx.StaticText(self.plot_tab, label="Envelope Line:")
-        self.envelope_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
+        if platform.system() == 'Darwin':
+            self.envelope_linestyle = wx.ComboBox(self.plot_tab, choices=["-", "--", "-.", ":"], style=wx.CB_READONLY)
+        else:
+            self.envelope_linestyle = wx.Choice(self.plot_tab, choices=["-", "--", "-.", ":"])
         self.envelope_linestyle.SetMinSize((100, -1))
         sizer.Add(self.envelope_linestyle_label, pos=(0, 4), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.envelope_linestyle, pos=(0, 5), flag= wx.BOTTOM | wx.TOP, border=0)
@@ -653,9 +679,6 @@ class PreferenceWindow(wx.Frame):
         self.parent.scatter_size = self.point_size_spin.GetValue()
         self.update_plot()
 
-    def OnMarkerChange(self, event):
-        self.parent.scatter_marker = self.marker_choice.GetString(self.marker_choice.GetSelection())
-        self.update_plot()
 
     def OnPlotStyleChange(self, event):
         self.parent.plot_style = "scatter" if self.plot_style.GetSelection() == 0 else "line"
@@ -752,14 +775,14 @@ class PreferenceWindow(wx.Frame):
 
         self.background_color_picker.SetColour(self.parent.background_color)
         self.background_alpha_spin.SetValue(self.parent.background_alpha)
-        self.background_linestyle.SetSelection(["", "-", "--", "-.", ":"].index(self.parent.background_linestyle))
+        self.background_linestyle.SetSelection(["-", "--", "-.", ":"].index(self.parent.background_linestyle))
         self.envelope_color_picker.SetColour(self.parent.envelope_color)
         self.envelope_alpha_spin.SetValue(self.parent.envelope_alpha)
-        self.envelope_linestyle.SetSelection(["", "-", "--", "-.", ":"].index(self.parent.envelope_linestyle))
+        self.envelope_linestyle.SetSelection([ "-", "--", "-.", ":"].index(self.parent.envelope_linestyle))
         self.residual_color_picker.SetColour(self.parent.residual_color)
         self.residual_alpha_spin.SetValue(self.parent.residual_alpha)
-        self.residual_linestyle.SetSelection(["", "-", "--", "-.", ":"].index(self.parent.residual_linestyle))
-        self.raw_data_linestyle.SetSelection(["", "-", "--", "-.", ":"].index(self.parent.raw_data_linestyle))
+        self.residual_linestyle.SetSelection(["-", "--", "-.", ":"].index(self.parent.residual_linestyle))
+        self.raw_data_linestyle.SetSelection(["-", "--", "-.", ":"].index(self.parent.raw_data_linestyle))
 
         self.peak_line_style_combo.SetValue(self.parent.peak_line_style)
         self.peak_line_alpha_spin.SetValue(self.parent.peak_line_alpha)
@@ -879,7 +902,15 @@ class PreferenceWindow(wx.Frame):
     def OnSave(self, event):
         self.parent.plot_style = "scatter" if self.plot_style.GetSelection() == 0 else "line"
         self.parent.scatter_size = self.point_size_spin.GetValue()
-        self.parent.scatter_marker = self.marker_choice.GetString(self.marker_choice.GetSelection())
+        # self.parent.scatter_marker = self.marker_choice.GetString(self.marker_choice.GetSelection())
+
+        selection = self.marker_choice.GetSelection()
+        if selection != wx.NOT_FOUND:
+            self.parent.scatter_marker = self.marker_choice.GetString(selection)
+        else:
+            # Use default marker if none selected
+            self.parent.scatter_marker = "o"  # or whatever default you prefer
+
         self.parent.scatter_color = self.scatter_color_picker.GetColour().GetAsString(wx.C2S_HTML_SYNTAX)
         self.parent.line_width = self.line_width_spin.GetValue()
         self.parent.line_alpha = self.line_alpha_spin.GetValue()
@@ -887,17 +918,17 @@ class PreferenceWindow(wx.Frame):
 
         self.parent.background_color = self.background_color_picker.GetColour().GetAsString(wx.C2S_HTML_SYNTAX)
         self.parent.background_alpha = self.background_alpha_spin.GetValue()
-        self.parent.background_linestyle = ["", "-", "--", "-.", ":"][self.background_linestyle.GetSelection()]
+        self.parent.background_linestyle = ["-", "--", "-.", ":"][self.background_linestyle.GetSelection()]
 
         self.parent.envelope_color = self.envelope_color_picker.GetColour().GetAsString(wx.C2S_HTML_SYNTAX)
         self.parent.envelope_alpha = self.envelope_alpha_spin.GetValue()
-        self.parent.envelope_linestyle = ["", "-", "--", "-.", ":"][self.envelope_linestyle.GetSelection()]
+        self.parent.envelope_linestyle = ["-", "--", "-.", ":"][self.envelope_linestyle.GetSelection()]
 
         self.parent.residual_color = self.residual_color_picker.GetColour().GetAsString(wx.C2S_HTML_SYNTAX)
         self.parent.residual_alpha = self.residual_alpha_spin.GetValue()
-        self.parent.residual_linestyle = ["", "-", "--", "-.", ":"][self.residual_linestyle.GetSelection()]
+        self.parent.residual_linestyle = ["-", "--", "-.", ":"][self.residual_linestyle.GetSelection()]
 
-        self.parent.raw_data_linestyle = ["", "-", "--", "-.", ":"][self.raw_data_linestyle.GetSelection()]
+        self.parent.raw_data_linestyle = ["-", "--", "-.", ":"][self.raw_data_linestyle.GetSelection()]
 
         self.parent.peak_line_style = self.peak_line_style_combo.GetValue()
         self.parent.peak_line_alpha = self.peak_line_alpha_spin.GetValue()
