@@ -202,7 +202,7 @@ class MyFrame(wx.Frame):
         self.peak_fill_enabled = True
 
         # Add new attributes for text settings
-        self.plot_font = 'Arial'
+        self.plot_font = 'DejaVu Sans'
         self.axis_title_size = 12
         self.axis_number_size = 10
         self.x_sublines = 5
