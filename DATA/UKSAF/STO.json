@@ -1,5 +1,5 @@
 {
-  "FilePath": "C:\\Users\\gwilh\\OneDrive - Imperial College London\\Documents\\MEGAsync\\Programs\\Python\\KherveFitting\\DATA\\UKSAF\\STO.xlsx",
+  "FilePath": "/Users/gkerherv/Documents/PycharmProjects/KherveFitting/DATA/UKSAF/STO.xlsx",
   "Number of Core levels": 4,
   "Core levels": {
     "Ti2p": {
@@ -3575,7 +3575,68 @@
     }
   },
   "Results": {
-    "Peak": {}
+    "Peak": {
+      "Peak_0": {
+        "Label": "Peak_0",
+        "Name": "Sr3d5/2 p1",
+        "Position": 132.49,
+        "Height": 101467.39,
+        "FWHM": 1.0,
+        "L/G": 60.28,
+        "Area": 108008.69,
+        "at. %": 0.0,
+        "RSF": 4.25,
+        "TXFN": 1.0,
+        "ECF": "TPP-2M",
+        "Instrument": "A-ALTHERMO1",
+        "Fitting Model": "GL (Area)",
+        "Rel. Area": 324.68,
+        "Sigma": 1.0,
+        "Gamma": 0.51,
+        "Skew": 0.0,
+        "Bkg Low": 126.08,
+        "Bkg High": 142.08,
+        "Sheetname": "Sr3d",
+        "Pos. Constraint": "126.08,142.08",
+        "Height Constraint": "0",
+        "FWHM Constraint": "0.3:3.5",
+        "L/G Constraint": "2:80",
+        "Area Constraint": "1:1e7",
+        "Sigma Constraint": "0",
+        "Gamma Constraint": "0",
+        "Checkbox": "0"
+      },
+      "Peak_1": {
+        "Label": "Peak_1",
+        "Name": "Sr3d3/2 p2",
+        "Position": 134.24,
+        "Height": 70521.91,
+        "FWHM": 1.0,
+        "L/G": 60.27,
+        "Area": 75068.25,
+        "at. %": 0.0,
+        "RSF": 2.93,
+        "TXFN": 1.0,
+        "ECF": "TPP-2M",
+        "Instrument": "A-ALTHERMO1",
+        "Fitting Model": "GL (Area)",
+        "Rel. Area": 327.86,
+        "Sigma": 2.35,
+        "Gamma": 1.02,
+        "Skew": 0.0,
+        "Bkg Low": 126.08,
+        "Bkg High": 142.08,
+        "Sheetname": "Sr3d",
+        "Pos. Constraint": "A+1.7#0.2",
+        "Height Constraint": "0",
+        "FWHM Constraint": "A*1",
+        "L/G Constraint": "A*1",
+        "Area Constraint": "A*0.667#0.05",
+        "Sigma Constraint": "0",
+        "Gamma Constraint": "0",
+        "Checkbox": "0"
+      }
+    }
   },
   "BEcorrection": 0.0
 }

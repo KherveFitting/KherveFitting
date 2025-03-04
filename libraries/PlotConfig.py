@@ -2,6 +2,7 @@
 import matplotlib.widgets as widgets
 import matplotlib.pyplot as plt
 import wx
+import numpy as np
 
 
 class PlotConfig:

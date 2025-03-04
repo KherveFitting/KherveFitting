@@ -29,7 +29,7 @@ from libraries.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
 from libraries.Export import export_results
 from libraries.PlotConfig import PlotConfig
-from libraries.Utilities import check_first_time_use
+from libraries.Utilities import check_first_time_use, DraggableText
 
 from libraries.Peak_Functions import PeakFunctions
 
@@ -75,12 +75,14 @@ class MyFrame(wx.Frame):
         # # Mac scaling issues
         # wx.SystemOptions.SetOption("mac.window-plain-transition", 1)
         # wx.SystemOptions.SetOption("mac.scrollbar-autohide", 0)
-        # wx.SystemOptions.SetOption("osx.opengl.force-enable-angle", 0)
+        # wx.SystemOptions.SetOption("mac.opengl.force-enable-angle", 0)
         # wx.SystemOptions.SetOption("mac.listctrl.always_use_generic", "1")
+        #
+        # # Add this new option to keep toolbars visible in full screen
+        # wx.SystemOptions.SetOption("mac.toolbar-shown-in-fullscreen", 1)
         #
         # if 'wxMac' in wx.PlatformInfo:
         #     self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-
 
         # Check if it is the first time the program is being used
         FIRST_TIME_USE = True
@@ -2261,7 +2263,7 @@ class MyFrame(wx.Frame):
 
         ymin, ymax = self.ax.get_ylim()
         if hasattr(self, 'rsd_text') and self.rsd_text:
-            residual_height = 1.07 * max(window.y_values)
+            residual_height = 1.07 * max(self.y_values)
             if residual_height > ymax:
                 self.rsd_text.remove()
                 self.rsd_text = None
@@ -3640,7 +3642,7 @@ if __name__ == '__main__':
     # Create Splash Screen
     splash = show_splash(duration=2000, delay=0)
 
-    frame = MyFrame(None, "KherveFitting - v1.4 - Feb 2025")
+    frame = MyFrame(None, "KherveFitting v1.4 Mac")
     frame.Show(True)
 
     if splash:

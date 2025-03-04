@@ -623,9 +623,9 @@ def create_horizontal_toolbar(window):
     # add_vertical_separator(toolbar, separators)
     toolbar.AddSeparator()
 
-    noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
-                                          wx.Bitmap(os.path.join(icon_path, "Noise-25.png"), wx.BITMAP_TYPE_PNG),
-                                          shortHelp="Open Noise Analysis Window")
+    # noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
+    #                                       wx.Bitmap(os.path.join(icon_path, "Noise-25.png"), wx.BITMAP_TYPE_PNG),
+    #                                       shortHelp="Open Noise Analysis Window")
 
     crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',
                                 wx.Bitmap(os.path.join(icon_path, "crop-25.png"), wx.BITMAP_TYPE_PNG),
@@ -687,7 +687,8 @@ def create_horizontal_toolbar(window):
     toolbar.Realize()
 
     # Bind events
-    bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool, noise_analysis_tool,
+    bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool,
+                        # noise_analysis_tool,
                         # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, plot_tool, toggle_peak_fill_tool,
                         save_tool, save_plot_tool,
                         save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool)
@@ -734,7 +735,8 @@ def add_vertical_separator(toolbar, separators):
     separators[-1].SetSize((2, 24))
     toolbar.AddControl(separators[-1])
 
-def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool, noise_analysis_tool,
+def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool,
+                        # noise_analysis_tool,
                         save_tool, save_plot_tool,
                         save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool
                         # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, toggle_peak_fill_tool, plot_tool,
@@ -744,7 +746,7 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
     # window.Bind(wx.EVT_TOOL, lambda event: toggle_plot(window), plot_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_background_window(), bkg_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(), fitting_tool)
-    window.Bind(wx.EVT_TOOL, window.on_open_noise_analysis_window, noise_analysis_tool)
+    # window.Bind(wx.EVT_TOOL, window.on_open_noise_analysis_window, noise_analysis_tool)
     # window.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_legend(), toggle_legend_tool)
     # window.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_fitting_results(), toggle_fit_results_tool)
     # window.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_residuals(window), toggle_residuals_tool)
@@ -764,8 +766,24 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
 
 
 def create_vertical_toolbar(parent, frame):
-    v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT)
+    v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_DEFAULT_STYLE)
+    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT | wx.TB_NODIVIDER)
     v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    # Set the toolbar background color to match the horizontal one
+    v_toolbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+    # Add a custom border that's grey on the right side only
+    border_panel = wx.Panel(v_toolbar)
+    border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
+
+    def on_toolbar_size(event):
+        # Set the border panel to be full height but only 1px wide on the right side
+        size = v_toolbar.GetSize()
+        border_panel.SetSize(size.width - 1, 0, 1, size.height)
+        event.Skip()
+
+    v_toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
 
     # Get the correct path for icons
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -796,7 +814,7 @@ def create_vertical_toolbar(parent, frame):
     frame.Bind(wx.EVT_TOOL, lambda event: frame.plot_manager.toggle_residuals(frame), frame.toggle_toolbar.residuals_tool)
 
 
-    v_toolbar.AddSeparator()
+    # v_toolbar.AddSeparator()
 
     # Zoom tools
     zoom_in_tool = v_toolbar.AddTool(wx.ID_ANY, 'Zoom In',
@@ -819,7 +837,7 @@ def create_vertical_toolbar(parent, frame):
                                               wx.Bitmap(os.path.join(icon_path, "Left-Red-25g.png"), wx.BITMAP_TYPE_PNG),
                                               shortHelp="Increase High BE")
 
-    v_toolbar.AddSeparator()
+    # v_toolbar.AddSeparator()
 
     low_be_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low BE +',
                                              wx.Bitmap(os.path.join(icon_path, "Left-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
@@ -828,7 +846,7 @@ def create_vertical_toolbar(parent, frame):
                                              wx.Bitmap(os.path.join(icon_path, "Right-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
                                              shortHelp="Decrease Low BE")
 
-    v_toolbar.AddSeparator()
+    # v_toolbar.AddSeparator()
 
     # Intensity adjustment tools
     high_int_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'High Int +',
@@ -838,7 +856,7 @@ def create_vertical_toolbar(parent, frame):
                                                wx.Bitmap(os.path.join(icon_path, "Down-Red-25g.png"), wx.BITMAP_TYPE_PNG),
                                                shortHelp="Decrease High Intensity")
 
-    v_toolbar.AddSeparator()
+    # v_toolbar.AddSeparator()
 
     low_int_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low Int +',
                                               wx.Bitmap(os.path.join(icon_path, "Up-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
@@ -858,7 +876,7 @@ def create_vertical_toolbar(parent, frame):
                                           wx.Bitmap(os.path.join(icon_path, "A-_25.png"), wx.BITMAP_TYPE_PNG),
                                           shortHelp="Decrease All Font Sizes")
 
-    v_toolbar.AddSeparator()
+    # v_toolbar.AddSeparator()
 
     # Add text annotation tool after other tools
     text_tool = v_toolbar.AddTool(wx.ID_ANY, 'Add Text',
