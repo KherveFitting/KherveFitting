@@ -768,8 +768,8 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
 
 
 def create_vertical_toolbar(parent, frame):
-    v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_DEFAULT_STYLE)
-    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT | wx.TB_NODIVIDER)
+    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_DEFAULT_STYLE)
+    v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT )
     v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
     # Check if running on macOS
