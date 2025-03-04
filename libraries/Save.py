@@ -351,6 +351,7 @@ def save_to_excel(window, data, file_path, sheet_name):
         window.canvas.draw_idle()
 
 
+
 def refresh_sheets(window, on_sheet_selected_func):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file currently open. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
@@ -368,7 +369,11 @@ def refresh_sheets(window, on_sheet_selected_func):
 
         # Reopen the XLSX file
         excel_file = pd.ExcelFile(file_path)
-        sheet_names = excel_file.sheet_names
+        all_sheet_names = excel_file.sheet_names
+
+        # Filter out "Results Table" and "Experimental Description" sheets
+        sheet_names = [name for name in all_sheet_names if
+                       name.lower() not in ["results table", "experimental description"]]
 
         # Update sheet names in the combobox
         window.sheet_combobox.Clear()
@@ -418,7 +423,6 @@ def refresh_sheets(window, on_sheet_selected_func):
         import traceback
         traceback.print_exc()
         wx.MessageBox(f"Error refreshing sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
 
 def save_to_json(window, file_path):
     json_file_path = os.path.splitext(file_path)[0] + '.json'

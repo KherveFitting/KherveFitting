@@ -471,6 +471,7 @@ def show_version_log(window):
 - Added File > Save as... in the menu
 - Added File > Optimise File menu
 - Added Save Table in the main Save Sheet
+- Improve the refresh function to exclude the Results Table sheet
 Version 1.4 (February 2025)
 - Mac version coming soon
 - Added Skewed Voigt model. Default to leastsq fitting method
