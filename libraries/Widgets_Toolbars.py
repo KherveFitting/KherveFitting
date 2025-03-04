@@ -677,6 +677,8 @@ def create_horizontal_toolbar(window):
             pos = toolbar.GetScreenPosition()
             window.delete_toolbar.SetPosition((pos.x + toolbar.GetSize().width - 100, pos.y + 30))
             window.delete_toolbar.Show()
+        else:
+            window.delete_toolbar.Hide()
 
 
     window.Bind(wx.EVT_TOOL, show_delete_toolbar, delete_master_tool)
@@ -802,7 +804,8 @@ def create_vertical_toolbar(parent, frame):
             pos = v_toolbar.GetScreenPosition()
             frame.toggle_toolbar.SetPosition((pos.x + v_toolbar.GetSize().width, pos.y))
             frame.toggle_toolbar.Show()
-
+        else:
+            frame.toggle_toolbar.Hide()
     frame.Bind(wx.EVT_TOOL, show_toggle_toolbar, toggle_master_tool)
 
     # Bind the toggle toolbar tools

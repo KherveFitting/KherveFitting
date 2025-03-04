@@ -18,6 +18,7 @@ from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as Navigat
 import wx.grid
 import wx.adv
 import sys
+import platform
 
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
@@ -3642,7 +3643,15 @@ if __name__ == '__main__':
     # Create Splash Screen
     splash = show_splash(duration=2000, delay=0)
 
-    frame = MyFrame(None, "KherveFitting v1.4 Mac")
+    # Detect OS
+    os_name = platform.system()
+
+    if os_name == "Darwin":  # Mac OS
+        frame = MyFrame(None, "KherveFitting-v1.4 25c05")
+    elif os_name == "Windows":
+        frame = MyFrame(None, "KherveFitting v1.4 25b16")
+    else:
+        frame = MyFrame(None, "KherveFitting v1.4")
     frame.Show(True)
 
     if splash:
