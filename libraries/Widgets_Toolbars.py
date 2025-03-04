@@ -772,20 +772,26 @@ def create_vertical_toolbar(parent, frame):
     # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT | wx.TB_NODIVIDER)
     v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-    # Set the toolbar background color to match the horizontal one
-    v_toolbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+    # Check if running on macOS
+    is_mac = 'wxMac' in wx.PlatformInfo
 
-    # Add a custom border that's grey on the right side only
-    border_panel = wx.Panel(v_toolbar)
-    border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
+    # Only apply the custom border styling on Mac
+    if is_mac:
+        # Remove default border and set background color
+        v_toolbar.SetWindowStyle(v_toolbar.GetWindowStyle() | wx.BORDER_NONE)
+        v_toolbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
 
-    def on_toolbar_size(event):
-        # Set the border panel to be full height but only 1px wide on the right side
-        size = v_toolbar.GetSize()
-        border_panel.SetSize(size.width - 1, 0, 1, size.height)
-        event.Skip()
+        # Add custom grey border on the right side
+        border_panel = wx.Panel(v_toolbar)
+        border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
 
-    v_toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
+        def on_toolbar_size(event):
+            # Set the border panel to be full height but only 1px wide on the right side
+            size = v_toolbar.GetSize()
+            border_panel.SetSize(size.width - 1, 0, 1, size.height)
+            event.Skip()
+
+        v_toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
 
     # Get the correct path for icons
     current_dir = os.path.dirname(os.path.abspath(__file__))
