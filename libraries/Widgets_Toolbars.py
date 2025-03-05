@@ -29,15 +29,25 @@ from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on
 
 def create_widgets(window):
     # Main sizer
-    main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    # main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+    # Create horizontal toolbar first so it stays on top
+    toolbar_panel = wx.Panel(window.panel)
+    toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
+    window.toolbar = create_horizontal_toolbar(toolbar_panel, window)  # Pass panel instead of window
+    toolbar_sizer.Add(window.toolbar, 0, wx.EXPAND)
+    toolbar_panel.SetSizer(toolbar_sizer)
+    main_sizer.Add(toolbar_panel, 0, wx.EXPAND)
+
+    # Content sizer for the rest (vertical toolbar and plot area)
+    content_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
     # Create the vertical toolbar as a child of the panel
     window.v_toolbar = create_vertical_toolbar(window.panel, window)
 
-    # window.r_toolbar = create_rightside_toolbar(window.panel, window)
-
-    # Content sizer (everything except vertical toolbar)
-    content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    # # Content sizer (everything except vertical toolbar)  IT WAS USED JUST BEFORE
+    # content_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
     # Create a splitter window
     window.splitter = wx.SplitterWindow(window.panel, style=wx.SP_LIVE_UPDATE)
@@ -94,17 +104,21 @@ def create_widgets(window):
     window.splitter.SetSashPosition(window.initial_sash_position)
 
     # Add splitter to content sizer
+    content_sizer.Add(window.v_toolbar, 0, wx.EXPAND)
     content_sizer.Add(window.splitter, 1, wx.EXPAND | wx.ALL, 5)
 
-    # Add vertical toolbar and content sizer to main sizer
-    main_sizer.Add(window.v_toolbar, 0, wx.EXPAND)
+    # Add content sizer to main sizer
     main_sizer.Add(content_sizer, 1, wx.EXPAND)
+
+    # # Add vertical toolbar and content sizer to main sizer .... IT WAS USED JUST BEFORE HORIZONTAL
+    # main_sizer.Add(window.v_toolbar, 0, wx.EXPAND)
+    # main_sizer.Add(content_sizer, 1, wx.EXPAND)
 
     window.panel.SetSizer(main_sizer)
 
-    # Create the horizontal toolbar
-    window.toolbar = create_horizontal_toolbar(window)
-    # window.r_toolbar = create_rightside_toolbar(window)
+    # # Create the horizontal toolbar .... IT WAS USED JUST BEFORE HORIZ
+    # window.toolbar = create_horizontal_toolbar(window)
+
     update_undo_redo_state(window)
     toggle_Col_1(window)
 
@@ -525,9 +539,14 @@ def launch_new_instance():
         subprocess.Popen([sys.executable, script_path])
 
 
-def create_horizontal_toolbar(window):
-    toolbar = window.CreateToolBar(style=  wx.TB_FLAT)
-    # toolbar.SetBackgroundColour(wx.Colour(220, 220, 220))
+def create_horizontal_toolbar(parent, window):
+    # # To use with normal toolbar
+    # toolbar = window.CreateToolBar(style=  wx.TB_FLAT)
+    # toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    # Create toolbar as a panel instead of using window.CreateToolBar()
+    # toolbar_panel = wx.Panel(window.panel)
+    toolbar = wx.ToolBar(parent, style=wx.TB_FLAT)
     toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -584,8 +603,6 @@ def create_horizontal_toolbar(window):
             rename_sheet(window, dlg.GetValue())
         dlg.Destroy()
 
-    # toolbar.AddSeparator()
-    # add_vertical_separator(toolbar, separators)
     toolbar.AddSeparator()
 
     # BE correction
@@ -619,8 +636,6 @@ def create_horizontal_toolbar(window):
     id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-25.png"), wx.BITMAP_TYPE_PNG),
                               shortHelp="Element identifications (ID)")
 
-    # toolbar.AddSeparator()
-    # add_vertical_separator(toolbar, separators)
     toolbar.AddSeparator()
 
     # noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
@@ -703,7 +718,25 @@ def create_horizontal_toolbar(window):
     # window.Bind(wx.EVT_TOOL, lambda event: save_peaks_to_github(window), save_peaks_tool)
     # window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), open_peaks_tool)
 
+    toolbar.Realize()
 
+    # Mac-specific styling
+    if 'wxMac' in wx.PlatformInfo:
+        # Remove default border and set background color
+        toolbar.SetWindowStyle(toolbar.GetWindowStyle() | wx.BORDER_NONE)
+        toolbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+        # Add custom grey border on the bottom side
+        border_panel = wx.Panel(toolbar)
+        border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
+
+        def on_toolbar_size(event):
+            # Set the border panel to be full width but only 1px tall on the bottom
+            size = toolbar.GetSize()
+            border_panel.SetSize(0, size.height - 1, size.width, 1)
+            event.Skip()
+
+        toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
 
     return toolbar
 
