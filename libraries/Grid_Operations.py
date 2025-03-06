@@ -17,13 +17,6 @@ def populate_results_grid(window):
         if window.results_grid.GetNumberCols() < num_cols:
             window.results_grid.AppendCols(num_cols - window.results_grid.GetNumberCols())
 
-        # column_labels = ["Peak", "Position", "Height", "FWHM", "L/G", "Area", "at. %", " ", "RSF", "Fitting Model",
-        #                  "Rel. Area", "Sigma", "Gamma", "Bkg Type", "Bkg Low", "Bkg High", "Bkg Offset Low",
-        #                  "Bkg Offset High", "Sheetname", "Pos. Constraint", "Height Constraint", "FWHM Constraint",
-        #                  "L/G Constraint", "Area Constraint", "Sigma Constraint", "Gamma Constraint"]
-        # for col, label in enumerate(column_labels):
-        #     window.results_grid.SetColLabelValue(col, label)
-
         # Populate the grid
         for row, (peak_label, peak_data) in enumerate(results.items()):
             window.results_grid.SetCellValue(row, 0, peak_data['Name'])

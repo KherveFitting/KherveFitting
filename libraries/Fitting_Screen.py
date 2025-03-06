@@ -262,11 +262,11 @@ class FittingWindow(wx.Frame):
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
-                 "Voigt (Area, L/G, \u03c3, S)",
                  "Others---------------",
                  "Area Based----------",
                  # "GL (Area)",
                  # "SGL (Area)",
+                 "Voigt (Area, L/G, \u03c3, S)",
                  "Voigt (Area, \u03c3, \u03b3)",
                  # "Voigt (Area, L/G, \u03c3)",
                  "LA (Area, \u03c3, \u03b3)",
@@ -876,7 +876,8 @@ class FittingWindow(wx.Frame):
             "GL (Area)": "Gaussian-Lorentzian product function (area-based).\nEquation: Similar to GL (Height), but normalized for area",
             "SGL (Area)": "Sum of Gaussian and Lorentzian functions (area-based).\nEquation: Similar to SGL (Height), but normalized for area",
             "Pseudo-Voigt (Area)": "Linear combination of Gaussian and Lorentzian.\nEquation: I(x) = A * [η * L(x) + (1-η) * G(x)]",
-            "Voigt (Area, L/G, \u03c3, S)": "Convolution of Gaussian and Lorentzian.\nEquation: I(x) = A * ∫G(x')L(x-x')dx'",
+            "Voigt (Area, L/G, \u03c3, S)": "Asymmetric Voigt Function. A, L/G, Wg \nand S can be varied. Wl is "
+                                            "calculated from Wg and L/G. S control the Asymmetry",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
                                            "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "

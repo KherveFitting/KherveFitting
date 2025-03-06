@@ -466,12 +466,17 @@ def show_version_log(window):
     dlg = wx.Dialog(window, title="Version Log", size=(600, 400))
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
-    version_log = """Version 1.5 (April 2025)
+    version_log = """Version 1.41 (March 2025)
+- Release the Mac Version
+- Added information in the Manual for installation instruction
+- Change Horizontal toolbar so that it is compatible with Mac
 - Added File > New File in the menu
 - Added File > Save as... in the menu
 - Added File > Optimise File menu
-- Added Save Table in the main Save Sheet
+- Added Save Table in the main Save Sheet and remove it from the toolbar
 - Improve the refresh function to exclude the Results Table sheet
+- Remove the Noise Analysis from the toolbar. Only available in Tools
+- Move the Skewed Voigt in the non default as it was confusing for new users
 Version 1.4 (February 2025)
 - Mac version coming soon
 - Added Skewed Voigt model. Default to leastsq fitting method
