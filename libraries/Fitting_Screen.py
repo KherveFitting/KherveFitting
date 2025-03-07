@@ -893,10 +893,11 @@ class FittingWindow(wx.Frame):
                                          "high BE side of the peak while \u03b3 controlled the low BE side of the peak." ,
             "LA (Area, \u03c3/\u03b3, \u03b3)": "Asymmetrical lorentzian with asymmetry controlled by the ratio "
                                                 "between \u03c3 and \u03b3. The model is similar to the one used in casa XPS."
-                                                "\u03c3 controlled the high BE side of the peak while \u03b3 controlled the low BE side of the peak.",
+                                                " \u03c3 controlled the high BE side of the peak while \u03b3 "
+                                                "controlled the low BE side of the peak.",
             "LA*G (Area, \u03c3/\u03b3, \u03b3)": "Asymmetrical lorentzian convoluted with a gaussian peak of a width Wg (see skew colum). "
-                                           "The model is similar to the one used in casa XPS.   \u03c3 controlled the "
-                                         "high BE side of the peak while \u03b3 controlled  the low BE side of the peak."
+                                           "The model is similar to the one used in casa XPS. \u03c3 controlled the "
+                                         "high BE side of the peak while \u03b3 controlled the low BE side of the peak."
 
         }
         return descriptions.get(model, "No description available")
