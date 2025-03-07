@@ -862,10 +862,10 @@ class FittingWindow(wx.Frame):
                      "when the intensity is going up and a linear background when the intensity is "
                      "going down. If the calculated background is above the data then the "
                      "background is set equal to the data.",
-            "Shirley": "Iterative background calculation. Reliable for on positive background when "
-            "the data contains symmetrical peak.",
+            "Shirley": "Iterative background calculation. Reliable for increasing background when "
+            "the data contains symmetrical peak. the number of iteration is set to 100",
             "Linear": "Simple linear background. Usually used on negative background"
-            "Tougaard: U4 Tougaard background for Advanced users"
+            "Tougaard: U4 Tougaard background for Advanced users. B, C, D and T0 can be varied. "
         }
         return descriptions.get(method, "No description available")
 
@@ -881,11 +881,10 @@ class FittingWindow(wx.Frame):
                                             " The model is provided by LMFIT",
             "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.  "
                                            "It is controlled by A, Wg and Wl. Wl is independent of Wg and L/G  "
-                                           "is calculated from Wl and Wg.",
+                                           "is calculated from Wl and Wg.  The model is provided by LMFIT",
             "Voigt (Area, L/G, \u03c3)": "Voigt Function controlled by A, L/G, Wg.   Wl is "
                                             "calculated from Wg and L/G. "
-                                            " Model provided by LMFIT",
-
+                                            "The Model is provided by LMFIT",
             "ExpGauss.(Area, \u03c3, \u03b3)": "Gaussian shape model with asymmetric side. The asymmetry is modelled "
                                                "using an exponential decay. Model provided by LMFIT",
             "LA (Area, \u03c3, \u03b3)": "Asymmetrical lorentzian similar to the model used in casa XPS.  \u03c3 and \u03b3 can be varied independently."
