@@ -112,9 +112,13 @@ def on_sheet_selected(window, event):
                     # Set background color for constraint rows
                     for col in range(window.peak_params_grid.GetNumberCols()+1):
                         window.peak_params_grid.SetCellBackgroundColour(row + 1, col-1, wx.Colour(200,245,228))
+                        window.peak_params_grid.SetCellBackgroundColour(row, col - 1, wx.WHITE)
 
                     for col in [10,11,12]:  # Columns for Area, sigma and gamma
                         window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(27, 140, 60))
+                    for col in [0,1,2]:  # Columns for Area, sigma and gamma
+                        window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                        window.peak_params_grid.SetCellTextColour(row+1, col, wx.Colour(0, 0, 0))
 
                     window.selected_fitting_method = window.peak_params_grid.GetCellValue(row, 13)
                     # Set background color for Height, FWHM, and L/G ratio cells if Voigt function

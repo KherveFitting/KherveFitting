@@ -871,26 +871,32 @@ class FittingWindow(wx.Frame):
 
     def get_fitting_description(self, model):
         descriptions = {
-            "GL (Height)": "Gaussian-Lorentzian product function (height-based).\nEquation: I(x) = H * [exp(-ln(2) * ((x-x₀)/σ)²) * (1 / (1 + ((x-x₀)/γ)²))]",
-            "SGL (Height)": "Sum of Gaussian and Lorentzian functions (height-based).\nEquation: I(x) = H * [m * exp(-ln(2) * ((x-x₀)/σ)²) + (1-m) / (1 + ((x-x₀)/γ)²)]",
-            "GL (Area)": "Gaussian-Lorentzian product function (area-based).\nEquation: Similar to GL (Height), but normalized for area",
-            "SGL (Area)": "Sum of Gaussian and Lorentzian functions (area-based).\nEquation: Similar to SGL (Height), but normalized for area",
-            "Pseudo-Voigt (Area)": "Linear combination of Gaussian and Lorentzian.\nEquation: I(x) = A * [η * L(x) + (1-η) * G(x)]",
-            "Voigt (Area, L/G, \u03c3, S)": "Asymmetric Voigt Function. A, L/G, Wg \nand S can be varied. Wl is "
-                                            "calculated from Wg and L/G. S control the Asymmetry",
-            "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
-                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
-            "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
-                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
-            "Voigt (Area, L/G, \u03c3, S)": "Voigt function with separate Gaussian and Lorentzian widths.\nEquation: "
-                                           "I(x) = A * ∫G(x', σ)L(x-x', γ)dx'",
-            "ExpGauss.(Area, \u03c3, \u03b3)": "Gaussian shape model with asymmetric side. The asymmetry is modelled"
-                                               "using an exponential decay as per equation: ",
-            "LA (Area, \u03c3, \u03b3)": "Asymmetrical lorentzian similar to the model used in casa XPS",
-            "LA (Area, \u03c3/\u03b3, \u03b3)": "Asymmetrical lorentzian with asymmetru controlled by the ratio "
-                                                "between \u03c3 and \u03b3 similar to the model used in casa XPS",
-            "LA*G (Area, \u03c3/\u03b3, \u03b3)": "Asymmetrical lorentzian convoluted with a gaussian peak of a certain width "
-                                           "similar to the model used in casa XPS"
+            "GL (Height)": "Gaussian-Lorentzian product function (height-based).  Constrained by Peak position, Height, FWHM and L/G. Based on GL from Thermo Avantage",
+            "SGL (Height)": "Sum of Gaussian and Lorentzian functions (height-based).  Constrained by Peak position, Height, FWHM and L/G.   Based on GL from Thermo Avantage",
+            "GL (Area)": "Product of Gaussian and Lorentzian model (area-based).  Constrained by Peak position, Area, FWHM and L/G.   Based on GL from CasaXPS",
+            "SGL (Area)": "Sum of Gaussian and Lorentzian functions (area-based). Constrained by Peak position, Area, FWHM and L/G.   Based on SGL from CasaXPS",
+            "Pseudo-Voigt (Area)": "Linear combination of Gaussian and Lorentzian provided by LMFIT.  Constrained by Peak position, Area, FWHM and L/G",
+            "Voigt (Area, L/G, \u03c3, S)": "Asymmetric Voigt Function controlled by A, L/G, Wg and S.  Wl is "
+                                            "calculated from Wg and L/G. In this case S controls the Asymmetry."
+                                            " The model is provided by LMFIT",
+            "Voigt (Area,\u03c3, \u03b3)": "Voigt function with separate Gaussian and Lorentzian widths.  "
+                                           "It is controlled by A, Wg and Wl. Wl is independent of Wg and L/G  "
+                                           "is calculated from Wl and Wg.",
+            "Voigt (Area, L/G, \u03c3)": "Voigt Function controlled by A, L/G, Wg.   Wl is "
+                                            "calculated from Wg and L/G. "
+                                            " Model provided by LMFIT",
+
+            "ExpGauss.(Area, \u03c3, \u03b3)": "Gaussian shape model with asymmetric side. The asymmetry is modelled "
+                                               "using an exponential decay. Model provided by LMFIT",
+            "LA (Area, \u03c3, \u03b3)": "Asymmetrical lorentzian similar to the model used in casa XPS.  \u03c3 and \u03b3 can be varied independently."
+                                         "Constrained by Peak position, Area, FWHM, L/G, \u03c3 and \u03b3.  \u03c3 controlled the "
+                                         "high BE side of the peak while \u03b3 controlled the low BE side of the peak." ,
+            "LA (Area, \u03c3/\u03b3, \u03b3)": "Asymmetrical lorentzian with asymmetry controlled by the ratio "
+                                                "between \u03c3 and \u03b3. The model is similar to the one used in casa XPS."
+                                                "\u03c3 controlled the high BE side of the peak while \u03b3 controlled the low BE side of the peak.",
+            "LA*G (Area, \u03c3/\u03b3, \u03b3)": "Asymmetrical lorentzian convoluted with a gaussian peak of a width Wg (see skew colum). "
+                                           "The model is similar to the one used in casa XPS.   \u03c3 controlled the "
+                                         "high BE side of the peak while \u03b3 controlled  the low BE side of the peak."
 
         }
         return descriptions.get(model, "No description available")
