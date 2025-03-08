@@ -61,7 +61,7 @@ def on_about_OLD(self, event):
     name = wx.StaticText(panel, label="KherveFitting")
     name.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
     version = wx.StaticText(panel, label="Version 1.4 February 25")
-    description = wx.StaticText(panel, label="An open-source XPS peak fitting software\ndeveloped by Dr. Gwilherm Kerherve\nat Imperial College London")
+    description = wx.StaticText(panel, label="XPS peak fitting software\ndeveloped by Dr. Gwilherm Kerherve\nat Imperial College London")
     website = wx.adv.HyperlinkCtrl(panel, -1, "Imperial College Profile", "https://www.imperial.ac.uk/people/g.kerherve")
     developers = wx.StaticText(panel, label="Developers:\nDr. Gwilherm Kerherve / g.kerherve@imperial.ac.uk\nWilliam Skinner")
     copyright = wx.StaticText(panel, label="(C) 2024 Gwilherm Kerherve")
