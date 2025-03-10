@@ -173,6 +173,11 @@ def set_consistent_fonts(window):
         # HEADER_FONT_SIZE = 5
         LABEL_FONT_SIZE = 11
         # LABEL_FONT_SIZE = 5
+    elif 'wxGTK' in wx.PlatformInfo:  # wxGTK is the Linux version of wxWidgets
+        default_font = 'DejaVu Sans'  # A common Linux font
+        STANDARD_FONT_SIZE = 9
+        HEADER_FONT_SIZE = 10
+        LABEL_FONT_SIZE = 9
     else:
         # default_font = 'Arial'
         # default_font = 'Helvetica'
