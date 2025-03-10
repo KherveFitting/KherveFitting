@@ -23,6 +23,10 @@ class FittingWindow(wx.Frame):
             self.SetSize((262, 380))  # Increased height to accommodate new elements
             self.SetMinSize((262, 380))
             self.SetMaxSize((262, 380))
+        elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
+            self.SetSize((275, 400))  # Increased height to accommodate new elements
+            self.SetMinSize((275, 400))
+            self.SetMaxSize((275, 400))
         else:
             self.SetSize((275, 400))  # Increased height to accommodate new elements
             self.SetMinSize((275, 400))
@@ -48,6 +52,8 @@ class FittingWindow(wx.Frame):
             if 'wxMac' in wx.PlatformInfo:  # Mac
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
             elif 'wxMSW' in wx.PlatformInfo:  # Windows
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxGTK' in wx.PlatformInfo:  # Linux
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
             return False
 
@@ -152,6 +158,8 @@ class FittingWindow(wx.Frame):
         background_button = wx.Button(self.background_panel, label="Create\nBackground")
         if 'wxMac' in wx.PlatformInfo:
             background_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            background_button.SetMinSize((125, 30))
         else:
             background_button.SetMinSize((125, 35))
         background_button.Bind(wx.EVT_BUTTON, self.on_background)
@@ -159,12 +167,16 @@ class FittingWindow(wx.Frame):
         clear_background_button = wx.Button(self.background_panel, label="Clear\nAll")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            clear_background_button.SetMinSize((125, 30))
         else:
             clear_background_button.SetMinSize((125, 35))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         reset_vlines_button = wx.Button(self.background_panel, label="Reset \nVertical Lines")
         if 'wxMac' in wx.PlatformInfo:
+            reset_vlines_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
             reset_vlines_button.SetMinSize((125, 30))
         else:
             reset_vlines_button.SetMinSize((125, 35))
