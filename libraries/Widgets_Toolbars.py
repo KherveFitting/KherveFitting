@@ -573,7 +573,8 @@ def create_horizontal_toolbar(parent, window):
     toolbar.AddControl(window.sheet_combobox)
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected(window, event))
 
-    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path, "refresh-25.png"),
+    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path,
+                                                                                                  "Refresh-25.png"),
                                                                                      wx.BITMAP_TYPE_PNG),
                                           shortHelp="Refresh Excel File. Used when the Excel File has more sheets")
 
@@ -643,7 +644,7 @@ def create_horizontal_toolbar(parent, window):
     #                                       shortHelp="Open Noise Analysis Window")
 
     crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',
-                                wx.Bitmap(os.path.join(icon_path, "crop-25.png"), wx.BITMAP_TYPE_PNG),
+                                wx.Bitmap(os.path.join(icon_path, "Crop-25.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="Crop data to new sheet")
     window.Bind(wx.EVT_TOOL, lambda event: CropWindow(window).Show(), crop_tool)
 
@@ -866,7 +867,7 @@ def create_vertical_toolbar(parent, frame):
                                       wx.Bitmap(os.path.join(icon_path, "ZoomOUT-25.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Zoom Out")
     drag_tool = v_toolbar.AddTool(wx.ID_ANY, 'Drag',
-                                  wx.Bitmap(os.path.join(icon_path, "drag-25.png"), wx.BITMAP_TYPE_PNG),
+                                  wx.Bitmap(os.path.join(icon_path, "Drag-25.png"), wx.BITMAP_TYPE_PNG),
                                   shortHelp="Drag Plot")
 
     v_toolbar.AddSeparator()
@@ -882,10 +883,12 @@ def create_vertical_toolbar(parent, frame):
     # v_toolbar.AddSeparator()
 
     low_be_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low BE +',
-                                             wx.Bitmap(os.path.join(icon_path, "Left-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
+                                             wx.Bitmap(os.path.join(icon_path, "Left-blue-25g.png"),
+                                                       wx.BITMAP_TYPE_PNG),
                                              shortHelp="Increase Low BE")
     low_be_decrease_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low BE -',
-                                             wx.Bitmap(os.path.join(icon_path, "Right-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
+                                             wx.Bitmap(os.path.join(icon_path, "Right-blue-25g.png"),
+                                                       wx.BITMAP_TYPE_PNG),
                                              shortHelp="Decrease Low BE")
 
     # v_toolbar.AddSeparator()
