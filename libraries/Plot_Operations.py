@@ -1827,6 +1827,15 @@ class PlotManager:
             wx.MessageBox("Invalid energy range selected.", "Warning", wx.OK | wx.ICON_INFORMATION)
             return None, None
 
+        # Add this before the mask line to remove the
+        try:
+            bg_min_energy = float(bg_min_energy) if bg_min_energy != '' else min(x_values)
+            bg_max_energy = float(bg_max_energy) if bg_max_energy != '' else max(x_values)
+        except (ValueError, TypeError):
+            # If conversion fails, use default values
+            bg_min_energy = min(x_values)
+            bg_max_energy = max(x_values)
+
         mask = (x_values >= bg_min_energy) & (x_values <= bg_max_energy)
         x_values_filtered = x_values[mask]
         y_values_filtered = y_values[mask]
