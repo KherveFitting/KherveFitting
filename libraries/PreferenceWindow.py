@@ -1025,8 +1025,20 @@ class PreferenceWindow(wx.Frame):
             self.custom_photon.Enable(True)
 
     # Add button handlers
-    def on_open_lib(self, evt):
+    def on_open_lib_OLD(self, evt):
         os.startfile('KherveFitting_library.xlsx')
+
+    def on_open_lib(self, event):
+        import platform
+        import os
+        import subprocess
+
+        if platform.system() == 'Windows':
+            os.startfile('KherveFitting_library.xlsx')
+        elif platform.system() == 'Darwin':  # macOS
+            subprocess.call(['open', 'KherveFitting_library.xlsx'])
+        else:  # Linux and other Unix-like systems
+            subprocess.call(['xdg-open', 'KherveFitting_library.xlsx'])
 
     def on_convert_lib(self, evt):
         wb = openpyxl.load_workbook('KherveFitting_library.xlsx')

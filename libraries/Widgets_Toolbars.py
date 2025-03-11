@@ -988,15 +988,15 @@ def update_statusbar(window, message):
     window.SetStatusText("Working Directory: " + message)
 
 
-def open_manual2(window):
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(current_dir)
-    manual_path = os.path.join(root_dir, "Manual.pdf")
-    import webbrowser
-    webbrowser.open(manual_path)
+# def open_manual2(window):
+#     import os
+#     current_dir = os.path.dirname(os.path.abspath(__file__))
+#     root_dir = os.path.dirname(current_dir)
+#     manual_path = os.path.join(root_dir, "Manual.pdf")
+#     import webbrowser
+#     webbrowser.open(manual_path)
 
-def open_manual(window):
+def open_manualOLD(window):
     import os
     import sys
     import webbrowser
@@ -1010,6 +1010,31 @@ def open_manual(window):
 
     manual_path = os.path.join(application_path, "Manual.pdf")
     webbrowser.open(manual_path)
+
+
+def open_manual(window):
+    import os
+    import sys
+    import webbrowser
+    import platform
+    import subprocess
+
+    if getattr(sys, 'frozen', False):
+        # If the application is run as a bundle, get the path of the executable
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # If the application is run as a script, get the path of the script
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    manual_path = os.path.join(application_path, "Manual.pdf")
+
+    # Use the appropriate method based on the operating system
+    if platform.system() == 'Windows':
+        os.startfile(manual_path)
+    elif platform.system() == 'Darwin':  # macOS
+        subprocess.call(['open', manual_path])
+    else:  # Linux and other Unix-like systems
+        subprocess.call(['xdg-open', manual_path])
 
 
 class ToggleToolbar(wx.Frame):
