@@ -836,13 +836,19 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         fwhm = result.params[f'{prefix}fwhm'].value
                         fraction = result.params[f'{prefix}fraction'].value
                         area = height * fwhm * np.sqrt(np.pi / (4 * np.log(2)))
-                    elif peak_model_choice in ["GL (Area)", "SGL (Area)"]:
+                    elif peak_model_choice in ["GL (Area)"]:
                         area = result.params[f'{prefix}area'].value
                         fwhm = result.params[f'{prefix}fwhm'].value
                         fraction = result.params[f'{prefix}fraction'].value
-                        # sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-                        # height = area / (sigma * np.sqrt(2 * np.pi))
-                        height =  area / (fwhm * np.sqrt(np.pi / (4 * np.log(2))))
+                        height = area / (fwhm * np.sqrt(np.pi / (4 * np.log(2))))
+                    elif peak_model_choice in ["SGL (Area)"]:
+                        area = result.params[f'{prefix}area'].value
+                        fwhm = result.params[f'{prefix}fwhm'].value
+                        fraction = result.params[f'{prefix}fraction'].value
+                        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                        gamma = fwhm / 2
+                        height = area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (
+                                    fraction / 100) * np.pi * gamma)
                     # elif peak_model_choice == "D-parameter":
                     else:
                         raise ValueError(f"Unknown fitting model: {peak_model_choice} for peak {peak_label}")

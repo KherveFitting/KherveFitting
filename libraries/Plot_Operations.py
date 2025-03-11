@@ -294,7 +294,9 @@ class PlotManager:
             params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
         elif fitting_model == "SGL (Area)":
             peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area)
-            area = y * (fwhm * np.sqrt(np.pi / (4 * np.log(2))))
+            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+            gamma = fwhm / 2
+            area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
             params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
         else:
             raise ValueError(f"Unknown fitting model: {fitting_model}")
@@ -1013,9 +1015,11 @@ class PlotManager:
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
             elif window.selected_fitting_method == "SGL (Area)":
                 peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area)
-                area = y * fwhm * np.sqrt(np.pi / (4 * np.log(2)))  # Calculate area from height and FWHM
+                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                gamma = fwhm / 2
+                area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
-            elif model == "D-parameter":
+            elif window.selected_fitting_method == "D-parameter":
                 return area, 0, 0  # Return original area and zero for normalized/relative areas
             else:  # Default to GL (Height) as a safe bet
                 peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)

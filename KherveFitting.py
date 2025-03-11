@@ -1206,9 +1206,15 @@ class MyFrame(wx.Frame):
             height = np.max(y_values)
             return height
 
-        elif model in ["GL (Area)", "SGL (Area)", "GL (Height)", "SGL (Height)"]:
+        elif model in ["GL (Area)", "GL (Height)", "SGL (Height)"]:
             return area / (fwhm * np.sqrt(np.pi / (4 * np.log(2))))
-
+        elif model in ["SGL (Area)"]:
+            if row is None:
+                raise ValueError("Row must be provided for SGL model")
+            fraction = float(self.peak_params_grid.GetCellValue(row, 5))
+            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+            gamma = fwhm / 2
+            return area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
         elif model == "D-parameter":
             # D-parameter doesn't have an area
             return 0.0
@@ -2491,14 +2497,18 @@ class MyFrame(wx.Frame):
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for Voigt models")
             area = PeakFunctions.skewedvoigt_height_to_area(height, sigma / 2.355, gamma / 2, skew)
-        elif model == "Pseudo-Voigt (Area)":
+        elif model in ["Pseudo-Voigt (Area)"]:#, "SGL (Area)"]:
             sigma = fwhm / 2
             amplitude = height / PeakFunctions.get_pseudo_voigt_height(1, sigma, fraction)
             area = amplitude
         elif model in ["GL (Height)", "SGL (Height)", "Unfitted"]:
             area = height * fwhm * np.sqrt(np.pi / (4 * np.log(2)))
-        elif model in ["GL (Area)", "SGL (Area)"]:
+        elif model in ["GL (Area)"]: #, "SGL (Area)"]:
             area = height * fwhm * np.sqrt(np.pi / (4 * np.log(2)))
+        elif model in ["SGL (Area)"]:
+            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+            gamma = fwhm / 2
+            area = height * ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
         elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
             area = height * sigma * np.sqrt(2 * np.pi) * np.exp(gamma ** 2 * sigma ** 2 / 4)
         elif model in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)"]:
@@ -2808,11 +2818,18 @@ class MyFrame(wx.Frame):
                                 self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
                             elif col == 9:
                                 pass
-                        elif model in ["GL (Area)", "SGL (Area)"]:
-                            # For area-based models, recalculate height
-                            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-                            height = area / (sigma * np.sqrt(2 * np.pi))
-                            self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
+                            elif model in ["GL (Area)"]:
+                                # For Gaussian-Lorentzian area-based model
+                                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                                height = area / (sigma * np.sqrt(2 * np.pi))
+                                self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
+                            elif model in ["SGL (Area)"]:
+                                # For Sum of Gaussian-Lorentzian area-based model
+                                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                                gamma = fwhm / 2
+                                height = area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (
+                                            fraction / 100) * np.pi * gamma)
+                                self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
                         elif model == "D-parameter":
                             return
                         else:

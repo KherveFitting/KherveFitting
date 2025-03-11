@@ -54,9 +54,19 @@ class PeakFunctions:
                 PeakFunctions.lorentzian(x, center, fwhm, fraction * 1))
 
     @staticmethod
-    def S_gauss_lorentz_Area(x, center, area, fwhm, fraction):
+    def S_gauss_lorentz_Area_MISMATCH(x, center, area, fwhm, fraction):
         sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
         height = area / (sigma * np.sqrt(2 * np.pi))
+        Area = height * (
+                (1 - fraction / 100) * PeakFunctions.gaussian(x, center, fwhm, 0) +
+                fraction / 100 * PeakFunctions.lorentzian(x, center, fwhm, 100))
+        # print(f"SGL Area: {Area}")
+        return Area
+
+    def S_gauss_lorentz_Area(x, center, area, fwhm, fraction):
+        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+        gamma = fwhm / 2
+        height = area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
         return height * (
                 (1 - fraction / 100) * PeakFunctions.gaussian(x, center, fwhm, 0) +
                 fraction / 100 * PeakFunctions.lorentzian(x, center, fwhm, 100))
