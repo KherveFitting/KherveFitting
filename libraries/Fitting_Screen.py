@@ -651,6 +651,7 @@ class FittingWindow(wx.Frame):
 
     def load_doublet_splittings(self, library_data):
         splittings = {}
+
         return
         # for key, value in library_data.items():
         #     element, orbital = key
