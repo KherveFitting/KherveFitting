@@ -670,7 +670,7 @@ class BackgroundCalculations:
             array: Shirley background
         """
         x, y = np.asarray(x), np.asarray(y)
-        print(f'Shirley X Check: {x[10]}')
+        # print(f'Shirley X Check: {x[10]}')
 
         # Add padding to the data
         x_min, x_max = x[0], x[-1]

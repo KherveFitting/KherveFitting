@@ -971,7 +971,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 rsd = round(PeakFunctions.calculate_rsd(y_values_filtered, total_fit + background_filtered), 3)
             else:
                 # For other models
-                rsd = round(PeakFunctions.calculate_rsd(y_values, result.best_fit + background_filtered), 3)
+                rsd = round(PeakFunctions.calculate_rsd(y_values_filtered, result.best_fit + background_filtered), 3)
 
             window.fit_results = {
                 'result': result,

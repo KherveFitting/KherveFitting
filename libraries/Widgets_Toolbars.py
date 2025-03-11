@@ -558,8 +558,11 @@ def create_horizontal_toolbar(parent, window):
     open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
 
     save_tool = toolbar.AddTool(wx.ID_ANY, 'Save', wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save the Fitted Results to Excel for this Core Level \tCtrl+S")
-    save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Save Plot', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save this Figure as PNG")
-    save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets', wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save all sheets with plots")
+    save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
+                                    wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG),
+                                    shortHelp="Save all sheets with plots")
+
+    save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
 
     # toolbar.AddSeparator()
     window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
