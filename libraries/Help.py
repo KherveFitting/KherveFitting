@@ -83,7 +83,7 @@ def on_about(self, event):
 
     name = wx.StaticText(panel, label="KherveFitting")
     name.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-    version = wx.StaticText(panel, label="Version 1.4 February 25")
+    version = wx.StaticText(panel, label="Version 1.41 March 25")
 
     button_grid = wx.GridBagSizer(2, 2)
     libraries_button = wx.Button(panel, label="Libraries Used")
@@ -467,9 +467,10 @@ def show_version_log(window):
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
     version_log = """Version 1.41 (March 2025)
-- Release the Mac Version
+- Release of the Mac Version
 - Added information in the Manual for installation instruction
 - Change Horizontal toolbar so that it is compatible with Mac
+- Preparation to the release of the Linux version for Synchrotron
 - Added File > New File in the menu
 - Added File > Save as... in the menu
 - Added File > Optimise File menu
@@ -477,6 +478,8 @@ def show_version_log(window):
 - Improve the refresh function to exclude the Results Table sheet
 - Remove the Noise Analysis from the toolbar. Only available in Tools
 - Move the Skewed Voigt in the non default as it was confusing for new users
+- Fix bugs that stop Fitting to continue
+
 Version 1.4 (February 2025)
 - Mac version coming soon
 - Added Skewed Voigt model. Default to leastsq fitting method

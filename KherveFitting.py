@@ -3647,9 +3647,9 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.4 25c05")
+        frame = MyFrame(None, "KherveFitting-v1.41 25c11")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting v1.4 25b16")
+        frame = MyFrame(None, "KherveFitting v1.41 25c11")
     else:
         frame = MyFrame(None, "KherveFitting v1.4")
     frame.Show(True)

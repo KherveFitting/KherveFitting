@@ -7,7 +7,7 @@ import subprocess
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
-from libraries.Sheet_Operations import CheckboxRenderer
+from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
 from libraries.Open import ExcelDropTarget, open_xlsx_file
 from libraries.Plot_Operations import PlotManager
 from Functions import toggle_Col_1
@@ -999,7 +999,7 @@ def update_statusbar(window, message):
 #     import webbrowser
 #     webbrowser.open(manual_path)
 
-def open_manualOLD(window):
+def open_manualOLD1(window):
     import os
     import sys
     import webbrowser
@@ -1015,7 +1015,7 @@ def open_manualOLD(window):
     webbrowser.open(manual_path)
 
 
-def open_manual(window):
+def open_manualOLD2(window):
     import os
     import sys
     import webbrowser
@@ -1038,6 +1038,66 @@ def open_manual(window):
         subprocess.call(['open', manual_path])
     else:  # Linux and other Unix-like systems
         subprocess.call(['xdg-open', manual_path])
+
+
+def open_manual(window):
+    import os
+    import sys
+    import platform
+    import subprocess
+    import datetime
+
+    # Log file setup
+    log_path = os.path.expanduser("~/khervefitting_log.txt")
+    with open(log_path, "a") as log:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log.write(f"\n--- {timestamp} ---\n")
+
+        # Get the correct base path
+        if getattr(sys, 'frozen', False):
+            base_path = os.path.dirname(sys.executable)
+            log.write(f"Running from binary: {base_path}\n")
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            log.write(f"Running from source: {base_path}\n")
+
+        # Check possible manual locations
+        possible_paths = [
+            os.path.join(base_path, "Manual.pdf"),
+            os.path.join(base_path, "resources", "Manual.pdf"),
+            os.path.join(os.path.dirname(base_path), "Manual.pdf"),
+            os.path.join(base_path, "..", "Resources", "Manual.pdf")  # Mac app bundle path
+        ]
+
+        log.write(f"Checking paths: {possible_paths}\n")
+
+        manual_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                manual_path = path
+                log.write(f"Found manual at: {path}\n")
+                break
+
+        if manual_path:
+            try:
+                if platform.system() == 'Darwin':
+                    log.write(f"Attempting to open with 'open' command\n")
+                    result = subprocess.run(['open', manual_path], capture_output=True, text=True)
+                    log.write(f"Result: {result.returncode}, Output: {result.stdout}, Error: {result.stderr}\n")
+                elif platform.system() == 'Windows':
+                    log.write(f"Attempting to open with startfile\n")
+                    os.startfile(manual_path)
+                else:
+                    log.write(f"Attempting to open with xdg-open\n")
+                    result = subprocess.run(['xdg-open', manual_path], capture_output=True, text=True)
+                    log.write(f"Result: {result.returncode}, Output: {result.stdout}, Error: {result.stderr}\n")
+                return True
+            except Exception as e:
+                log.write(f"Error opening manual: {e}\n")
+                return False
+        else:
+            log.write("Manual not found in any expected locations\n")
+            return False
 
 
 class ToggleToolbar(wx.Frame):
