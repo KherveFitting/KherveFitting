@@ -24,9 +24,9 @@ class FittingWindow(wx.Frame):
             self.SetMinSize((262, 380))
             self.SetMaxSize((262, 380))
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
-            self.SetSize((275, 400))  # Increased height to accommodate new elements
-            self.SetMinSize((275, 400))
-            self.SetMaxSize((275, 400))
+            self.SetSize((320, 400))  # Increased height to accommodate new elements
+            self.SetMinSize((320, 400))
+            self.SetMaxSize((320, 400))
         else:
             self.SetSize((275, 400))  # Increased height to accommodate new elements
             self.SetMinSize((275, 400))
@@ -652,19 +652,19 @@ class FittingWindow(wx.Frame):
     def load_doublet_splittings(self, library_data):
         splittings = {}
         return
-        for key, value in library_data.items():
-            element, orbital = key
-            if orbital.endswith(('p', 'd', 'f')):
-                try:
-                    splittings[f"{element}{orbital}"] = value['C-Al1486']['ds']  # Must match Excel exactly
-                    print(f'Loading Splittings for {element} {orbital} Value {value['C-Al1486']['ds']}, split'
-                          f' {splittings[f"{element}{orbital}"]}')
-                    # print(f'Element: {element} , Orbital:{orbital}, Split: {splittings}')
-                except KeyError:
-                    print(f"Error\nAvailable instruments for {element}{orbital}: {list(value.keys())}")
-                    # print(f"Full value data: {value}")
-                    continue
-        return splittings
+        # for key, value in library_data.items():
+        #     element, orbital = key
+        #     if orbital.endswith(('p', 'd', 'f')):
+        #         try:
+        #             splittings[f"{element}{orbital}"] = value['C-Al1486']['ds']  # Must match Excel exactly
+        #             print(f'Loading Splittings for {element} {orbital} Value {value['C-Al1486']['ds']}, split'
+        #                   f' {splittings[f"{element}{orbital}"]}')
+        #             # print(f'Element: {element} , Orbital:{orbital}, Split: {splittings}')
+        #         except KeyError:
+        #             print(f"Error\nAvailable instruments for {element}{orbital}: {list(value.keys())}")
+        #             # print(f"Full value data: {value}")
+        #             continue
+        # return splittings
 
     def get_doublet_splitting(self, element, orbital, instrument):
         # Extract number and letter from orbital (e.g., "3d" -> "3" and "d")
