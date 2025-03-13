@@ -1219,9 +1219,16 @@ class TougaardFitWindow(wx.Frame):
                     value = 2866 if param == 'B' else 1643 if param == 'C' else 1
                     is_fixed = False
 
+                # Set default min values for C and D
+                min_default = '0'
+                if param == 'C':
+                    min_default = '600'
+                elif param == 'D':
+                    min_default = '1200'
+
                 params[param] = {
                     'value': wx.SpinCtrlDouble(param_box, min=0, max=20000, inc=0.1, value=str(value)),
-                    'min': wx.SpinCtrlDouble(param_box, min=0, max=6000, inc=0.1),
+                    'min': wx.SpinCtrlDouble(param_box, min=0, max=6000, inc=0.1, value=min_default),
                     'max': wx.SpinCtrlDouble(param_box, min=0, max=20000, inc=0.1, value='6000'),
                     'fixed': wx.CheckBox(param_box, label="Fix")
                 }
