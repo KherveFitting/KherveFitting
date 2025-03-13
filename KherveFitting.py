@@ -658,7 +658,7 @@ class MyFrame(wx.Frame):
                 'Area': peak_y * 1.6 * 1.064,
                 'Sigma': 1.2,
                 'Gamma': 0.4,
-                'Skew': 0.1,
+                'Skew': 0.01,
                 'Fitting Model': self.selected_fitting_method,
                 'Bkg Type': self.background_method,
                 'Bkg Low': self.bg_min_energy,
@@ -755,6 +755,26 @@ class MyFrame(wx.Frame):
                 'Sigma': 1,
                 'Gamma': 0.5,
                 'skew': 0.01,
+                'Constraints': {
+                    'Position': position_constraint,
+                    'Height': "1:1e7",
+                    'FWHM': "0.3:3.5",
+                    'L/G': "1:80",  # Full range for Voigt models
+                    'Area': '1:1e7',
+                    'Sigma': "0.3:3",
+                    'Gamma': "0.3:3",
+                    'Skew': "0.01:0.7"
+                }
+            })
+        elif self.selected_fitting_method in ["SGL (Area)"]:
+            # Value required to calculate area
+            fwhm = 1.6
+            fraction = 20
+            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+            gamma = fwhm / 2
+            sgl_area = peak_y * ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
+            peak_data.update({
+                'Area': sgl_area,
                 'Constraints': {
                     'Position': position_constraint,
                     'Height': "1:1e7",
