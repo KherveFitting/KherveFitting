@@ -907,7 +907,7 @@ def open_vamas_file(window, file_path):
                 y_values = [y / num_scans for y in y_values]
 
             # Convert to Binding Energy if necessary
-            if block.x_label == "Kinetic Energy":
+            if block.x_label.lower() in ["kinetic energy", "ke"]:
                 x_values = [window.photons - x - window.workfunction for x in x_values]
                 x_label = "Binding Energy"
             else:
