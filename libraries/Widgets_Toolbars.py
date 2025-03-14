@@ -482,8 +482,8 @@ def create_menu(window):
     shortcuts_item = help_menu.Append(wx.NewId(), "List of Shortcuts\tCtrl+K")
     window.Bind(wx.EVT_MENU, lambda event: show_shortcuts(window), shortcuts_item)
 
-    # mini_game_item = help_menu.Append(wx.NewId(), "Mini Game")
-    # window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), mini_game_item)
+    mini_game_item = help_menu.Append(wx.NewId(), "Mini Game")
+    window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), mini_game_item)
 
     coffee_item = help_menu.Append(wx.NewId(), "Buy Me a Coffee")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://buymeacoffee.com/gkerherve"), coffee_item)

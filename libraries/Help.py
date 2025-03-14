@@ -4,7 +4,7 @@ import os
 import sys
 import webbrowser
 import urllib.parse
-# import pygame
+import pygame
 
 
 def show_libraries_used(window):
