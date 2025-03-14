@@ -1344,3 +1344,137 @@ def export_sheet_to_dat(window):
         import traceback
         traceback.print_exc()
         wx.MessageBox(f"Error exporting to DAT: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def copy_core_level(window):
+    import json
+    import os
+    import tempfile
+    from copy import deepcopy
+
+    sheet_name = window.sheet_combobox.GetValue()
+    if sheet_name in window.Data['Core levels']:
+        # Create a deep copy of the current core level data
+        clipboard_data = {
+            'core_level': deepcopy(window.Data['Core levels'][sheet_name]),
+            'peak_params_grid': get_grid_data(window.peak_params_grid),
+            'peak_count': window.peak_count,
+            'original_sheet_name': sheet_name
+        }
+
+        # Save to a temporary file that any instance can access
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+        with open(clipboard_file, 'w') as f:
+            json.dump(convert_to_serializable_and_round(clipboard_data), f)
+
+        window.show_popup_message2("Core Level Copied", f"Core level '{sheet_name}' copied to clipboard")
+    else:
+        window.show_popup_message2("Copy Failed", "No core level data to copy")
+
+
+def paste_core_level(window):
+    import json
+    import os
+    import tempfile
+    import pandas as pd
+    import openpyxl
+    from copy import deepcopy
+
+    clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+
+    if not os.path.exists(clipboard_file):
+        window.show_popup_message2("Paste Failed", "No data in clipboard")
+        return
+
+    try:
+        with open(clipboard_file, 'r') as f:
+            clipboard_data = json.load(f)
+
+        # Save current state for undo
+        save_state(window)
+
+        # Create a new sheet name based on the original
+        original_name = clipboard_data['original_sheet_name']
+        current_sheet = window.sheet_combobox.GetValue()
+
+        # Get all sheets and find index of current sheet
+        all_sheets = list(window.Data['Core levels'].keys())
+        current_index = all_sheets.index(current_sheet)
+
+        # Create a unique new sheet name
+        wb = openpyxl.load_workbook(window.Data['FilePath'])
+        new_sheet_name = original_name + "_copy"
+        i = 1
+        while new_sheet_name in wb.sheetnames:
+            new_sheet_name = f"{original_name}_copy{i}"
+            i += 1
+
+        # Add the new core level data to window.Data
+        window.Data['Core levels'][new_sheet_name] = deepcopy(clipboard_data['core_level'])
+        window.Data['Number of Core levels'] += 1
+
+        # Create a new Excel sheet with the data
+        core_level_data = window.Data['Core levels'][new_sheet_name]
+        df = pd.DataFrame({
+            'BE': core_level_data['B.E.'],
+            'Raw Data': core_level_data['Raw Data'],
+            'Background': core_level_data['Background']['Bkg Y'] if 'Bkg Y' in core_level_data['Background'] else [],
+            'Transmission': [1.0] * len(core_level_data['B.E.'])
+        })
+
+        # Load the workbook and get sheet indexes
+        wb = openpyxl.load_workbook(window.Data['FilePath'])
+        current_sheet_index = wb.sheetnames.index(current_sheet)
+
+        # Insert the new sheet after the current sheet
+        with pd.ExcelWriter(window.Data['FilePath'], engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+        # Reorder sheets in Excel file to place new sheet after current sheet
+        wb = openpyxl.load_workbook(window.Data['FilePath'])
+        sheets = wb.sheetnames
+        if new_sheet_name in sheets:
+            # Remove the new sheet from its current position
+            sheet_index = sheets.index(new_sheet_name)
+            wb.move_sheet(wb[new_sheet_name], offset=current_sheet_index + 1 - sheet_index)
+            wb.save(window.Data['FilePath'])
+
+        # Update the JSON file
+        json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
+        if os.path.exists(json_file_path):
+            # Reorder the core levels in Data to match the Excel sheet order
+            reordered_core_levels = {}
+            for sheet in wb.sheetnames:
+                if sheet in window.Data['Core levels']:
+                    reordered_core_levels[sheet] = window.Data['Core levels'][sheet]
+            window.Data['Core levels'] = reordered_core_levels
+
+            json_data = convert_to_serializable_and_round(window.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+        # Update sheet list in UI
+        window.sheet_combobox.Clear()
+        window.sheet_combobox.AppendItems(wb.sheetnames)
+        window.sheet_combobox.SetValue(new_sheet_name)
+
+        # Switch to the new sheet
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(window, new_sheet_name)
+
+        # Set the peak parameters
+        if 'peak_params_grid' in clipboard_data:
+            window.peak_params_grid.ClearGrid()
+            set_grid_data(window.peak_params_grid, clipboard_data['peak_params_grid'])
+            window.peak_count = clipboard_data['peak_count']
+
+        # Update the plot
+        window.clear_and_replot()
+
+        window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Paste Failed", f"Error: {str(e)}")

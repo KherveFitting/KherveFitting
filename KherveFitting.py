@@ -22,7 +22,6 @@ import platform
 
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
-
 from libraries.Fitting_Screen import *
 from libraries.AreaFit_Screen import *
 from libraries.Save import *
@@ -2270,18 +2269,34 @@ class MyFrame(wx.Frame):
 
     def on_right_click(self, event):
         if event.button == 3:  # Right click
+            import os
+            import tempfile
+            from libraries.Save import copy_core_level, paste_core_level
+
             menu = wx.Menu()
             zoom_in = menu.Append(-1, "Zoom In")
             zoom_out = menu.Append(-1, "Zoom Out")
             drag = menu.Append(-1, "Drag")
 
+            menu.AppendSeparator()
+
+            copy = menu.Append(-1, "Copy Core Level")
+
+            # Check if clipboard file exists
+            clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+            has_clipboard_data = os.path.exists(clipboard_file)
+
+            paste = menu.Append(-1, "Paste Core Level")
+            paste.Enable(has_clipboard_data)
+
             self.Bind(wx.EVT_MENU, self.on_zoom_in_tool, zoom_in)
             self.Bind(wx.EVT_MENU, self.on_zoom_out, zoom_out)
             self.Bind(wx.EVT_MENU, self.on_drag_tool, drag)
+            self.Bind(wx.EVT_MENU, lambda evt: copy_core_level(self), copy)
+            self.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self), paste)
 
             self.PopupMenu(menu)
             menu.Destroy()
-
     def on_zoom_in_tool(self, event):
         self.plot_config.on_zoom_in_tool(self)
 
