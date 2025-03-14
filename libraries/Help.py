@@ -479,6 +479,8 @@ def show_version_log(window):
 - Remove the Noise Analysis from the toolbar. Only available in Tools
 - Move the Skewed Voigt in the non default as it was confusing for new users
 - Fix bugs that stop Fitting to continue
+- Fix bugs with the vamas file from kratos
+- Added mini-game back to the help menu
 
 Version 1.4 (February 2025)
 - Mac version coming soon

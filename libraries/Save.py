@@ -1167,3 +1167,180 @@ def on_save_as(window, event=None):
             import traceback
             traceback.print_exc()
             wx.MessageBox(f"Error saving file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def export_sheet_to_txt(window):
+    """Export current sheet data to a TXT file including all columns"""
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    sheet_name = window.sheet_combobox.GetValue()
+    file_path = window.Data['FilePath']
+
+    try:
+        # Read complete sheet data from Excel file including fitted data
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+        # Create default file path
+        default_file = f"{os.path.splitext(os.path.basename(file_path))[0]}_{sheet_name}.txt"
+        default_dir = os.path.dirname(file_path)
+
+        # Show save dialog
+        with wx.FileDialog(window, "Export to TXT file",
+                           defaultDir=default_dir,
+                           defaultFile=default_file,
+                           wildcard="Text files (*.txt)|*.txt",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+
+            txt_path = fileDialog.GetPath()
+
+            # Remove any empty columns and any columns after the peak fits
+            # Get index of first empty column after the last peak fit
+            last_non_empty_col = df.shape[1]
+            for i in range(df.shape[1] - 1, 4, -1):  # Start from the end, stopping at column E
+                if df.iloc[:, i].notna().any():
+                    break
+                last_non_empty_col = i
+
+            # Remove columns after the last non-empty column
+            if last_non_empty_col < df.shape[1]:
+                df = df.iloc[:, :last_non_empty_col]
+
+            # Drop columns with all NaN values
+            df = df.dropna(axis=1, how='all')
+
+            # Export to text file - use utf-8 encoding to handle Unicode characters
+            with open(txt_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {sheet_name} XPS data\n")
+                # Write header
+                f.write("# " + "\t".join([str(col) for col in df.columns]) + "\n")
+                # Write data
+                for _, row in df.iterrows():
+                    line = "\t".join([f"{val:.6f}" if isinstance(val, (int, float)) and not pd.isna(val)
+                                      else "" if pd.isna(val) else str(val) for val in row])
+                    f.write(line + "\n")
+
+            window.show_popup_message2("Export Successful", f"Data exported to: {txt_path}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error exporting to TXT: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def export_sheet_to_csv(window):
+    """Export current sheet data to a CSV file including all columns"""
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    sheet_name = window.sheet_combobox.GetValue()
+    file_path = window.Data['FilePath']
+
+    try:
+        # Read complete sheet data from Excel file including fitted data
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+        # Create default file path
+        default_file = f"{os.path.splitext(os.path.basename(file_path))[0]}_{sheet_name}.csv"
+        default_dir = os.path.dirname(file_path)
+
+        # Show save dialog
+        with wx.FileDialog(window, "Export to CSV file",
+                           defaultDir=default_dir,
+                           defaultFile=default_file,
+                           wildcard="CSV files (*.csv)|*.csv",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+
+            csv_path = fileDialog.GetPath()
+
+            # Remove any empty columns and any columns after the peak fits
+            # Get index of first empty column after the last peak fit
+            last_non_empty_col = df.shape[1]
+            for i in range(df.shape[1] - 1, 4, -1):  # Start from the end, stopping at column E
+                if df.iloc[:, i].notna().any():
+                    break
+                last_non_empty_col = i
+
+            # Remove columns after the last non-empty column
+            if last_non_empty_col < df.shape[1]:
+                df = df.iloc[:, :last_non_empty_col]
+
+            # Drop columns with all NaN values
+            df = df.dropna(axis=1, how='all')
+
+            # Export to CSV with utf-8 encoding
+            df.to_csv(csv_path, index=False, float_format='%.6f', encoding='utf-8')
+
+            window.show_popup_message2("Export Successful", f"Data exported to: {csv_path}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error exporting to CSV: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def export_sheet_to_dat(window):
+    """Export current sheet data to a DAT file including all columns"""
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    sheet_name = window.sheet_combobox.GetValue()
+    file_path = window.Data['FilePath']
+
+    try:
+        # Read complete sheet data from Excel file including fitted data
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+        # Create default file path
+        default_file = f"{os.path.splitext(os.path.basename(file_path))[0]}_{sheet_name}.dat"
+        default_dir = os.path.dirname(file_path)
+
+        # Show save dialog
+        with wx.FileDialog(window, "Export to DAT file",
+                           defaultDir=default_dir,
+                           defaultFile=default_file,
+                           wildcard="DAT files (*.dat)|*.dat",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+
+            dat_path = fileDialog.GetPath()
+
+            # Remove any empty columns and any columns after the peak fits
+            # Get index of first empty column after the last peak fit
+            last_non_empty_col = df.shape[1]
+            for i in range(df.shape[1] - 1, 4, -1):  # Start from the end, stopping at column E
+                if df.iloc[:, i].notna().any():
+                    break
+                last_non_empty_col = i
+
+            # Remove columns after the last non-empty column
+            if last_non_empty_col < df.shape[1]:
+                df = df.iloc[:, :last_non_empty_col]
+
+            # Drop columns with all NaN values
+            df = df.dropna(axis=1, how='all')
+
+            # Export to DAT file with utf-8 encoding
+            with open(dat_path, 'w', encoding='utf-8') as f:
+                # Write header with column names, preceded by '#'
+                f.write("# " + " ".join([str(col) for col in df.columns]) + "\n")
+                # Write data
+                for _, row in df.iterrows():
+                    line = " ".join([f"{val:.6f}" if isinstance(val, (int, float)) and not pd.isna(val)
+                                     else "" if pd.isna(val) else str(val) for val in row])
+                    f.write(line + "\n")
+
+            window.show_popup_message2("Export Successful", f"Data exported to: {dat_path}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error exporting to DAT: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)

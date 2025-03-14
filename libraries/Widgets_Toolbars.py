@@ -15,6 +15,7 @@ from libraries.Save import update_undo_redo_state
 from libraries.Save import save_state, undo, redo
 from libraries.Save import save_peaks_library, load_peaks_library
 from libraries.Save import on_save_as
+from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, PlotModWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
@@ -394,14 +395,25 @@ def create_menu(window):
     export_python_plot_item = export_menu.Append(wx.NewId(), "Python Plot")
     window.Bind(wx.EVT_MENU, lambda event: create_plot_script_from_excel(window), export_python_plot_item)
 
-    save_plot_item = export_menu.Append(wx.NewId(), "Export as PNG")
+    save_plot_item = export_menu.Append(wx.NewId(), "Export plot as PNG")
     window.Bind(wx.EVT_MENU, lambda event: on_save_plot(window), save_plot_item)
 
-    save_plot_item_pdf = export_menu.Append(wx.NewId(), "Export as PDF")
+    save_plot_item_pdf = export_menu.Append(wx.NewId(), "Export plot as PDF")
     window.Bind(wx.EVT_MENU, lambda event: on_save_plot_pdf(window), save_plot_item_pdf)
 
-    save_plot_item_svg = export_menu.Append(wx.NewId(), "Export as SVG")
+    save_plot_item_svg = export_menu.Append(wx.NewId(), "Export plot as SVG")
     window.Bind(wx.EVT_MENU, lambda event: on_save_plot_svg(window), save_plot_item_svg)
+
+    export_txt_item = export_menu.Append(wx.ID_ANY, "Export data as TXT",
+                                         "Export current core level to TXT file")
+    export_csv_item = export_menu.Append(wx.ID_ANY, "Export data as CSV",
+                                         "Export current core level to CSV file")
+    export_dat_item = export_menu.Append(wx.ID_ANY, "Export data as DAT",
+                                         "Export current core level to DAT file")
+
+    window.Bind(wx.EVT_MENU, lambda event: export_sheet_to_txt(window), export_txt_item)
+    window.Bind(wx.EVT_MENU, lambda event: export_sheet_to_csv(window), export_csv_item)
+    window.Bind(wx.EVT_MENU, lambda event: export_sheet_to_dat(window), export_dat_item)
 
     export_menu.AppendSeparator()
     word_report_item = export_menu.Append(wx.NewId(), "Create Report (.docx)")
