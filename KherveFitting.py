@@ -324,13 +324,45 @@ class MyFrame(wx.Frame):
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_peak_params_cell_changed)
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_peak_params_cell_changed)
         self.Bind(wx.EVT_CLOSE, self.on_close)
-        # self.peak_params_grid.Bind(wx.EVT_KEY_DOWN, self.on_grid_key)
+        # Bind right-click events for peak_params_grid
+
+        self.peak_params_grid.Bind(wx.EVT_RIGHT_DOWN, self.on_peak_params_grid_right_click)  # For empty grid
+        self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_peak_params_right_click)
+        # self.peak_params_grid.Bind(wx.EVT_CONTEXT_MENU, self.on_peak_params_context_menu)
+        # Bind right-click events for peak_params_grid
+
 
 
         self.plot_manager.residuals_state = 2  # Set default state
 
 
+        # Add this method too:
+    def on_peak_params_context_menu(self, event):
+        # Alternative event handler for context menu
+        position = event.GetPosition()
+        # Convert screen position to grid cell
+        x, y = self.peak_params_grid.ScreenToClient(position)
+        row, col = self.peak_params_grid.XYToCell(x, y)
+        if row != -1 and col != -1:  # Valid cell
+            peak_index = row // 2
 
+            menu = wx.Menu()
+            copy_item = menu.Append(wx.ID_ANY, "Copy Peak Parameters")
+            paste_item = menu.Append(wx.ID_ANY, "Paste Peak Parameters")
+
+            import os
+            import tempfile
+            clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+            paste_item.Enable(os.path.exists(clipboard_file))
+
+            from libraries.Save import copy_peak_parameters, paste_peak_parameters
+            self.Bind(wx.EVT_MENU, lambda evt: copy_peak_parameters(self, peak_index), copy_item)
+            self.Bind(wx.EVT_MENU, lambda evt: paste_peak_parameters(self, peak_index), paste_item)
+
+            self.peak_params_grid.PopupMenu(menu)
+            menu.Destroy()
+        else:
+            event.Skip()
 
 
     def add_toggle_tool(self, toolbar, label, bmp):
@@ -2297,6 +2329,58 @@ class MyFrame(wx.Frame):
 
             self.PopupMenu(menu)
             menu.Destroy()
+
+    # In KherveFitting.py:
+
+    def on_peak_params_right_click(self, event):
+        # Create the menu
+        menu = wx.Menu()
+        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Parameters")
+        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Parameters")
+
+        # Check if paste data exists
+        import os
+        import tempfile
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+
+        # Enable/disable menu items based on context
+        has_clipboard = os.path.exists(clipboard_file)
+        has_rows = self.peak_params_grid.GetNumberRows() > 0
+
+        copy_item.Enable(has_rows)
+        paste_item.Enable(has_clipboard)
+
+        from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters
+
+        # Bind menu events
+        self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_item)
+        self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_item)
+
+        # Show the menu
+        self.peak_params_grid.PopupMenu(menu, event.GetPosition())
+        menu.Destroy()
+
+    # Same for empty grid right-click
+    def on_peak_params_grid_right_click(self, event):
+        menu = wx.Menu()
+        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Parameters")
+        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Parameters")
+
+        import os
+        import tempfile
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+
+        has_rows = self.peak_params_grid.GetNumberRows() > 0
+        copy_item.Enable(has_rows)
+        paste_item.Enable(os.path.exists(clipboard_file))
+
+        from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters
+        self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_item)
+        self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_item)
+
+        self.peak_params_grid.PopupMenu(menu, event.GetPosition())
+        menu.Destroy()
+
     def on_zoom_in_tool(self, event):
         self.plot_config.on_zoom_in_tool(self)
 

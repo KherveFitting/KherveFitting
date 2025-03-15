@@ -1403,10 +1403,10 @@ def paste_core_level(window):
 
         # Create a unique new sheet name
         wb = openpyxl.load_workbook(window.Data['FilePath'])
-        new_sheet_name = original_name + "_copy"
+        new_sheet_name = original_name + ""
         i = 1
         while new_sheet_name in wb.sheetnames:
-            new_sheet_name = f"{original_name}_copy{i}"
+            new_sheet_name = f"{original_name}{i}"
             i += 1
 
         # Add the new core level data to window.Data
@@ -1474,6 +1474,141 @@ def paste_core_level(window):
 
         window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'")
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Paste Failed", f"Error: {str(e)}")
+
+
+def copy_all_peak_parameters(window):
+    """Copy all peak parameters from the peak_params_grid and Data structure."""
+    import json
+    import os
+    import tempfile
+    from copy import deepcopy
+
+    sheet_name = window.sheet_combobox.GetValue()
+    if sheet_name not in window.Data['Core levels'] or 'Fitting' not in window.Data['Core levels'][sheet_name]:
+        window.show_popup_message2("Copy Failed", "No peak parameters to copy")
+        return
+
+    clipboard_data = {
+        'sheet_name': sheet_name,
+        'grid_data': [],
+        'peak_data': deepcopy(window.Data['Core levels'][sheet_name]['Fitting']),
+        'peak_count': window.peak_count
+    }
+
+    # Get all grid data
+    for row in range(window.peak_params_grid.GetNumberRows()):
+        row_data = []
+        for col in range(window.peak_params_grid.GetNumberCols()):
+            row_data.append(window.peak_params_grid.GetCellValue(row, col))
+        clipboard_data['grid_data'].append(row_data)
+
+    # Save to temp file
+    clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+    with open(clipboard_file, 'w') as f:
+        json.dump(convert_to_serializable_and_round(clipboard_data), f)
+
+    window.show_popup_message2("Parameters Copied", f"All peak parameters from {sheet_name} copied")
+
+
+def paste_all_peak_parameters(window):
+    """Paste all peak parameters to the peak_params_grid and Data structure."""
+    import json
+    import os
+    import tempfile
+
+    clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+    if not os.path.exists(clipboard_file):
+        return
+
+    save_state(window)
+
+    try:
+        with open(clipboard_file, 'r') as f:
+            clipboard_data = json.load(f)
+
+        sheet_name = window.sheet_combobox.GetValue()
+
+        # Clear existing grid data
+        if window.peak_params_grid.GetNumberRows() > 0:
+            window.peak_params_grid.DeleteRows(0, window.peak_params_grid.GetNumberRows())
+
+        # Add new rows
+        num_rows = len(clipboard_data['grid_data'])
+        if num_rows > 0:
+            window.peak_params_grid.AppendRows(num_rows)
+
+            # Fill grid with copied data
+            for row, row_data in enumerate(clipboard_data['grid_data']):
+                for col, value in enumerate(row_data):
+                    # Handle Letter IDs - rows 0, 2, 4, etc.
+                    if col == 0 and row % 2 == 0:
+                        # Recalculate letter based on peak number
+                        peak_num = row // 2 + 1
+                        letter_id = chr(64 + peak_num)
+                        window.peak_params_grid.SetCellValue(row, col, letter_id)
+                        window.peak_params_grid.SetReadOnly(row, col)
+                    # Handle peak names - rows 0, 2, 4, etc.
+                    elif col == 1 and row % 2 == 0:
+                        # Replace with current sheet name
+                        old_name = value
+                        peak_num = row // 2 + 1
+                        new_name = f"{sheet_name} p{peak_num}"
+                        window.peak_params_grid.SetCellValue(row, col, new_name)
+                    else:
+                        window.peak_params_grid.SetCellValue(row, col, value)
+
+                # Set background color for constraint rows (odd rows)
+                if row % 2 == 1:
+                    for col in range(window.peak_params_grid.GetNumberCols()):
+                        window.peak_params_grid.SetCellBackgroundColour(row, col, wx.Colour(200, 245, 228))
+
+        # Update window.Data structure - starting with a copy of the Fitting section
+        if 'peak_data' in clipboard_data:
+            # Ensure Fitting exists in destination
+            if 'Fitting' not in window.Data['Core levels'][sheet_name]:
+                window.Data['Core levels'][sheet_name]['Fitting'] = {}
+
+            # Update Fitting data (but preserve Peaks key if it exists)
+            for key, value in clipboard_data['peak_data'].items():
+                if key != 'Peaks':
+                    window.Data['Core levels'][sheet_name]['Fitting'][key] = value
+
+            # Handle Peaks separately - rename to match current sheet
+            if 'Peaks' in clipboard_data['peak_data']:
+                # Create empty Peaks dict if needed
+                if 'Peaks' not in window.Data['Core levels'][sheet_name]['Fitting']:
+                    window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
+
+                # Create renamed peaks
+                old_peaks = clipboard_data['peak_data']['Peaks']
+                new_peaks = {}
+
+                for i, (old_key, peak_data) in enumerate(old_peaks.items()):
+                    # Create new peak key with current sheet name
+                    peak_num = i + 1
+                    new_key = f"{sheet_name} p{peak_num}"
+
+                    # Copy peak data
+                    new_peaks[new_key] = peak_data.copy()
+                    # Update peak name if it exists in the data
+                    if 'Name' in new_peaks[new_key]:
+                        new_peaks[new_key]['Name'] = new_key
+
+                # Replace peaks in current sheet
+                window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = new_peaks
+
+        # Update peak count
+        window.peak_count = num_rows // 2
+
+        window.peak_params_grid.ForceRefresh()
+        window.update_ratios()
+        window.clear_and_replot()
+
+        window.show_popup_message2("Parameters Pasted", f"All peak parameters pasted to {sheet_name}")
     except Exception as e:
         import traceback
         traceback.print_exc()
