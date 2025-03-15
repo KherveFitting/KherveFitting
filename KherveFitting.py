@@ -326,7 +326,7 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         # Bind right-click events for peak_params_grid
 
-        self.peak_params_grid.Bind(wx.EVT_RIGHT_DOWN, self.on_peak_params_grid_right_click)  # For empty grid
+        # self.peak_params_grid.Bind(wx.EVT_RIGHT_DOWN, self.on_peak_params_grid_right_click)  # For empty grid
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_peak_params_right_click)
         # self.peak_params_grid.Bind(wx.EVT_CONTEXT_MENU, self.on_peak_params_context_menu)
         # Bind right-click events for peak_params_grid
@@ -2347,10 +2347,16 @@ class MyFrame(wx.Frame):
     # In KherveFitting.py:
 
     def on_peak_params_right_click(self, event):
-        # Create the menu
+        row = event.GetRow()
+        col = event.GetCol()
+
         menu = wx.Menu()
         copy_item = menu.Append(wx.ID_ANY, "Copy Peak Table")
         paste_item = menu.Append(wx.ID_ANY, "Paste Peak Table")
+
+        # Add separator and propagate option
+        menu.AppendSeparator()
+        propagate_item = menu.Append(wx.ID_ANY, "Propagate to column")
 
         # Check if paste data exists
         import os
@@ -2363,34 +2369,17 @@ class MyFrame(wx.Frame):
 
         copy_item.Enable(has_rows)
         paste_item.Enable(has_clipboard)
+        propagate_item.Enable(col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1)  # Enable only for constraint rows
 
         from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters
+        from libraries.Utilities import propagate_constraint
 
         # Bind menu events
         self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_item)
         self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_item)
+        self.Bind(wx.EVT_MENU, lambda evt: propagate_constraint(self, row, col), propagate_item)
 
         # Show the menu
-        self.peak_params_grid.PopupMenu(menu, event.GetPosition())
-        menu.Destroy()
-
-    def on_peak_params_grid_right_click(self, event):
-        menu = wx.Menu()
-        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Table")
-        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Table")
-
-        import os
-        import tempfile
-        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
-
-        has_rows = self.peak_params_grid.GetNumberRows() > 0
-        copy_item.Enable(has_rows)
-        paste_item.Enable(os.path.exists(clipboard_file))
-
-        from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters
-        self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_item)
-        self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_item)
-
         self.peak_params_grid.PopupMenu(menu, event.GetPosition())
         menu.Destroy()
 

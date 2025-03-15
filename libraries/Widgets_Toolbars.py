@@ -598,9 +598,9 @@ def create_horizontal_toolbar(parent, window):
                                         shortHelp="Delete current Core Level/Survey")
     window.Bind(wx.EVT_TOOL, lambda event: on_delete_sheet(window, event), delete_sheet_tool)
 
-    copy_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Copy Core Level/Survey',
+    copy_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Copy/Paste Core Level',
                                       wx.Bitmap(os.path.join(icon_path, "copy-25.png"), wx.BITMAP_TYPE_PNG),
-                                      shortHelp="Copy current Core Level/Survey")
+                                      shortHelp="Copy/Paste this Core Level/Survey at the end of this file")
 
     join_sheets_tool = toolbar.AddTool(wx.ID_ANY, 'Join Core Level/Survey',
                                        wx.Bitmap(os.path.join(icon_path, "join2-25.png"), wx.BITMAP_TYPE_PNG),

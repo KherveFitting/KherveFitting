@@ -361,13 +361,15 @@ def get_unique_sheet_name(base_name, existing_sheets):
 
 
 def copy_sheet(window):
-    sheet_name = window.sheet_combobox.GetValue()
-    new_sheet_name = f"{sheet_name}_copy"
-
     # Check for existing sheets with the same name
     counter = 1
+
+    sheet_name = window.sheet_combobox.GetValue()
+    new_sheet_name = f"{sheet_name}{counter}"
+
+
     while new_sheet_name in window.Data['Core levels']:
-        new_sheet_name = f"{sheet_name}_copy_{counter}"
+        new_sheet_name = f"{sheet_name}{counter}"
         counter += 1
 
     # Copy data to new sheet
@@ -406,6 +408,128 @@ def save_modified_data(self, x, y, sheet_name, operation_type):
 
     # Get unique sheet name
     sheet_name = get_unique_sheet_name(sheet_name, existing_sheets)
+
+def propagate_constraint(window, row, col):
+    """Propagate the constraint in the selected cell to all other peaks in the same column"""
+    if row % 2 != 1 or col not in [2, 3, 4, 5, 6, 7, 8, 9]:
+        return  # Only work on constraint rows and specific columns
+
+    from libraries.Save import save_state
+    save_state(window)  # Save state for undo
+
+    peak_index = row // 2
+    peak_letter = chr(65 + peak_index)  # Convert peak index to letter (A, B, C...)
+
+    # Get values from the source peak
+    data_row = peak_index * 2
+    source_value = float(window.peak_params_grid.GetCellValue(data_row, col))
+
+    # Update all other rows based on column type
+    num_peaks = window.peak_params_grid.GetNumberRows() // 2
+    sheet_name = window.sheet_combobox.GetValue()
+    peaks = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+    constraint_names = {
+        2: 'Position',
+        3: 'Height',
+        4: 'FWHM',
+        5: 'L/G',
+        6: 'Area',
+        7: 'Sigma',
+        8: 'Gamma',
+        9: 'Skew'
+    }
+
+    constraint_name = constraint_names.get(col)
+
+    for i in range(num_peaks):
+        if i == peak_index:  # Skip the source peak
+            continue
+
+        data_row_i = i * 2
+        constraint_row_i = i * 2 + 1
+
+        # Different handling based on column
+        if col == 2:  # Position
+            # Calculate split (difference in position)
+            target_pos = float(window.peak_params_grid.GetCellValue(data_row_i, col))
+            split = target_pos - source_value
+            constraint_value = f"{peak_letter}+{split:.2f}#0.1"
+
+        elif col == 6:  # Area
+            # Calculate ratio
+            target_area = float(window.peak_params_grid.GetCellValue(data_row_i, col))
+            source_area = float(window.peak_params_grid.GetCellValue(data_row, col))
+            ratio = (target_area / source_area) if source_area != 0 else 1
+            constraint_value = f"{peak_letter}*{ratio:.2f}"
+
+        elif col == 7:  # Sigma - also update Gamma
+            constraint_value = f"{peak_letter}*1"
+            # Update sigma value
+            window.peak_params_grid.SetCellValue(data_row_i, col, f"{source_value:.2f}")
+
+            # Also update gamma and its constraint
+            source_gamma = float(window.peak_params_grid.GetCellValue(data_row, 8))
+            window.peak_params_grid.SetCellValue(data_row_i, 8, f"{source_gamma:.2f}")
+            window.peak_params_grid.SetCellValue(constraint_row_i, 8, f"{peak_letter}*1")
+
+            # Update in Data structure
+            if i < len(list(peaks.values())):
+                peak_data = list(peaks.values())[i]
+                peak_data['Sigma'] = source_value
+                peak_data['Gamma'] = source_gamma
+                if 'Constraints' not in peak_data:
+                    peak_data['Constraints'] = {}
+                peak_data['Constraints']['Sigma'] = constraint_value
+                peak_data['Constraints']['Gamma'] = f"{peak_letter}*1"
+
+        elif col == 8:  # Gamma - also update Sigma
+            constraint_value = f"{peak_letter}*1"
+            # Update gamma value
+            window.peak_params_grid.SetCellValue(data_row_i, col, f"{source_value:.2f}")
+
+            # Also update sigma and its constraint
+            source_sigma = float(window.peak_params_grid.GetCellValue(data_row, 7))
+            window.peak_params_grid.SetCellValue(data_row_i, 7, f"{source_sigma:.2f}")
+            window.peak_params_grid.SetCellValue(constraint_row_i, 7, f"{peak_letter}*1")
+
+            # Update in Data structure
+            if i < len(list(peaks.values())):
+                peak_data = list(peaks.values())[i]
+                peak_data['Gamma'] = source_value
+                peak_data['Sigma'] = source_sigma
+                if 'Constraints' not in peak_data:
+                    peak_data['Constraints'] = {}
+                peak_data['Constraints']['Gamma'] = constraint_value
+                peak_data['Constraints']['Sigma'] = f"{peak_letter}*1"
+
+        elif col in [4, 5, 9]:  # FWHM, L/G, Skew
+            # Set all to the same value for these parameters
+            constraint_value = f"{peak_letter}*1"
+            # Also update the actual value in the data row
+            window.peak_params_grid.SetCellValue(data_row_i, col, f"{source_value:.2f}")
+
+            # Update in Data structure
+            if constraint_name and i < len(list(peaks.values())):
+                peak_data = list(peaks.values())[i]
+                peak_data[constraint_name] = source_value
+
+        else:  # Other columns
+            constraint_value = f"{peak_letter}*1"
+
+        # Set the constraint in the grid (if not already set for special cases)
+        if col not in [7, 8] or not window.peak_params_grid.GetCellValue(constraint_row_i, col):
+            window.peak_params_grid.SetCellValue(constraint_row_i, col, constraint_value)
+
+        # Update in Data structure (if not already handled in special cases)
+        if constraint_name and col not in [7, 8] and i < len(list(peaks.values())):
+            peak_data = list(peaks.values())[i]
+            if 'Constraints' not in peak_data:
+                peak_data['Constraints'] = {}
+            peak_data['Constraints'][constraint_name] = constraint_value
+
+    window.refresh_peak_params_grid()
+    window.clear_and_replot()
 
 class CropWindow(wx.Frame):
     def __init__(self, parent,*args, **kw):
