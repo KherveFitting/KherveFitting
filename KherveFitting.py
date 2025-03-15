@@ -2303,7 +2303,8 @@ class MyFrame(wx.Frame):
         if event.button == 3:  # Right click
             import os
             import tempfile
-            from libraries.Save import copy_core_level, paste_core_level
+            from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters, copy_core_level, \
+                paste_core_level
 
             menu = wx.Menu()
             zoom_in = menu.Append(-1, "Zoom In")
@@ -2313,19 +2314,32 @@ class MyFrame(wx.Frame):
             menu.AppendSeparator()
 
             copy = menu.Append(-1, "Copy Core Level")
+            paste = menu.Append(-1, "Paste Core Level")
 
-            # Check if clipboard file exists
+            # Check clipboard files
             clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
             has_clipboard_data = os.path.exists(clipboard_file)
 
-            paste = menu.Append(-1, "Paste Core Level")
+            menu.AppendSeparator()
+
+            copy_peak_table = menu.Append(-1, "Copy Peak Table")
+            paste_peak_table = menu.Append(-1, "Paste Peak Table")
+            peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+
+            has_peak_clipboard_data = os.path.exists(peak_clipboard_file)
+            has_rows = self.peak_params_grid.GetNumberRows() > 0
+
             paste.Enable(has_clipboard_data)
+            paste_peak_table.Enable(has_peak_clipboard_data)
+            copy_peak_table.Enable(has_rows)
 
             self.Bind(wx.EVT_MENU, self.on_zoom_in_tool, zoom_in)
             self.Bind(wx.EVT_MENU, self.on_zoom_out, zoom_out)
             self.Bind(wx.EVT_MENU, self.on_drag_tool, drag)
             self.Bind(wx.EVT_MENU, lambda evt: copy_core_level(self), copy)
             self.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self), paste)
+            self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_peak_table)
+            self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_peak_table)
 
             self.PopupMenu(menu)
             menu.Destroy()
@@ -2335,8 +2349,8 @@ class MyFrame(wx.Frame):
     def on_peak_params_right_click(self, event):
         # Create the menu
         menu = wx.Menu()
-        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Parameters")
-        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Parameters")
+        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Table")
+        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Table")
 
         # Check if paste data exists
         import os
@@ -2360,11 +2374,10 @@ class MyFrame(wx.Frame):
         self.peak_params_grid.PopupMenu(menu, event.GetPosition())
         menu.Destroy()
 
-    # Same for empty grid right-click
     def on_peak_params_grid_right_click(self, event):
         menu = wx.Menu()
-        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Parameters")
-        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Parameters")
+        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Table")
+        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Table")
 
         import os
         import tempfile
