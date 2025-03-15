@@ -1386,6 +1386,39 @@ def paste_core_level(window):
         window.show_popup_message2("Paste Failed", "No data in clipboard")
         return
 
+    # Check if no file is open
+    is_new_file = False
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        is_new_file = True
+        # Show save dialog to create a new file
+        with wx.FileDialog(window, "Save As", wildcard="Excel files (*.xlsx)|*.xlsx",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return  # User canceled
+            file_path = fileDialog.GetPath()
+            if not file_path.lower().endswith('.xlsx'):
+                file_path += '.xlsx'
+
+            # Create empty Excel file
+            wb = openpyxl.Workbook()
+            wb.save(file_path)
+
+            # Set the filepath in window.Data
+            window.Data['FilePath'] = file_path
+            window.SetStatusText(f"Selected File: {file_path}", 0)
+
+            # Initialize Core levels if needed
+            if 'Core levels' not in window.Data:
+                window.Data['Core levels'] = {}
+                window.Data['Number of Core levels'] = 0
+
+            # Update recent files
+            if file_path in window.recent_files:
+                window.recent_files.remove(file_path)
+            window.recent_files.insert(0, file_path)
+            window.recent_files = window.recent_files[:window.max_recent_files]
+            window.save_config()
+
     try:
         with open(clipboard_file, 'r') as f:
             clipboard_data = json.load(f)
@@ -1395,15 +1428,25 @@ def paste_core_level(window):
 
         # Create a new sheet name based on the original
         original_name = clipboard_data['original_sheet_name']
-        current_sheet = window.sheet_combobox.GetValue()
 
-        # Get all sheets and find index of current sheet
-        all_sheets = list(window.Data['Core levels'].keys())
-        current_index = all_sheets.index(current_sheet)
+        if is_new_file:
+            # For new files, just use the original name since there are no sheets yet
+            new_sheet_name = original_name
+            current_sheet = ""  # No current sheet for new files
+        else:
+            # For existing files, create a unique name
+            current_sheet = window.sheet_combobox.GetValue()
+            # Get all sheets and find index of current sheet
+            all_sheets = list(window.Data['Core levels'].keys())
+            # Only try to get current_index if all_sheets is not empty
+            if all_sheets and current_sheet:
+                current_index = all_sheets.index(current_sheet)
+            else:
+                current_index = -1  # Default to end of list
 
         # Create a unique new sheet name
         wb = openpyxl.load_workbook(window.Data['FilePath'])
-        new_sheet_name = original_name + ""
+        new_sheet_name = original_name
         i = 1
         while new_sheet_name in wb.sheetnames:
             new_sheet_name = f"{original_name}{i}"
@@ -1422,20 +1465,24 @@ def paste_core_level(window):
             'Transmission': [1.0] * len(core_level_data['B.E.'])
         })
 
-        # Load the workbook and get sheet indexes
+        # Load the workbook and get sheet indexes if not a new file
         wb = openpyxl.load_workbook(window.Data['FilePath'])
-        current_sheet_index = wb.sheetnames.index(current_sheet)
+
+        if not is_new_file and current_sheet in wb.sheetnames:
+            current_sheet_index = wb.sheetnames.index(current_sheet)
+        else:
+            current_sheet_index = -1  # Default to end if current sheet not found
 
         # Insert the new sheet after the current sheet
         with pd.ExcelWriter(window.Data['FilePath'], engine='openpyxl', mode='a',
                             if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=new_sheet_name, index=False)
 
-        # Reorder sheets in Excel file to place new sheet after current sheet
+        # Reorder sheets in Excel file if needed
         wb = openpyxl.load_workbook(window.Data['FilePath'])
         sheets = wb.sheetnames
-        if new_sheet_name in sheets:
-            # Remove the new sheet from its current position
+        if new_sheet_name in sheets and current_sheet_index >= 0:
+            # Only try to reorder if we have a valid current_sheet_index
             sheet_index = sheets.index(new_sheet_name)
             wb.move_sheet(wb[new_sheet_name], offset=current_sheet_index + 1 - sheet_index)
             wb.save(window.Data['FilePath'])
@@ -1469,8 +1516,21 @@ def paste_core_level(window):
             set_grid_data(window.peak_params_grid, clipboard_data['peak_params_grid'])
             window.peak_count = clipboard_data['peak_count']
 
+        # After the entire paste operation succeeds:
+        wb = openpyxl.load_workbook(window.Data['FilePath'])
+        if "Sheet" in wb.sheetnames and len(wb.sheetnames) > 1:
+            # Only remove Sheet if it's not the only sheet
+            wb.remove(wb["Sheet"])
+            wb.save(window.Data['FilePath'])
+
+            # Update sheet list in UI again
+            window.sheet_combobox.Clear()
+            window.sheet_combobox.AppendItems(wb.sheetnames)
+            window.sheet_combobox.SetValue(new_sheet_name)
+
         # Update the plot
         window.clear_and_replot()
+
 
         window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'")
 

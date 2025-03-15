@@ -2677,7 +2677,16 @@ class MyFrame(wx.Frame):
             8: '0.3:3',  # Gamma
             9: '0.01:2' # Skew
         }
-        if col == 1:  # Peak label column
+        # Check if this is a constraint row and the value contains "="
+        if row % 2 == 1 and col in [2, 3, 4, 5, 6, 7, 8, 9] and "=" in new_value:
+            # Remove the "=" from the cell
+            self.peak_params_grid.SetCellValue(row, col, new_value.replace("=", ""))
+
+            # Import and call the propagate_constraint function
+            from libraries.Utilities import propagate_constraint
+            propagate_constraint(self, row, col)
+            return  # Skip the rest of the function
+        elif col == 1:  # Peak label column
             # Check for duplicate names
             existing_names = []
             for i in range(0, self.peak_params_grid.GetNumberRows(), 2):

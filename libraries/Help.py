@@ -468,6 +468,8 @@ def show_version_log(window):
 
     version_log = """Version 1.41 (March 2025)
 - Release of the Mac Version
+- Added Copy and paste menu for core levels and peak fitting grid
+- Added A propagation of the peak fitting parameters (menu and =) just like casa
 - Added information in the Manual for installation instruction
 - Change Horizontal toolbar so that it is compatible with Mac
 - Preparation to the release of the Linux version for Synchrotron
@@ -481,6 +483,7 @@ def show_version_log(window):
 - Fix bugs that stop Fitting to continue
 - Fix bugs with the vamas file from kratos
 - Added mini-game back to the help menu
+
 
 Version 1.4 (February 2025)
 - Mac version coming soon
