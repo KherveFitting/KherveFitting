@@ -471,6 +471,7 @@ def show_version_log(window):
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added A propagation of the peak fitting parameters (menu and =) just like casa
 - Added information in the Manual for installation instruction
+- Added 2D Sheet Manager similar to CasaXPS
 - Change Horizontal toolbar so that it is compatible with Mac
 - Preparation to the release of the Linux version for Synchrotron
 - Added File > New File in the menu open a new instance of KherveFitting
