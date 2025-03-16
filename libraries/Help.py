@@ -473,7 +473,7 @@ def show_version_log(window):
 - Added information in the Manual for installation instruction
 - Change Horizontal toolbar so that it is compatible with Mac
 - Preparation to the release of the Linux version for Synchrotron
-- Added File > New File in the menu
+- Added File > New File in the menu open a new instance of KherveFitting
 - Added File > Save as... in the menu
 - Added File > Optimise File menu
 - Added Save Table in the main Save Sheet and remove it from the toolbar

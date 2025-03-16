@@ -3770,6 +3770,14 @@ class MyFrame(wx.Frame):
         self.navigation_toolbar = NavigationToolbar(self.canvas)
         self.navigation_toolbar.Hide()
 
+    def on_open_file_manager(self, event):
+        """Open the file manager window"""
+        from libraries.FileManager import FileManagerWindow
+        if not hasattr(self, 'file_manager_window') or not self.file_manager_window:
+            self.file_manager_window = FileManagerWindow(self)
+        self.file_manager_window.Show()
+        self.file_manager_window.Raise()
+
 def set_high_priority():
     try:
         proc = psutil.Process(os.getpid())

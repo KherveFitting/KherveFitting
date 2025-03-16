@@ -581,6 +581,11 @@ def create_horizontal_toolbar(parent, window):
     window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
     # toolbar.AddSeparator()
 
+    # Add File Manager button to toolbar
+    file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-25.png"), wx.BITMAP_TYPE_PNG)
+    file_manager_tool = toolbar.AddTool(wx.ID_ANY, "File Manager", file_manager_bmp, "Open File Manager")
+    window.Bind(wx.EVT_TOOL, window.on_open_file_manager, file_manager_tool)
+
 
     # Sheet selection
     window.sheet_combobox = wx.ComboBox(toolbar, style=wx.CB_READONLY)
