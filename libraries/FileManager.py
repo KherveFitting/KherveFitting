@@ -65,7 +65,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
 
         # Sum button
-        sum_icon = os.path.join(icon_path, "SUM-25.jpg")
+        sum_icon = os.path.join(icon_path, "SUM-25.png")
         sum_bmp = wx.Bitmap(sum_icon)
         sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
         self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
