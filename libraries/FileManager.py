@@ -19,6 +19,7 @@ class FileManagerWindow(wx.Frame):
 
         # Create toolbar
         self.toolbar = wx.ToolBar(self.panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_NODIVIDER)
+        self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
         self.create_toolbar()
         self.toolbar.Realize()
         main_sizer.Add(self.toolbar, 0, wx.EXPAND)
@@ -70,7 +71,7 @@ class FileManagerWindow(wx.Frame):
         sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
         self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
 
-        self.toolbar.AddSeparator()
+        # self.toolbar.AddSeparator()
 
         # Copy button with custom icon
         copy_icon = os.path.join(icon_path, "copy-25.png")
@@ -86,7 +87,7 @@ class FileManagerWindow(wx.Frame):
         paste_tool = self.toolbar.AddTool(wx.ID_ANY, "Paste Core Level", paste_bmp, "Paste core level")
         self.Bind(wx.EVT_TOOL, self.on_paste, paste_tool)
 
-        self.toolbar.AddSeparator()
+        # self.toolbar.AddSeparator()
 
         # Rename button with custom icon
         rename_icon = os.path.join(icon_path, "rename-25.png")
@@ -106,7 +107,7 @@ class FileManagerWindow(wx.Frame):
         delete_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Core Level", delete_bmp, "Delete selected core level")
         self.Bind(wx.EVT_TOOL, self.on_delete, delete_tool)
 
-        self.toolbar.AddSeparator()
+        # self.toolbar.AddSeparator()
 
         # Toggle size button - using a different art ID
 
@@ -173,6 +174,24 @@ class FileManagerWindow(wx.Frame):
         for row in range(num_rows):
             for col in range(num_levels):
                 self.grid.SetCellAlignment(row, col, wx.ALIGN_CENTER, wx.ALIGN_CENTER)
+
+            # Apply consistent fonts to grid
+            if 'wxMac' in wx.PlatformInfo:
+                default_font = 'Helvetica'
+                font_size = 11
+            elif 'wxGTK' in wx.PlatformInfo:
+                default_font = 'DejaVu Sans'
+                font_size = 9
+            else:
+                default_font = 'Calibri'
+                font_size = 9
+
+            self.grid.SetDefaultCellFont(
+                wx.Font(font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+                        wx.FONTWEIGHT_NORMAL, faceName=default_font))
+            self.grid.SetLabelFont(
+                wx.Font(font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+                        wx.FONTWEIGHT_NORMAL, faceName=default_font))
 
     def get_unique_core_levels(self):
         """Get list of unique core level names from parent data"""
@@ -257,9 +276,19 @@ class FileManagerWindow(wx.Frame):
         key_code = event.GetKeyCode()
 
         if key_code == wx.WXK_F2:
-            # Call the plot function directly and don't skip the event
+            # Call the plot function directly
             self.on_plot_selected(None)
             return  # Don't skip the event
+        elif event.ControlDown() and key_code == wx.WXK_F2:
+            # CTRL+F2: Add new functionality here
+            # Example: Show multiple plots in a new window
+            self.on_plot_selected(None)
+            return
+        elif event.ControlDown() and key_code == ord('2'):
+            # CTRL+2: Add new functionality here
+            # Example: Toggle between single/multiple plot view
+            self.on_plot_selected(None)
+            return
         else:
             event.Skip()
 
