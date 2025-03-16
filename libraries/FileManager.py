@@ -3,6 +3,7 @@ import wx.grid
 import os
 import re
 import numpy as np
+from matplotlib.ticker import ScalarFormatter
 from copy import deepcopy
 
 
@@ -13,21 +14,45 @@ class FileManagerWindow(wx.Frame):
 
         self.parent = parent
 
-        # Create main panel
+        # Create main panel - use only ONE main panel
         self.panel = wx.Panel(self)
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)  # Changed to HORIZONTAL for the side-by-side layout
+
+        # Create vertical toolbar on left
+        self.v_toolbar_panel = wx.Panel(self.panel, size=(40, -1))
+        self.v_toolbar_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
+        v_toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Add normalization checkboxes
+        self.norm_check = wx.CheckBox(self.v_toolbar_panel, label="Norm")
+        self.auto_check = wx.CheckBox(self.v_toolbar_panel, label="Auto")
+        self.auto_check.SetValue(True)  # Auto is checked by default
+
+        v_toolbar_sizer.Add(self.norm_check, 0, wx.ALL, 5)
+        v_toolbar_sizer.Add(self.auto_check, 0, wx.ALL, 5)
+        self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
+
+        # Right side panel with content
+        self.right_panel = wx.Panel(self.panel)
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Create toolbar
-        self.toolbar = wx.ToolBar(self.panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_NODIVIDER)
+        self.toolbar = wx.ToolBar(self.right_panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_NODIVIDER)
         self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
         self.create_toolbar()
         self.toolbar.Realize()
-        main_sizer.Add(self.toolbar, 0, wx.EXPAND)
+        right_sizer.Add(self.toolbar, 0, wx.EXPAND)
 
         # Create grid
-        self.grid = wx.grid.Grid(self.panel)
+        self.grid = wx.grid.Grid(self.right_panel)
         self.init_grid()
-        main_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 5)
+        right_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 5)
+
+        self.right_panel.SetSizer(right_sizer)
+
+        # Add both panels to main sizer
+        main_sizer.Add(self.v_toolbar_panel, 0, wx.EXPAND)
+        main_sizer.Add(self.right_panel, 1, wx.EXPAND)
 
         self.panel.SetSizer(main_sizer)
 
@@ -39,13 +64,25 @@ class FileManagerWindow(wx.Frame):
         pos_y = main_pos.y + (main_size.height - file_manager_size.height) // 2
         self.SetPosition((pos_x, pos_y))
 
+        # Initialize normalization values
+        self.norm_min = 0
+        self.norm_max = 1
+        self.norm_vlines = [None, None]  # For the normalization cursors
+        self.is_dragging_cursor = False
+
+        # Bind events
+        self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
+        self.auto_check.Bind(wx.EVT_CHECKBOX, self.on_auto_changed)
+        self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
+
         # Populate the grid with core levels
         self.populate_grid()
 
-        # Bind events
+        # Bind grid events
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_cell_changing)
-        self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)  # Bind to grid, not frame
-        self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)  # Keep frame binding too
+        self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         # Apply consistent fonts from parent
         from libraries.ConfigFile import set_consistent_fonts
@@ -110,6 +147,12 @@ class FileManagerWindow(wx.Frame):
         # self.toolbar.AddSeparator()
 
         # Toggle size button - using a different art ID
+        self.toolbar.AddStretchableSpace()
+
+        pref_icon = os.path.join(icon_path, "settings-25.png")
+        pref_bmp = wx.Bitmap(pref_icon)
+        pref_tool = self.toolbar.AddTool(wx.ID_ANY, "Preferences", pref_bmp, "Normalization Settings")
+        self.Bind(wx.EVT_TOOL, self.on_preferences, pref_tool)
 
         size_icon = os.path.join(icon_path, "Minimize-25.png")
         size_bmp = wx.Bitmap(size_icon)
@@ -476,33 +519,115 @@ class FileManagerWindow(wx.Frame):
         x_min = float('inf')
         x_max = float('-inf')
 
+        # Determine if normalization is needed
+        normalize = self.norm_check.GetValue()
+        auto_norm = self.auto_check.GetValue()
+
+        # For auto normalization, we need to calculate global min/max
+        global_min = float('inf')
+        global_max = float('-inf')
+
+        # Check if all sheets are from the same column (core level)
+        base_names = set(self.extract_base_name(name) for name in sheet_names)
+        same_column = len(base_names) == 1
+        column_name = list(base_names)[0] if same_column else None
+
+        if normalize and auto_norm:
+            # Get global min/max across all selected datasets
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                    global_min = min(global_min, min(y_values))
+                    global_max = max(global_max, max(y_values))
+
         # Plot each selected sheet
         for i, sheet_name in enumerate(sheet_names):
             if sheet_name in self.parent.Data['Core levels']:
                 core_level = self.parent.Data['Core levels'][sheet_name]
                 x_values = core_level['B.E.']
-                y_values = core_level['Raw Data']
+                y_values = np.array(core_level['Raw Data'])
 
                 # Update min/max x values
                 x_min = min(x_min, min(x_values))
                 x_max = max(x_max, max(x_values))
 
+                # Apply normalization if enabled
+                if normalize:
+                    if auto_norm:
+                        # Use global min/max from all datasets
+                        norm_min = global_min
+                        norm_max = global_max
+                    else:
+                        # Use manually set min/max
+                        norm_min = self.norm_min
+                        norm_max = self.norm_max
+
+                    # Avoid division by zero
+                    if norm_max != norm_min:
+                        y_values = (y_values - norm_min) / (norm_max - norm_min)
+
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
 
                 # Plot the data
-                self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color)
+                if self.parent.energy_scale == 'KE':
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=sheet_name, color=color,
+                                        linewidth=self.parent.line_width)
+                else:
+                    self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color,
+                                        linewidth=self.parent.line_width)
 
         # Set labels and formatting
         self.parent.ax.set_xlabel("Binding Energy (eV)")
         self.parent.ax.set_ylabel("Intensity (CPS)")
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Set legend on the left
+        self.parent.ax.legend(loc='upper left')
+
+        # Set labels and formatting
+        self.parent.ax.set_xlabel("Binding Energy (eV)")
+        if normalize:
+            self.parent.ax.set_ylabel("Normalized Intensity")
+        else:
+            self.parent.ax.set_ylabel("Intensity (CPS)")
         self.parent.ax.legend()
 
         # Set x-axis limits to min/max values from all datasets
         self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
 
+        # If all sheets are from the same column, add core level text in top right
+        if same_column:
+            formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+            sheet_name_text = self.parent.ax.text(
+                0.98, 0.98,  # Position (top-right corner)
+                formatted_name,
+                transform=self.parent.ax.transAxes,
+                fontsize=self.parent.core_level_text_size,
+                fontfamily=[self.parent.plot_font],
+                fontweight='bold',
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(facecolor='none', edgecolor='none', alpha=1),
+            )
+            sheet_name_text.sheet_name_text = True  # Mark this text object
+
+        # Apply text settings from preferences
+        self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
+        self.parent.ax.xaxis.label.set_size(self.parent.axis_title_size)
+        self.parent.ax.yaxis.label.set_size(self.parent.axis_title_size)
+
         # Update the plot
         self.parent.canvas.draw_idle()
+
+    def replot_with_normalization(self):
+        """Replot the current selection with updated normalization settings"""
+        sheet_names = self.get_selected_sheet_names()
+        if sheet_names:
+            self.plot_multiple_sheets(sheet_names)
 
     def on_cell_changing(self, event):
         """Handle cell edit event for renaming and repositioning core levels"""
@@ -601,3 +726,173 @@ class FileManagerWindow(wx.Frame):
 
                 # Reload the grid after deleting
                 self.populate_grid()
+
+    def on_preferences(self, event):
+        dlg = wx.Dialog(self, title="Normalization Settings", size=(300, 200))
+        panel = wx.Panel(dlg)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Min value input
+        min_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        min_sizer.Add(wx.StaticText(panel, label="Min Value:"), 0, wx.ALL, 5)
+        min_ctrl = wx.SpinCtrlDouble(panel, value=str(self.norm_min), min=0, max=1000000, inc=0.1)
+        min_sizer.Add(min_ctrl, 1, wx.ALL, 5)
+
+        # Max value input
+        max_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        max_sizer.Add(wx.StaticText(panel, label="Max Value:"), 0, wx.ALL, 5)
+        max_ctrl = wx.SpinCtrlDouble(panel, value=str(self.norm_max), min=0, max=1000000, inc=0.1)
+        max_sizer.Add(max_ctrl, 1, wx.ALL, 5)
+
+        # Buttons
+        btn_sizer = wx.StdDialogButtonSizer()
+        ok_btn = wx.Button(panel, wx.ID_OK)
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        btn_sizer.AddButton(ok_btn)
+        btn_sizer.AddButton(cancel_btn)
+        btn_sizer.Realize()
+
+        # Add to main sizer
+        sizer.Add(min_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(max_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        panel.SetSizer(sizer)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            self.norm_min = min_ctrl.GetValue()
+            self.norm_max = max_ctrl.GetValue()
+
+        dlg.Destroy()
+
+    def on_norm_changed(self, event):
+        if self.norm_check.GetValue():
+            # Update the plot with normalization enabled
+            self.replot_with_normalization()
+        else:
+            # Hide normalization cursors if visible
+            self.hide_norm_cursors()
+            # Replot without normalization
+            self.replot_with_normalization()
+
+    def on_auto_changed(self, event):
+        if self.norm_check.GetValue():
+            # Re-apply normalization with new Auto setting
+            self.replot_with_normalization()
+
+    def on_key_press(self, event):
+        if event.key == 'shift' and self.norm_check.GetValue() and not self.auto_check.GetValue():
+            # Show normalization cursors
+            self.show_norm_cursors()
+
+    def on_key_release(self, event):
+        if event.key == 'shift':
+            # Hide normalization cursors unless they're being dragged
+            if not self.is_dragging_cursor:
+                self.hide_norm_cursors()
+
+    def show_norm_cursors(self):
+        """Display draggable cursors for manual normalization"""
+        if not self.parent.ax:
+            return
+
+        sheet_names = self.get_selected_sheet_names()
+        if not sheet_names:
+            return
+
+        # Get data from first sheet
+        first_sheet = sheet_names[0]
+        if first_sheet not in self.parent.Data['Core levels']:
+            return
+
+        x_values = self.parent.Data['Core levels'][first_sheet]['B.E.']
+        y_values = self.parent.Data['Core levels'][first_sheet]['Raw Data']
+
+        x_min = min(x_values) + 0.5  # 0.5V above min BE
+        y_max = max(y_values)
+
+        # Create or update cursors
+        if self.norm_vlines[0] is None:
+            self.norm_vlines[0] = self.parent.ax.axvline(x_min, color='red', linestyle='--', alpha=0.7,
+                                                         label='Min Norm')
+        else:
+            self.norm_vlines[0].set_xdata([x_min, x_min])
+
+        if self.norm_vlines[1] is None:
+            self.norm_vlines[1] = self.parent.ax.axhline(y_max, color='green', linestyle='--', alpha=0.7,
+                                                         label='Max Norm')
+        else:
+            self.norm_vlines[1].set_ydata([y_max, y_max])
+
+        # Update normalization values
+        self.norm_min = min(y_values)
+        self.norm_max = y_max
+
+        # Make cursors draggable
+        self.make_cursors_draggable()
+
+        self.parent.canvas.draw_idle()
+
+    def hide_norm_cursors(self):
+        """Hide normalization cursors"""
+        for i, vline in enumerate(self.norm_vlines):
+            if vline:
+                vline.remove()
+                self.norm_vlines[i] = None
+
+        self.parent.canvas.draw_idle()
+
+    def make_cursors_draggable(self):
+        """Make the normalization cursors draggable"""
+        self.is_dragging_cursor = False
+        self.active_cursor = None
+
+        def on_press(event):
+            if event.inaxes != self.parent.ax:
+                return
+
+            # Check if click is near either cursor
+            for i, cursor in enumerate(self.norm_vlines):
+                if cursor is None:
+                    continue
+
+                if i == 0:  # Vertical line for min BE
+                    xdata = cursor.get_xdata()[0]
+                    if abs(event.xdata - xdata) < 5:  # 5 is threshold in data units
+                        self.is_dragging_cursor = True
+                        self.active_cursor = (cursor, i)
+                        return
+                else:  # Horizontal line for max intensity
+                    ydata = cursor.get_ydata()[0]
+                    if abs(event.ydata - ydata) < 5:  # 5 is threshold in data units
+                        self.is_dragging_cursor = True
+                        self.active_cursor = (cursor, i)
+                        return
+
+        def on_motion(event):
+            if not self.is_dragging_cursor or self.active_cursor is None:
+                return
+
+            cursor, i = self.active_cursor
+
+            if i == 0:  # Vertical cursor
+                cursor.set_xdata([event.xdata, event.xdata])
+                # Update min normalization value
+                self.norm_min = event.xdata
+            else:  # Horizontal cursor
+                cursor.set_ydata([event.ydata, event.ydata])
+                # Update max normalization value
+                self.norm_max = event.ydata
+
+            self.parent.canvas.draw_idle()
+
+        def on_release(event):
+            if self.is_dragging_cursor:
+                self.is_dragging_cursor = False
+                self.active_cursor = None
+                # Reapply normalization with new bounds
+                self.replot_with_normalization()
+
+        self.press_cid = self.parent.canvas.mpl_connect('button_press_event', on_press)
+        self.motion_cid = self.parent.canvas.mpl_connect('motion_notify_event', on_motion)
+        self.release_cid = self.parent.canvas.mpl_connect('button_release_event', on_release)
