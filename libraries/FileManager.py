@@ -22,15 +22,12 @@ class FileManagerWindow(wx.Frame):
         self.v_toolbar_panel = wx.Panel(self.panel, size=(40, -1))
         self.v_toolbar_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
         v_toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        # Add normalization checkboxes
-        self.norm_check = wx.CheckBox(self.v_toolbar_panel, label="Norm")
-        self.auto_check = wx.CheckBox(self.v_toolbar_panel, label="Auto")
-        self.auto_check.SetValue(True)  # Auto is checked by default
-
-        v_toolbar_sizer.Add(self.norm_check, 0, wx.ALL, 5)
-        v_toolbar_sizer.Add(self.auto_check, 0, wx.ALL, 5)
         self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
+
+        self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
+
+        # After setting up the v_toolbar_panel
+        self.create_vertical_toolbar()
 
         # Right side panel with content
         self.right_panel = wx.Panel(self.panel)
@@ -88,6 +85,56 @@ class FileManagerWindow(wx.Frame):
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
 
+    def create_vertical_toolbar(self):
+        """Create vertical toolbar with buttons for core level management"""
+        # Get icon path
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+        v_toolbar_sizer = self.v_toolbar_panel.GetSizer()
+
+        # Copy button
+        copy_icon = os.path.join(icon_path, "copy-25.png")
+        copy_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
+                                   wx.Bitmap(copy_icon) if os.path.exists(copy_icon) else
+                                   wx.ArtProvider.GetBitmap(wx.ART_COPY, wx.ART_BUTTON))
+        copy_btn.SetToolTip("Copy Core Level")
+        v_toolbar_sizer.Add(copy_btn, 0, wx.ALL, 2)
+        self.Bind(wx.EVT_BUTTON, self.on_copy, copy_btn)
+
+        # Paste button
+        paste_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
+                                    wx.ArtProvider.GetBitmap(wx.ART_PASTE, wx.ART_BUTTON))
+        paste_btn.SetToolTip("Paste Core Level")
+        v_toolbar_sizer.Add(paste_btn, 0, wx.ALL, 2)
+        self.Bind(wx.EVT_BUTTON, self.on_paste, paste_btn)
+
+        # Rename button
+        rename_icon = os.path.join(icon_path, "rename-25.png")
+        rename_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
+                                     wx.Bitmap(rename_icon) if os.path.exists(rename_icon) else
+                                     wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_BUTTON))
+        rename_btn.SetToolTip("Rename Core Level")
+        v_toolbar_sizer.Add(rename_btn, 0, wx.ALL, 2)
+        self.Bind(wx.EVT_BUTTON, self.on_rename, rename_btn)
+
+        # Delete button
+        delete_icon = os.path.join(icon_path, "delete-25.png")
+        delete_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
+                                     wx.Bitmap(delete_icon) if os.path.exists(delete_icon) else
+                                     wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_BUTTON))
+        delete_btn.SetToolTip("Delete Core Level")
+        v_toolbar_sizer.Add(delete_btn, 0, wx.ALL, 2)
+        self.Bind(wx.EVT_BUTTON, self.on_delete, delete_btn)
+
+        # Sum button
+        sum_icon = os.path.join(icon_path, "SUM-25.png")
+        sum_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
+                                  wx.Bitmap(sum_icon) if os.path.exists(sum_icon) else
+                                  wx.ArtProvider.GetBitmap(wx.ART_NEW, wx.ART_BUTTON))
+        sum_btn.SetToolTip("Sum Selected")
+        v_toolbar_sizer.Add(sum_btn, 0, wx.ALL, 2)
+        self.Bind(wx.EVT_BUTTON, self.on_sum_selected, sum_btn)
+
+
     def create_toolbar(self):
         """Create toolbar with buttons for core level management"""
         # Get icon path
@@ -102,47 +149,11 @@ class FileManagerWindow(wx.Frame):
         plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
 
-        # Sum button
-        sum_icon = os.path.join(icon_path, "SUM-25.png")
-        sum_bmp = wx.Bitmap(sum_icon)
-        sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
-        self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
-
-        # self.toolbar.AddSeparator()
-
-        # Copy button with custom icon
-        copy_icon = os.path.join(icon_path, "copy-25.png")
-        if os.path.exists(copy_icon):
-            copy_bmp = wx.Bitmap(copy_icon)
-        else:
-            copy_bmp = wx.ArtProvider.GetBitmap(wx.ART_COPY, wx.ART_TOOLBAR)
-        copy_tool = self.toolbar.AddTool(wx.ID_ANY, "Copy Core Level", copy_bmp, "Copy selected core level")
-        self.Bind(wx.EVT_TOOL, self.on_copy, copy_tool)
-
-        # Paste button (using default icon since not specified)
-        paste_bmp = wx.ArtProvider.GetBitmap(wx.ART_PASTE, wx.ART_TOOLBAR)
-        paste_tool = self.toolbar.AddTool(wx.ID_ANY, "Paste Core Level", paste_bmp, "Paste core level")
-        self.Bind(wx.EVT_TOOL, self.on_paste, paste_tool)
-
-        # self.toolbar.AddSeparator()
-
-        # Rename button with custom icon
-        rename_icon = os.path.join(icon_path, "rename-25.png")
-        if os.path.exists(rename_icon):
-            rename_bmp = wx.Bitmap(rename_icon)
-        else:
-            rename_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
-        rename_tool = self.toolbar.AddTool(wx.ID_ANY, "Rename Core Level", rename_bmp, "Rename selected core level")
-        self.Bind(wx.EVT_TOOL, self.on_rename, rename_tool)
-
-        # Delete button with custom icon
-        delete_icon = os.path.join(icon_path, "delete-25.png")
-        if os.path.exists(delete_icon):
-            delete_bmp = wx.Bitmap(delete_icon)
-        else:
-            delete_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_TOOLBAR)
-        delete_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Core Level", delete_bmp, "Delete selected core level")
-        self.Bind(wx.EVT_TOOL, self.on_delete, delete_tool)
+        self.norm_check = wx.CheckBox(self.toolbar, label="Norm")
+        self.auto_check = wx.CheckBox(self.toolbar, label="Auto")
+        self.auto_check.SetValue(True)  # Auto is checked by default
+        self.toolbar.AddControl(self.norm_check)
+        self.toolbar.AddControl(self.auto_check)
 
         # self.toolbar.AddSeparator()
 
@@ -554,17 +565,18 @@ class FileManagerWindow(wx.Frame):
                 # Apply normalization if enabled
                 if normalize:
                     if auto_norm:
-                        # Use global min/max from all datasets
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+                    else:
                         norm_min = global_min
                         norm_max = global_max
-                    else:
-                        # Use manually set min/max
-                        norm_min = self.norm_min
-                        norm_max = self.norm_max
 
                     # Avoid division by zero
                     if norm_max != norm_min:
-                        y_values = (y_values - norm_min) / (norm_max - norm_min)
+                        y_values = (y_values - norm_min) / (norm_max - norm_min) *1000
+                    # if norm_max > 0:  # Just check if max is positive
+                        # y_values = y_values / norm_max  # Normalize to maximum value
+                    print(f'Max of y_value: {max(y_values)}')
 
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
@@ -594,7 +606,6 @@ class FileManagerWindow(wx.Frame):
             self.parent.ax.set_ylabel("Normalized Intensity")
         else:
             self.parent.ax.set_ylabel("Intensity (CPS)")
-        self.parent.ax.legend()
 
         # Set x-axis limits to min/max values from all datasets
         self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
@@ -766,19 +777,24 @@ class FileManagerWindow(wx.Frame):
         dlg.Destroy()
 
     def on_norm_changed(self, event):
+        """Handle normalization checkbox toggle."""
         if self.norm_check.GetValue():
-            # Update the plot with normalization enabled
             self.replot_with_normalization()
+            if not self.auto_check.GetValue():
+                self.show_norm_cursors()
         else:
-            # Hide normalization cursors if visible
             self.hide_norm_cursors()
-            # Replot without normalization
             self.replot_with_normalization()
 
     def on_auto_changed(self, event):
         if self.norm_check.GetValue():
             # Re-apply normalization with new Auto setting
             self.replot_with_normalization()
+            # Show or hide normalization cursors based on auto setting
+            if self.auto_check.GetValue():
+                self.hide_norm_cursors()
+            else:
+                self.show_norm_cursors()
 
     def on_key_press(self, event):
         if event.key == 'shift' and self.norm_check.GetValue() and not self.auto_check.GetValue():
@@ -808,30 +824,34 @@ class FileManagerWindow(wx.Frame):
         x_values = self.parent.Data['Core levels'][first_sheet]['B.E.']
         y_values = self.parent.Data['Core levels'][first_sheet]['Raw Data']
 
-        x_min = min(x_values) + 0.5  # 0.5V above min BE
-        y_max = max(y_values)
+        # Use more reasonable initial positions
+        x_min = min(x_values) + (max(x_values) - min(x_values)) * 0.2  # 20% from left
+        y_max = max(y_values) * 0.8  # 80% of max height
 
-        # Create or update cursors
+        # Create or update cursors with more visible styling
         if self.norm_vlines[0] is None:
-            self.norm_vlines[0] = self.parent.ax.axvline(x_min, color='red', linestyle='--', alpha=0.7,
-                                                         label='Min Norm')
+            self.norm_vlines[0] = self.parent.ax.axvline(x_min, color='red', linestyle='-', alpha=0.9,
+                                                         linewidth=2, label='Min Norm')
         else:
             self.norm_vlines[0].set_xdata([x_min, x_min])
+            self.norm_vlines[0].set_visible(True)
 
         if self.norm_vlines[1] is None:
-            self.norm_vlines[1] = self.parent.ax.axhline(y_max, color='green', linestyle='--', alpha=0.7,
-                                                         label='Max Norm')
+            self.norm_vlines[1] = self.parent.ax.axhline(y_max, color='green', linestyle='-', alpha=0.9,
+                                                         linewidth=2, label='Max Norm')
         else:
             self.norm_vlines[1].set_ydata([y_max, y_max])
+            self.norm_vlines[1].set_visible(True)
 
         # Update normalization values
-        self.norm_min = min(y_values)
+        self.norm_min = 0  # Start at zero for better normalization
         self.norm_max = y_max
 
         # Make cursors draggable
         self.make_cursors_draggable()
 
-        self.parent.canvas.draw_idle()
+        # Force redraw to ensure cursors are visible
+        self.parent.canvas.draw()
 
     def hide_norm_cursors(self):
         """Hide normalization cursors"""
@@ -851,20 +871,20 @@ class FileManagerWindow(wx.Frame):
             if event.inaxes != self.parent.ax:
                 return
 
-            # Check if click is near either cursor
+            # Check if click is near either cursor with a larger threshold
             for i, cursor in enumerate(self.norm_vlines):
-                if cursor is None:
+                if cursor is None or not cursor.get_visible():
                     continue
 
-                if i == 0:  # Vertical line for min BE
+                if i == 0:  # Vertical line for min norm
                     xdata = cursor.get_xdata()[0]
-                    if abs(event.xdata - xdata) < 5:  # 5 is threshold in data units
+                    if abs(event.xdata - xdata) < 10:  # Larger threshold
                         self.is_dragging_cursor = True
                         self.active_cursor = (cursor, i)
                         return
                 else:  # Horizontal line for max intensity
                     ydata = cursor.get_ydata()[0]
-                    if abs(event.ydata - ydata) < 5:  # 5 is threshold in data units
+                    if abs(event.ydata - ydata) < (max(self.parent.ax.get_ylim()) * 0.05):  # 5% of y-range
                         self.is_dragging_cursor = True
                         self.active_cursor = (cursor, i)
                         return
