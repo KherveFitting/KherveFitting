@@ -778,6 +778,50 @@ def open_xlsx_file(window, file_path=None):
         # Update recent files list
         update_recent_files(window, file_path)
 
+        # Refresh any open FileManager windows
+        for top_window in wx.GetTopLevelWindows():
+            if hasattr(top_window, '__class__') and top_window.__class__.__name__ == 'FileManagerWindow':
+                # Force a complete refresh by getting new core levels
+                top_window.core_levels = top_window.get_unique_core_levels()
+                max_row_index = top_window.get_max_core_level_row_index()
+                num_rows = max(10, max_row_index + 1)
+
+                # Clear the grid completely
+                if top_window.grid.GetNumberRows() > 0:
+                    top_window.grid.DeleteRows(0, top_window.grid.GetNumberRows())
+                if top_window.grid.GetNumberCols() > 0:
+                    top_window.grid.DeleteCols(0, top_window.grid.GetNumberCols())
+
+                # Add new columns and rows
+                num_levels = len(top_window.core_levels)
+                top_window.grid.AppendCols(num_levels)
+                top_window.grid.AppendRows(num_rows)
+
+                # Set column labels
+                for i, level in enumerate(top_window.core_levels):
+                    top_window.grid.SetColLabelValue(i, level)
+
+                # Set row labels
+                for i in range(num_rows):
+                    top_window.grid.SetRowLabelValue(i, str(i))
+
+                # Set column width and row height
+                default_col_width = 50
+                default_row_height = 20
+
+                for i in range(num_levels):
+                    top_window.grid.SetColSize(i, default_col_width)
+                for i in range(num_rows):
+                    top_window.grid.SetRowSize(i, default_row_height)
+
+                # Set cell alignment
+                for row in range(num_rows):
+                    for col in range(num_levels):
+                        top_window.grid.SetCellAlignment(row, col, wx.ALIGN_CENTER, wx.ALIGN_CENTER)
+
+                # Now populate the grid with new data
+                top_window.populate_grid()
+
         print("open_xlsx_file function completed successfully")
     except Exception as e:
         print(f"Error in open_xlsx_file: {str(e)}")
