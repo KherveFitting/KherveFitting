@@ -5,6 +5,7 @@ import re
 import numpy as np
 from matplotlib.ticker import ScalarFormatter
 from copy import deepcopy
+import shutil
 
 
 class FileManagerWindow(wx.Frame):
@@ -214,6 +215,15 @@ class FileManagerWindow(wx.Frame):
 
         # Toggle size button - using a different art ID
         self.toolbar.AddStretchableSpace()
+
+        # Backup button
+        backup_icon = os.path.join(icon_path, "backup-25.png")
+        if os.path.exists(backup_icon):
+            backup_bmp = wx.Bitmap(backup_icon)
+        else:
+            backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
+        backup_tool = self.toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
+        self.Bind(wx.EVT_TOOL, self.on_backup, backup_tool)
 
         pref_icon = os.path.join(icon_path, "settings-25.png")
         pref_bmp = wx.Bitmap(pref_icon)
@@ -1155,3 +1165,53 @@ class FileManagerWindow(wx.Frame):
 
         except Exception as e:
             wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_backup(self, event):
+        """Create a backup of the current Excel and JSON files"""
+        if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+            wx.MessageBox("No file currently open to backup.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get current file paths
+        excel_file = self.parent.Data['FilePath']
+        json_file = os.path.splitext(excel_file)[0] + '.json'
+
+        # Check if files exist
+        if not os.path.exists(excel_file):
+            wx.MessageBox(f"Excel file not found: {excel_file}", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Create backup folder in the program directory
+        program_dir = os.path.dirname(os.path.abspath(__file__))
+        backup_folder = os.path.join(program_dir, "Backup")
+        if not os.path.exists(backup_folder):
+            os.makedirs(backup_folder)
+
+        # Generate timestamp in format: YYcDD_HHMMSS
+        import datetime
+        now = datetime.datetime.now()
+        month_letter = chr(ord('a') + now.month - 1)  # a=Jan, b=Feb, c=Mar, etc.
+        timestamp = f"{now.year % 100}{month_letter}{now.day:02d}_{now.hour:02d}{now.minute:02d}{now.second:02d}"
+
+        # Create backup filenames
+        excel_filename = os.path.basename(excel_file)
+        excel_backup = os.path.join(backup_folder, f"{timestamp}_{excel_filename}")
+
+        # Copy the Excel file
+        try:
+            shutil.copy2(excel_file, excel_backup)
+            files_backed_up = [excel_backup]
+
+            # Copy the JSON file if it exists
+            if os.path.exists(json_file):
+                json_filename = os.path.basename(json_file)
+                json_backup = os.path.join(backup_folder, f"{timestamp}_{json_filename}")
+                shutil.copy2(json_file, json_backup)
+                files_backed_up.append(json_backup)
+
+            # Show success message
+            wx.MessageBox(f"Backup created successfully:\n" + "\n".join(files_backed_up),
+                          "Backup Complete", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating backup: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)

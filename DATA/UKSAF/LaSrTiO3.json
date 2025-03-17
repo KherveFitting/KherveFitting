@@ -1,5 +1,5 @@
 {
-  "FilePath": "/Users/gkerherv/Documents/PycharmProjects/KherveFitting/DATA/UKSAF/LaSrTiO3.xlsx",
+  "FilePath": "C:\\Users\\gwilh\\OneDrive - Imperial College London\\Documents\\MEGAsync\\Programs\\Python\\KherveFitting\\DATA\\UKSAF\\LaSrTiO3.xlsx",
   "Number of Core levels": 5,
   "Core levels": {
     "Sr3d": {
@@ -674,59 +674,59 @@
       "Fitting": {
         "Peaks": {
           "Sr3d5/2 p1": {
-            "Position": 133.4,
-            "Height": 3244.63,
-            "FWHM": 1.04,
-            "L/G": 24.94,
-            "Area": 4093.0,
-            "Sigma": 0.89,
-            "Gamma": 0.3,
-            "Skew": 0.01,
-            "Fitting Model": "Voigt (Area, L/G, \u03c3, S)",
+            "Position": 133.44,
+            "Height": 4826.59,
+            "FWHM": 0.9,
+            "L/G": 0.1,
+            "Area": 4627.97,
+            "Sigma": 0.9,
+            "Gamma": 0.0,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
             "Constraints": {
               "Position": "126.08,142.08",
               "Height": "0",
               "FWHM": "0",
-              "L/G": "15:85",
+              "L/G": "0",
               "Area": "1:1e7",
               "Sigma": "0.2:1.5",
               "Gamma": "0",
-              "Skew": "0.01:0.7"
+              "Skew": "0"
             },
             "fwhm_g": 0.0
           },
           "Sr3d3/2 p2": {
-            "Position": 135.09,
-            "Height": 2275.9,
-            "FWHM": 1.04,
-            "L/G": 24.94,
-            "Area": 2871.0,
-            "Sigma": 0.89,
-            "Gamma": 0.3,
-            "Skew": 0.01,
-            "Fitting Model": "Voigt (Area, L/G, \u03c3, S)",
+            "Position": 135.2,
+            "Height": 2501.75,
+            "FWHM": 1.1,
+            "L/G": 27.65,
+            "Area": 3318.25,
+            "Sigma": 0.9,
+            "Gamma": 0.34,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
             "Constraints": {
               "Position": "A+1.7#0.2",
-              "Height": "A*0.667#0.05",
-              "FWHM": "0.3:3.5",
+              "Height": "0",
+              "FWHM": "0",
               "L/G": "A*1",
               "Area": "A*0.667#0.05",
               "Sigma": "A*1",
-              "Gamma": "A*1",
-              "Skew": "A*1"
+              "Gamma": "0",
+              "Skew": "0"
             },
             "fwhm_g": 0.0
           },
           "Sr3d5/2 p3": {
-            "Position": 134.04,
-            "Height": 1690.87,
-            "FWHM": 1.04,
-            "L/G": 24.94,
-            "Area": 2133.0,
-            "Sigma": 0.89,
-            "Gamma": 0.3,
-            "Skew": 0.01,
-            "Fitting Model": "Voigt (Area, L/G, \u03c3, S)",
+            "Position": 134.16,
+            "Height": 1390.65,
+            "FWHM": 1.1,
+            "L/G": 27.65,
+            "Area": 1844.53,
+            "Sigma": 0.9,
+            "Gamma": 0.34,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
             "Constraints": {
               "Position": "126.08,142.08",
               "Height": "0",
@@ -735,90 +735,34 @@
               "Area": "1:1e7",
               "Sigma": "A*1",
               "Gamma": "0",
-              "Skew": "A*1"
+              "Skew": "0"
             },
             "fwhm_g": 0.0
           },
           "Sr3d3/2 p4": {
-            "Position": 135.65,
-            "Height": 1087.65,
-            "FWHM": 1.04,
-            "L/G": 24.94,
-            "Area": 1372.0,
-            "Sigma": 0.89,
-            "Gamma": 0.3,
-            "Skew": 0.01,
-            "Fitting Model": "Voigt (Area, L/G, \u03c3, S)",
+            "Position": 135.93,
+            "Height": 950.62,
+            "FWHM": 1.11,
+            "L/G": 27.3,
+            "Area": 1268.26,
+            "Sigma": 0.91,
+            "Gamma": 0.34,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
             "Constraints": {
               "Position": "C+1.7#0.2",
-              "Height": "C*0.667#0.05",
-              "FWHM": "0.3:3.5",
+              "Height": "0",
+              "FWHM": "0",
               "L/G": "C*1",
               "Area": "C*0.667#0.05",
               "Sigma": "C*1",
-              "Gamma": "C*1",
-              "Skew": "C*1"
+              "Gamma": "0",
+              "Skew": "0"
             },
-            "fwhm_g": 0.0
-          },
-          "Sr3d5/2 p5": {
-            "Position": 136.14,
-            "Height": 500.98,
-            "FWHM": 0.99,
-            "L/G": 2.14,
-            "Area": 528.0,
-            "Sigma": 2.1,
-            "Gamma": 0.6,
-            "Skew": 0.01,
-            "Fitting Model": "GL (Area)",
-            "Bkg Type": "Multi-Regions Smart",
-            "Bkg Low": 126.08,
-            "Bkg High": 142.08,
-            "Bkg Offset Low": 0,
-            "Bkg Offset High": 0,
-            "Constraints": {
-              "Position": "126.08,142.08",
-              "Height": "1:1e7",
-              "FWHM": "0.3:3.5",
-              "L/G": "2:80",
-              "Area": "1:1e7",
-              "Sigma": "0.3:3",
-              "Gamma": "0.3:3",
-              "Skew": "0.01:2"
-            },
-            "Name": "Sr3d5/2 p5",
-            "fwhm_g": 0.0
-          },
-          "Sr3d3/2 p6": {
-            "Position": 137.75,
-            "Height": 309.35,
-            "FWHM": 0.99,
-            "L/G": 2.14,
-            "Area": 326.0,
-            "Sigma": 4.95,
-            "Gamma": 1.2,
-            "Skew": 0.01,
-            "Fitting Model": "GL (Area)",
-            "Bkg Type": "Multi-Regions Smart",
-            "Bkg Low": 126.08,
-            "Bkg High": 142.08,
-            "Bkg Offset Low": 0,
-            "Bkg Offset High": 0,
-            "Constraints": {
-              "Position": "E+1.7#0.2",
-              "Height": "E*0.667#0.05",
-              "FWHM": "E*1",
-              "L/G": "E*1",
-              "Area": "E*0.667#0.05",
-              "Sigma": "E*1",
-              "Gamma": "E*1",
-              "Skew": "E*1"
-            },
-            "Name": "Sr3d3/2 p6",
             "fwhm_g": 0.0
           }
         },
-        "Model": "GL (Area)"
+        "Model": "Voigt (Area, L/G, \u03c3)"
       }
     },
     "Ti2p": {

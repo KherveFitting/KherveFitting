@@ -379,7 +379,7 @@ class MyFrame(wx.Frame):
         if self.is_right_panel_hidden:
             # The right panel is currently hidden, so show it
             new_sash_position = self.initial_sash_position
-            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR)
+            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR)
             self.is_right_panel_hidden = False
             self.SetMinSize((800, 600))  # Reset min size to allow resizing
             self.SetMaxSize((-1, -1))
@@ -389,7 +389,7 @@ class MyFrame(wx.Frame):
         else:
             # The right panel is currently visible, so hide it
             new_sash_position = splitter_width
-            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR)
+            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR)
             self.is_right_panel_hidden = True
 
             # Store current size and set to fixed width of 865
