@@ -1994,7 +1994,7 @@ class PlotManager:
             # wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
 
 
-    def clear_background_only(self, window):
+    def clear_background_only_OLD(self, window):
         sheet_name = window.sheet_combobox.GetValue()
         if sheet_name in window.Data['Core levels']:
             # Reset background to raw data
@@ -2023,6 +2023,46 @@ class PlotManager:
 
             # Redraw the plot
             self.clear_and_replot(window)
+
+    def clear_background_only(self, window):
+        sheet_name = window.sheet_combobox.GetValue()
+        if sheet_name in window.Data['Core levels']:
+            # First, remove any existing background lines from the plot
+            for line in window.ax.lines:
+                if line.get_label() == 'Background':
+                    line.remove()
+
+            # Reset background to raw data
+            raw_data = window.Data['Core levels'][sheet_name]['Raw Data']
+            window.Data['Core levels'][sheet_name]['Background'] = {
+                'Bkg Type': '',
+                'Bkg Low': None,
+                'Bkg High': None,
+                'Bkg Offset Low': 0,
+                'Bkg Offset High': 0,
+                'Bkg Y': raw_data.copy() if isinstance(raw_data, list) else raw_data
+            }
+
+            # Update window.background attribute
+            window.background = np.array(raw_data)
+
+            # Reset vlines and background parameters
+            window.vline1 = None
+            window.vline2 = None
+            window.bg_min_energy = None
+            window.bg_max_energy = None
+            window.show_hide_vlines()
+
+            window.offset_l = 0
+            window.offset_h = 0
+            window.fitting_window.offset_l_text.SetValue('0')
+            window.fitting_window.offset_h_text.SetValue('0')
+
+            # Use plot_data instead of clear_and_replot to start fresh
+            self.plot_data(window)
+
+            # Force canvas update
+            window.canvas.draw_idle()
 # --------------------- HISTORY --------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------
 

@@ -151,11 +151,20 @@ class FileManagerWindow(wx.Frame):
 
         self.norm_check = wx.CheckBox(self.toolbar, label="Norm")
         self.auto_check = wx.CheckBox(self.toolbar, label="Auto")
+        self.norm_check.SetValue(True)  # Auto is checked by default
         self.auto_check.SetValue(True)  # Auto is checked by default
         self.toolbar.AddControl(self.norm_check)
         self.toolbar.AddControl(self.auto_check)
 
         # self.toolbar.AddSeparator()
+
+        sort_icon = os.path.join(icon_path, "Minimize-25.png")
+        if os.path.exists(sort_icon):
+            sort_bmp = wx.Bitmap(sort_icon)
+        else:
+            sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
+        sort_tool = self.toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
+        self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
 
         # Toggle size button - using a different art ID
         self.toolbar.AddStretchableSpace()
@@ -246,6 +255,9 @@ class FileManagerWindow(wx.Frame):
             self.grid.SetLabelFont(
                 wx.Font(font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
                         wx.FONTWEIGHT_NORMAL, faceName=default_font))
+
+            self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
+            self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cursor_changed)
 
     def get_unique_core_levels(self):
         """Get list of unique core level names from parent data"""
@@ -513,6 +525,16 @@ class FileManagerWindow(wx.Frame):
 
         return sheet_names
 
+    def plot_selected_cell(self):
+        # Get the current cell
+        row = self.grid.GetGridCursorRow()
+        col = self.grid.GetGridCursorCol()
+
+        # Only plot if the cell contains a valid sheet name
+        cell_value = self.grid.GetCellValue(row, col)
+        if cell_value and cell_value in self.parent.Data['Core levels']:
+            self.on_plot_selected(None)
+
     def plot_multiple_sheets(self, sheet_names):
         """Plot multiple core levels together on the same graph"""
         if not sheet_names:
@@ -574,9 +596,6 @@ class FileManagerWindow(wx.Frame):
                     # Avoid division by zero
                     if norm_max != norm_min:
                         y_values = (y_values - norm_min) / (norm_max - norm_min) *1000
-                    # if norm_max > 0:  # Just check if max is positive
-                        # y_values = y_values / norm_max  # Normalize to maximum value
-                    print(f'Max of y_value: {max(y_values)}')
 
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
@@ -669,6 +688,28 @@ class FileManagerWindow(wx.Frame):
 
                 # Always refresh the grid to properly position items
                 wx.CallAfter(self.populate_grid)
+
+    def on_cell_click(self, event):
+        # Process the event first to select the cell
+        event.Skip()
+
+        # Check if shift or ctrl is being held down
+        if not wx.GetKeyState(wx.WXK_SHIFT) and not wx.GetKeyState(wx.WXK_CONTROL):
+            # Use CallAfter to plot after the cell is selected
+            wx.CallAfter(self.plot_selected_cell)
+
+    def on_cursor_changed(self, event):
+        # Process the event first to change the cursor
+        event.Skip()
+
+        # Check if shift or ctrl is being held down
+        if wx.GetKeyState(wx.WXK_SHIFT) or wx.GetKeyState(wx.WXK_CONTROL):
+            return
+
+        # Use CallAfter to plot after the cell is selected
+        wx.CallAfter(self.plot_selected_cell)
+
+        event.Skip()
 
     def on_copy(self, event):
         """Copy the selected core level"""
@@ -779,7 +820,7 @@ class FileManagerWindow(wx.Frame):
     def on_norm_changed(self, event):
         """Handle normalization checkbox toggle."""
         if self.norm_check.GetValue():
-            self.replot_with_normalization()
+            # self.replot_with_normalization()
             if not self.auto_check.GetValue():
                 self.show_norm_cursors()
         else:
@@ -916,3 +957,116 @@ class FileManagerWindow(wx.Frame):
         self.press_cid = self.parent.canvas.mpl_connect('button_press_event', on_press)
         self.motion_cid = self.parent.canvas.mpl_connect('motion_notify_event', on_motion)
         self.release_cid = self.parent.canvas.mpl_connect('button_release_event', on_release)
+
+    def sort_excel_sheets(self, event):
+        """Sort Excel sheets by sample group and element name"""
+        if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
+            wx.MessageBox("No data available to sort.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get all sheet names from Data
+        sheet_names = list(self.parent.Data['Core levels'].keys())
+
+        # Group sheets by sample number
+        grouped_sheets = {}
+
+        for sheet_name in sheet_names:
+            # Handle wide/survey scans specially
+            if "wide" in sheet_name.lower() or "survey" in sheet_name.lower():
+                match = re.match(r'(wide|survey)(\d*)$', sheet_name.lower(), re.IGNORECASE)
+                if match:
+                    base_name = match.group(1).capitalize()
+                    sample_num = match.group(2)
+                else:
+                    base_name = sheet_name
+                    sample_num = ""
+            else:
+                # Regular core level
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                if match:
+                    base_name, sample_num = match.groups()
+                else:
+                    base_name = sheet_name
+                    sample_num = ""
+
+            sample_num = int(sample_num) if sample_num else 0
+
+            if sample_num not in grouped_sheets:
+                grouped_sheets[sample_num] = []
+
+            grouped_sheets[sample_num].append((base_name, sheet_name))
+
+        # Sort each group alphabetically by base name
+        for sample_num in grouped_sheets:
+            # Put "Wide" or "Survey" at the end of each group
+            def sort_key(item):
+                base = item[0].lower()
+                if "wide" in base or "survey" in base:
+                    return "zzz"  # This ensures these come last alphabetically
+                return base
+
+            grouped_sheets[sample_num].sort(key=sort_key)
+
+        # Create final sorted list of sheet names
+        sorted_sheet_names = []
+        for sample_num in sorted(grouped_sheets.keys()):
+            for _, sheet_name in grouped_sheets[sample_num]:
+                sorted_sheet_names.append(sheet_name)
+
+        # Check if already sorted
+        if sheet_names == sorted_sheet_names:
+            wx.MessageBox("Sheets are already sorted.", "Information", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Sort the Excel file
+        try:
+            import pandas as pd
+
+            file_path = self.parent.Data['FilePath']
+
+            # Check if file is accessible
+            try:
+                with open(file_path, 'rb') as f:
+                    pass
+            except PermissionError:
+                wx.MessageBox("Cannot sort sheets: Excel file is open in another program.",
+                              "File Locked", wx.OK | wx.ICON_ERROR)
+                return
+
+            # Read all data into memory
+            data_frames = {}
+            for sheet_name in sheet_names:
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                data_frames[sheet_name] = df
+
+            # Write sheets in sorted order
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='w') as writer:
+                for sheet_name in sorted_sheet_names:
+                    data_frames[sheet_name].to_excel(writer, sheet_name=sheet_name, index=False)
+
+            # Update Data structure
+            sorted_core_levels = {}
+            for sheet_name in sorted_sheet_names:
+                sorted_core_levels[sheet_name] = self.parent.Data['Core levels'][sheet_name]
+            self.parent.Data['Core levels'] = sorted_core_levels
+
+            # Update UI
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet_name in sorted_sheet_names:
+                self.parent.sheet_combobox.Append(sheet_name)
+
+            if current_sheet in sorted_sheet_names:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+            elif sorted_sheet_names:
+                self.parent.sheet_combobox.SetValue(sorted_sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sorted_sheet_names[0])
+
+            # Refresh grid
+            self.populate_grid()
+
+            wx.MessageBox("Sheets sorted successfully.", "Success", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
