@@ -199,8 +199,10 @@ class FileManagerWindow(wx.Frame):
         plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
 
-        self.norm_check = wx.CheckBox(self.toolbar, label="Norm", shortHelp="Normalise multiple plot data")
+        self.norm_check = wx.CheckBox(self.toolbar, label="Norm.")
+        self.norm_check.SetToolTip("Normalise multiple plot data")
         self.auto_check = wx.CheckBox(self.toolbar, label="Auto")
+        self.auto_check.SetToolTip("Automatic Normalise multiple plot data. Use Shift key to select normalise value")
         self.norm_check.SetValue(True)  # Auto is checked by default
         self.auto_check.SetValue(True)  # Auto is checked by default
         self.toolbar.AddControl(self.norm_check)
@@ -579,6 +581,41 @@ class FileManagerWindow(wx.Frame):
         if cell_value and cell_value in self.parent.Data['Core levels']:
             self.on_plot_selected(None)
 
+    def quick_plot_sheet(self, sheet_name):
+        """Plot just the raw data quickly without background or peaks"""
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Get data
+        x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
+        y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+        # Plot simple black line
+        if self.parent.energy_scale == 'KE':
+            self.parent.ax.plot(self.parent.photons - x_values, y_values, 'k-', linewidth=1)
+        else:
+            self.parent.ax.plot(x_values, y_values, 'k-', linewidth=1)
+
+        # Add core level text
+        base_name = self.extract_base_name(sheet_name)
+        formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
+        self.parent.ax.text(0.98, 0.98, formatted_name, transform=self.parent.ax.transAxes,
+                            fontsize=self.parent.core_level_text_size, fontweight='bold',
+                            va='top', ha='right')
+
+        # Set axes
+        self.parent.ax.set_xlabel("Binding Energy (eV)")
+        self.parent.ax.set_ylabel("Intensity (CPS)")
+        self.parent.ax.set_xlim(max(x_values), min(x_values))  # Reversed for XPS
+
+        # Draw
+        self.parent.canvas.draw_idle()
+
+
+
     def plot_multiple_sheets(self, sheet_names):
         """Plot multiple core levels together on the same graph"""
         if not sheet_names:
@@ -739,8 +776,11 @@ class FileManagerWindow(wx.Frame):
 
         # Check if shift or ctrl is being held down
         if not wx.GetKeyState(wx.WXK_SHIFT) and not wx.GetKeyState(wx.WXK_CONTROL):
-            # Use CallAfter to plot after the cell is selected
-            wx.CallAfter(self.plot_selected_cell)
+            row = event.GetRow()
+            col = event.GetCol()
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                wx.CallAfter(self.quick_plot_sheet, cell_value)
 
     def on_cursor_changed(self, event):
         # Process the event first to change the cursor
@@ -750,10 +790,11 @@ class FileManagerWindow(wx.Frame):
         if wx.GetKeyState(wx.WXK_SHIFT) or wx.GetKeyState(wx.WXK_CONTROL):
             return
 
-        # Use CallAfter to plot after the cell is selected
-        wx.CallAfter(self.plot_selected_cell)
-
-        event.Skip()
+        row = self.grid.GetGridCursorRow()
+        col = self.grid.GetGridCursorCol()
+        cell_value = self.grid.GetCellValue(row, col)
+        if cell_value and cell_value in self.parent.Data['Core levels']:
+            wx.CallAfter(self.quick_plot_sheet, cell_value)
 
     def on_copy(self, event):
         """Copy the selected core level"""

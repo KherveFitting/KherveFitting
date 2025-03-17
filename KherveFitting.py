@@ -102,6 +102,8 @@ class MyFrame(wx.Frame):
 
         self.Data = Init_Measurement_Data(self)
 
+        #
+        self.previous_size = None
 
         # Initial folder path
         self.Working_directory =  os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
@@ -372,24 +374,35 @@ class MyFrame(wx.Frame):
 
     def on_toggle_right_panel(self, event):
         splitter_width = self.splitter.GetSize().GetWidth()
+        current_size = self.GetSize()
 
         if self.is_right_panel_hidden:
             # The right panel is currently hidden, so show it
             new_sash_position = self.initial_sash_position
             new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR)
-
             self.is_right_panel_hidden = False
+            self.SetMinSize((800, 600))  # Reset min size to allow resizing
+            self.SetMaxSize((-1, -1))
+            # Restore previous size
+            if hasattr(self, 'previous_size'):
+                self.SetSize(self.previous_size)
         else:
             # The right panel is currently visible, so hide it
             new_sash_position = splitter_width
             new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR)
-
             self.is_right_panel_hidden = True
 
+            # Store current size and set to fixed width of 865
+            self.previous_size = current_size
+            fixed_width = 865
+            fixed_height = current_size.height
+
+            # Fix both width and height
+            self.SetSize((fixed_width, fixed_height))
+            self.SetMinSize((fixed_width, fixed_height))
+            self.SetMaxSize((fixed_width, fixed_height))  # Fix both dimensions
+
         self.splitter.SetSashPosition(new_sash_position)
-
-
-        # Update the tool's bitmap
         self.toolbar.SetToolNormalBitmap(self.toggle_right_panel_tool.GetId(), new_bmp)
 
         # Ensure the splitter and its children are properly updated
@@ -397,10 +410,6 @@ class MyFrame(wx.Frame):
         self.right_frame.Layout()
         self.splitter.Refresh()
         self.canvas.draw()
-
-        # print(f"Final sash position: {self.splitter.GetSashPosition()}")
-        # print(f"Is right panel hidden: {self.is_right_panel_hidden}")
-
 
     def on_splitter_changed(self, event):
         self.right_frame.Layout()
