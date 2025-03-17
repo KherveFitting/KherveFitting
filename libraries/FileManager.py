@@ -18,16 +18,16 @@ class FileManagerWindow(wx.Frame):
         self.panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)  # Changed to HORIZONTAL for the side-by-side layout
 
-        # Create vertical toolbar on left
-        self.v_toolbar_panel = wx.Panel(self.panel, size=(40, -1))
-        self.v_toolbar_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
-        v_toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
+        # # Create vertical toolbar on left
+        # self.v_toolbar_panel = wx.Panel(self.panel, size=(40, -1))
+        # self.v_toolbar_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
+        # v_toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
+        # self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
 
-        self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
+        # self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
 
         # After setting up the v_toolbar_panel
-        self.create_vertical_toolbar()
+        # self.create_vertical_toolbar()
 
         # Right side panel with content
         self.right_panel = wx.Panel(self.panel)
@@ -48,7 +48,7 @@ class FileManagerWindow(wx.Frame):
         self.right_panel.SetSizer(right_sizer)
 
         # Add both panels to main sizer
-        main_sizer.Add(self.v_toolbar_panel, 0, wx.EXPAND)
+        # main_sizer.Add(self.v_toolbar_panel, 0, wx.EXPAND)
         main_sizer.Add(self.right_panel, 1, wx.EXPAND)
 
         self.panel.SetSizer(main_sizer)
@@ -140,6 +140,56 @@ class FileManagerWindow(wx.Frame):
         # Get icon path
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
 
+        # Copy button
+        copy_icon = os.path.join(icon_path, "copy-25.png")
+        if os.path.exists(copy_icon):
+            copy_bmp = wx.Bitmap(copy_icon)
+        else:
+            copy_bmp = wx.ArtProvider.GetBitmap(wx.ART_COPY, wx.ART_TOOLBAR)
+        copy_tool = self.toolbar.AddTool(wx.ID_ANY, "Copy Core Level", copy_bmp, "Copy selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_copy, copy_tool)
+
+        # Paste button
+        paste_icon = os.path.join(icon_path, "paste-25.png")
+        if os.path.exists(paste_icon):
+            paste_bmp = wx.Bitmap(paste_icon)
+        else:
+            paste_bmp = wx.ArtProvider.GetBitmap(wx.ART_PASTE, wx.ART_TOOLBAR)
+        paste_tool = self.toolbar.AddTool(wx.ID_ANY, "Paste Core Level", paste_bmp, "Paste core level")
+        self.Bind(wx.EVT_TOOL, self.on_paste, paste_tool)
+
+        # Rename button
+        rename_icon = os.path.join(icon_path, "rename-25.png")
+        if os.path.exists(rename_icon):
+            rename_bmp = wx.Bitmap(rename_icon)
+        else:
+            rename_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        rename_tool = self.toolbar.AddTool(wx.ID_ANY, "Rename Core Level", rename_bmp, "Rename selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_rename, rename_tool)
+
+        # Delete button
+        delete_icon = os.path.join(icon_path, "delete-25.png")
+        if os.path.exists(delete_icon):
+            delete_bmp = wx.Bitmap(delete_icon)
+        else:
+            delete_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_TOOLBAR)
+        delete_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Core Level", delete_bmp, "Delete selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_delete, delete_tool)
+
+        # Sum button
+        sum_icon = os.path.join(icon_path, "SUM-25.png")
+        sum_bmp = wx.Bitmap(sum_icon)
+        sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
+        self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
+
+        sort_icon = os.path.join(icon_path, "Sort-25.png")
+        if os.path.exists(sort_icon):
+            sort_bmp = wx.Bitmap(sort_icon)
+        else:
+            sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
+        sort_tool = self.toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
+        self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
+
         # Plot button
         plot_icon = os.path.join(icon_path, "Plot-25.png")
         if os.path.exists(plot_icon):
@@ -149,7 +199,7 @@ class FileManagerWindow(wx.Frame):
         plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
 
-        self.norm_check = wx.CheckBox(self.toolbar, label="Norm")
+        self.norm_check = wx.CheckBox(self.toolbar, label="Norm", shortHelp="Normalise multiple plot data")
         self.auto_check = wx.CheckBox(self.toolbar, label="Auto")
         self.norm_check.SetValue(True)  # Auto is checked by default
         self.auto_check.SetValue(True)  # Auto is checked by default
@@ -158,13 +208,7 @@ class FileManagerWindow(wx.Frame):
 
         # self.toolbar.AddSeparator()
 
-        sort_icon = os.path.join(icon_path, "Minimize-25.png")
-        if os.path.exists(sort_icon):
-            sort_bmp = wx.Bitmap(sort_icon)
-        else:
-            sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
-        sort_tool = self.toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
-        self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
+
 
         # Toggle size button - using a different art ID
         self.toolbar.AddStretchableSpace()
