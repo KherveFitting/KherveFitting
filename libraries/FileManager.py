@@ -6,6 +6,7 @@ import numpy as np
 from matplotlib.ticker import ScalarFormatter
 from copy import deepcopy
 import shutil
+import sys
 
 
 class FileManagerWindow(wx.Frame):
@@ -1181,9 +1182,16 @@ class FileManagerWindow(wx.Frame):
             wx.MessageBox(f"Excel file not found: {excel_file}", "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        # Create backup folder in the program directory
-        program_dir = os.path.dirname(os.path.abspath(__file__))
-        backup_folder = os.path.join(program_dir, "Backup")
+        # Create backup folder in the executable directory
+        executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+        # For development environment, fall back to current script directory
+        if not "KherveFitting" in executable_dir:
+            executable_dir = os.path.dirname(os.path.abspath(__file__))
+            # Go up one level if in libraries folder
+            if os.path.basename(executable_dir) == "libraries":
+                executable_dir = os.path.dirname(executable_dir)
+
+        backup_folder = os.path.join(executable_dir, "Backup")
         if not os.path.exists(backup_folder):
             os.makedirs(backup_folder)
 

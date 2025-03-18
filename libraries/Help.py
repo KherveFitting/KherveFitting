@@ -466,11 +466,13 @@ def show_version_log(window):
     dlg = wx.Dialog(window, title="Version Log", size=(600, 400))
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
-    version_log = """Version 1.41 (March 2025)
+    version_log = """Version 1.41-1.42 (March 2025)
 - Release of the Mac Version
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added A propagation of the peak fitting parameters (menu and =) just like casa
 - Added information in the Manual for installation instruction
+- Added Sort core levels for multiple samples
+- Added backup of the excel file and json file
 - Added 2D Sheet Manager similar to CasaXPS
 - Change Horizontal toolbar so that it is compatible with Mac
 - Preparation to the release of the Linux version for Synchrotron
