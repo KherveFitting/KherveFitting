@@ -327,6 +327,7 @@ class FileManagerWindow(wx.Frame):
 
             self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
             self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cursor_changed)
+            self.grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_grid_right_click)
 
     def get_unique_core_levels(self):
         """Get list of unique core level names from parent data"""
@@ -938,29 +939,91 @@ class FileManagerWindow(wx.Frame):
             wx.CallAfter(self.quick_plot_sheet, cell_value)
 
     def on_copy(self, event):
-        """Copy the selected core level"""
+        """Copy the selected core levels"""
         sheet_names = self.get_selected_sheet_names()
 
-        if sheet_names:
-            sheet_name = sheet_names[0]  # Use the first selected sheet
+        if not sheet_names:
+            return
 
-            # Set the sheet in parent before copying
-            self.parent.sheet_combobox.SetValue(sheet_name)
-            from libraries.Sheet_Operations import on_sheet_selected
-            on_sheet_selected(self.parent, sheet_name)
+        # Create a dictionary to store multiple core level data
+        clipboard_data = {}
 
-            from libraries.Save import copy_core_level
-            copy_core_level(self.parent)
+        for sheet_name in sheet_names:
+            # Store the core level data in our clipboard dictionary
+            if sheet_name in self.parent.Data['Core levels']:
+                clipboard_data[sheet_name] = deepcopy(self.parent.Data['Core levels'][sheet_name])
 
-            wx.MessageBox(f"Core level '{sheet_name}' copied", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
+        # Save to temporary clipboard file
+        import json
+        import tempfile
+        import os
+
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+        with open(clipboard_file, 'w') as f:
+            json.dump(clipboard_data, f)
+
+        wx.MessageBox(f"{len(clipboard_data)} core level(s) copied", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
 
     def on_paste(self, event):
-        """Paste the core level to the selected cell"""
-        from libraries.Save import paste_core_level
-        paste_core_level(self.parent)
+        """Paste the core levels to the selected cells"""
+        import json
+        import tempfile
+        import os
 
-        # Reload the grid after pasting
+        # Get the clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+
+        if not os.path.exists(clipboard_file):
+            wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Load the clipboard data
+        with open(clipboard_file, 'r') as f:
+            clipboard_data = json.load(f)
+
+        if not clipboard_data:
+            wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Determine target row based on cursor position
+        target_row = self.grid.GetGridCursorRow()
+
+        # Paste each core level
+        for i, (sheet_name, core_level_data) in enumerate(clipboard_data.items()):
+            # Create a new sheet name with incremented row number
+            base_name = self.extract_base_name(sheet_name)
+            new_sheet_name = f"{base_name}{target_row + i}"
+
+            # Check if new name already exists
+            counter = 0
+            while new_sheet_name in self.parent.Data['Core levels']:
+                counter += 1
+                new_sheet_name = f"{base_name}{target_row + i}_{counter}"
+
+            # Add to parent data
+            self.parent.Data['Core levels'][new_sheet_name] = deepcopy(core_level_data)
+            self.parent.Data['Core levels'][new_sheet_name]['Name'] = new_sheet_name
+
+            # Update Excel file
+            import pandas as pd
+            df = pd.DataFrame({
+                'BE': core_level_data['B.E.'],
+                'Raw Data': core_level_data['Raw Data'],
+                'Background': core_level_data.get('Background', {}).get('Bkg Y', core_level_data['Raw Data']),
+                'Transmission': [1.0] * len(core_level_data['B.E.'])
+            })
+
+            with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+            # Update combobox in parent
+            self.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Refresh the grid
         self.populate_grid()
+
+        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
 
     def on_rename(self, event):
         """Rename the selected core level"""
@@ -1360,3 +1423,26 @@ class FileManagerWindow(wx.Frame):
 
         except Exception as e:
             wx.MessageBox(f"Error creating backup: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_grid_right_click(self, event):
+        """Handle right-click on grid to show context menu"""
+        # Create context menu
+        menu = wx.Menu()
+
+        # Add menu items
+        copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
+        paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
+
+        # Check if paste should be enabled (clipboard has data)
+        import os
+        import tempfile
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+        paste_item.Enable(os.path.exists(clipboard_file))
+
+        # Bind events
+        self.Bind(wx.EVT_MENU, self.on_copy, copy_item)
+        self.Bind(wx.EVT_MENU, self.on_paste, paste_item)
+
+        # Show the menu
+        self.grid.PopupMenu(menu)
+        menu.Destroy()
