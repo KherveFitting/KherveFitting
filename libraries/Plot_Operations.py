@@ -842,10 +842,10 @@ class PlotManager:
                                 marker=self.scatter_marker, label='Raw Data')
         else:
             if window.energy_scale == 'KE':
-                self.ax.plot(x_values, y_values, c=self.line_color, linewidth=self.line_width,
+                self.ax.plot(window.photons - x_values, y_values, c=self.line_color, linewidth=self.line_width,
                              alpha=self.line_alpha, linestyle=self.raw_data_linestyle, label='Raw Data')
             else:
-                self.ax.plot(window.photons - x_values, y_values, c=self.line_color, linewidth=self.line_width,
+                self.ax.plot(x_values, y_values, c=self.line_color, linewidth=self.line_width,
                              alpha=self.line_alpha, linestyle=self.raw_data_linestyle, label='Raw Data')
 
         # Assuming 'ax' is your axes object
