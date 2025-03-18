@@ -11,7 +11,7 @@ import sys
 
 class FileManagerWindow(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, title="File Manager", size=(500, 300),
+        super().__init__(parent, title="Sample/Experiment Manager", size=(500, 300),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
         self.parent = parent
@@ -782,14 +782,15 @@ class FileManagerWindow(wx.Frame):
                 wx.CallAfter(self.populate_grid)
 
     def on_cell_click(self, event):
-        # Process the event first to select the cell
+        row = event.GetRow()
+        col = event.GetCol()
+        cell_value = self.grid.GetCellValue(row, col)
+
+        # Process the event to select the cell
         event.Skip()
 
         # Check if shift or ctrl is being held down
         if not wx.GetKeyState(wx.WXK_SHIFT) and not wx.GetKeyState(wx.WXK_CONTROL):
-            row = event.GetRow()
-            col = event.GetCol()
-            cell_value = self.grid.GetCellValue(row, col)
             if cell_value and cell_value in self.parent.Data['Core levels']:
                 wx.CallAfter(self.quick_plot_sheet, cell_value)
 
@@ -801,8 +802,8 @@ class FileManagerWindow(wx.Frame):
         if wx.GetKeyState(wx.WXK_SHIFT) or wx.GetKeyState(wx.WXK_CONTROL):
             return
 
-        row = self.grid.GetGridCursorRow()
-        col = self.grid.GetGridCursorCol()
+        row = event.GetRow()  # Use event row instead of cursor position
+        col = event.GetCol()  # Use event column instead of cursor position
         cell_value = self.grid.GetCellValue(row, col)
         if cell_value and cell_value in self.parent.Data['Core levels']:
             wx.CallAfter(self.quick_plot_sheet, cell_value)
