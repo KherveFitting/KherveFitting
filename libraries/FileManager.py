@@ -7,14 +7,18 @@ from matplotlib.ticker import ScalarFormatter
 from copy import deepcopy
 import shutil
 import sys
+from libraries.Save import save_state
 
 
 class FileManagerWindow(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, title="Sample/Experiment Manager", size=(500, 300),
+        super().__init__(parent, title="Sample/Experiment Manager", size=(550, 300),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
         self.parent = parent
+
+        self.sample_names = {}  # Dictionary to store sample names by row index
+        self.load_sample_names()  # Load existing sample names
 
         # Create main panel - use only ONE main panel
         self.panel = wx.Panel(self)
@@ -82,6 +86,9 @@ class FileManagerWindow(wx.Frame):
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_cell_changing)
         self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
 
         # Apply consistent fonts from parent
         from libraries.ConfigFile import set_consistent_fonts
@@ -268,13 +275,18 @@ class FileManagerWindow(wx.Frame):
         # Create grid
         self.grid.CreateGrid(num_rows, num_levels)
 
+        # Add "Sample Name" column at index 0
+        self.grid.InsertCols(0, 1)
+        self.grid.SetColLabelValue(0, "Experiment")
+        self.grid.SetColSize(0, 70)  # Wider column for sample names
+
         # Enable cell editing for renaming
         self.grid.EnableEditing(True)
 
         # Set column labels (core level names)
         self.grid.SetRowLabelSize(30)
         for i, level in enumerate(self.core_levels):
-            self.grid.SetColLabelValue(i, level)
+            self.grid.SetColLabelValue(i + 1, level)  # Add +1 to skip Sample Name column
 
         # Set row labels (0, 1, 2, etc.)
         for i in range(num_rows):
@@ -286,7 +298,7 @@ class FileManagerWindow(wx.Frame):
 
         # Set column sizes and row heights
         for i in range(num_levels):
-            self.grid.SetColSize(i, default_col_width)
+            self.grid.SetColSize(i+1, default_col_width)
         for i in range(num_rows):
             self.grid.SetRowSize(i, default_row_height)
 
@@ -360,8 +372,16 @@ class FileManagerWindow(wx.Frame):
                 self.grid.SetCellValue(row, col, "")
                 self.grid.SetCellBackgroundColour(row, col, wx.WHITE)
 
+        # Initialize sample names from parent data if available
+        if 'SampleNames' in self.parent.Data:
+            self.sample_names = self.parent.Data['SampleNames']
+        else:
+            self.sample_names = {}
+
         # Map of all core levels by type and index
         core_level_map = {}
+
+        self.grid.SetColSize(0, 70)  # Reset wider width for sample name column
 
         # First, categorize all core levels
         for sheet_name in self.parent.Data['Core levels'].keys():
@@ -374,6 +394,27 @@ class FileManagerWindow(wx.Frame):
                 if base_name not in core_level_map:
                     core_level_map[base_name] = {}
                 core_level_map[base_name][index] = sheet_name
+
+        # Make sure grid has enough rows
+        max_index = 0
+        for base_name in core_level_map:
+            if core_level_map[base_name]:
+                max_index = max(max_index, max(core_level_map[base_name].keys()))
+
+        if max_index >= self.grid.GetNumberRows():
+            self.grid.AppendRows(max_index - self.grid.GetNumberRows() + 1)
+            # Set row label for new rows
+            for row in range(self.grid.GetNumberRows()):
+                if not self.grid.GetRowLabelValue(row):
+                    self.grid.SetRowLabelValue(row, str(row))
+
+        # Make sure grid has enough columns (core levels + sample name column)
+        if len(self.core_levels) + 1 > self.grid.GetNumberCols():
+            self.grid.AppendCols(len(self.core_levels) + 1 - self.grid.GetNumberCols())
+            # Update column labels
+            self.grid.SetColLabelValue(0, "Experiment")
+            for i, level in enumerate(self.core_levels):
+                self.grid.SetColLabelValue(i + 1, level)
 
         # Now populate the grid
         for col, base_name in enumerate(self.core_levels):
@@ -388,11 +429,65 @@ class FileManagerWindow(wx.Frame):
                                 self.grid.SetRowLabelValue(row, str(row))
 
                     # Set the cell value and color
-                    self.grid.SetCellValue(index, col, sheet_name)
-                    self.grid.SetCellBackgroundColour(index, col, wx.Colour(200, 245, 228))
+                    self.grid.SetCellValue(index, col+1, sheet_name)
+                    self.grid.SetCellBackgroundColour(index, col+1, wx.Colour(200, 245, 228))
+
+        # Add sample names to first column
+        for row in range(self.grid.GetNumberRows()):
+            sample_name = self.sample_names.get(str(row), "")
+            self.grid.SetCellValue(row, 0, sample_name)
+            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(180, 235, 208))
 
         # Force refresh
         self.grid.ForceRefresh()
+
+    def load_sample_names(self):
+        import json
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+
+                    if 'SampleNames' in json_data:
+                        self.sample_names = json_data['SampleNames']
+                        self.parent.Data['SampleNames'] = self.sample_names
+            except Exception as e:
+                print(f"Error loading sample names: {e}")
+
+    # Add a method to save sample names:
+    def save_sample_names(self):
+        # Update sample_names from grid
+        for row in range(self.grid.GetNumberRows()):
+            name = self.grid.GetCellValue(row, 0)
+            if name:
+                self.sample_names[str(row)] = name
+            elif str(row) in self.sample_names:
+                del self.sample_names[str(row)]
+
+        # Save to parent.Data
+        self.parent.Data['SampleNames'] = self.sample_names
+
+        # Save to JSON
+        import json
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+                else:
+                    json_data = {}
+
+                json_data['SampleNames'] = self.sample_names
+
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=4)
+            except Exception as e:
+                print(f"Error saving sample names: {e}")
 
     def on_key_down(self, event):
         """Handle key press events"""
@@ -433,6 +528,7 @@ class FileManagerWindow(wx.Frame):
 
     def on_sum_selected(self, event):
         """Sum/average the Y values of selected cells in the same column"""
+        save_state(self.parent)
         # Get selected cells grouped by column
         selected_by_column = {}
 
@@ -597,6 +693,9 @@ class FileManagerWindow(wx.Frame):
         if sheet_name not in self.parent.Data['Core levels']:
             return
 
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
         # Clear the plot
         self.parent.ax.clear()
 
@@ -622,15 +721,27 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.set_ylabel("Intensity (CPS)")
         self.parent.ax.set_xlim(max(x_values), min(x_values))  # Reversed for XPS
 
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
         # Draw
         self.parent.canvas.draw_idle()
 
-
+        # Restore the original residuals state in the manager
+        # (but don't replot with it - we just want to maintain the state)
+        self.parent.plot_manager.residuals_state = original_residuals_state
 
     def plot_multiple_sheets(self, sheet_names):
         """Plot multiple core levels together on the same graph"""
         if not sheet_names:
             return
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
 
         # Set the first sheet as the active one in the parent window
         self.parent.sheet_combobox.SetValue(sheet_names[0])
@@ -639,6 +750,13 @@ class FileManagerWindow(wx.Frame):
 
         # Clear the plot
         self.parent.ax.clear()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
 
         # Track min/max x values
         x_min = float('inf')
@@ -687,7 +805,7 @@ class FileManagerWindow(wx.Frame):
 
                     # Avoid division by zero
                     if norm_max != norm_min:
-                        y_values = (y_values - norm_min) / (norm_max - norm_min) *1000
+                        y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
 
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
@@ -745,6 +863,9 @@ class FileManagerWindow(wx.Frame):
         # Update the plot
         self.parent.canvas.draw_idle()
 
+        # Restore the original residuals state
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
     def replot_with_normalization(self):
         """Replot the current selection with updated normalization settings"""
         sheet_names = self.get_selected_sheet_names()
@@ -757,6 +878,14 @@ class FileManagerWindow(wx.Frame):
         col = event.GetCol()
         old_value = self.grid.GetCellValue(row, col)
         new_value = event.GetString()
+
+        # Handle sample name column separately
+        if col == 0:
+            # Just update the sample name
+            self.sample_names[str(row)] = new_value
+            self.save_sample_names()
+            event.Skip()
+            return
 
         # Only process if there's a real change and the cell isn't empty
         if old_value and old_value != new_value and new_value.strip():
@@ -835,6 +964,7 @@ class FileManagerWindow(wx.Frame):
 
     def on_rename(self, event):
         """Rename the selected core level"""
+        save_state(self.parent)
         sheet_names = self.get_selected_sheet_names()
 
         if sheet_names:
@@ -858,6 +988,7 @@ class FileManagerWindow(wx.Frame):
 
     def on_delete(self, event):
         """Delete the selected core level"""
+        save_state(self.parent)
         sheet_names = self.get_selected_sheet_names()
 
         if sheet_names:
@@ -1055,8 +1186,13 @@ class FileManagerWindow(wx.Frame):
         self.motion_cid = self.parent.canvas.mpl_connect('motion_notify_event', on_motion)
         self.release_cid = self.parent.canvas.mpl_connect('button_release_event', on_release)
 
+    def on_close(self, event):
+        self.save_sample_names()
+        event.Skip()  # Let the event propagate to close the window
+
     def sort_excel_sheets(self, event):
         """Sort Excel sheets by sample group and element name"""
+        save_state(self.parent)
         if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
             wx.MessageBox("No data available to sort.", "Error", wx.OK | wx.ICON_ERROR)
             return

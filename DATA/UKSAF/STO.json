@@ -4696,5 +4696,8 @@
       }
     }
   },
-  "BEcorrection": 0.0
+  "BEcorrection": 0.0,
+  "SampleNames": {
+    "0": "Sample"
+  }
 }
