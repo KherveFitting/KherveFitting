@@ -72,19 +72,6 @@ class MyFrame(wx.Frame):
         # Construct the path to the icon file
         icon_path = os.path.join(current_dir, "Icons", "Icon.ico")
 
-        # # Mac scaling issues
-        # wx.SystemOptions.SetOption("mac.window-plain-transition", 1)
-        # wx.SystemOptions.SetOption("mac.scrollbar-autohide", 0)
-        # wx.SystemOptions.SetOption("mac.opengl.force-enable-angle", 0)
-        # wx.SystemOptions.SetOption("mac.listctrl.always_use_generic", "1")
-        #
-        # # Add this new option to keep toolbars visible in full screen
-        # wx.SystemOptions.SetOption("mac.toolbar-shown-in-fullscreen", 1)
-        #
-        # if 'wxMac' in wx.PlatformInfo:
-        #     self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-
-        # Check if it is the first time the program is being used
         FIRST_TIME_USE = True
 
         # Set the icon
@@ -94,8 +81,8 @@ class MyFrame(wx.Frame):
         self.SetMinSize((800, 600))
         self.panel = wx.Panel(self)
 
-
-
+        # Will hold reference to FileManagerWindow when opened
+        self.file_manager = None
 
         # Center the window on the screen
         self.Centre()
@@ -3569,7 +3556,7 @@ class MyFrame(wx.Frame):
             self.be_correction_spinbox.SetValue(c1s_correction)
             self.apply_be_correction(c1s_correction)
 
-    def apply_be_correction(self, correction):
+    def apply_be_correction_SINGLEBE(self, correction):
         """
         Apply binding energy correction to all data and update displays.
 
@@ -3580,10 +3567,6 @@ class MyFrame(wx.Frame):
         self.be_correction = correction
         self.Data['BEcorrection'] = correction
 
-        # # Update all sheets
-        # for sheet_name, sheet_data in self.Data['Core levels'].items():
-        #     # Update B.E. values
-        #     sheet_data['B.E.'] = [be + delta_correction for be in sheet_data['B.E.']]
 
         # Update all sheets
         for sheet_name, sheet_data in self.Data['Core levels'].items():
@@ -3645,6 +3628,94 @@ class MyFrame(wx.Frame):
 
         print(f"Applied BE correction of {correction:.2f} eV")
 
+    def apply_be_correction(self, correction):
+        """
+        Apply binding energy correction to all data and update displays.
+
+        Args:
+            correction (float): New BE correction value in eV
+        """
+        # Store old correction for delta calculation
+        old_correction = self.be_correction
+        self.be_correction = correction
+
+        # Find which sample/row this sheet belongs to
+        sheet_name = self.sheet_combobox.GetValue()
+        sample_row = None
+
+        # Search grid in FileManager if it exists
+        if hasattr(self, 'file_manager') and hasattr(self.file_manager, 'grid'):
+            grid = self.file_manager.grid
+            for row in range(grid.GetNumberRows()):
+                for col in range(1, grid.GetNumberCols() - 2):  # Skip sample name and correction columns
+                    if grid.GetCellValue(row, col) == sheet_name:
+                        sample_row = str(row)
+                        break
+                if sample_row:
+                    break
+
+        # Update BeCorrections for this sample if found
+        if sample_row is not None and 'BeCorrections' in self.Data:
+            self.Data['BeCorrections'][sample_row] = correction
+
+        # Use the BE correction value directly for this update
+        delta_correction = correction - old_correction
+
+        # Update current sheet
+        if sheet_name in self.Data['Core levels']:
+            sheet_data = self.Data['Core levels'][sheet_name]
+            # Update B.E. values
+            sheet_data['B.E.'] = [float(str(be).strip()) + delta_correction for be in sheet_data['B.E.']]
+
+            # Update Background range
+            if 'Background' in sheet_data:
+                if 'Bkg Low' in sheet_data['Background'] and sheet_data['Background']['Bkg Low'] != '':
+                    sheet_data['Background']['Bkg Low'] += delta_correction
+                if 'Bkg High' in sheet_data['Background'] and sheet_data['Background']['Bkg High'] != '':
+                    sheet_data['Background']['Bkg High'] += delta_correction
+
+            # Update peak positions
+            if 'Fitting' in sheet_data and 'Peaks' in sheet_data['Fitting']:
+                for peak in sheet_data['Fitting']['Peaks'].values():
+                    peak['Position'] += delta_correction
+                    if 'Constraints' in peak:
+                        pos_constraint = peak['Constraints'].get('Position', '')
+                        if pos_constraint and ',' in pos_constraint and not any(
+                                c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                            min_val, max_val = map(float, pos_constraint.split(','))
+                            peak['Constraints'][
+                                'Position'] = f"{min_val + delta_correction:.2f},{max_val + delta_correction:.2f}"
+
+        # Update plot limits for current sheet
+        if sheet_name in self.plot_config.plot_limits:
+            limits = self.plot_config.plot_limits[sheet_name]
+            limits['Xmin'] += delta_correction
+            limits['Xmax'] += delta_correction
+
+            # Also store in main Data structure
+            if 'Plot_Limits' not in self.Data['Core levels'][sheet_name]:
+                self.Data['Core levels'][sheet_name]['Plot_Limits'] = {}
+            self.Data['Core levels'][sheet_name]['Plot_Limits'] = limits.copy()
+
+        # Update Results grid for current sheet
+        for row in range(self.results_grid.GetNumberRows()):
+            try:
+                pos = float(self.results_grid.GetCellValue(row, 1))
+                self.results_grid.SetCellValue(row, 1, f"{pos + delta_correction:.2f}")
+            except ValueError:
+                continue
+
+        # Save state for undo/redo
+        save_state(self)
+
+        # Update current sheet display
+        on_sheet_selected(self, sheet_name)
+
+        # Save corrections to JSON if file manager exists
+        if hasattr(self, 'file_manager') and self.file_manager is not None:
+            self.file_manager.save_be_corrections()
+
+        print(f"Applied BE correction of {correction:.2f} eV to {sheet_name}")
 
     def calculate_c1s_correction(self):
         ref_sheet = next((sheet for sheet in self.Data['Core levels'] if self.ref_peak_name[0] in sheet), None)
@@ -3780,6 +3851,14 @@ class MyFrame(wx.Frame):
         self.navigation_toolbar.Hide()
 
     def on_open_file_manager(self, event):
+        """Open the file manager window"""
+        from libraries.FileManager import FileManagerWindow
+        if not hasattr(self, 'file_manager') or not self.file_manager:
+            self.file_manager = FileManagerWindow(self)
+        self.file_manager.Show()
+        self.file_manager.Raise()
+
+    def on_open_file_manager_OLD(self, event):
         """Open the file manager window"""
         from libraries.FileManager import FileManagerWindow
         if not hasattr(self, 'file_manager_window') or not self.file_manager_window:

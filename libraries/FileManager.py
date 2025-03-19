@@ -18,7 +18,10 @@ class FileManagerWindow(wx.Frame):
         self.parent = parent
 
         self.sample_names = {}  # Dictionary to store sample names by row index
-        self.load_sample_names()  # Load existing sample names
+
+        # Load sample names and BE corrections
+        self.load_sample_names()
+        self.load_be_corrections()
 
         # Create main panel - use only ONE main panel
         self.panel = wx.Panel(self)
@@ -444,13 +447,19 @@ class FileManagerWindow(wx.Frame):
 
         # Add BE correction values for each row
         for row in range(self.grid.GetNumberRows()):
-            # Set BE correction value if available
-            be_correction = self.parent.Data.get('BeCorrections', {}).get(str(row), "0.0")
-            self.grid.SetCellValue(row, len(self.core_levels) + 1, str(be_correction))
-            self.grid.SetCellBackgroundColour(row, len(self.core_levels) + 1, wx.Colour(220, 220, 255))
+            # Verify column index is valid before setting value
+            be_col_index = len(self.core_levels) + 1
+            if be_col_index < self.grid.GetNumberCols():
+                # Set BE correction value if available
+                be_correction = self.parent.Data.get('BeCorrections', {}).get(str(row), "0.0")
+                self.grid.SetCellValue(row, be_col_index, str(be_correction))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(220, 220, 255))
 
-            # Leave normalization column empty for now
-            self.grid.SetCellBackgroundColour(row, len(self.core_levels) + 2, wx.Colour(220, 255, 220))
+            # Check if normalization column exists
+            norm_col_index = len(self.core_levels) + 2
+            if norm_col_index < self.grid.GetNumberCols():
+                # Leave normalization column empty for now
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(220, 255, 220))
 
         # Add sample names to first column
         for row in range(self.grid.GetNumberRows()):
@@ -460,6 +469,42 @@ class FileManagerWindow(wx.Frame):
 
         # Force refresh
         self.grid.ForceRefresh()
+
+    def load_be_corrections(self):
+        """Load BE correction values from JSON file"""
+        import json
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+
+                    if 'BeCorrections' in json_data:
+                        be_corrections = json_data['BeCorrections']
+                        self.parent.Data['BeCorrections'] = be_corrections
+
+                        # Update grid with BE corrections
+                        for row, correction in be_corrections.items():
+                            try:
+                                row_idx = int(row)
+                                if row_idx < self.grid.GetNumberRows():
+                                    self.grid.SetCellValue(row_idx, len(self.core_levels) + 1, str(correction))
+                            except (ValueError, IndexError):
+                                continue
+                # Update grid with BE corrections
+                be_col = len(self.core_levels) + 1
+                if be_col < self.grid.GetNumberCols():  # Check column validity
+                    for row, correction in be_corrections.items():
+                        try:
+                            row_idx = int(row)
+                            if 0 <= row_idx < self.grid.GetNumberRows():  # Check row validity
+                                self.grid.SetCellValue(row_idx, be_col, str(correction))
+                        except (ValueError, IndexError):
+                            continue
+            except Exception as e:
+                print(f"Error loading BE corrections: {e}")
 
     def save_be_corrections(self):
         """Save BE correction values from grid to parent data"""
@@ -476,6 +521,15 @@ class FileManagerWindow(wx.Frame):
 
         # Save to parent.Data
         self.parent.Data['BeCorrections'] = be_corrections
+
+        # Update current BE correction based on selected sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):
+                if self.grid.GetCellValue(row, col) == current_sheet:
+                    self.parent.be_correction = be_corrections.get(str(row), 0.0)
+                    self.parent.be_correction_spinbox.SetValue(self.parent.be_correction)
+                    break
 
         # Save to JSON file
         import json
