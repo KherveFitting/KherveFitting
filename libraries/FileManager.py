@@ -280,6 +280,15 @@ class FileManagerWindow(wx.Frame):
         self.grid.SetColLabelValue(0, "Experiment")
         self.grid.SetColSize(0, 70)  # Wider column for sample names
 
+        # Add BE Correction and Normalization columns at the end
+        self.grid.AppendCols(2)
+        self.grid.SetColLabelValue(num_levels + 1, "BE Corr.")
+        self.grid.SetColLabelValue(num_levels + 2, "Norm.")
+
+        # Set column width for new columns
+        self.grid.SetColSize(num_levels + 1, 60)
+        self.grid.SetColSize(num_levels + 2, 60)
+
         # Enable cell editing for renaming
         self.grid.EnableEditing(True)
 
@@ -433,6 +442,16 @@ class FileManagerWindow(wx.Frame):
                     self.grid.SetCellValue(index, col+1, sheet_name)
                     self.grid.SetCellBackgroundColour(index, col+1, wx.Colour(200, 245, 228))
 
+        # Add BE correction values for each row
+        for row in range(self.grid.GetNumberRows()):
+            # Set BE correction value if available
+            be_correction = self.parent.Data.get('BeCorrections', {}).get(str(row), "0.0")
+            self.grid.SetCellValue(row, len(self.core_levels) + 1, str(be_correction))
+            self.grid.SetCellBackgroundColour(row, len(self.core_levels) + 1, wx.Colour(220, 220, 255))
+
+            # Leave normalization column empty for now
+            self.grid.SetCellBackgroundColour(row, len(self.core_levels) + 2, wx.Colour(220, 255, 220))
+
         # Add sample names to first column
         for row in range(self.grid.GetNumberRows()):
             sample_name = self.sample_names.get(str(row), "")
@@ -441,6 +460,41 @@ class FileManagerWindow(wx.Frame):
 
         # Force refresh
         self.grid.ForceRefresh()
+
+    def save_be_corrections(self):
+        """Save BE correction values from grid to parent data"""
+        be_corrections = {}
+
+        # Get BE correction values from grid
+        for row in range(self.grid.GetNumberRows()):
+            value = self.grid.GetCellValue(row, len(self.core_levels) + 1)
+            if value.strip():
+                try:
+                    be_corrections[str(row)] = float(value)
+                except ValueError:
+                    be_corrections[str(row)] = 0.0
+
+        # Save to parent.Data
+        self.parent.Data['BeCorrections'] = be_corrections
+
+        # Save to JSON file
+        import json
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+                else:
+                    json_data = {}
+
+                json_data['BeCorrections'] = be_corrections
+
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=4)
+            except Exception as e:
+                print(f"Error saving BE corrections: {e}")
 
     def load_sample_names(self):
         import json
@@ -888,6 +942,18 @@ class FileManagerWindow(wx.Frame):
             event.Skip()
             return
 
+        # Handle BE correction column separately
+        if col == len(self.core_levels) + 1:
+            try:
+                float(new_value)  # Validate it's a valid number
+                self.save_be_corrections()
+            except ValueError:
+                wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
+                event.Veto()
+                return
+            event.Skip()
+            return
+
         # Only process if there's a real change and the cell isn't empty
         if old_value and old_value != new_value and new_value.strip():
             # Check if old name exists in parent data
@@ -1251,7 +1317,8 @@ class FileManagerWindow(wx.Frame):
 
     def on_close(self, event):
         self.save_sample_names()
-        event.Skip()  # Let the event propagate to close the window
+        self.save_be_corrections()  # Add this line
+        event.Skip()
 
     def sort_excel_sheets(self, event):
         """Sort Excel sheets by sample group and element name"""
