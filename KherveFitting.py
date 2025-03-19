@@ -3546,8 +3546,38 @@ class MyFrame(wx.Frame):
         self.d_param_window.Show()
         self.d_param_window.Raise()
 
+    # In KherveFitting.py, modify on_be_correction_change:
     def on_be_correction_change(self, event):
         new_correction = self.be_correction_spinbox.GetValue()
+
+        # Find which row the current sheet belongs to
+        sheet_name = self.sheet_combobox.GetValue()
+        sample_row = None
+
+        if hasattr(self, 'file_manager') and self.file_manager is not None:
+            try:
+                grid = self.file_manager.grid
+                if grid and grid.IsShown():
+                    for row in range(grid.GetNumberRows()):
+                        for col in range(1, grid.GetNumberCols() - 2):
+                            if grid.GetCellValue(row, col) == sheet_name:
+                                sample_row = str(row)
+
+                                # Update the BE correction in Data
+                                if 'BeCorrections' not in self.Data:
+                                    self.Data['BeCorrections'] = {}
+                                self.Data['BeCorrections'][sample_row] = new_correction
+
+                                # Update file manager grid
+                                be_col = len(self.file_manager.core_levels) + 1
+                                grid.SetCellValue(row, be_col, str(new_correction))
+                                break
+                        if sample_row:
+                            break
+            except (RuntimeError, wx.PyDeadObjectError):
+                pass
+
+        # Apply correction to the current sheet
         self.apply_be_correction(new_correction)
 
     def on_auto_be(self, event):
@@ -3635,37 +3665,43 @@ class MyFrame(wx.Frame):
         Args:
             correction (float): New BE correction value in eV
         """
-        # Store old correction for delta calculation
-        old_correction = self.be_correction
+        delta_correction = correction - self.be_correction
         self.be_correction = correction
+        self.Data['BEcorrection'] = correction
 
         # Find which sample/row this sheet belongs to
         sheet_name = self.sheet_combobox.GetValue()
         sample_row = None
 
         # Search grid in FileManager if it exists
-        if hasattr(self, 'file_manager') and hasattr(self.file_manager, 'grid'):
-            grid = self.file_manager.grid
-            for row in range(grid.GetNumberRows()):
-                for col in range(1, grid.GetNumberCols() - 2):  # Skip sample name and correction columns
-                    if grid.GetCellValue(row, col) == sheet_name:
-                        sample_row = str(row)
-                        break
-                if sample_row:
-                    break
+        if hasattr(self, 'file_manager') and self.file_manager is not None:
+            try:
+                grid = self.file_manager.grid
+                if grid and grid.IsShown():
+                    for row in range(grid.GetNumberRows()):
+                        for col in range(1, grid.GetNumberCols() - 2):
+                            if grid.GetCellValue(row, col) == sheet_name:
+                                sample_row = str(row)
+
+                                # Update BE correction in grid
+                                be_col = len(self.file_manager.core_levels) + 1
+                                grid.SetCellValue(row, be_col, f"{correction:.2f}")
+                                break
+                        if sample_row:
+                            break
+            except (RuntimeError, wx.PyDeadObjectError):
+                pass
 
         # Update BeCorrections for this sample if found
         if sample_row is not None and 'BeCorrections' in self.Data:
             self.Data['BeCorrections'][sample_row] = correction
 
-        # Use the BE correction value directly for this update
-        delta_correction = correction - old_correction
-
         # Update current sheet
         if sheet_name in self.Data['Core levels']:
             sheet_data = self.Data['Core levels'][sheet_name]
+
             # Update B.E. values
-            sheet_data['B.E.'] = [float(str(be).strip()) + delta_correction for be in sheet_data['B.E.']]
+            sheet_data['B.E.'] = [be + delta_correction for be in sheet_data['B.E.']]
 
             # Update Background range
             if 'Background' in sheet_data:
@@ -3686,18 +3722,23 @@ class MyFrame(wx.Frame):
                             peak['Constraints'][
                                 'Position'] = f"{min_val + delta_correction:.2f},{max_val + delta_correction:.2f}"
 
-        # Update plot limits for current sheet
+        # Update plot limits
         if sheet_name in self.plot_config.plot_limits:
             limits = self.plot_config.plot_limits[sheet_name]
             limits['Xmin'] += delta_correction
             limits['Xmax'] += delta_correction
 
-            # Also store in main Data structure
-            if 'Plot_Limits' not in self.Data['Core levels'][sheet_name]:
-                self.Data['Core levels'][sheet_name]['Plot_Limits'] = {}
-            self.Data['Core levels'][sheet_name]['Plot_Limits'] = limits.copy()
+        # Update peak_params_grid with corrected positions
+        num_peaks = self.peak_params_grid.GetNumberRows() // 2
+        for i in range(num_peaks):
+            row = i * 2
+            try:
+                pos = float(self.peak_params_grid.GetCellValue(row, 2))
+                self.peak_params_grid.SetCellValue(row, 2, f"{pos + delta_correction:.2f}")
+            except ValueError:
+                continue
 
-        # Update Results grid for current sheet
+        # Update Results grid
         for row in range(self.results_grid.GetNumberRows()):
             try:
                 pos = float(self.results_grid.GetCellValue(row, 1))
@@ -3705,17 +3746,15 @@ class MyFrame(wx.Frame):
             except ValueError:
                 continue
 
-        # Save state for undo/redo
-        save_state(self)
-
         # Update current sheet display
         on_sheet_selected(self, sheet_name)
 
-        # Save corrections to JSON if file manager exists
+        # Update FileManager's BE corrections if open
         if hasattr(self, 'file_manager') and self.file_manager is not None:
-            self.file_manager.save_be_corrections()
-
-        print(f"Applied BE correction of {correction:.2f} eV to {sheet_name}")
+            try:
+                self.file_manager.save_be_corrections()
+            except Exception as e:
+                print(f"Error updating FileManager: {e}")
 
     def calculate_c1s_correction(self):
         ref_sheet = next((sheet for sheet in self.Data['Core levels'] if self.ref_peak_name[0] in sheet), None)

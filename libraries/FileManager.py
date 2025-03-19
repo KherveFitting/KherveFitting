@@ -506,6 +506,51 @@ class FileManagerWindow(wx.Frame):
             except Exception as e:
                 print(f"Error loading BE corrections: {e}")
 
+    def save_be_corrections_OLD(self):
+        """Save BE correction values from grid to parent data"""
+        be_corrections = {}
+
+        # Get BE correction values from grid
+        for row in range(self.grid.GetNumberRows()):
+            value = self.grid.GetCellValue(row, len(self.core_levels) + 1)
+            if value.strip():
+                try:
+                    be_corrections[str(row)] = float(value)
+                except ValueError:
+                    be_corrections[str(row)] = 0.0
+
+        # Save to parent.Data
+        self.parent.Data['BeCorrections'] = be_corrections
+
+        # Update current BE correction based on selected sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):
+                if self.grid.GetCellValue(row, col) == current_sheet:
+                    correction = be_corrections.get(str(row), 0.0)
+                    self.parent.be_correction = correction
+                    self.parent.be_correction_spinbox.SetValue(correction)
+                    break
+
+        # Save to JSON file
+        import json
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+                else:
+                    json_data = {}
+
+                json_data['BeCorrections'] = be_corrections
+
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=4)
+            except Exception as e:
+                print(f"Error saving BE corrections: {e}")
+
     def save_be_corrections(self):
         """Save BE correction values from grid to parent data"""
         be_corrections = {}
@@ -527,8 +572,9 @@ class FileManagerWindow(wx.Frame):
         for row in range(self.grid.GetNumberRows()):
             for col in range(1, len(self.core_levels) + 1):
                 if self.grid.GetCellValue(row, col) == current_sheet:
-                    self.parent.be_correction = be_corrections.get(str(row), 0.0)
-                    self.parent.be_correction_spinbox.SetValue(self.parent.be_correction)
+                    correction = be_corrections.get(str(row), 0.0)
+                    self.parent.be_correction = correction
+                    self.parent.be_correction_spinbox.SetValue(correction)
                     break
 
         # Save to JSON file
@@ -999,7 +1045,23 @@ class FileManagerWindow(wx.Frame):
         # Handle BE correction column separately
         if col == len(self.core_levels) + 1:
             try:
-                float(new_value)  # Validate it's a valid number
+                new_correction = float(new_value)  # Validate it's a valid number
+
+                # Update parent.Data['BeCorrections']
+                if 'BeCorrections' not in self.parent.Data:
+                    self.parent.Data['BeCorrections'] = {}
+                self.parent.Data['BeCorrections'][str(row)] = new_correction
+
+                # Check if current sheet in main window belongs to this row
+                current_sheet = self.parent.sheet_combobox.GetValue()
+                for cell_col in range(1, len(self.core_levels) + 1):
+                    if self.grid.GetCellValue(row, cell_col) == current_sheet:
+                        # Update main window spinbox and apply correction
+                        self.parent.be_correction = new_correction
+                        self.parent.be_correction_spinbox.SetValue(new_correction)
+                        self.parent.apply_be_correction(new_correction)
+                        break
+
                 self.save_be_corrections()
             except ValueError:
                 wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
