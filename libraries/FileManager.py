@@ -273,8 +273,9 @@ class FileManagerWindow(wx.Frame):
 
         # Add BE Correction and Normalization columns at the end
         self.grid.AppendCols(2)
-        self.grid.SetColLabelValue(num_levels + 1, "BE Corr.")
+        self.grid.SetColLabelValue(num_levels + 1, "BEcor. ")
         self.grid.SetColLabelValue(num_levels + 2, "Norm.")
+
 
         # Set column width for new columns
         self.grid.SetColSize(num_levels + 1, 60)
@@ -301,6 +302,10 @@ class FileManagerWindow(wx.Frame):
             self.grid.SetColSize(i+1, default_col_width)
         for i in range(num_rows):
             self.grid.SetRowSize(i, default_row_height)
+
+        # Set cell alignment
+        self.grid.SetColSize(num_levels + 1, 40)
+        self.grid.SetColSize(num_levels + 2, 40)
 
         # Set cell alignment
         for row in range(num_rows):
@@ -409,6 +414,14 @@ class FileManagerWindow(wx.Frame):
                 if not self.grid.GetRowLabelValue(row):
                     self.grid.SetRowLabelValue(row, str(row))
 
+
+        # Set column width and row height
+        default_col_width = 50
+        # Set column sizes and row heights
+        for i in range(len(self.core_levels)):
+            if i + 1 < self.grid.GetNumberCols():
+                self.grid.SetColSize(i + 1, default_col_width)
+
         # Make sure grid has enough columns (core levels + sample name column)
         if len(self.core_levels) + 1 > self.grid.GetNumberCols():
             self.grid.AppendCols(len(self.core_levels) + 1 - self.grid.GetNumberCols())
@@ -416,6 +429,22 @@ class FileManagerWindow(wx.Frame):
             self.grid.SetColLabelValue(0, "Experiment")
             for i, level in enumerate(self.core_levels):
                 self.grid.SetColLabelValue(i + 1, level)
+
+        # Make sure we have the BE correction and Normalization columns
+        be_col_index = len(self.core_levels) + 1
+        norm_col_index = len(self.core_levels) + 2
+
+        # Add these columns if they don't exist
+        if self.grid.GetNumberCols() <= be_col_index:
+            self.grid.AppendCols(norm_col_index + 1 - self.grid.GetNumberCols())
+
+        # Set column labels
+        self.grid.SetColLabelValue(be_col_index, "BEcor. ")
+        self.grid.SetColLabelValue(norm_col_index, "Norm.")
+
+        # Set column sizes
+        self.grid.SetColSize(be_col_index, 40)
+        self.grid.SetColSize(norm_col_index, 40)
 
         # Now populate the grid
         for col, base_name in enumerate(self.core_levels):
@@ -441,13 +470,13 @@ class FileManagerWindow(wx.Frame):
                 # Set BE correction value if available
                 be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
                 self.grid.SetCellValue(row, be_col_index, str(be_correction))
-                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(220, 220, 255))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(180, 235, 208))
 
             # Check if normalization column exists
             norm_col_index = len(self.core_levels) + 2
             if norm_col_index < self.grid.GetNumberCols():
                 # Leave normalization column empty for now
-                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(220, 255, 220))
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
 
         # Add sample names to first column
         for row in range(self.grid.GetNumberRows()):
@@ -551,6 +580,19 @@ class FileManagerWindow(wx.Frame):
         be_corrections = {}
 
         # Get BE correction values from grid
+        be_col_index = len(self.core_levels) + 1
+
+        # Check if BE column exists
+        if be_col_index < self.grid.GetNumberCols():
+            for row in range(self.grid.GetNumberRows()):
+                value = self.grid.GetCellValue(row, be_col_index)
+                if value.strip():
+                    try:
+                        be_corrections[str(row)] = float(value)
+                    except ValueError:
+                        be_corrections[str(row)] = 0.0
+
+        # Get BE correction values from grid
         for row in range(self.grid.GetNumberRows()):
             value = self.grid.GetCellValue(row, len(self.core_levels) + 1)
             if value.strip():
@@ -573,6 +615,7 @@ class FileManagerWindow(wx.Frame):
                     self.parent.be_correction = correction
                     self.parent.Data['BEcorrection'] = correction  # For backward compatibility
                     self.parent.be_correction_spinbox.SetValue(correction)
+                    # self.parent.apply_be_correction(correction)
                     break
             if sheet_found:
                 break
