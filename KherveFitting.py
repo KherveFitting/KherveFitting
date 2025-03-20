@@ -3550,6 +3550,9 @@ class MyFrame(wx.Frame):
     def on_be_correction_change(self, event):
         new_correction = self.be_correction_spinbox.GetValue()
 
+        # Save to BEcorrection for backward compatibility
+        self.Data['BEcorrection'] = new_correction
+
         # Find which row the current sheet belongs to
         sheet_name = self.sheet_combobox.GetValue()
         sample_row = None
@@ -3557,24 +3560,27 @@ class MyFrame(wx.Frame):
         if hasattr(self, 'file_manager') and self.file_manager is not None:
             try:
                 grid = self.file_manager.grid
-                if grid and grid.IsShown():
+                if grid and grid.IsShown():  # Check if grid is valid and visible
                     for row in range(grid.GetNumberRows()):
                         for col in range(1, grid.GetNumberCols() - 2):
                             if grid.GetCellValue(row, col) == sheet_name:
                                 sample_row = str(row)
 
                                 # Update the BE correction in Data
-                                if 'BeCorrections' not in self.Data:
-                                    self.Data['BeCorrections'] = {}
-                                self.Data['BeCorrections'][sample_row] = new_correction
+                                if 'BEcorrections' not in self.Data:
+                                    self.Data['BEcorrections'] = {}
+                                self.Data['BEcorrections'][sample_row] = new_correction
 
                                 # Update file manager grid
                                 be_col = len(self.file_manager.core_levels) + 1
                                 grid.SetCellValue(row, be_col, str(new_correction))
+
+                                print(f'BEcorrections list {self.Data['BEcorrections']}')
                                 break
                         if sample_row:
                             break
             except (RuntimeError, wx.PyDeadObjectError):
+                # Handle case where grid has been deleted
                 pass
 
         # Apply correction to the current sheet
@@ -3692,9 +3698,9 @@ class MyFrame(wx.Frame):
             except (RuntimeError, wx.PyDeadObjectError):
                 pass
 
-        # Update BeCorrections for this sample if found
-        if sample_row is not None and 'BeCorrections' in self.Data:
-            self.Data['BeCorrections'][sample_row] = correction
+        # Update BECorrections for this sample if found
+        if sample_row is not None and 'BEcorrections' in self.Data:
+            self.Data['BEcorrections'][sample_row] = correction
 
         # Update current sheet
         if sheet_name in self.Data['Core levels']:

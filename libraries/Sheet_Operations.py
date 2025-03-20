@@ -14,8 +14,8 @@ def on_sheet_selected(window, event):
     else:
         selected_sheet = window.sheet_combobox.GetValue()
 
-    # Update BE correction from BeCorrections if available
-    if 'BeCorrections' in window.Data:
+    # Update BE correction from BEcorrections if available
+    if 'BEcorrections' in window.Data:
         # Find the sheet in a safer way without directly accessing the grid
         try:
             if hasattr(window, 'file_manager') and window.file_manager is not None:
@@ -25,7 +25,7 @@ def on_sheet_selected(window, event):
                         for col in range(1, grid.GetNumberCols() - 2):
                             try:
                                 if grid.GetCellValue(row, col) == selected_sheet:
-                                    correction = window.Data['BeCorrections'].get(str(row), 0.0)
+                                    correction = window.Data['BEcorrections'].get(str(row), 0.0)
                                     if correction != window.be_correction:
                                         window.be_correction = correction
                                         window.be_correction_spinbox.SetValue(correction)

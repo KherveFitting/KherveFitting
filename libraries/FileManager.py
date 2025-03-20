@@ -451,7 +451,7 @@ class FileManagerWindow(wx.Frame):
             be_col_index = len(self.core_levels) + 1
             if be_col_index < self.grid.GetNumberCols():
                 # Set BE correction value if available
-                be_correction = self.parent.Data.get('BeCorrections', {}).get(str(row), "0.0")
+                be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
                 self.grid.SetCellValue(row, be_col_index, str(be_correction))
                 self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(220, 220, 255))
 
@@ -481,9 +481,9 @@ class FileManagerWindow(wx.Frame):
                     with open(json_path, 'r') as f:
                         json_data = json.load(f)
 
-                    if 'BeCorrections' in json_data:
-                        be_corrections = json_data['BeCorrections']
-                        self.parent.Data['BeCorrections'] = be_corrections
+                    if 'BEcorrections' in json_data:
+                        be_corrections = json_data['BEcorrections']
+                        self.parent.Data['BEcorrections'] = be_corrections
 
                         # Update grid with BE corrections
                         for row, correction in be_corrections.items():
@@ -520,7 +520,7 @@ class FileManagerWindow(wx.Frame):
                     be_corrections[str(row)] = 0.0
 
         # Save to parent.Data
-        self.parent.Data['BeCorrections'] = be_corrections
+        self.parent.Data['BEcorrections'] = be_corrections
 
         # Update current BE correction based on selected sheet
         current_sheet = self.parent.sheet_combobox.GetValue()
@@ -544,7 +544,7 @@ class FileManagerWindow(wx.Frame):
                 else:
                     json_data = {}
 
-                json_data['BeCorrections'] = be_corrections
+                json_data['BEcorrections'] = be_corrections
 
                 with open(json_path, 'w') as f:
                     json.dump(json_data, f, indent=4)
@@ -565,17 +565,22 @@ class FileManagerWindow(wx.Frame):
                     be_corrections[str(row)] = 0.0
 
         # Save to parent.Data
-        self.parent.Data['BeCorrections'] = be_corrections
+        self.parent.Data['BEcorrections'] = be_corrections
 
         # Update current BE correction based on selected sheet
         current_sheet = self.parent.sheet_combobox.GetValue()
+        sheet_found = False
         for row in range(self.grid.GetNumberRows()):
             for col in range(1, len(self.core_levels) + 1):
                 if self.grid.GetCellValue(row, col) == current_sheet:
+                    sheet_found = True
                     correction = be_corrections.get(str(row), 0.0)
                     self.parent.be_correction = correction
+                    self.parent.Data['BEcorrection'] = correction  # For backward compatibility
                     self.parent.be_correction_spinbox.SetValue(correction)
                     break
+            if sheet_found:
+                break
 
         # Save to JSON file
         import json
@@ -589,7 +594,7 @@ class FileManagerWindow(wx.Frame):
                 else:
                     json_data = {}
 
-                json_data['BeCorrections'] = be_corrections
+                json_data['BEcorrections'] = be_corrections
 
                 with open(json_path, 'w') as f:
                     json.dump(json_data, f, indent=4)
@@ -1047,22 +1052,27 @@ class FileManagerWindow(wx.Frame):
             try:
                 new_correction = float(new_value)  # Validate it's a valid number
 
-                # Update parent.Data['BeCorrections']
-                if 'BeCorrections' not in self.parent.Data:
-                    self.parent.Data['BeCorrections'] = {}
-                self.parent.Data['BeCorrections'][str(row)] = new_correction
+                # Update parent.Data['BEcorrections']
+                if 'BEcorrections' not in self.parent.Data:
+                    self.parent.Data['BCorrections'] = {}
+                self.parent.Data['BEcorrections'][str(row)] = new_correction
 
                 # Check if current sheet in main window belongs to this row
                 current_sheet = self.parent.sheet_combobox.GetValue()
+                sheet_found = False
                 for cell_col in range(1, len(self.core_levels) + 1):
                     if self.grid.GetCellValue(row, cell_col) == current_sheet:
+                        sheet_found = True
                         # Update main window spinbox and apply correction
                         self.parent.be_correction = new_correction
                         self.parent.be_correction_spinbox.SetValue(new_correction)
                         self.parent.apply_be_correction(new_correction)
                         break
 
-                self.save_be_corrections()
+                # Even if this row doesn't contain the current sheet, save corrections
+                if not sheet_found:
+                    self.save_be_corrections()
+
             except ValueError:
                 wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
                 event.Veto()
