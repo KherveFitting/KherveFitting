@@ -16,29 +16,16 @@ class FileManagerWindow(wx.Frame):
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
         self.parent = parent
-
         self.sample_names = {}  # Dictionary to store sample names by row index
 
-        # Load sample names and BE corrections
+        # Load sample names first
         self.load_sample_names()
-        self.load_be_corrections()
 
-        # Create main panel - use only ONE main panel
+        # Set up UI elements including the grid
         self.panel = wx.Panel(self)
-        main_sizer = wx.BoxSizer(wx.HORIZONTAL)  # Changed to HORIZONTAL for the side-by-side layout
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        # # Create vertical toolbar on left
-        # self.v_toolbar_panel = wx.Panel(self.panel, size=(40, -1))
-        # self.v_toolbar_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
-        # v_toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
-        # self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
-
-        # self.v_toolbar_panel.SetSizer(v_toolbar_sizer)
-
-        # After setting up the v_toolbar_panel
-        # self.create_vertical_toolbar()
-
-        # Right side panel with content
+        # Create right panel with content
         self.right_panel = wx.Panel(self.panel)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -51,16 +38,18 @@ class FileManagerWindow(wx.Frame):
 
         # Create grid
         self.grid = wx.grid.Grid(self.right_panel)
+        self.core_levels = self.get_unique_core_levels()
         self.init_grid()
         right_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 5)
 
         self.right_panel.SetSizer(right_sizer)
 
-        # Add both panels to main sizer
-        # main_sizer.Add(self.v_toolbar_panel, 0, wx.EXPAND)
+        # Add panel to main sizer
         main_sizer.Add(self.right_panel, 1, wx.EXPAND)
-
         self.panel.SetSizer(main_sizer)
+
+        # NOW load BE corrections after the grid is created
+        self.load_be_corrections()
 
         # Position window relative to main window
         main_pos = parent.GetPosition()
@@ -268,7 +257,6 @@ class FileManagerWindow(wx.Frame):
     def init_grid(self):
         """Initialize the grid with rows and columns"""
         # Get unique core level names from parent
-        self.core_levels = self.get_unique_core_levels()
         num_levels = len(self.core_levels)
 
         # Determine number of rows based on existing data
@@ -471,31 +459,47 @@ class FileManagerWindow(wx.Frame):
         self.grid.ForceRefresh()
 
     def load_be_corrections(self):
-        """Load BE correction values from JSON file"""
-        import json
-        file_path = self.parent.Data.get('FilePath', '')
-        if file_path:
-            json_path = os.path.splitext(file_path)[0] + '.json'
-            try:
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        json_data = json.load(f)
+        """Load BE correction values from parent Data or JSON file"""
 
-                    if 'BEcorrections' in json_data:
-                        be_corrections = json_data['BEcorrections']
-                        self.parent.Data['BEcorrections'] = be_corrections
+        # First, check if we have BE corrections in parent.Data
+        if 'BEcorrections' in self.parent.Data:
+            be_corrections = self.parent.Data['BEcorrections']
+            # Apply these corrections to the grid
+            be_col = len(self.core_levels) + 1
+            for row, correction in be_corrections.items():
+                try:
+                    row_idx = int(row)
+                    if 0 <= row_idx < self.grid.GetNumberRows():
+                        self.grid.SetCellValue(row_idx, be_col, str(correction))
+                except (ValueError, IndexError):
+                    continue
 
-                        # Update grid with BE corrections
-                        be_col = len(self.core_levels) + 1
-                        for row, correction in be_corrections.items():
-                            try:
-                                row_idx = int(row)
-                                if 0 <= row_idx < self.grid.GetNumberRows():
-                                    self.grid.SetCellValue(row_idx, be_col, str(correction))
-                            except (ValueError, IndexError):
-                                continue
-            except Exception as e:
-                print(f"Error loading BE corrections: {e}")
+        # As fallback, load from JSON file
+        else:
+            import json
+            file_path = self.parent.Data.get('FilePath', '')
+            if file_path:
+                json_path = os.path.splitext(file_path)[0] + '.json'
+                try:
+                    if os.path.exists(json_path):
+                        with open(json_path, 'r') as f:
+                            json_data = json.load(f)
+
+                        if 'BEcorrections' in json_data:
+                            be_corrections = json_data['BEcorrections']
+                            self.parent.Data['BEcorrections'] = be_corrections
+
+                            # Update grid with BE corrections
+                            be_col = len(self.core_levels) + 1
+                            for row, correction in be_corrections.items():
+                                try:
+                                    row_idx = int(row)
+                                    if 0 <= row_idx < self.grid.GetNumberRows():
+                                        self.grid.SetCellValue(row_idx, be_col, str(correction))
+                                except (ValueError, IndexError):
+                                    continue
+                except Exception as e:
+                    print(f"Error loading BE corrections: {e}")
 
     def save_be_corrections_OLD(self):
         """Save BE correction values from grid to parent data"""

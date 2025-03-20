@@ -9,10 +9,6 @@ from libraries.Utilities import _clear_peak_params_grid
 
 # In Sheet_Operations.py
 def on_sheet_selected(window, event):
-    if isinstance(event, str):
-        selected_sheet = event
-    else:
-        selected_sheet = window.sheet_combobox.GetValue()
 
     # Update BE correction from BEcorrections if available
     if 'BEcorrections' in window.Data:
