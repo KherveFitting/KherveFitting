@@ -486,23 +486,14 @@ class FileManagerWindow(wx.Frame):
                         self.parent.Data['BEcorrections'] = be_corrections
 
                         # Update grid with BE corrections
+                        be_col = len(self.core_levels) + 1
                         for row, correction in be_corrections.items():
                             try:
                                 row_idx = int(row)
-                                if row_idx < self.grid.GetNumberRows():
-                                    self.grid.SetCellValue(row_idx, len(self.core_levels) + 1, str(correction))
+                                if 0 <= row_idx < self.grid.GetNumberRows():
+                                    self.grid.SetCellValue(row_idx, be_col, str(correction))
                             except (ValueError, IndexError):
                                 continue
-                # Update grid with BE corrections
-                be_col = len(self.core_levels) + 1
-                if be_col < self.grid.GetNumberCols():  # Check column validity
-                    for row, correction in be_corrections.items():
-                        try:
-                            row_idx = int(row)
-                            if 0 <= row_idx < self.grid.GetNumberRows():  # Check row validity
-                                self.grid.SetCellValue(row_idx, be_col, str(correction))
-                        except (ValueError, IndexError):
-                            continue
             except Exception as e:
                 print(f"Error loading BE corrections: {e}")
 
@@ -1048,13 +1039,13 @@ class FileManagerWindow(wx.Frame):
             return
 
         # Handle BE correction column separately
-        if col == len(self.core_levels) + 1:
+        if col == len(self.core_levels) + 1:  # BE correction column
             try:
-                new_correction = float(new_value)  # Validate it's a valid number
+                new_correction = float(new_value)
 
                 # Update parent.Data['BEcorrections']
                 if 'BEcorrections' not in self.parent.Data:
-                    self.parent.Data['BCorrections'] = {}
+                    self.parent.Data['BEcorrections'] = {}
                 self.parent.Data['BEcorrections'][str(row)] = new_correction
 
                 # Check if current sheet in main window belongs to this row
@@ -1077,8 +1068,6 @@ class FileManagerWindow(wx.Frame):
                 wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
                 event.Veto()
                 return
-            event.Skip()
-            return
 
         # Only process if there's a real change and the cell isn't empty
         if old_value and old_value != new_value and new_value.strip():

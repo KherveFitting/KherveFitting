@@ -3553,43 +3553,85 @@ class MyFrame(wx.Frame):
         # Save to BEcorrection for backward compatibility
         self.Data['BEcorrection'] = new_correction
 
-        # Find which row the current sheet belongs to
+        # Extract row number from sheet name
         sheet_name = self.sheet_combobox.GetValue()
         sample_row = None
 
+        # Extract the numeric suffix from the sheet name
+        import re
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            sample_row = match.group(1)
+        else:
+            # If no numeric suffix, assume it's row 0
+            sample_row = "0"
+
+        # Update BEcorrections
+        if 'BEcorrections' not in self.Data:
+            self.Data['BEcorrections'] = {}
+
+        self.Data['BEcorrections'][sample_row] = new_correction
+
+        # Update file manager grid if it's open
         if hasattr(self, 'file_manager') and self.file_manager is not None:
             try:
                 grid = self.file_manager.grid
-                if grid and grid.IsShown():  # Check if grid is valid and visible
-                    for row in range(grid.GetNumberRows()):
-                        for col in range(1, grid.GetNumberCols() - 2):
-                            if grid.GetCellValue(row, col) == sheet_name:
-                                sample_row = str(row)
-
-                                # Update the BE correction in Data
-                                if 'BEcorrections' not in self.Data:
-                                    self.Data['BEcorrections'] = {}
-                                self.Data['BEcorrections'][sample_row] = new_correction
-
-                                # Update file manager grid
-                                be_col = len(self.file_manager.core_levels) + 1
-                                grid.SetCellValue(row, be_col, str(new_correction))
-
-                                print(f'BEcorrections list {self.Data['BEcorrections']}')
-                                break
-                        if sample_row:
-                            break
+                if grid and grid.IsShown():
+                    be_col = len(self.file_manager.core_levels) + 1
+                    try:
+                        row = int(sample_row)
+                        if row < grid.GetNumberRows():
+                            grid.SetCellValue(row, be_col, str(new_correction))
+                    except (ValueError, IndexError):
+                        pass
             except (RuntimeError, wx.PyDeadObjectError):
-                # Handle case where grid has been deleted
                 pass
 
         # Apply correction to the current sheet
         self.apply_be_correction(new_correction)
 
+    def load_be_correction(self):
+        """Load the BE correction value for the currently selected sheet"""
+        sheet_name = self.sheet_combobox.GetValue()
+
+        # Backward compatibility - use BEcorrection if no BEcorrections
+        if 'BEcorrection' in self.Data and 'BEcorrections' not in self.Data:
+            self.be_correction = self.Data['BEcorrection']
+            self.be_correction_spinbox.SetValue(self.be_correction)
+            return
+
+        # If BEcorrections exists, use it for the current sheet
+        if 'BEcorrections' in self.Data:
+            import re
+            match = re.search(r'(\d+)$', sheet_name)
+            if match:
+                sample_row = match.group(1)
+                if sample_row in self.Data['BEcorrections']:
+                    self.be_correction = self.Data['BEcorrections'][sample_row]
+                    self.be_correction_spinbox.SetValue(self.be_correction)
+                    return
+
+            # If no numeric suffix or not found, check row 0
+            if "0" in self.Data['BEcorrections']:
+                self.be_correction = self.Data['BEcorrections']["0"]
+                self.be_correction_spinbox.SetValue(self.be_correction)
+                return
+
+        # Default to 0 if nothing found
+        self.be_correction = 0.0
+        self.be_correction_spinbox.SetValue(self.be_correction)
+
+
     def on_auto_be(self, event):
         c1s_correction = self.calculate_c1s_correction()
         if c1s_correction is not None:
             self.be_correction_spinbox.SetValue(c1s_correction)
+
+            # Trigger the change event to update BEcorrections
+            evt = wx.SpinDoubleEvent(wx.EVT_SPINCTRLDOUBLE.typeId, self.be_correction_spinbox.GetId())
+            evt.SetEventObject(self.be_correction_spinbox)
+            wx.PostEvent(self.be_correction_spinbox, evt)
+
             self.apply_be_correction(c1s_correction)
 
     def apply_be_correction_SINGLEBE(self, correction):
@@ -3679,24 +3721,32 @@ class MyFrame(wx.Frame):
         sheet_name = self.sheet_combobox.GetValue()
         sample_row = None
 
-        # Search grid in FileManager if it exists
-        if hasattr(self, 'file_manager') and self.file_manager is not None:
-            try:
-                grid = self.file_manager.grid
-                if grid and grid.IsShown():
-                    for row in range(grid.GetNumberRows()):
-                        for col in range(1, grid.GetNumberCols() - 2):
-                            if grid.GetCellValue(row, col) == sheet_name:
-                                sample_row = str(row)
+        # # Search grid in FileManager if it exists
+        # if hasattr(self, 'file_manager') and self.file_manager is not None:
+        #     try:
+        #         grid = self.file_manager.grid
+        #         if grid and grid.IsShown():
+        #             for row in range(grid.GetNumberRows()):
+        #                 for col in range(1, grid.GetNumberCols() - 2):
+        #                     if grid.GetCellValue(row, col) == sheet_name:
+        #                         sample_row = str(row)
+        #
+        #                         # Update BE correction in grid
+        #                         be_col = len(self.file_manager.core_levels) + 1
+        #                         grid.SetCellValue(row, be_col, f"{correction:.2f}")
+        #                         break
+        #                 if sample_row:
+        #                     break
+        #     except (RuntimeError, wx.PyDeadObjectError):
+        #         pass
 
-                                # Update BE correction in grid
-                                be_col = len(self.file_manager.core_levels) + 1
-                                grid.SetCellValue(row, be_col, f"{correction:.2f}")
-                                break
-                        if sample_row:
-                            break
-            except (RuntimeError, wx.PyDeadObjectError):
-                pass
+        # Extract row number from sheet name with regex
+        import re
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            sample_row = match.group(1)
+        else:
+            sample_row = "0"  # Default to row 0 if no number found
 
         # Update BECorrections for this sample if found
         if sample_row is not None and 'BEcorrections' in self.Data:

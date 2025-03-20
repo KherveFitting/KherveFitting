@@ -739,6 +739,7 @@ def create_horizontal_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), open_peaks_tool)
     window.Bind(wx.EVT_TOOL, lambda event: copy_sheet(window), copy_sheet_tool)
     window.Bind(wx.EVT_TOOL, lambda event: JoinSheetsWindow(window).Show(), join_sheets_tool)
+    window.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, window.on_be_correction_change)
     # window.Bind(wx.EVT_TOOL, lambda event: save_peaks_to_github(window), save_peaks_tool)
     # window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), open_peaks_tool)
 
@@ -815,7 +816,7 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
     window.Bind(wx.EVT_TOOL, lambda event: on_save_all_sheets(window, event), save_all_tool)
     window.Bind(wx.EVT_TOOL, lambda event: toggle_Col_1(window), toggle_Col_1_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.export_results(), export_tool)
-    window.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, window.on_be_correction_change)
+    # window.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, window.on_be_correction_change)
     window.Bind(wx.EVT_TOOL, window.on_auto_be, auto_be_button)
     # window.Bind(wx.EVT_TOOL, window.on_toggle_peak_fill, toggle_peak_fill_tool)
     window.Bind(wx.EVT_TOOL, lambda event: undo(window), window.undo_tool)

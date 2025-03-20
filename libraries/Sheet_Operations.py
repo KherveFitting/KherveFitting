@@ -16,26 +16,28 @@ def on_sheet_selected(window, event):
 
     # Update BE correction from BEcorrections if available
     if 'BEcorrections' in window.Data:
-        # Find the sheet in a safer way without directly accessing the grid
-        try:
-            if hasattr(window, 'file_manager') and window.file_manager is not None:
-                grid = window.file_manager.grid
-                if grid and grid.IsShown():  # Check if grid is valid and visible
-                    for row in range(grid.GetNumberRows()):
-                        for col in range(1, grid.GetNumberCols() - 2):
-                            try:
-                                if grid.GetCellValue(row, col) == selected_sheet:
-                                    correction = window.Data['BEcorrections'].get(str(row), 0.0)
-                                    if correction != window.be_correction:
-                                        window.be_correction = correction
-                                        window.be_correction_spinbox.SetValue(correction)
-                                    break
-                            except:
-                                # Skip any errors when accessing grid cells
-                                pass
-        except (RuntimeError, wx.PyDeadObjectError):
-            # Handle case where grid has been deleted
-            pass
+        # Extract row number from sheet name
+        if isinstance(event, str):
+            selected_sheet = event
+        else:
+            selected_sheet = window.sheet_combobox.GetValue()
+
+        import re
+        match = re.search(r'(\d+)$', selected_sheet)
+        if match:
+            sample_row = match.group(1)
+            if sample_row in window.Data['BEcorrections']:
+                correction = window.Data['BEcorrections'][sample_row]
+                if correction != window.be_correction:
+                    window.be_correction = correction
+                    window.be_correction_spinbox.SetValue(correction)
+        else:
+            # If no numeric suffix, check row 0
+            if "0" in window.Data['BEcorrections']:
+                correction = window.Data['BEcorrections']["0"]
+                if correction != window.be_correction:
+                    window.be_correction = correction
+                    window.be_correction_spinbox.SetValue(correction)
 
 
     if selected_sheet:
