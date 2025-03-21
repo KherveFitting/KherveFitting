@@ -86,6 +86,11 @@ class FileManagerWindow(wx.Frame):
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
 
+        # Highlight the current sheet if any
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if current_sheet:
+            self.highlight_current_sheet(current_sheet)
+
     def create_vertical_toolbar(self):
         """Create vertical toolbar with buttons for core level management"""
         # Get icon path
@@ -909,6 +914,12 @@ class FileManagerWindow(wx.Frame):
         """Plot just the raw data quickly without background or peaks"""
         if sheet_name not in self.parent.Data['Core levels']:
             return
+
+        # Update parent's combobox
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Highlight this cell
+        self.highlight_current_sheet(sheet_name)
 
         # Store the original residuals state
         original_residuals_state = self.parent.plot_manager.residuals_state
