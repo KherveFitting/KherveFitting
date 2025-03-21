@@ -278,8 +278,8 @@ class FileManagerWindow(wx.Frame):
 
         # Add BE Correction and Normalization columns at the end
         self.grid.AppendCols(2)
-        self.grid.SetColLabelValue(num_levels + 1, "BEcor. ")
-        self.grid.SetColLabelValue(num_levels + 2, "Norm.")
+        self.grid.SetColLabelValue(num_levels + 1, "Xshift")
+        self.grid.SetColLabelValue(num_levels + 2, "Xnorm.")
 
 
         # Set column width for new columns
@@ -1729,3 +1729,4 @@ class FileManagerWindow(wx.Frame):
                     break
 
         self.grid.ForceRefresh()
+

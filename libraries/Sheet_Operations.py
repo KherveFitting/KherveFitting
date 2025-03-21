@@ -294,7 +294,7 @@ def on_sheet_selected(window, event):
         try:
             selected_sheet = window.sheet_combobox.GetValue()
             window.file_manager.highlight_current_sheet(selected_sheet)
-        except (RuntimeError, wx.PyDeadObjectError):
+        except (RuntimeError, Exception):
             pass
 
 
