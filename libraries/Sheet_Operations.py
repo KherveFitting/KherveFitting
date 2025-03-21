@@ -289,6 +289,14 @@ def on_sheet_selected(window, event):
 
     window.update_checkboxes_from_data()
 
+    # Update FileManager cell highlight if open
+    if hasattr(window, 'file_manager') and window.file_manager is not None:
+        try:
+            selected_sheet = window.sheet_combobox.GetValue()
+            window.file_manager.highlight_current_sheet(selected_sheet)
+        except (RuntimeError, wx.PyDeadObjectError):
+            pass
+
 
 def on_grid_left_click(window, event):
     if event.GetCol() == 7:  # Checkbox column

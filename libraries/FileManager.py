@@ -484,6 +484,15 @@ class FileManagerWindow(wx.Frame):
                 # Leave normalization column empty for now
                 self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
 
+        be_col_index = len(self.core_levels) + 1
+        if be_col_index < self.grid.GetNumberCols():
+            for row in range(self.grid.GetNumberRows()):
+                # Set BE correction value if available
+                be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
+                self.grid.SetCellValue(row, be_col_index, str(be_correction))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))  # Set text color to gray
+
         # Add sample names to first column
         for row in range(self.grid.GetNumberRows()):
             sample_name = self.sample_names.get(str(row), "")
@@ -720,14 +729,18 @@ class FileManagerWindow(wx.Frame):
 
         if sheet_names:
             if len(sheet_names) == 1:
-                # Single sheet - normal plot
+                # Single sheet - update combobox and plot
                 self.parent.sheet_combobox.SetValue(sheet_names[0])
                 from libraries.Sheet_Operations import on_sheet_selected
                 on_sheet_selected(self.parent, sheet_names[0])
             else:
                 # Multiple sheets - overlay plot
                 self.plot_multiple_sheets(sheet_names)
+                # Update combobox with first sheet name
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
 
+            # Highlight the selected cell(s)
+            self.highlight_current_sheet(sheet_names[0])
             self.Raise()  # Bring the file manager window to the front
 
     def on_sum_selected(self, event):
@@ -1082,6 +1095,11 @@ class FileManagerWindow(wx.Frame):
         col = event.GetCol()
         old_value = self.grid.GetCellValue(row, col)
         new_value = event.GetString()
+
+        # Prevent editing BE correction column
+        if col == len(self.core_levels) + 1:  # BE correction column
+            event.Veto()
+            return
 
         # Handle sample name column separately
         if col == 0:
@@ -1681,3 +1699,22 @@ class FileManagerWindow(wx.Frame):
         # Show the menu
         self.grid.PopupMenu(menu)
         menu.Destroy()
+
+    def highlight_current_sheet(self, sheet_name):
+        """Highlight the cell containing the current sheet name"""
+        # Clear existing highlights
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                if self.grid.GetCellBackgroundColour(row, col) == wx.YELLOW:
+                    base_color = wx.Colour(200, 245, 228) if col > 0 else wx.Colour(180, 235, 208)
+                    self.grid.SetCellBackgroundColour(row, col, base_color)
+
+        # Find and highlight the cell with sheet_name
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Skip sample name column
+                if self.grid.GetCellValue(row, col) == sheet_name:
+                    self.grid.SetCellBackgroundColour(row, col, wx.YELLOW)
+                    self.grid.MakeCellVisible(row, col)
+                    break
+
+        self.grid.ForceRefresh()
