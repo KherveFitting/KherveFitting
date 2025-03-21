@@ -307,10 +307,16 @@ class FileManagerWindow(wx.Frame):
         self.grid.SetColSize(num_levels + 1, 40)
         self.grid.SetColSize(num_levels + 2, 40)
 
+        # After setting up grid and columns, make BE Correction column read-only
+        be_col_index = len(self.core_levels) + 1
+        for row in range(self.grid.GetNumberRows()):
+            self.grid.SetReadOnly(row, be_col_index, True)
+
         # Set cell alignment
         for row in range(num_rows):
             for col in range(num_levels):
                 self.grid.SetCellAlignment(row, col, wx.ALIGN_CENTER, wx.ALIGN_CENTER)
+
 
             # Apply consistent fonts to grid
             if 'wxMac' in wx.PlatformInfo:
