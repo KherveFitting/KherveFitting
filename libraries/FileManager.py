@@ -523,13 +523,13 @@ class FileManagerWindow(wx.Frame):
                 # Set BE correction value if available
                 be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
                 self.grid.SetCellValue(row, be_col_index, str(be_correction))
-                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
 
             # Check if normalization column exists
             norm_col_index = len(self.core_levels) + 2
             if norm_col_index < self.grid.GetNumberCols():
                 # Leave normalization column empty for now
-                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
 
         be_col_index = len(self.core_levels) + 1
         if be_col_index < self.grid.GetNumberCols():
@@ -537,14 +537,28 @@ class FileManagerWindow(wx.Frame):
                 # Set BE correction value if available
                 be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
                 self.grid.SetCellValue(row, be_col_index, str(be_correction))
-                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
                 self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))  # Set text color to gray
 
         # Add sample names to first column
         for row in range(self.grid.GetNumberRows()):
             sample_name = self.sample_names.get(str(row), "")
             self.grid.SetCellValue(row, 0, sample_name)
-            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(180, 235, 208))
+            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(230, 230, 230))
+
+        # Set background color for normalization columns for all rows
+        norm_col_index = len(self.core_levels) + 2
+        norm_area_col_index = len(self.core_levels) + 3
+        for row in range(self.grid.GetNumberRows()):
+            if norm_col_index < self.grid.GetNumberCols():
+                # self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+            if norm_area_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
+
+        num_levels = len(self.core_levels)
+        self.grid.SetColSize(num_levels + 2, 70)  # Wider for the new name
+        self.grid.SetColSize(num_levels + 3, 70)  # New column
 
         # Force refresh
         self.grid.ForceRefresh()
@@ -1259,6 +1273,29 @@ class FileManagerWindow(wx.Frame):
                                     if norm_value != 0:
                                         y_values = (y_values - norm_min) / norm_value * 1000
 
+                            except ValueError:
+                                pass
+                    elif norm_method == "Norm. to A":
+                        # Get the normalization factor directly from the "Norm. to A" column
+                        row_found = -1
+                        col_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    col_found = col
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+                            try:
+                                # Simply multiply the y values by the factor from the column
+                                norm_factor = float(norm_area_str) if norm_area_str else None
+                                if norm_factor is not None:
+                                    norm_min = min(y_values)
+                                    y_values = (y_values - norm_min) / norm_factor * 1000
                             except ValueError:
                                 pass
 
