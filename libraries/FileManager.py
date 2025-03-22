@@ -66,10 +66,12 @@ class FileManagerWindow(wx.Frame):
         self.is_dragging_cursor = False
 
         # Bind events
-        self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
-        self.auto_check.Bind(wx.EVT_CHECKBOX, self.on_auto_changed)
+        # self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
+        # self.auto_check.Bind(wx.EVT_CHECKBOX, self.on_auto_changed)
         self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
+        self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
+        self.norm_type.Bind(wx.EVT_COMBOBOX, self.on_norm_type_changed)
 
         # Populate the grid with core levels
         self.populate_grid()
@@ -225,12 +227,13 @@ class FileManagerWindow(wx.Frame):
 
         self.norm_check = wx.CheckBox(self.toolbar, label="Norm.")
         self.norm_check.SetToolTip("Normalise multiple plot data")
-        self.auto_check = wx.CheckBox(self.toolbar, label="Auto")
-        self.auto_check.SetToolTip("Automatic Normalise multiple plot data. Use Shift key to select normalise value")
+        self.norm_type = wx.ComboBox(self.toolbar, choices=["Auto", "Norm. @ BE", "Norm. to A"], style=wx.CB_READONLY)
+        self.norm_type.SetSelection(0)  # Default to "Auto"
+        self.norm_type.SetToolTip("Choose normalization method")
         self.norm_check.SetValue(True)  # Auto is checked by default
-        self.auto_check.SetValue(True)  # Auto is checked by default
+
         self.toolbar.AddControl(self.norm_check)
-        self.toolbar.AddControl(self.auto_check)
+        self.toolbar.AddControl(self.norm_type)
 
         # self.toolbar.AddSeparator()
 
@@ -304,14 +307,16 @@ class FileManagerWindow(wx.Frame):
         self.grid.SetColSize(0, 70)  # Wider column for sample names
 
         # Add BE Correction and Normalization columns at the end
-        self.grid.AppendCols(2)
+        self.grid.AppendCols(3)  # Add 3 columns instead of 2
         self.grid.SetColLabelValue(num_levels + 1, "Xshift")
-        self.grid.SetColLabelValue(num_levels + 2, "Xnorm.")
+        self.grid.SetColLabelValue(num_levels + 2, "Norm. @ BE")
+        self.grid.SetColLabelValue(num_levels + 3, "Norm. to A")
 
 
         # Set column width for new columns
         self.grid.SetColSize(num_levels + 1, 60)
-        self.grid.SetColSize(num_levels + 2, 60)
+        self.grid.SetColSize(num_levels + 2, 70)  # Wider for the new name
+        self.grid.SetColSize(num_levels + 3, 70)  # New column
 
         # Enable cell editing for renaming
         self.grid.EnableEditing(True)
@@ -471,14 +476,24 @@ class FileManagerWindow(wx.Frame):
         # Make sure we have the BE correction and Normalization columns
         be_col_index = len(self.core_levels) + 1
         norm_col_index = len(self.core_levels) + 2
+        norm_area_col_index = len(self.core_levels) + 3
 
         # Add these columns if they don't exist
         if self.grid.GetNumberCols() <= be_col_index:
             self.grid.AppendCols(norm_col_index + 1 - self.grid.GetNumberCols())
 
         # Set column labels
-        self.grid.SetColLabelValue(be_col_index, "BEcor. ")
-        self.grid.SetColLabelValue(norm_col_index, "Norm.")
+        self.grid.SetColLabelValue(be_col_index, "Xshift")
+        self.grid.SetColLabelValue(norm_col_index, "Norm. @ BE")
+        self.grid.SetColLabelValue(norm_area_col_index, "Norm. to A")
+
+        if norm_col_index < self.grid.GetNumberCols():
+            # Leave normalization column empty for now
+            self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+
+        if norm_area_col_index < self.grid.GetNumberCols():
+            # Leave area normalization column empty for now
+            self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(180, 235, 208))
 
         # Set column sizes
         self.grid.SetColSize(be_col_index, 40)
@@ -1011,7 +1026,7 @@ class FileManagerWindow(wx.Frame):
         # # Highlight this cell in the grid
         # self.highlight_current_sheet(sheet_name)
 
-    def plot_multiple_sheets(self, sheet_names):
+    def plot_multiple_sheets_OLD(self, sheet_names):
         """Plot multiple core levels together on the same graph"""
         if not sheet_names:
             return
@@ -1082,6 +1097,170 @@ class FileManagerWindow(wx.Frame):
                     # Avoid division by zero
                     if norm_max != norm_min:
                         y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+
+                # Use a different color for each plot
+                color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+
+                # Plot the data
+                if self.parent.energy_scale == 'KE':
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=sheet_name, color=color,
+                                        linewidth=self.parent.line_width)
+                else:
+                    self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color,
+                                        linewidth=self.parent.line_width)
+
+        # Set labels and formatting
+        self.parent.ax.set_xlabel("Binding Energy (eV)")
+        self.parent.ax.set_ylabel("Intensity (CPS)")
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Set legend on the left
+        self.parent.ax.legend(loc='upper left')
+
+        # Set labels and formatting
+        self.parent.ax.set_xlabel("Binding Energy (eV)")
+        if normalize:
+            self.parent.ax.set_ylabel("Normalized Intensity")
+        else:
+            self.parent.ax.set_ylabel("Intensity (CPS)")
+
+        # Set x-axis limits to min/max values from all datasets
+        self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
+
+        # If all sheets are from the same column, add core level text in top right
+        if same_column:
+            formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+            sheet_name_text = self.parent.ax.text(
+                0.98, 0.98,  # Position (top-right corner)
+                formatted_name,
+                transform=self.parent.ax.transAxes,
+                fontsize=self.parent.core_level_text_size,
+                fontfamily=[self.parent.plot_font],
+                fontweight='bold',
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(facecolor='none', edgecolor='none', alpha=1),
+            )
+            sheet_name_text.sheet_name_text = True  # Mark this text object
+
+        # Apply text settings from preferences
+        self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
+        self.parent.ax.xaxis.label.set_size(self.parent.axis_title_size)
+        self.parent.ax.yaxis.label.set_size(self.parent.axis_title_size)
+
+        # Update the plot
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def plot_multiple_sheets(self, sheet_names):
+        """Plot multiple core levels together on the same graph"""
+        if not sheet_names:
+            return
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Set the first sheet as the active one in the parent window
+        self.parent.sheet_combobox.SetValue(sheet_names[0])
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_names[0])
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Track min/max x values
+        x_min = float('inf')
+        x_max = float('-inf')
+
+        # Determine if normalization is needed
+        normalize = self.norm_check.GetValue()
+        norm_method = self.norm_type.GetValue()
+
+        # For auto normalization, we need to calculate global min/max
+        global_min = float('inf')
+        global_max = float('-inf')
+
+        # Check if all sheets are from the same column (core level)
+        base_names = set(self.extract_base_name(name) for name in sheet_names)
+        same_column = len(base_names) == 1
+        column_name = list(base_names)[0] if same_column else None
+
+        if normalize and norm_method == "Auto":
+            # Get global min/max across all selected datasets
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                    global_min = min(global_min, min(y_values))
+                    global_max = max(global_max, max(y_values))
+
+        # Plot each selected sheet
+        for i, sheet_name in enumerate(sheet_names):
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level = self.parent.Data['Core levels'][sheet_name]
+                x_values = core_level['B.E.']
+                y_values = np.array(core_level['Raw Data'])
+
+                # Update min/max x values
+                x_min = min(x_min, min(x_values))
+                x_max = max(x_max, max(x_values))
+
+                # Apply normalization if enabled
+                if normalize:
+                    if norm_method == "Auto":
+                        # Original auto normalization code
+                        norm_min = global_min
+                        norm_max = global_max
+
+                        # Avoid division by zero
+                        if norm_max != norm_min:
+                            y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+                    elif norm_method == "Norm. @ BE":
+                        # Original auto normalization code
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+
+
+                        # Get the BE value for normalization
+                        row_found = -1
+                        col_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    col_found = col
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_be_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 2)
+                            norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+
+                            try:
+                                # Normalize at a specific binding energy
+                                norm_be = float(norm_be_str) if norm_be_str else None
+                                if norm_be is not None:
+                                    # Find closest x value
+                                    closest_idx = np.argmin(np.abs(np.array(x_values) - norm_be))
+                                    norm_value = y_values[closest_idx] - norm_min
+                                    # Avoid division by zero
+                                    if norm_value != 0:
+                                        y_values = (y_values - norm_min) / norm_value * 1000
+
+                            except ValueError:
+                                pass
 
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
@@ -1598,6 +1777,19 @@ class FileManagerWindow(wx.Frame):
         else:
             self.hide_norm_cursors()
             self.replot_with_normalization()
+
+    def on_norm_type_changed(self, event):
+        """Handle normalization type selection change."""
+        if self.norm_check.GetValue():
+            norm_method = self.norm_type.GetValue()
+            # Reapply normalization with new method setting
+            self.replot_with_normalization()
+
+            # Show or hide normalization cursors based on selected method
+            if norm_method == "Auto" and not self.is_dragging_cursor:
+                self.hide_norm_cursors()
+            elif norm_method == "Norm @ BE":
+                self.hide_norm_cursors()  # No cursors needed for BE normalization
 
     def on_auto_changed(self, event):
         if self.norm_check.GetValue():
