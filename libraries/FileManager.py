@@ -550,52 +550,8 @@ class FileManagerWindow(wx.Frame):
                 except Exception as e:
                     print(f"Error loading BE corrections: {e}")
 
+
     def save_be_corrections_OLD(self):
-        """Save BE correction values from grid to parent data"""
-        be_corrections = {}
-
-        # Get BE correction values from grid
-        for row in range(self.grid.GetNumberRows()):
-            value = self.grid.GetCellValue(row, len(self.core_levels) + 1)
-            if value.strip():
-                try:
-                    be_corrections[str(row)] = float(value)
-                except ValueError:
-                    be_corrections[str(row)] = 0.0
-
-        # Save to parent.Data
-        self.parent.Data['BEcorrections'] = be_corrections
-
-        # Update current BE correction based on selected sheet
-        current_sheet = self.parent.sheet_combobox.GetValue()
-        for row in range(self.grid.GetNumberRows()):
-            for col in range(1, len(self.core_levels) + 1):
-                if self.grid.GetCellValue(row, col) == current_sheet:
-                    correction = be_corrections.get(str(row), 0.0)
-                    self.parent.be_correction = correction
-                    self.parent.be_correction_spinbox.SetValue(correction)
-                    break
-
-        # Save to JSON file
-        import json
-        file_path = self.parent.Data.get('FilePath', '')
-        if file_path:
-            json_path = os.path.splitext(file_path)[0] + '.json'
-            try:
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        json_data = json.load(f)
-                else:
-                    json_data = {}
-
-                json_data['BEcorrections'] = be_corrections
-
-                with open(json_path, 'w') as f:
-                    json.dump(json_data, f, indent=4)
-            except Exception as e:
-                print(f"Error saving BE corrections: {e}")
-
-    def save_be_corrections(self):
         """Save BE correction values from grid to parent data"""
         be_corrections = {}
 
@@ -659,6 +615,41 @@ class FileManagerWindow(wx.Frame):
             except Exception as e:
                 print(f"Error saving BE corrections: {e}")
 
+    def save_be_corrections(self):
+        """Save BE correction values from grid to parent data only"""
+        be_corrections = {}
+
+        # Get BE correction values from grid
+        be_col_index = len(self.core_levels) + 1
+
+        # Check if BE column exists
+        if be_col_index < self.grid.GetNumberCols():
+            for row in range(self.grid.GetNumberRows()):
+                value = self.grid.GetCellValue(row, be_col_index)
+                if value.strip():
+                    try:
+                        be_corrections[str(row)] = float(value)
+                    except ValueError:
+                        be_corrections[str(row)] = 0.0
+
+        # Save to parent.Data
+        self.parent.Data['BEcorrections'] = be_corrections
+
+        # Update current BE correction based on selected sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        sheet_found = False
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):
+                if self.grid.GetCellValue(row, col) == current_sheet:
+                    sheet_found = True
+                    correction = be_corrections.get(str(row), 0.0)
+                    self.parent.be_correction = correction
+                    self.parent.Data['BEcorrection'] = correction  # For backward compatibility
+                    self.parent.be_correction_spinbox.SetValue(correction)
+                    break
+            if sheet_found:
+                break
+
     def load_sample_names(self):
         import json
         file_path = self.parent.Data.get('FilePath', '')
@@ -676,7 +667,7 @@ class FileManagerWindow(wx.Frame):
                 print(f"Error loading sample names: {e}")
 
     # Add a method to save sample names:
-    def save_sample_names(self):
+    def save_sample_names_OLD(self):
         # Update sample_names from grid
         for row in range(self.grid.GetNumberRows()):
             name = self.grid.GetCellValue(row, 0)
@@ -706,6 +697,18 @@ class FileManagerWindow(wx.Frame):
                     json.dump(json_data, f, indent=4)
             except Exception as e:
                 print(f"Error saving sample names: {e}")
+
+    def save_sample_names(self):
+        # Update sample_names from grid
+        for row in range(self.grid.GetNumberRows()):
+            name = self.grid.GetCellValue(row, 0)
+            if name:
+                self.sample_names[str(row)] = name
+            elif str(row) in self.sample_names:
+                del self.sample_names[str(row)]
+
+        # Save to parent.Data
+        self.parent.Data['SampleNames'] = self.sample_names
 
     def on_key_down(self, event):
         """Handle key press events"""
@@ -1201,6 +1204,8 @@ class FileManagerWindow(wx.Frame):
         if cell_value and cell_value in self.parent.Data['Core levels']:
             wx.CallAfter(self.quick_plot_sheet, cell_value)
 
+
+            # THIS MAY TO BE DELETED AS IT IS TOO SLOW
             # Get BE correction for the current row
             be_col_index = len(self.core_levels) + 1
             be_correction = self.grid.GetCellValue(row, be_col_index)
@@ -1247,6 +1252,7 @@ class FileManagerWindow(wx.Frame):
         import json
         import tempfile
         import os
+        import re
 
         # Get the clipboard file
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
@@ -1266,37 +1272,111 @@ class FileManagerWindow(wx.Frame):
         # Determine target row based on cursor position
         target_row = self.grid.GetGridCursorRow()
 
-        # Paste each core level
-        for i, (sheet_name, core_level_data) in enumerate(clipboard_data.items()):
-            # Create a new sheet name with incremented row number
-            base_name = self.extract_base_name(sheet_name)
-            new_sheet_name = f"{base_name}{target_row + i}"
+        # Get BE corrections for target row
+        target_correction = self.parent.Data.get('BEcorrections', {}).get(str(target_row), 0.0)
 
-            # Check if new name already exists
-            counter = 0
-            while new_sheet_name in self.parent.Data['Core levels']:
-                counter += 1
-                new_sheet_name = f"{base_name}{target_row + i}_{counter}"
+        # Group core levels by base name (e.g., "C1s" without the number)
+        core_level_groups = {}
+        for sheet_name in clipboard_data.keys():
+            # Extract the true base name (e.g., "C1s" from "C1s2")
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            if match:
+                base_name = match.group(1)
+                if base_name not in core_level_groups:
+                    core_level_groups[base_name] = []
+                core_level_groups[base_name].append(sheet_name)
 
-            # Add to parent data
-            self.parent.Data['Core levels'][new_sheet_name] = deepcopy(core_level_data)
-            self.parent.Data['Core levels'][new_sheet_name]['Name'] = new_sheet_name
+        # For each base name, determine the starting row
+        base_name_row_map = {}
+        current_row = target_row
 
-            # Update Excel file
-            import pandas as pd
-            df = pd.DataFrame({
-                'BE': core_level_data['B.E.'],
-                'Raw Data': core_level_data['Raw Data'],
-                'Background': core_level_data.get('Background', {}).get('Bkg Y', core_level_data['Raw Data']),
-                'Transmission': [1.0] * len(core_level_data['B.E.'])
-            })
+        for base_name, sheets in core_level_groups.items():
+            base_name_row_map[base_name] = current_row
 
-            with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
-                                if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+            # If there are multiple sheets with the same base name,
+            # increment the current row for the next base name
+            if len(sheets) > 1:
+                current_row += len(sheets)
+            # If it's just one sheet, keep the same row for the next base name
 
-            # Update combobox in parent
-            self.parent.sheet_combobox.Append(new_sheet_name)
+        # Process each core level
+        for sheet_name, core_level_data in clipboard_data.items():
+            # Extract source row from original sheet name
+            match_row = re.search(r'(\d+)$', sheet_name)
+            source_row = match_row.group(1) if match_row else "0"
+            source_correction = self.parent.Data.get('BEcorrections', {}).get(source_row, 0.0)
+
+            # Calculate the BE adjustment needed
+            be_adjustment = source_correction - target_correction
+
+            # Extract base name and determine which group it belongs to
+            match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            if match_base:
+                base_name = match_base.group(1)
+
+                # Find position in the group to determine row offset
+                group = core_level_groups[base_name]
+                position = group.index(sheet_name)
+
+                # Calculate the actual row for this sheet
+                actual_row = base_name_row_map[base_name] + position
+
+                # Create new sheet name
+                new_sheet_name = f"{base_name}{actual_row}"
+
+                # Check if new name already exists
+                counter = 0
+                while new_sheet_name in self.parent.Data['Core levels']:
+                    counter += 1
+                    new_sheet_name = f"{base_name}{actual_row}_{counter}"
+
+                # Adjust BE values to remove previous correction and apply new row's correction
+                adjusted_be_values = [be - be_adjustment for be in core_level_data['B.E.']]
+
+                # Create new core level data with adjusted BE values
+                new_core_level_data = deepcopy(core_level_data)
+                new_core_level_data['B.E.'] = adjusted_be_values
+                new_core_level_data['Name'] = new_sheet_name
+
+                # Adjust background limits if present
+                if 'Background' in new_core_level_data:
+                    if 'Bkg Low' in new_core_level_data['Background'] and new_core_level_data['Background'][
+                        'Bkg Low'] != '':
+                        new_core_level_data['Background']['Bkg Low'] -= be_adjustment
+                    if 'Bkg High' in new_core_level_data['Background'] and new_core_level_data['Background'][
+                        'Bkg High'] != '':
+                        new_core_level_data['Background']['Bkg High'] -= be_adjustment
+
+                # Adjust peak positions if present
+                if 'Fitting' in new_core_level_data and 'Peaks' in new_core_level_data['Fitting']:
+                    for peak in new_core_level_data['Fitting']['Peaks'].values():
+                        peak['Position'] -= be_adjustment
+                        if 'Constraints' in peak:
+                            pos_constraint = peak['Constraints'].get('Position', '')
+                            if pos_constraint and ',' in pos_constraint and not any(
+                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                                min_val, max_val = map(float, pos_constraint.split(','))
+                                peak['Constraints'][
+                                    'Position'] = f"{min_val - be_adjustment:.2f},{max_val - be_adjustment:.2f}"
+
+                # Add to parent data
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+
+                # Update Excel file
+                import pandas as pd
+                df = pd.DataFrame({
+                    'BE': adjusted_be_values,
+                    'Raw Data': core_level_data['Raw Data'],
+                    'Background': core_level_data.get('Background', {}).get('Bkg Y', core_level_data['Raw Data']),
+                    'Transmission': [1.0] * len(adjusted_be_values)
+                })
+
+                with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                    if_sheet_exists='replace') as writer:
+                    df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+                # Update combobox in parent
+                self.parent.sheet_combobox.Append(new_sheet_name)
 
         # Refresh the grid
         self.populate_grid()
