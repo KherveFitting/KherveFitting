@@ -672,6 +672,15 @@ def open_xlsx_file(window, file_path=None):
             else:
                 return
 
+    # Store reference to file manager if open
+    file_manager_was_open = False
+    file_manager_position = None
+    if hasattr(window, 'file_manager') and window.file_manager is not None and window.file_manager.IsShown():
+        file_manager_was_open = True
+        file_manager_position = window.file_manager.GetPosition()
+        window.file_manager.Close()
+        window.file_manager = None
+
     window.SetStatusText(f"Selected File: {file_path}", 0)
 
     try:
@@ -821,6 +830,14 @@ def open_xlsx_file(window, file_path=None):
 
                 # Now populate the grid with new data
                 top_window.populate_grid()
+
+        # Reopen file manager if it was open
+        if file_manager_was_open:
+            from libraries.FileManager import FileManagerWindow
+            window.file_manager = FileManagerWindow(window)
+            if file_manager_position:
+                window.file_manager.SetPosition(file_manager_position)
+            window.file_manager.Show()
 
         print("open_xlsx_file function completed successfully")
     except Exception as e:
