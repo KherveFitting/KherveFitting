@@ -12,7 +12,7 @@ from libraries.Save import save_state
 
 class FileManagerWindow(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, title="Sample/Experiment Manager", size=(550, 300),
+        super().__init__(parent, title="Sample/Experiment Manager", size=(580, 350),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
         self.parent = parent
@@ -1200,6 +1200,21 @@ class FileManagerWindow(wx.Frame):
         cell_value = self.grid.GetCellValue(row, col)
         if cell_value and cell_value in self.parent.Data['Core levels']:
             wx.CallAfter(self.quick_plot_sheet, cell_value)
+
+            # Get BE correction for the current row
+            be_col_index = len(self.core_levels) + 1
+            be_correction = self.grid.GetCellValue(row, be_col_index)
+
+            # Update parent's BE correction if valid
+            if be_correction.strip():
+                try:
+                    correction_value = float(be_correction)
+                    self.parent.be_correction = correction_value
+                    self.parent.be_correction_spinbox.SetValue(correction_value)
+                    # Apply the correction to the current view
+                    # self.parent.apply_be_correction(correction_value)
+                except ValueError:
+                    pass  # Ignore invalid correction values
 
     def on_copy(self, event):
         """Copy the selected core levels"""

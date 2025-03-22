@@ -583,7 +583,8 @@ def create_horizontal_toolbar(parent, window):
 
     # Add File Manager button to toolbar
     file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-25.png"), wx.BITMAP_TYPE_PNG)
-    file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp, "Open Sample/Experiment Manager")
+    file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp,
+                                        "Open Sample/Experiment Manager. Use F2 to plot properly")
     window.Bind(wx.EVT_TOOL, window.on_open_file_manager, file_manager_tool)
 
 
@@ -596,7 +597,8 @@ def create_horizontal_toolbar(parent, window):
     refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path,
                                                                                                   "Refresh-25.png"),
                                                                                      wx.BITMAP_TYPE_PNG),
-                                          shortHelp="Refresh Excel File. Used when the Excel File has more sheets")
+                                          shortHelp="Refresh Excel File and json file. Used when the Excel File has "
+                                                    "more sheets or when the file does not work well")
 
     delete_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Delete Core Level/Survey',
                                         wx.Bitmap(os.path.join(icon_path, "delete-25.png"), wx.BITMAP_TYPE_PNG),
