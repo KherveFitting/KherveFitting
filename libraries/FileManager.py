@@ -556,9 +556,33 @@ class FileManagerWindow(wx.Frame):
             if norm_area_col_index < self.grid.GetNumberCols():
                 self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
 
+        # Make sure grid has enough columns (core levels + sample name column + BE + Norm columns)
+        required_cols = len(self.core_levels) + 4  # +1 for sample name, +3 for BE and two norm columns
+        current_cols = self.grid.GetNumberCols()
+
+        if current_cols < required_cols:
+            self.grid.AppendCols(required_cols - current_cols)
+
         num_levels = len(self.core_levels)
         self.grid.SetColSize(num_levels + 2, 70)  # Wider for the new name
         self.grid.SetColSize(num_levels + 3, 70)  # New column
+
+        # Calculate total width needed based on column sizes
+        total_width = 0
+        for col in range(self.grid.GetNumberCols()):
+            total_width += self.grid.GetColSize(col)
+
+        # Add some padding for grid borders, scrollbars, etc.
+        total_width += 40
+
+        # Add width for row labels
+        total_width += self.grid.GetRowLabelSize()
+
+        # Calculate height based on current window size
+        current_size = self.GetSize()
+
+        # Set the new window size with calculated width and current height
+        self.SetSize(total_width, current_size.GetHeight())
 
         # Force refresh
         self.grid.ForceRefresh()
