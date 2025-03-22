@@ -219,7 +219,8 @@ class FileManagerWindow(wx.Frame):
             plot_bmp = wx.Bitmap(plot_icon)
         else:
             plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
-        plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)")
+        plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)"
+                                        "\n Press F2 or Ctrl+2 to plot selected core level")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
 
         self.norm_check = wx.CheckBox(self.toolbar, label="Norm.")
@@ -247,10 +248,19 @@ class FileManagerWindow(wx.Frame):
         backup_tool = self.toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
         self.Bind(wx.EVT_TOOL, self.on_backup, backup_tool)
 
-        pref_icon = os.path.join(icon_path, "settings-25.png")
-        pref_bmp = wx.Bitmap(pref_icon)
-        pref_tool = self.toolbar.AddTool(wx.ID_ANY, "Preferences", pref_bmp, "Normalization Settings")
-        self.Bind(wx.EVT_TOOL, self.on_preferences, pref_tool)
+        # Add F2/Ctrl+2 info button
+        f2_icon = os.path.join(icon_path, "Find-25.png")  # Use existing plot icon or another appropriate one
+        if os.path.exists(f2_icon):
+            f2_bmp = wx.Bitmap(f2_icon)
+        else:
+            f2_bmp = wx.ArtProvider.GetBitmap(wx.ART_QUESTION, wx.ART_TOOLBAR)
+        f2_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Shortcuts", f2_bmp, "Press F2 or Ctrl+2 to plot peak "
+                                                                                "models")
+
+        # pref_icon = os.path.join(icon_path, "settings-25.png")
+        # pref_bmp = wx.Bitmap(pref_icon)
+        # pref_tool = self.toolbar.AddTool(wx.ID_ANY, "Preferences", pref_bmp, "Normalization Settings")
+        # self.Bind(wx.EVT_TOOL, self.on_preferences, pref_tool)
 
         size_icon = os.path.join(icon_path, "Minimize-25.png")
         size_bmp = wx.Bitmap(size_icon)
@@ -982,6 +992,24 @@ class FileManagerWindow(wx.Frame):
         # Restore the original residuals state in the manager
         # (but don't replot with it - we just want to maintain the state)
         self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def quick_plot_sheet_SLOW(self, sheet_name):
+        """Plot the sheet using the standard plotting method"""
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        # # Update parent's combobox
+        # self.parent.sheet_combobox.SetValue(sheet_name)
+        #
+        # # Use the standard sheet selection function
+        # from libraries.Sheet_Operations import on_sheet_selected
+        # on_sheet_selected(self.parent, sheet_name)
+
+        self.on_plot_selected(None)
+        return  # Don't skip the event
+
+        # # Highlight this cell in the grid
+        # self.highlight_current_sheet(sheet_name)
 
     def plot_multiple_sheets(self, sheet_names):
         """Plot multiple core levels together on the same graph"""
