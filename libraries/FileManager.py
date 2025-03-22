@@ -146,6 +146,23 @@ class FileManagerWindow(wx.Frame):
         # Get icon path
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
 
+        add_rows_icon = os.path.join(icon_path, "add-rows-25.png")
+        if os.path.exists(add_rows_icon):
+            add_rows_bmp = wx.Bitmap(add_rows_icon)
+        else:
+            add_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_PLUS, wx.ART_TOOLBAR)
+        add_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Add 10 Rows", add_rows_bmp, "Add 10 rows to the grid")
+        self.Bind(wx.EVT_TOOL, lambda evt: self.add_more_rows(), add_rows_tool)
+
+        del_rows_icon = os.path.join(icon_path, "delete-rows-25.png")
+        if os.path.exists(del_rows_icon):
+            del_rows_bmp = wx.Bitmap(del_rows_icon)
+        else:
+            del_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
+        del_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Last 2 Rows", del_rows_bmp,
+                                             "Delete the last 2 rows from the grid")
+        self.Bind(wx.EVT_TOOL, lambda evt: self.delete_last_rows(), del_rows_tool)
+
         # Copy button
         copy_icon = os.path.join(icon_path, "copy-25.png")
         if os.path.exists(copy_icon):
@@ -1407,7 +1424,7 @@ class FileManagerWindow(wx.Frame):
                     self.populate_grid()
             dlg.Destroy()
 
-    def on_delete(self, event):
+    def on_delete_OLD(self, event):
         """Delete the selected core level"""
         save_state(self.parent)
         sheet_names = self.get_selected_sheet_names()
@@ -1427,6 +1444,84 @@ class FileManagerWindow(wx.Frame):
 
                 # Reload the grid after deleting
                 self.populate_grid()
+
+    def on_delete(self, event):
+        """Delete selected core level(s)."""
+        # Gather all sheet names to delete
+        sheet_names = []
+
+        # Check if cells are selected
+        selected_cells = []
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Skip sample name column
+                if self.grid.IsInSelection(row, col):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        sheet_names.append(cell_value)
+
+        # If no cells selected, try current cursor position
+        if not sheet_names:
+            row = self.grid.GetGridCursorRow()
+            col = self.grid.GetGridCursorCol()
+
+            if col > 0 and col <= len(self.core_levels):
+                cell_value = self.grid.GetCellValue(row, col)
+                if cell_value and cell_value in self.parent.Data['Core levels']:
+                    sheet_names.append(cell_value)
+
+        # Remove duplicates
+        sheet_names = list(set(sheet_names))
+
+        if not sheet_names:
+            wx.MessageBox("No core levels selected.", "Information", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Confirm deletion
+        if wx.MessageBox(f"Are you sure you want to delete {len(sheet_names)} core level(s)?",
+                         "Confirm Delete", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+            return
+
+        # Delete the sheets
+        for sheet_name in sheet_names:
+            # Delete the sheet from parent Data
+            if sheet_name in self.parent.Data['Core levels']:
+                del self.parent.Data['Core levels'][sheet_name]
+                self.parent.Data['Number of Core levels'] -= 1
+
+                # Also remove from Excel file if possible
+                try:
+                    import pandas as pd
+                    from openpyxl import load_workbook
+
+                    excel_path = self.parent.Data.get('FilePath', '')
+                    if excel_path and os.path.exists(excel_path):
+                        book = load_workbook(excel_path)
+                        if sheet_name in book.sheetnames:
+                            del book[sheet_name]
+                            book.save(excel_path)
+                except Exception as e:
+                    print(f"Error removing sheet from Excel: {e}")
+
+        # Update the parent's combobox
+        if hasattr(self.parent, 'sheet_combobox'):
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet in self.parent.Data['Core levels'].keys():
+                self.parent.sheet_combobox.Append(sheet)
+
+            # Select an available sheet
+            if current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+            elif self.parent.sheet_combobox.GetCount() > 0:
+                self.parent.sheet_combobox.SetSelection(0)
+                new_sheet = self.parent.sheet_combobox.GetValue()
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_sheet)
+
+        # Refresh the grid
+        self.populate_grid()
+
+        wx.MessageBox(f"Deleted {len(sheet_names)} core level(s).", "Success", wx.OK | wx.ICON_INFORMATION)
 
     def on_preferences(self, event):
         dlg = wx.Dialog(self, title="Normalization Settings", size=(300, 200))
@@ -1824,4 +1919,40 @@ class FileManagerWindow(wx.Frame):
                     break
 
         self.grid.ForceRefresh()
+
+    def add_more_rows(self):
+        """Add 10 more rows to the grid."""
+        current_rows = self.grid.GetNumberRows()
+        self.grid.AppendRows(10)
+
+        # Set row labels for new rows
+        for row in range(current_rows, current_rows + 10):
+            self.grid.SetRowLabelValue(row, str(row))
+
+        # Set appropriate background colors for new rows
+        for row in range(current_rows, current_rows + 10):
+            # Sample name column
+            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(180, 235, 208))
+
+            # BE correction column
+            be_col_index = len(self.core_levels) + 1
+            if be_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))
+
+            # Norm column
+            norm_col_index = len(self.core_levels) + 2
+            if norm_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+
+        self.grid.ForceRefresh()
+
+    def delete_last_rows(self):
+        """Delete the last 2 rows from the grid."""
+        current_rows = self.grid.GetNumberRows()
+        if current_rows >= 2:
+            self.grid.DeleteRows(current_rows - 2, 2)
+            self.grid.ForceRefresh()
+        else:
+            wx.MessageBox("Not enough rows to delete.", "Warning", wx.OK | wx.ICON_WARNING)
 
