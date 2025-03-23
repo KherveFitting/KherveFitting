@@ -1918,7 +1918,6 @@ class FileManagerWindow(wx.Frame):
             # Get the current energy value from parent
             if hasattr(self.parent, 'current_energy_value'):
                 x_value = self.parent.current_energy_value
-                print(f"Current X value: {x_value}")
 
                 self.be_norm_line.set_xdata([x_value, x_value])
                 self.parent.canvas.draw_idle()
@@ -1944,9 +1943,9 @@ class FileManagerWindow(wx.Frame):
         if self.is_dragging:
             self.is_dragging = False
 
-            # Final update of values if needed
-            if event.inaxes and event.xdata is not None:
-                self.update_norm_be_values(event.xdata)
+            # Final update of values using parent's stored energy value
+            if hasattr(self.parent, 'current_energy_value'):
+                self.update_norm_be_values(self.parent.current_energy_value)
 
             # Remove the line
             self.remove_norm_line()
