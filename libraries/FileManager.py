@@ -15,6 +15,11 @@ class FileManagerWindow(wx.Frame):
         super().__init__(parent, title="Sample/Experiment Manager", size=(580, 350),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
+        self.offset_multiplier = 1
+        self.last_offset_sheets = []
+        self.last_keypress_time = 0
+        self.rapid_press_threshold = 1.0  # seconds
+
         self.parent = parent
         self.sample_names = {}  # Dictionary to store sample names by row index
 
@@ -219,7 +224,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
 
         # Plot button
-        plot_icon = os.path.join(icon_path, "Plot-25.png")
+        plot_icon = os.path.join(icon_path, "Plot2-25.png")
         if os.path.exists(plot_icon):
             plot_bmp = wx.Bitmap(plot_icon)
         else:
@@ -227,6 +232,17 @@ class FileManagerWindow(wx.Frame):
         plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)"
                                         "\n Press F2 or Ctrl+2 to plot selected core level")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
+
+        # Offset plot button
+        offset_plot_icon = os.path.join(icon_path, "Plot3-25.png")  # Using the same icon for now
+        if os.path.exists(offset_plot_icon):
+            offset_plot_bmp = wx.Bitmap(offset_plot_icon)
+        else:
+            offset_plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        offset_plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot with Offset", offset_plot_bmp,
+                                                "Plot selected core level(s) with offset\n"
+                                                "Press F3 or Ctrl+3 to plot with offset")
+        self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_offset, offset_plot_tool)
 
         self.norm_check = wx.CheckBox(self.toolbar, label="Norm.")
         self.norm_check.SetToolTip("Normalise multiple plot data")
@@ -260,9 +276,10 @@ class FileManagerWindow(wx.Frame):
             f2_bmp = wx.Bitmap(f2_icon)
         else:
             f2_bmp = wx.ArtProvider.GetBitmap(wx.ART_QUESTION, wx.ART_TOOLBAR)
-        f2_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Shortcuts", f2_bmp, "-Press F2 or Ctrl+2 to plot peak "
-                                        "models. \n -In Norm. @BE mode, activate the plot & press the shift key"
-                                        "to activate the vLine")
+        f2_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Shortcuts", f2_bmp, "-- Press F2 or Ctrl+2 to plot peak "
+                    "models. \n-- Press F3 or Ctrl+3 to plot multiple plots with an offset\n"
+                    "-- In Norm. @BE mode, activate the plot & press the shift key to activate the vLine."
+                    "")
 
         # pref_icon = os.path.join(icon_path, "settings-25.png")
         # pref_bmp = wx.Bitmap(pref_icon)
@@ -802,19 +819,28 @@ class FileManagerWindow(wx.Frame):
             # Call the plot function directly
             self.on_plot_selected(None)
             return  # Don't skip the event
+        elif key_code == wx.WXK_F3:
+            # Call the offset plot function
+            self.on_plot_selected_with_offset(None)
+            return  # Don't skip the event
         elif event.ControlDown() and key_code == wx.WXK_F2:
-            # CTRL+F2: Add new functionality here
-            # Example: Show multiple plots in a new window
+            # CTRL+F2: Standard multiple plot
             self.on_plot_selected(None)
             return
+        elif event.ControlDown() and key_code == wx.WXK_F3:
+            # CTRL+F3: Offset multiple plot
+            self.on_plot_selected_with_offset(None)
+            return
         elif event.ControlDown() and key_code == ord('2'):
-            # CTRL+2: Add new functionality here
-            # Example: Toggle between single/multiple plot view
+            # CTRL+2: Standard multiple plot
             self.on_plot_selected(None)
+            return
+        elif event.ControlDown() and key_code == ord('3'):
+            # CTRL+3: Offset multiple plot
+            self.on_plot_selected_with_offset(None)
             return
         else:
             event.Skip()
-
     def on_plot_selected(self, event):
         """Plot the currently selected core level(s)"""
         sheet_names = self.get_selected_sheet_names()
@@ -2290,3 +2316,241 @@ class FileManagerWindow(wx.Frame):
         else:
             wx.MessageBox("Not enough rows to delete.", "Warning", wx.OK | wx.ICON_WARNING)
 
+
+    def plot_multiple_sheets_with_offset(self, sheet_names):
+        """Plot multiple core levels with vertical offset between plots"""
+        if not sheet_names:
+            return
+
+        # Use current time to determine if this is a rapid keypress
+        import time
+        current_time = time.time()
+
+        # Check if this is the same set of sheets as last time
+        if self.last_offset_sheets == sheet_names:
+            # Check if the keypress was rapid (within threshold)
+            if current_time - self.last_keypress_time < self.rapid_press_threshold:
+                # Increment the offset multiplier for rapid presses
+                self.offset_multiplier += 1
+            else:
+                # Reset multiplier if too much time has passed
+                self.offset_multiplier = 1
+        else:
+            # Reset for new selection
+            self.offset_multiplier = 1
+            self.last_offset_sheets = sheet_names.copy()
+
+        # Update last keypress time
+        self.last_keypress_time = current_time
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Set the first sheet as the active one in the parent window
+        self.parent.sheet_combobox.SetValue(sheet_names[0])
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_names[0])
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Track min/max x values
+        x_min = float('inf')
+        x_max = float('-inf')
+
+        # Determine if normalization is needed
+        normalize = self.norm_check.GetValue()
+        norm_method = self.norm_type.GetValue()
+
+        # For auto normalization, we need to calculate global min/max
+        global_min = float('inf')
+        global_max = float('-inf')
+
+        # Check if all sheets are from the same column (core level)
+        base_names = set(self.extract_base_name(name) for name in sheet_names)
+        same_column = len(base_names) == 1
+        column_name = list(base_names)[0] if same_column else None
+
+        if normalize and norm_method == "Auto":
+            # Get global min/max across all selected datasets
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                    global_min = min(global_min, min(y_values))
+                    global_max = max(global_max, max(y_values))
+
+        # Plot each selected sheet with progressive offset
+        for i, sheet_name in enumerate(sheet_names):
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level = self.parent.Data['Core levels'][sheet_name]
+                x_values = core_level['B.E.']
+                y_values = np.array(core_level['Raw Data'])
+
+                # Update min/max x values
+                x_min = min(x_min, min(x_values))
+                x_max = max(x_max, max(x_values))
+
+                # Apply normalization if enabled
+                if normalize:
+                    if norm_method == "Auto":
+                        # Auto normalization
+                        norm_min = global_min
+                        norm_max = global_max
+
+                        # Avoid division by zero
+                        if norm_max != norm_min:
+                            y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+
+                            # Add offset based on position and multiplier
+                            offset = i * (0.1 * self.offset_multiplier) * 1000
+                            y_values += offset
+
+                    elif norm_method == "Norm. @ BE":
+                        # Get the normalization point
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+
+                        row_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_be_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 2)
+                            try:
+                                norm_be = float(norm_be_str) if norm_be_str else None
+                                if norm_be is not None:
+                                    closest_idx = np.argmin(np.abs(np.array(x_values) - norm_be))
+                                    norm_value = y_values[closest_idx] - norm_min
+                                    if norm_value != 0:
+                                        y_values = (y_values - norm_min) / norm_value * 1000
+
+                                        # Add offset based on position and multiplier
+                                        offset = i * (0.1 * self.offset_multiplier) * 1000
+                                        y_values += offset
+                            except ValueError:
+                                pass
+                    elif norm_method == "Norm. to A":
+                        # Use area normalization factor
+                        row_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+                            try:
+                                norm_factor = float(norm_area_str) if norm_area_str else None
+                                if norm_factor is not None:
+                                    norm_min = min(y_values)
+                                    y_values = (y_values - norm_min) / norm_factor * 1000
+
+                                    # Add offset based on position and multiplier
+                                    offset = i * (0.1 * self.offset_multiplier) * 1000
+                                    y_values += offset
+                            except ValueError:
+                                pass
+
+                # Use a different color for each plot
+                color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+
+                # Plot the data
+                if self.parent.energy_scale == 'KE':
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=sheet_name, color=color,
+                                        linewidth=self.parent.line_width)
+                else:
+                    self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color,
+                                        linewidth=self.parent.line_width)
+
+        # Set labels and formatting
+        self.parent.ax.set_xlabel("Binding Energy (eV)")
+        if normalize:
+            self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+        else:
+            self.parent.ax.set_ylabel("Intensity (CPS)")
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Set legend on the left
+        self.parent.ax.legend(loc='upper left')
+
+        # Set x-axis limits to min/max values from all datasets
+        self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
+
+        # If all sheets are from the same column, add core level text in top right
+        if same_column:
+            formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+            sheet_name_text = self.parent.ax.text(
+                0.98, 0.98,  # Position (top-right corner)
+                formatted_name,
+                transform=self.parent.ax.transAxes,
+                fontsize=self.parent.core_level_text_size,
+                fontfamily=[self.parent.plot_font],
+                fontweight='bold',
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(facecolor='none', edgecolor='none', alpha=1),
+            )
+
+        # Apply text settings from preferences
+        self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
+        self.parent.ax.xaxis.label.set_size(self.parent.axis_title_size)
+        self.parent.ax.yaxis.label.set_size(self.parent.axis_title_size)
+
+        # Update the plot
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def on_plot_selected_with_offset(self, event):
+        """Plot the currently selected core level(s) with offset"""
+        sheet_names = self.get_selected_sheet_names()
+
+        if sheet_names:
+            if len(sheet_names) == 1:
+                # Single sheet - update combobox and plot
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_names[0])
+            else:
+                # Multiple sheets - offset plot
+                self.plot_multiple_sheets_with_offset(sheet_names)
+                # Update combobox with first sheet name
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+
+            # Highlight the selected cell(s)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()  # Bring the file manager window to the front
+
+    def hide_norm_cursors(self):
+        """Hide normalization cursors if they exist"""
+        if hasattr(self, 'norm_vlines') and self.norm_vlines:
+            for vline in self.norm_vlines:
+                if vline is not None:
+                    vline.remove()
+            self.norm_vlines = [None, None]
+        self.is_dragging_cursor = False
+        self.parent.canvas.draw_idle()
+
+    def show_norm_cursors(self):
+        """Show normalization cursors for manual range selection"""
+        # Implementation details would depend on how you want to display and interact with the cursors
+        pass
