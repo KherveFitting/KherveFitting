@@ -68,10 +68,13 @@ class FileManagerWindow(wx.Frame):
         # Bind events
         # self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
         # self.auto_check.Bind(wx.EVT_CHECKBOX, self.on_auto_changed)
-        self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
-        self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
+        # self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
+        # self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
         self.norm_type.Bind(wx.EVT_COMBOBOX, self.on_norm_type_changed)
+
+        self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
 
         # Populate the grid with core levels
         self.populate_grid()
@@ -257,8 +260,9 @@ class FileManagerWindow(wx.Frame):
             f2_bmp = wx.Bitmap(f2_icon)
         else:
             f2_bmp = wx.ArtProvider.GetBitmap(wx.ART_QUESTION, wx.ART_TOOLBAR)
-        f2_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Shortcuts", f2_bmp, "Press F2 or Ctrl+2 to plot peak "
-                                                                                "models")
+        f2_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Shortcuts", f2_bmp, "-Press F2 or Ctrl+2 to plot peak "
+                                        "models. \n -In Norm. @BE mode, activate the plot & press the shift key"
+                                        "to activate the vLine")
 
         # pref_icon = os.path.join(icon_path, "settings-25.png")
         # pref_bmp = wx.Bitmap(pref_icon)
@@ -1865,86 +1869,111 @@ class FileManagerWindow(wx.Frame):
             else:
                 self.show_norm_cursors()
 
+
     def on_key_press(self, event):
-        if event.key == 'shift':
-            # Create and show a vertical line for BE normalization
-            self.show_be_norm_line()
-        # Keep other key handlers if needed
+        """Handle key press events"""
+        # Only show the line if shift is pressed and Norm. @ BE is selected
+        if event.key == 'shift' and self.norm_type.GetValue() == "Norm. @ BE":
+            # Create vertical line at current mouse position
+            if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+                self.be_norm_line.remove()
+
+            # Place line at mouse position if available, otherwise center of plot
+            if event.xdata is not None:
+                x_pos = event.xdata
+            else:
+                x_pos = (self.parent.ax.get_xlim()[0] + self.parent.ax.get_xlim()[1]) / 2
+
+            self.be_norm_line = self.parent.ax.axvline(x_pos, color='red', linestyle='-',
+                                                       linewidth=2, alpha=0.8)
+
+            # Connect mouse events for dragging
+            self.motion_id = self.parent.canvas.mpl_connect('motion_notify_event',
+                                                            self.on_norm_line_motion)
+            self.press_id = self.parent.canvas.mpl_connect('button_press_event',
+                                                           self.on_norm_line_press)
+            self.release_id = self.parent.canvas.mpl_connect('button_release_event',
+                                                             self.on_norm_line_release)
+
+            # Initialize dragging state
+            self.is_dragging = False
+
+            # Draw the line
+            self.parent.canvas.draw_idle()
 
     def on_key_release(self, event):
+        """Handle key release events"""
         if event.key == 'shift':
-            # Remove the vertical line when shift is released
-            self.hide_be_norm_line()
-        # Keep other key release handlers if needed
+            self.remove_norm_line()
 
-    def show_be_norm_line(self):
-        """Add a vertical line to the plot for BE normalization"""
-        if not hasattr(self.parent, 'ax') or self.parent.ax is None:
+    def on_norm_line_motion(self, event):
+        """Handle mouse movement for the normalization line"""
+        # Only process if shift is still pressed
+        if not wx.GetKeyState(wx.WXK_SHIFT):
+            self.remove_norm_line()
             return
 
-        # Get current sheet names being plotted
-        sheet_names = self.get_selected_sheet_names()
-        if not sheet_names:
+        # Update line position if mouse is in plot area
+        if event.inaxes and hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+            # Get the current energy value from parent
+            if hasattr(self.parent, 'current_energy_value'):
+                x_value = self.parent.current_energy_value
+                print(f"Current X value: {x_value}")
+
+                self.be_norm_line.set_xdata([x_value, x_value])
+                self.parent.canvas.draw_idle()
+
+                # If dragging, update normalization values in grid
+                if self.is_dragging:
+                    self.update_norm_be_values(x_value)
+
+    def on_norm_line_press(self, event):
+        """Handle mouse button press on the normalization line"""
+        if not wx.GetKeyState(wx.WXK_SHIFT) or not event.inaxes or event.button != 1:
             return
 
-        # Get the center of the x-axis for initial position
-        x_lim = self.parent.ax.get_xlim()
-        initial_x = (x_lim[0] + x_lim[1]) / 2
+        # Start dragging and updating values
+        self.is_dragging = True
 
-        # Create new norm line each time to avoid visibility issues
+        # Update values immediately on press using parent's stored energy value
+        if hasattr(self.parent, 'current_energy_value'):
+            self.update_norm_be_values(self.parent.current_energy_value)
+
+    def on_norm_line_release(self, event):
+        """Handle mouse button release"""
+        if self.is_dragging:
+            self.is_dragging = False
+
+            # Final update of values if needed
+            if event.inaxes and event.xdata is not None:
+                self.update_norm_be_values(event.xdata)
+
+            # Remove the line
+            self.remove_norm_line()
+
+    def remove_norm_line(self):
+        """Remove the normalization line and disconnect events"""
+        # Remove the line
         if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
             self.be_norm_line.remove()
+            self.be_norm_line = None
 
-        self.be_norm_line = self.parent.ax.axvline(initial_x, color='red', linestyle='-',
-                                                   linewidth=2, alpha=0.8)
+        # Disconnect events
+        if hasattr(self, 'motion_id'):
+            self.parent.canvas.mpl_disconnect(self.motion_id)
+        if hasattr(self, 'press_id'):
+            self.parent.canvas.mpl_disconnect(self.press_id)
+        if hasattr(self, 'release_id'):
+            self.parent.canvas.mpl_disconnect(self.release_id)
 
-        # Use motion_notify_event directly while shift is held
-        if hasattr(self, 'be_drag_cid'):
-            self.parent.canvas.mpl_disconnect(self.be_drag_cid)
-        if hasattr(self, 'be_release_cid'):
-            self.parent.canvas.mpl_disconnect(self.be_release_cid)
-
-        self.be_drag_cid = self.parent.canvas.mpl_connect('motion_notify_event', self.on_be_norm_motion)
-        self.be_release_cid = self.parent.canvas.mpl_connect('button_press_event', self.on_be_norm_click)
+        # Reset dragging state
+        self.is_dragging = False
 
         # Update the canvas
         self.parent.canvas.draw_idle()
 
-    def on_be_norm_motion(self, event):
-        """Move the BE norm line with mouse movement while shift is held"""
-        # Skip if no line or not in axes
-        if not hasattr(self, 'be_line_active') or not self.be_line_active:
-            return
-
-        if not event.inaxes or self.be_norm_line is None:
-            return
-
-        # Check shift key state
-        if not wx.GetKeyState(wx.WXK_SHIFT):
-            self.hide_be_norm_line()
-            return
-
-        # Update the line position
-        if event.xdata is not None:
-            self.be_norm_line.set_xdata([event.xdata, event.xdata])
-            self.parent.canvas.draw_idle()
-
-    def on_be_norm_click(self, event):
-        """Handle click to set the BE normalization value"""
-        # Skip if no line or not in axes
-        if not hasattr(self, 'be_line_active') or not self.be_line_active:
-            return
-
-        if not event.inaxes or self.be_norm_line is None:
-            return
-
-        # Only process if shift is held and it's a left click
-        if not wx.GetKeyState(wx.WXK_SHIFT) or event.button != 1:
-            return
-
-        # Get normalization value from click position
-        norm_be_value = event.xdata
-
+    def update_norm_be_values(self, x_value):
+        """Update the Norm. @ BE values in the grid with the given x value"""
         # Get selected cells to determine which rows to update
         selected_cells = self.get_selected_sheet_names()
         rows_to_update = []
@@ -1964,153 +1993,14 @@ class FileManagerWindow(wx.Frame):
         # Update the BE normalization column for each row
         norm_be_col = len(self.core_levels) + 2
         for row in rows_to_update:
-            self.grid.SetCellValue(row, norm_be_col, f"{norm_be_value:.2f}")
+            self.grid.SetCellValue(row, norm_be_col, f"{x_value:.2f}")
 
         # Refresh grid and replot if normalization is active
         self.grid.ForceRefresh()
-        if self.norm_check.GetValue() and self.norm_type.GetValue() == "Norm. @ BE":
+        if self.norm_check.GetValue():
             self.replot_with_normalization()
 
-    def hide_be_norm_line(self):
-        """Hide the BE normalization line"""
-        # Clear the active flag
-        if hasattr(self, 'be_line_active'):
-            self.be_line_active = False
 
-        # Remove the line
-        if hasattr(self, 'be_norm_line') and self.be_norm_line:
-            self.be_norm_line.remove()
-            self.be_norm_line = None
-
-        # Disconnect events
-        if hasattr(self, 'be_drag_cid'):
-            self.parent.canvas.mpl_disconnect(self.be_drag_cid)
-            self.be_drag_cid = None
-        if hasattr(self, 'be_release_cid'):
-            self.parent.canvas.mpl_disconnect(self.be_release_cid)
-            self.be_release_cid = None
-
-        # Update the canvas
-        self.parent.canvas.draw_idle()
-
-
-    def on_be_line_press(self, event):
-        """Handle mouse press for line dragging"""
-        if event.button != 1:  # Only left button
-            return
-
-        if not hasattr(self, 'be_norm_line') or self.be_norm_line is None:
-            return
-
-        # Check if click is near the line
-        line_x = self.be_norm_line.get_xdata()[0]
-        if abs(event.xdata - line_x) < 5:  # Within 5 units
-            self.be_line_pressed = True
-
-    def on_be_line_drag(self, event):
-        """Update the BE norm line position when dragged"""
-        if not hasattr(self, 'be_line_pressed') or not self.be_line_pressed:
-            return
-
-        if not event.inaxes or not hasattr(self, 'be_norm_line') or self.be_norm_line is None:
-            return
-
-        # Update line position
-        self.be_norm_line.set_xdata([event.xdata, event.xdata])
-
-        # Update the canvas
-        self.parent.canvas.draw_idle()
-
-    def on_be_line_release(self, event):
-        """Handle mouse release after dragging BE norm line"""
-        if not hasattr(self, 'be_line_pressed') or not self.be_line_pressed:
-            return
-
-        # Reset pressed state
-        self.be_line_pressed = False
-
-        # If we have a valid x position, update norm BE values
-        if event.xdata is not None and hasattr(self, 'be_norm_line'):
-            norm_be_value = event.xdata
-
-            # Get selected cells to determine which rows to update
-            selected_cells = self.get_selected_sheet_names()
-            rows_to_update = []
-
-            # Find grid rows for each selected sheet
-            for sheet_name in selected_cells:
-                for row in range(self.grid.GetNumberRows()):
-                    for col in range(1, len(self.core_levels) + 1):
-                        if self.grid.GetCellValue(row, col) == sheet_name:
-                            rows_to_update.append(row)
-                            break
-
-            # If no specific rows selected, update all rows
-            if not rows_to_update:
-                rows_to_update = list(range(self.grid.GetNumberRows()))
-
-            # Update the BE normalization column for each row
-            norm_be_col = len(self.core_levels) + 2
-            for row in rows_to_update:
-                self.grid.SetCellValue(row, norm_be_col, f"{norm_be_value:.2f}")
-
-            # Refresh grid and replot if normalization is active
-            self.grid.ForceRefresh()
-            if self.norm_check.GetValue() and self.norm_type.GetValue() == "Norm. @ BE":
-                self.replot_with_normalization()
-
-    def hide_be_norm_line(self):
-        """Hide the BE normalization line"""
-        if hasattr(self, 'be_norm_line') and self.be_norm_line:
-            self.be_norm_line.remove()
-            self.be_norm_line = None
-            self.parent.canvas.draw_idle()
-
-        # Disconnect events
-        if hasattr(self, 'be_drag_cid'):
-            self.parent.canvas.mpl_disconnect(self.be_drag_cid)
-        if hasattr(self, 'be_release_cid'):
-            self.parent.canvas.mpl_disconnect(self.be_release_cid)
-
-    def show_norm_cursors(self):
-        # Remove or replace this function
-        pass
-
-    def hide_norm_cursors(self):
-        # Remove or replace this function
-        pass
-
-    def make_cursors_draggable(self):
-        # Remove or replace this function
-        pass
-
-        def on_motion(event):
-            if not self.is_dragging_cursor or self.active_cursor is None:
-                return
-
-            cursor, i = self.active_cursor
-
-            if i == 0:  # Vertical cursor
-                cursor.set_xdata([event.xdata, event.xdata])
-                # Update min normalization value
-                self.norm_min = event.xdata
-            else:  # Horizontal cursor
-                cursor.set_ydata([event.ydata, event.ydata])
-                # Update max normalization value
-                self.norm_max = event.ydata
-
-            self.parent.canvas.draw_idle()
-
-        def on_release(event):
-            if self.is_dragging_cursor:
-                self.is_dragging_cursor = False
-                self.active_cursor = None
-                # Reapply normalization with new bounds
-                self.replot_with_normalization()
-
-        self.press_cid = self.parent.canvas.mpl_connect('button_press_event', on_press)
-        self.motion_cid = self.parent.canvas.mpl_connect('motion_notify_event', on_motion)
-        self.release_cid = self.parent.canvas.mpl_connect('button_release_event', on_release)
 
     def on_close(self, event):
         self.save_sample_names()

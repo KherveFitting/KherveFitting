@@ -1592,14 +1592,15 @@ class MyFrame(wx.Frame):
                     return i
         return None
 
-
     def on_mouse_move(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
             if self.energy_scale == 'KE':
                 self.SetStatusText(f"KE: {x:.1f} eV, I: {int(y)} CPS", 1)
+                self.current_energy_value = x  # Store current KE value
             else:
                 self.SetStatusText(f"BE: {x:.1f} eV, I: {int(y)} CPS", 1)
+                self.current_energy_value = x  # Store current BE value
 
     def on_click(self, event):
         if event.inaxes:
