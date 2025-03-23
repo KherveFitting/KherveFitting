@@ -356,26 +356,22 @@ def save_to_excel(window, data, file_path, sheet_name):
 
     # Determine the column containing experimental data (if present)
     exp_data_col = None
+    exp_data_columns = []
+
     for col_idx, col_name in enumerate(existing_df.columns):
         if col_name == "Experimental Description":
             exp_data_col = col_idx
+            # Collect all columns from this point to the end
+            for i in range(col_idx, len(existing_df.columns)):
+                exp_data_columns.append({
+                    'name': existing_df.columns[i],
+                    'data': existing_df.iloc[:, i]
+                })
             break
-
-    # Store experimental data if present
-    exp_data_columns = []
-    if exp_data_col is not None:
-        for col_idx in range(exp_data_col, len(existing_df.columns)):
-            exp_data_columns.append(existing_df.iloc[:, col_idx])
 
     # Remove previously fitted data if it exists
     if existing_df.shape[1] > 5:
-        if exp_data_col:
-            # Keep the columns before column E and the experimental data columns
-            existing_df = pd.concat([existing_df.iloc[:, :5],
-                                     pd.DataFrame({col.name: col for col in exp_data_columns})],
-                                    axis=1)
-        else:
-            existing_df = existing_df.iloc[:, :5]
+        existing_df = existing_df.iloc[:, :5]
 
     # Add columns if there aren't enough
     while existing_df.shape[1] < 5:
@@ -459,10 +455,23 @@ def save_to_excel(window, data, file_path, sheet_name):
                 existing_df.insert(7, 'Derivative', d_param_data['Derivative'])
 
     # Restore experimental data columns if they were present
-    if exp_data_col is not None:
-        for i, col in enumerate(exp_data_columns):
-            col_idx = 50 + i  # Start at column 50 to be safe
-            existing_df.insert(col_idx, col.name if col.name else f"Exp_Data_{i}", col)
+    if exp_data_columns:
+        # Add three separator columns
+        existing_df[''] = ''  # First separator column
+        existing_df['  '] = ''  # Second separator column with two spaces
+        existing_df['   '] = ''  # Third separator column with three spaces
+
+        # Then append the experimental data columns
+        for col_info in exp_data_columns:
+            col_name = col_info['name']
+            # Ensure the column name is unique
+            suffix = 1
+            original_name = col_name
+            while col_name in existing_df.columns:
+                col_name = f"{original_name}_{suffix}"
+                suffix += 1
+
+            existing_df[col_name] = col_info['data']
 
     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         existing_df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -488,10 +497,13 @@ def save_to_excel(window, data, file_path, sheet_name):
             num_peak_rows = window.peak_params_grid.GetNumberRows()
             end_row = start_row + num_peak_rows - 1
             start_col = 24  # Column X (24th column)
-            end_col = worksheet.max_column
+            end_col = min(start_col + window.peak_params_grid.GetNumberCols() - 1, worksheet.max_column)
 
             for row in range(start_row - 1, end_row + 1):  # Start from header row
                 for col in range(start_col, end_col + 1):
+                    if col >= worksheet.max_column:
+                        continue
+
                     cell = worksheet.cell(row=row, column=col)
 
                     # Default to thin borders

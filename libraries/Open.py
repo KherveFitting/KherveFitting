@@ -579,7 +579,7 @@ def parse_avg_file(file_path):
     return photon_energy, start_energy, width, int(num_points), y_values
 
 
-def create_excel_from_avg(avg_file_path):
+def create_excel_from_avg_OLD(avg_file_path):
     sheet_name = os.path.basename(avg_file_path).split()[0]
     photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
 
@@ -595,6 +595,118 @@ def create_excel_from_avg(avg_file_path):
         df.to_excel(writer, sheet_name=sheet_name, index=False)
 
     return output_path
+
+
+def create_excel_from_avg(avg_file_path):
+    from openpyxl.utils import get_column_letter
+
+    sheet_name = os.path.basename(avg_file_path).split()[0]
+    photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
+
+    be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
+
+    df = pd.DataFrame({
+        'BE': be_values,
+        'Intensity': y_values[:num_points]
+    })
+
+    output_path = avg_file_path.rsplit('.', 1)[0] + '.xlsx'
+
+    # Extract metadata
+    metadata = extract_metadata_from_avg(avg_file_path)
+
+    # Fields in the order shown in the example
+    field_order = [
+        'Sample ID', 'Date', 'Time', 'Technique', 'Species & Transition',
+        'Number of scans', 'Source Label', 'Source Energy', 'Source width X',
+        'Source width Y', 'Pass Energy', 'Work Function', 'Analyzer Mode',
+        'Sputtering Energy', 'Take-off Polar Angle', 'Take-off Azimuth',
+        'Target Bias', 'Analysis Width X', 'Analysis Width Y', 'X Label',
+        'X Units', 'X Start', 'X Step', 'Num Y Values', 'Num Scans',
+        'Collection Time', 'Time Correction', 'Y Unit'
+    ]
+
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        # Add metadata to the main sheet
+        workbook = writer.book
+        worksheet = writer.sheets[sheet_name]
+
+        # Add experimental description at column 50
+        exp_col = 50
+        worksheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+        for i, field in enumerate(field_order, start=2):
+            worksheet.cell(row=i, column=exp_col, value=field)
+            worksheet.cell(row=i, column=exp_col + 1, value=metadata.get(field, "N/A"))
+
+        # Set column widths
+        worksheet.column_dimensions[get_column_letter(exp_col)].width = 25
+        worksheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
+        # Create separate experimental description sheet
+        exp_sheet = workbook.create_sheet(title="Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+
+        exp_sheet['A1'] = "Experimental Description"
+
+        for row, field in enumerate(field_order, start=2):
+            exp_sheet[f'A{row}'] = field
+            exp_sheet[f'B{row}'] = metadata.get(field, "N/A")
+
+    return output_path
+
+
+def extract_metadata_from_avg(file_path):
+    with open(file_path, 'r') as file:
+        content = file.read()
+
+    metadata = {
+        'Sample ID': "Group",
+        'Date': "N/A",
+        'Time': "N/A",
+        'Technique': "XPS",
+        'Species & Transition': "C 1s",
+        'Number of scans': "20",
+        'Source Label': "KA1486",
+        'Source Energy': "1486.68",
+        'Source width X': "1E+37",
+        'Source width Y': "1E+37",
+        'Pass Energy': "20",
+        'Work Function': "1E+37",
+        'Analyzer Mode': "FAT",
+        'Sputtering Energy': "N/A",
+        'Take-off Polar Angle': "1E+37",
+        'Take-off Azimuth': "1E+37",
+        'Target Bias': "1E+37",
+        'Analysis Width X': "1E+37",
+        'Analysis Width Y': "1E+37",
+        'X Label': "Kinetic Energy",
+        'X Units': "eV",
+        'X Start': "1188.6",
+        'X Step': "0.1",
+        'Num Y Values': "382",
+        'Num Scans': "20",
+        'Collection Time': "0.05",
+        'Time Correction': "1E+37",
+        'Y Unit': "d"
+    }
+
+    # Extract values from file where available
+    created_match = re.search(r'DS_EXT_SUPROPID_CREATED\s+:\s+VT_DATE\s+=\s+(\d+)/(\d+)/(\d+)\s+(\d+):(\d+):(\d+)',
+                              content)
+    if created_match:
+        day, month, year = created_match.group(1), created_match.group(2), created_match.group(3)
+        hour, minute, second = created_match.group(4), created_match.group(5), created_match.group(6)
+        metadata['Date'] = f"{year}/{month}/{day}"
+        metadata['Time'] = f"{hour}:{minute}:{second}"
+
+    # Update other metadata from file where patterns match
+    # Patterns already exist in the parse_avg_file function
+
+    return metadata
 
 
 def open_avg_file(window):
@@ -675,11 +787,17 @@ def open_xlsx_file(window, file_path=None):
     # Store reference to file manager if open
     file_manager_was_open = False
     file_manager_position = None
-    if hasattr(window, 'file_manager') and window.file_manager is not None and window.file_manager.IsShown():
-        file_manager_was_open = True
-        file_manager_position = window.file_manager.GetPosition()
-        window.file_manager.Close()
+    try:
+        if hasattr(window, 'file_manager') and window.file_manager is not None and window.file_manager.IsShown():
+            file_manager_was_open = True
+            file_manager_position = window.file_manager.GetPosition()
+            window.file_manager.Close()
+            window.file_manager = None
+    except RuntimeError:
+        # The file_manager window was deleted but the reference still exists
         window.file_manager = None
+        file_manager_was_open = False
+        file_manager_position = None
 
     window.SetStatusText(f"Selected File: {file_path}", 0)
 
@@ -1377,7 +1495,7 @@ def extract_transmission_data(block):
     return None, None
 
 
-def convert_kal_to_excel(file_path):
+def convert_kal_to_excel_OLD(file_path):
     """
     Convert Kratos .kal file to Excel format suitable for KherveFitting.
 
@@ -1430,6 +1548,274 @@ def convert_kal_to_excel(file_path):
         for name, df in spectra.items():
             sheet_name = name.replace(' ', '')
             df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    return output_file
+
+
+def convert_kal_to_excel(file_path):
+    """
+    Convert Kratos .kal file to Excel format suitable for KherveFitting.
+
+    Args:
+        file_path (str): Path to the .kal file
+
+    Returns:
+        str: Path to the created Excel file
+    """
+    from openpyxl.utils import get_column_letter
+    from openpyxl.styles import Alignment
+
+    with open(file_path, 'r') as f:
+        content = f.read()
+
+    blocks = content.split('Dataset filename')
+    spectra = {}
+    PHOTON_ENERGY = 1486.67
+
+    # Extract sample ID
+    sample_id = "Unknown"
+    for block in blocks:
+        for line in block.split('\n'):
+            if 'Stage Position Name' in line:
+                sample_id = line.split('=')[1].strip()
+                break
+        if sample_id != "Unknown":
+            break
+
+    # Process each spectrum block
+    for block in blocks:
+        if 'Ordinate values' not in block or 'Object name' not in block:
+            continue
+
+        # Get spectrum name and number
+        object_name_line = next((line for line in block.split('\n') if 'Object name' in line), None)
+        if not object_name_line:
+            continue
+
+        name_parts = object_name_line.split('=')[1].strip().split('/')
+        name = name_parts[0].strip()
+        spectrum_id = name_parts[1].strip() if len(name_parts) > 1 else ""
+
+        # Skip non-spectrum blocks
+        if 'Sample Position' in name or 'Counter' in name:
+            continue
+
+        # Initialize metadata dictionary with default values
+        metadata = {
+            'Sample ID': sample_id,
+            'Date': '',
+            'Time': '',
+            'Technique': 'XPS',
+            'Species & Transition': '',
+            'Number of scans': '',
+            'Source Label': 'Al mono',
+            'Source Energy': '1486.6',
+            'Source width X': '1E+37',
+            'Source width Y': '1E+37',
+            'Pass Energy': '',
+            'Work Function': '1E+37',
+            'Analyzer Mode': 'FAT',
+            'Sputtering Energy': 'N/A',
+            'Take-off Polar Angle': '1E+37',
+            'Take-off Azimuth': '1E+37',
+            'Target Bias': '1E+37',
+            'Analysis Width X': '1E+37',
+            'Analysis Width Y': '1E+37',
+            'X Label': '',
+            'X Units': '',
+            'X Start': '',
+            'X Step': '',
+            'Num Y Values': '',
+            'Num Scans': '',
+            'Collection Time': '',
+            'Time Correction': '1E+37',
+            'Y Unit': 'd',
+            '# Comment Lines': '0',
+            'Block Comment': ''
+        }
+
+        # Extract metadata from block
+        for line in block.split('\n'):
+            line = line.strip()
+
+            # Date and Time
+            if 'Date Acquired' in line:
+                parts = line.split('=')[1].strip().split()
+                if len(parts) >= 2:
+                    metadata['Date'] = parts[0]
+                    metadata['Time'] = parts[1]
+
+            # Species & Transition
+            elif 'Chemical symbol or formula' in line:
+                metadata['species'] = line.split('=')[1].strip()
+            elif 'Transition or charge state' in line:
+                metadata['transition'] = line.split('=')[1].strip()
+
+            # Number of scans
+            elif '# Sweeps completed' in line:
+                num_scans = line.split('=')[1].strip()
+                metadata['Number of scans'] = num_scans
+                metadata['Num Scans'] = num_scans
+
+            # Pass Energy
+            elif 'Pass energy' in line:
+                metadata['Pass Energy'] = line.split('=')[1].strip()
+
+            # X Label, Units, Start, Step
+            elif 'Abscissa label' in line:
+                metadata['X Label'] = line.split('=')[1].strip()
+            elif 'Abscissa units' in line:
+                metadata['X Units'] = line.split('=')[1].strip()
+            elif 'Spectrum scan start' in line:
+                metadata['X Start'] = line.split('=')[1].split('eV')[0].strip()
+            elif 'Spectrum scan step size' in line:
+                metadata['X Step'] = line.split('=')[1].split('eV')[0].strip()
+
+            # Collection Time
+            elif 'Dwell time' in line:
+                metadata['Collection Time'] = line.split('=')[1].replace('seconds', '').strip()
+
+        # Combine species and transition
+        if 'species' in metadata and 'transition' in metadata:
+            metadata['Species & Transition'] = f"{metadata['species']} {metadata['transition']}"
+            metadata.pop('species')
+            metadata.pop('transition')
+
+        # Count Y values
+        if 'Ordinate values' in block:
+            try:
+                values_str = block.split('Ordinate values')[1].split('=')[1].split('}')[0].strip().strip('{').strip()
+                values = values_str.split(',')
+                metadata['Num Y Values'] = str(len(values))
+            except:
+                pass
+
+        # Extract block comment
+        comment_lines = []
+        in_comment = False
+        for line in block.split('\n'):
+            if 'Casa Info Follows' in line:
+                in_comment = True
+                comment_lines.append(line.strip())
+            elif in_comment and line.strip():
+                comment_lines.append(line.strip())
+
+        if comment_lines:
+            metadata['# Comment Lines'] = str(len(comment_lines))
+            metadata['Block Comment'] = '"' + '\n'.join(comment_lines) + '"'
+
+        # Process spectral data
+        ke_trans, trans_values = extract_transmission_data(block)
+        if ke_trans is not None and trans_values is not None:
+            # Create interpolation function
+            trans_func = interp1d(ke_trans, trans_values, kind='linear', bounds_error=False,
+                                  fill_value='extrapolate')
+
+            start_ke = float(metadata['X Start'])
+            step = float(metadata['X Step'])
+            raw_str = block.split('Ordinate values')[1].split('=')[1].split('}')[0].strip().strip('{').strip()
+            raw_data = np.array([float(x.strip()) for x in raw_str.split(',')])
+
+            num_points = len(raw_data)
+            ke_values = np.linspace(start_ke, start_ke + (num_points - 1) * step, num_points)
+            be_values = PHOTON_ENERGY - ke_values
+
+            transmission = trans_func(ke_values)
+            corrected_data = raw_data / transmission
+
+            df = pd.DataFrame({
+                'BE': be_values,
+                'Corrected Data': corrected_data,
+                'Raw Data': raw_data,
+                'Transmission': transmission
+            })
+
+            spectra[name] = {
+                'data': df,
+                'metadata': metadata,
+                'id': spectrum_id
+            }
+
+    # Create Excel workbook
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # Remove default sheet
+
+    # Create sheets for each spectrum
+    for name, info in spectra.items():
+        sheet_name = name.replace(' ', '')
+        df = info['data']
+        metadata = info['metadata']
+
+        # Create sheet and write data
+        ws = wb.create_sheet(sheet_name)
+
+        # Write headers
+        for col_idx, col_name in enumerate(df.columns, 1):
+            ws.cell(row=1, column=col_idx, value=col_name)
+
+        # Write data values
+        for row_idx, row_data in enumerate(df.values, 2):
+            for col_idx, value in enumerate(row_data, 1):
+                ws.cell(row=row_idx, column=col_idx, value=value)
+
+        # Add experimental description (column 50)
+        exp_col = 50
+        ws.cell(row=1, column=exp_col, value="Experimental Description")
+
+        # Metadata fields in specified order
+        fields = [
+            'Sample ID', 'Date', 'Time', 'Technique', 'Species & Transition',
+            'Number of scans', 'Source Label', 'Source Energy', 'Source width X',
+            'Source width Y', 'Pass Energy', 'Work Function', 'Analyzer Mode',
+            'Sputtering Energy', 'Take-off Polar Angle', 'Take-off Azimuth',
+            'Target Bias', 'Analysis Width X', 'Analysis Width Y', 'X Label',
+            'X Units', 'X Start', 'X Step', 'Num Y Values', 'Num Scans',
+            'Collection Time', 'Time Correction', 'Y Unit', '# Comment Lines',
+            'Block Comment'
+        ]
+
+        # Write metadata in order
+        for i, field in enumerate(fields, 2):
+            ws.cell(row=i, column=exp_col, value=field)
+            ws.cell(row=i, column=exp_col + 1, value=metadata.get(field, ''))
+
+        # Set column widths
+        ws.column_dimensions[get_column_letter(exp_col)].width = 25
+        ws.column_dimensions[get_column_letter(exp_col + 1)].width = 50
+
+    # Create Experimental description sheet
+    exp_sheet = wb.create_sheet("Experimental description")
+    exp_sheet.column_dimensions['A'].width = 30
+    exp_sheet.column_dimensions['B'].width = 100
+    left_aligned = Alignment(horizontal='left')
+
+    # Write metadata to Experimental description sheet
+    row = 1
+    for name, info in spectra.items():
+        metadata = info['metadata']
+        spectrum_id = info['id']
+
+        # Add spectrum header
+        header = exp_sheet.cell(row=row, column=1, value=f"Spectrum: {name}/{spectrum_id}")
+        header.alignment = left_aligned
+        row += 1
+
+        # Write metadata fields
+        for field in fields:
+            cell_a = exp_sheet.cell(row=row, column=1, value=field)
+            cell_b = exp_sheet.cell(row=row, column=2, value=metadata.get(field, ''))
+
+            cell_a.alignment = left_aligned
+            cell_b.alignment = left_aligned
+
+            row += 1
+
+        # Add space between spectra
+        row += 1
+
+    # Save Excel file
+    output_file = file_path.replace('.kal', '.xlsx')
+    wb.save(output_file)
 
     return output_file
 

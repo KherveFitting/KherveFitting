@@ -15,6 +15,9 @@ class FileManagerWindow(wx.Frame):
         super().__init__(parent, title="Sample/Experiment Manager", size=(580, 350),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
+        # Add this line to set a minimum window size
+        self.SetMinSize((630, 350))  # Ensure toolbar icons remain visible
+
         self.offset_multiplier = 1
         self.last_offset_sheets = []
         self.last_keypress_time = 0
@@ -260,6 +263,16 @@ class FileManagerWindow(wx.Frame):
 
         # Toggle size button - using a different art ID
         self.toolbar.AddStretchableSpace()
+
+        # Add experimental description info button
+        exp_info_icon = os.path.join(icon_path, "info-25.png")
+        if os.path.exists(exp_info_icon):
+            exp_info_bmp = wx.Bitmap(exp_info_icon)
+        else:
+            exp_info_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        exp_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Experimental Info", exp_info_bmp,
+                                             "View experimental description information")
+        self.Bind(wx.EVT_TOOL, self.on_view_exp_info, exp_info_tool)
 
         # Backup button
         backup_icon = os.path.join(icon_path, "backup-25.png")
@@ -598,6 +611,10 @@ class FileManagerWindow(wx.Frame):
 
         # Add width for row labels
         total_width += self.grid.GetRowLabelSize()
+
+        # Ensure minimum width for toolbar visibility
+        minimum_width = 630
+        total_width = max(total_width, minimum_width)
 
         # Calculate height based on current window size
         current_size = self.GetSize()
@@ -1898,34 +1915,38 @@ class FileManagerWindow(wx.Frame):
 
     def on_key_press(self, event):
         """Handle key press events"""
-        # Only show the line if shift is pressed and Norm. @ BE is selected
-        if event.key == 'shift' and self.norm_type.GetValue() == "Norm. @ BE":
-            # Create vertical line at current mouse position
-            if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
-                self.be_norm_line.remove()
+        try:
+            # Only show the line if shift is pressed and Norm. @ BE is selected
+            if event.key == 'shift' and self.norm_type.GetValue() == "Norm. @ BE":
+                # Create vertical line at current mouse position
+                if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+                    self.be_norm_line.remove()
 
-            # Place line at mouse position if available, otherwise center of plot
-            if event.xdata is not None:
-                x_pos = event.xdata
-            else:
-                x_pos = (self.parent.ax.get_xlim()[0] + self.parent.ax.get_xlim()[1]) / 2
+                # Place line at mouse position if available, otherwise center of plot
+                if event.xdata is not None:
+                    x_pos = event.xdata
+                else:
+                    x_pos = (self.parent.ax.get_xlim()[0] + self.parent.ax.get_xlim()[1]) / 2
 
-            self.be_norm_line = self.parent.ax.axvline(x_pos, color='red', linestyle='-',
-                                                       linewidth=2, alpha=0.8)
+                self.be_norm_line = self.parent.ax.axvline(x_pos, color='red', linestyle='-',
+                                                           linewidth=2, alpha=0.8)
 
-            # Connect mouse events for dragging
-            self.motion_id = self.parent.canvas.mpl_connect('motion_notify_event',
-                                                            self.on_norm_line_motion)
-            self.press_id = self.parent.canvas.mpl_connect('button_press_event',
-                                                           self.on_norm_line_press)
-            self.release_id = self.parent.canvas.mpl_connect('button_release_event',
-                                                             self.on_norm_line_release)
+                # Connect mouse events for dragging
+                self.motion_id = self.parent.canvas.mpl_connect('motion_notify_event',
+                                                                self.on_norm_line_motion)
+                self.press_id = self.parent.canvas.mpl_connect('button_press_event',
+                                                               self.on_norm_line_press)
+                self.release_id = self.parent.canvas.mpl_connect('button_release_event',
+                                                                 self.on_norm_line_release)
 
-            # Initialize dragging state
-            self.is_dragging = False
+                # Initialize dragging state
+                self.is_dragging = False
 
-            # Draw the line
-            self.parent.canvas.draw_idle()
+                # Draw the line
+                self.parent.canvas.draw_idle()
+        except RuntimeError:
+            # Handle the case where the control has been deleted
+            pass
 
     def on_key_release(self, event):
         """Handle key release events"""
@@ -2554,3 +2575,110 @@ class FileManagerWindow(wx.Frame):
         """Show normalization cursors for manual range selection"""
         # Implementation details would depend on how you want to display and interact with the cursors
         pass
+
+    def on_view_exp_info(self, event):
+        """Display experimental description information for the selected sheet"""
+        sheet_names = self.get_selected_sheet_names()
+
+        if not sheet_names:
+            wx.MessageBox("No sheet selected.", "Information", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        sheet_name = sheet_names[0]
+        exp_window = ExperimentalDescriptionWindow(self, sheet_name)
+        exp_window.Show()
+
+    # Add this class at the end of FileManager.py
+class ExperimentalDescriptionWindow(wx.Frame):
+    def __init__(self, parent, sheet_name):
+        super().__init__(parent, title="Experimental Description",
+                         size=(600, 600), style=wx.DEFAULT_FRAME_STYLE)
+
+        self.parent = parent
+        self.sheet_name = sheet_name
+
+        self.panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.grid = wx.grid.Grid(self.panel)
+        self.grid.CreateGrid(30, 2)
+
+        self.grid.SetColLabelValue(0, "Parameter")
+        self.grid.SetColLabelValue(1, "Value")
+        self.grid.SetColSize(0, 200)
+        self.grid.SetColSize(1, 350)
+
+        self.populate_grid()
+
+        main_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 10)
+        self.panel.SetSizer(main_sizer)
+        self.CenterOnParent()
+
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
+    def populate_grid(self):
+        """Populate the grid with experimental description data"""
+        file_path = self.parent.parent.Data.get('FilePath', '')
+        if not file_path or not os.path.exists(file_path):
+            return
+
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            if self.sheet_name not in wb.sheetnames:
+                return
+
+            sheet = wb[self.sheet_name]
+
+            # Find experimental description column
+            exp_col = None
+            for col in range(1, sheet.max_column + 1):
+                if sheet.cell(row=1, column=col).value == "Experimental Description":
+                    exp_col = col
+                    break
+
+            if not exp_col:
+                return
+
+            # Count rows with data
+            row_count = 0
+            for row in range(2, sheet.max_row + 1):
+                if sheet.cell(row=row, column=exp_col).value:
+                    row_count += 1
+                else:
+                    # Continue checking a few more rows before breaking
+                    empty_count = 0
+                    for r in range(row, min(row + 5, sheet.max_row + 1)):
+                        if not sheet.cell(row=r, column=exp_col).value:
+                            empty_count += 1
+                    if empty_count >= 3:
+                        break
+                    row_count += 1
+
+            # Resize grid if needed
+            if row_count > self.grid.GetNumberRows():
+                self.grid.AppendRows(row_count - self.grid.GetNumberRows())
+
+            # Populate grid with data
+            for i in range(row_count):
+                row = i + 2  # Start from row 2 in Excel (after header)
+                parameter = sheet.cell(row=row, column=exp_col).value
+                value = sheet.cell(row=row, column=exp_col + 1).value
+
+                if parameter:
+                    self.grid.SetCellValue(i, 0, str(parameter))
+                    self.grid.SetCellValue(i, 1, str(value) if value is not None else "")
+
+                    self.grid.SetCellAlignment(i, 0, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
+                    self.grid.SetCellAlignment(i, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
+                    self.grid.SetReadOnly(i, 0)
+                    self.grid.SetReadOnly(i, 1)
+
+            # Hide unused rows
+            for i in range(row_count, self.grid.GetNumberRows()):
+                self.grid.SetRowSize(i, 0)
+
+        except Exception as e:
+            wx.MessageBox(f"Error loading experimental description: {str(e)}",
+                          "Error", wx.OK | wx.ICON_ERROR)
