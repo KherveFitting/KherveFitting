@@ -908,7 +908,7 @@ def open_vamas_file_dialog(window):
         file_path = fileDialog.GetPath()
         open_vamas_file(window, file_path)
 
-def open_vamas_file(window, file_path):
+def open_vamas_file_OLD(window, file_path):
     """
     Open and process a VAMAS file, converting it to an Excel file format.
     This function reads a VAMAS file, extracts its data and metadata,
@@ -1026,6 +1026,214 @@ def open_vamas_file(window, file_path):
             ])
 
         # Create "Experimental description" sheet
+        exp_sheet = wb.create_sheet(title="Experimental description")
+        exp_sheet.column_dimensions['A'].width = 50
+        exp_sheet.column_dimensions['B'].width = 100
+        left_aligned = Alignment(horizontal='left')
+
+        # Add VAMAS header information
+        exp_sheet.append(["VAMAS Header Information"])
+        for item in [
+            ("Format Identifier", vamas_data.header.format_identifier),
+            ("Institution Identifier", vamas_data.header.institution_identifier),
+            ("Instrument Model", vamas_data.header.instrument_model_identifier),
+            ("Operator Identifier", vamas_data.header.operator_identifier),
+            ("Experiment Identifier", vamas_data.header.experiment_identifier),
+            ("Number of Comment Lines", vamas_data.header.num_lines_comment),
+            ("Comment", vamas_data.header.comment),
+            ("Experiment Mode", vamas_data.header.experiment_mode),
+            ("Scan Mode", vamas_data.header.scan_mode),
+            ("Number of Spectral Regions", vamas_data.header.num_spectral_regions),
+            ("Number of Analysis Positions", vamas_data.header.num_analysis_positions),
+            ("Number of Discrete X Coordinates", vamas_data.header.num_discrete_x_coords_in_full_map),
+            ("Number of Discrete Y Coordinates", vamas_data.header.num_discrete_y_coords_in_full_map)
+        ]:
+            exp_sheet.append(item)
+
+        exp_sheet.append([])  # Add a blank row for separation
+
+        # Define the order of block information
+        block_info_order = [
+            "Sample ID", "Year/Month/Day", "Time HH,MM,SS", "Technique", "Species & Transition", "Number of scans",
+            "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
+            "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+            "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
+            "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
+        ]
+
+        # Add block information
+        for i, block_data in enumerate(exp_data, start=1):
+            exp_sheet.append([f"Block {i}", ""])
+            for j, info in enumerate(block_info_order):
+                exp_sheet.append([info, block_data[j + 1]])
+            exp_sheet.append([])  # Add a blank row between blocks
+
+        # Set alignment for all cells in column B
+        for row in exp_sheet.iter_rows(min_row=1, max_row=exp_sheet.max_row, min_col=2, max_col=2):
+            for cell in row:
+                cell.alignment = left_aligned
+
+        # Save Excel file
+        excel_filename = os.path.splitext(vamas_filename)[0] + ".xlsx"
+        excel_path = os.path.join(os.path.dirname(file_path), excel_filename)
+        wb.save(excel_path)
+
+        # Remove temporary VAMAS file
+        os.remove(destination_path)
+
+        # Update window.Data with the new Excel file
+        window.Data = Init_Measurement_Data(window)
+        window.Data['FilePath'] = excel_path
+
+        # Open the Excel file and populate window.Data
+        open_xlsx_file_vamas(window, excel_path)
+
+    except FileNotFoundError as e:
+        wx.MessageBox(f"File not found: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+    except Exception as e:
+        wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def open_vamas_file(window, file_path):
+    """
+    Open and process a VAMAS file, converting it to an Excel file format.
+    This function reads a VAMAS file, extracts its data and metadata,
+    and creates a new Excel file with multiple sheets for each data block
+    and an additional sheet for experimental description.
+
+    Args:
+    window: The main application window object.
+    file_path: The path to the VAMAS file to be opened.
+    """
+    try:
+        # Clear undo and redo history
+        window.history = []
+        window.redo_stack = []
+        update_undo_redo_state(window)
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"The file {file_path} does not exist.")
+
+        # Copy VAMAS file to current working directory
+        vamas_filename = os.path.basename(file_path)
+        destination_path = os.path.join(os.getcwd(), vamas_filename)
+        shutil.copy2(file_path, destination_path)
+
+        # Read VAMAS file
+        vamas_data = Vamas(vamas_filename)
+
+        # Create new Excel workbook
+        wb = Workbook()
+        wb.remove(wb.active)
+
+        exp_data = []  # Store experimental description data
+
+        # Process each block in the VAMAS file
+        for i, block in enumerate(vamas_data.blocks, start=1):
+            # Determine sheet name
+            if block.species_label.lower() == "wide" or block.transition_or_charge_state_label.lower() == "none":
+                sheet_name = block.species_label
+            else:
+                sheet_name = f"{block.species_label}{block.transition_or_charge_state_label}"
+            sheet_name = sheet_name.replace("/", "_")
+
+            # Create new sheet
+            ws = wb.create_sheet(title=sheet_name)
+
+            # Extract and process data
+            num_points = block.num_y_values
+            x_start = block.x_start
+            x_step = block.x_step
+            x_values = [x_start + i * x_step for i in range(num_points)]
+            y_values = block.corresponding_variables[0].y_values
+            y_unit = block.corresponding_variables[0].unit
+            num_scans = block.num_scans_to_compile_block
+
+            # Convert counts to counts per second if necessary
+            if y_unit != "c/s":
+                y_values = [y / num_scans for y in y_values]
+
+            # Convert to Binding Energy if necessary
+            if block.x_label.lower() in ["kinetic energy", "ke"]:
+                x_values = [window.photons - x - window.workfunction for x in x_values]
+                x_label = "Binding Energy"
+            else:
+                x_label = block.x_label
+
+            # Write data to sheet
+            ws.append([x_label, "Corrected Data", "Raw Data", "Transmission"])
+
+            # Get transmission data if it exists
+            transmission_data = None
+            if hasattr(block, 'corresponding_variables') and len(block.corresponding_variables) > 1:
+                transmission_data = block.corresponding_variables[1].y_values
+            else:
+                transmission_data = [1.0] * len(y_values)
+
+            # Write data row by row
+            for i, (x, y) in enumerate(zip(x_values, y_values)):
+                trans = transmission_data[i]
+                corrected_y = y / trans
+                ws.append([x, corrected_y, y, trans])
+
+            # Store experimental setup data
+            block_exp_data = [
+                f"Block {i}",
+                block.sample_identifier,
+                f"{block.year}/{block.month}/{block.day}",
+                f"{block.hour}:{block.minute}:{block.second}",
+                block.technique,
+                f"{block.species_label} {block.transition_or_charge_state_label}",
+                block.num_scans_to_compile_block,
+                block.analysis_source_label,
+                block.analysis_source_characteristic_energy,
+                block.analysis_source_beam_width_x,
+                block.analysis_source_beam_width_y,
+                block.analyzer_pass_energy_or_retard_ratio_or_mass_res,
+                block.analyzer_work_function_or_acceptance_energy,
+                block.analyzer_mode,
+                block.sputtering_source_energy if hasattr(block, 'sputtering_source_energy') else 'N/A',
+                block.analyzer_axis_take_off_polar_angle,
+                block.analyzer_axis_take_off_azimuth,
+                block.target_bias,
+                block.analysis_width_x,
+                block.analysis_width_y,
+                block.x_label,
+                block.x_units,
+                block.x_start,
+                block.x_step,
+                block.num_y_values,
+                block.num_scans_to_compile_block,
+                block.signal_collection_time,
+                block.signal_time_correction,
+                y_unit,
+                block.num_lines_block_comment,
+                block.block_comment
+            ]
+            exp_data.append(block_exp_data)
+
+            # Add experimental description data to this sheet starting at column 50
+            # This is safely beyond the peak parameters grid which typically ends around column 40-45
+            exp_col = 50
+            ws.cell(row=1, column=exp_col, value="Experimental Description")
+
+            exp_labels = [
+                "Sample ID", "Date", "Time", "Technique", "Species & Transition", "Number of scans",
+                "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
+                "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+                "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
+                "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
+            ]
+
+            for j, (label, value) in enumerate(zip(exp_labels, block_exp_data[1:])):
+                ws.cell(row=j + 2, column=exp_col, value=label)
+                ws.cell(row=j + 2, column=exp_col + 1, value=value)
+
+            # Set column width for experimental data
+            ws.column_dimensions[chr(64 + exp_col)].width = 25
+            ws.column_dimensions[chr(64 + exp_col + 1)].width = 40
+
+        # Create "Experimental description" sheet (keep this for backward compatibility)
         exp_sheet = wb.create_sheet(title="Experimental description")
         exp_sheet.column_dimensions['A'].width = 50
         exp_sheet.column_dimensions['B'].width = 100

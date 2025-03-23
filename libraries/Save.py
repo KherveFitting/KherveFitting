@@ -202,7 +202,7 @@ def convert_to_serializable(obj):
         return obj
 
 
-def save_to_excel(window, data, file_path, sheet_name):
+def save_to_excel_OLD(window, data, file_path, sheet_name):
     existing_df = pd.read_excel(file_path, sheet_name=sheet_name)
 
     # Remove previously fitted data if it exists
@@ -289,6 +289,180 @@ def save_to_excel(window, data, file_path, sheet_name):
             if d_param_data and 'Derivative' in d_param_data:
                 filtered_data['Derivative'] = d_param_data['Derivative']
                 existing_df.insert(7, 'Derivative', d_param_data['Derivative'])
+
+    with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        existing_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        # Remove border from first row
+        workbook = writer.book
+        worksheet = workbook[sheet_name]
+        for cell in worksheet[1]:
+            cell.border = openpyxl.styles.Border(
+                left=openpyxl.styles.Side(style=None),
+                right=openpyxl.styles.Side(style=None),
+                top=openpyxl.styles.Side(style=None),
+                bottom=openpyxl.styles.Side(style=None)
+            )
+
+            # Define styles
+            thin_side = Side(style='thin')
+            thick_side = Side(style='medium')
+            green_fill = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")  # Light green
+            bold_font = Font(bold=True)
+
+            start_row = 2  # Assuming data starts from the second row
+            num_peak_rows = window.peak_params_grid.GetNumberRows()
+            end_row = start_row + num_peak_rows - 1
+            start_col = 24  # Column X (24th column)
+            end_col = worksheet.max_column
+
+            for row in range(start_row - 1, end_row + 1):  # Start from header row
+                for col in range(start_col, end_col + 1):
+                    cell = worksheet.cell(row=row, column=col)
+
+                    # Default to thin borders
+                    left = right = top = bottom = thin_side
+
+                    # Header row
+                    if row == start_row - 1:
+                        cell.fill = green_fill
+                        cell.font = bold_font
+                        top = thick_side
+
+                    # Add thick borders for outer edges
+                    if row == start_row - 1 or row == end_row:
+                        bottom = thick_side
+                    if col == start_col:
+                        left = thick_side
+                    if col == end_col:
+                        right = thick_side
+
+                    # Add thick bottom border for every second row (constraints row)
+                    if (row - start_row + 1) % 2 == 0:
+                        bottom = thick_side
+
+                    cell.border = Border(left=left, right=right, top=top, bottom=bottom)
+
+    # After saving to Excel, update the plot with the current limits
+    if hasattr(window, 'plot_config'):
+        limits = window.plot_config.get_plot_limits(window, sheet_name)
+        window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+        window.ax.set_ylim(limits['Ymin'], limits['Ymax'])
+        window.canvas.draw_idle()
+
+
+def save_to_excel(window, data, file_path, sheet_name):
+    existing_df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+    # Determine the column containing experimental data (if present)
+    exp_data_col = None
+    for col_idx, col_name in enumerate(existing_df.columns):
+        if col_name == "Experimental Description":
+            exp_data_col = col_idx
+            break
+
+    # Store experimental data if present
+    exp_data_columns = []
+    if exp_data_col is not None:
+        for col_idx in range(exp_data_col, len(existing_df.columns)):
+            exp_data_columns.append(existing_df.iloc[:, col_idx])
+
+    # Remove previously fitted data if it exists
+    if existing_df.shape[1] > 5:
+        if exp_data_col:
+            # Keep the columns before column E and the experimental data columns
+            existing_df = pd.concat([existing_df.iloc[:, :5],
+                                     pd.DataFrame({col.name: col for col in exp_data_columns})],
+                                    axis=1)
+        else:
+            existing_df = existing_df.iloc[:, :5]
+
+    # Add columns if there aren't enough
+    while existing_df.shape[1] < 5:
+        existing_df[f'Column_{existing_df.shape[1] + 1}'] = ''
+
+    # Ensure there's an empty column E
+    if existing_df.shape[1] < 5:
+        existing_df.insert(4, '', np.nan)
+
+    if 'x_values' in data and data['x_values'] is not None:
+        x_values = data['x_values'].to_numpy() if isinstance(data['x_values'], pd.Series) else data['x_values']
+        filtered_data = pd.DataFrame({
+            'BE': x_values
+        })
+
+        if data['background'] is not None and data['calculated_fit'] is not None:
+            mask = np.isin(data['x_values'], x_values)
+            y_values = data['y_values'][mask]
+
+            if len(y_values) == len(data['calculated_fit']):
+                residuals = y_values - data['calculated_fit']
+                filtered_data['Residuals'] = residuals
+            else:
+                filtered_data['Residuals'] = np.nan
+        else:
+            filtered_data['Residuals'] = np.nan
+
+        filtered_data['Background'] = data['background'] if data['background'] is not None else np.nan
+        filtered_data['Calculated Fit'] = data['calculated_fit'] if data['calculated_fit'] is not None else np.nan
+
+        if data['individual_peak_fits']:
+            num_rows = len(x_values)
+            num_peaks = data['peak_params_grid'].GetNumberRows() // 2
+            for i in range(num_peaks):
+                row = i * 2
+                peak_label = data['peak_params_grid'].GetCellValue(row, 1)
+                if i < len(data['individual_peak_fits']):
+                    reversed_peak = np.array(data['individual_peak_fits'][i])[::-1]
+                    trimmed_peak = np.roll(reversed_peak, -1)[:num_rows]
+                    filtered_data[peak_label] = trimmed_peak
+
+        # Rename columns to avoid conflicts before inserting them
+        for i, col in enumerate(filtered_data.columns):
+            new_col_name = col
+            while new_col_name in existing_df.columns:
+                new_col_name += '_new'
+            if col != 'Derivative':
+                existing_df.insert(5 + i, new_col_name, filtered_data[col])
+
+    # Ensure there are at least 23 columns (A to W)
+    while existing_df.shape[1] < 23:
+        existing_df[f'Column_{existing_df.shape[1] + 1}'] = ''
+
+    # Rename columns starting with "Unnamed" or "Column" to empty string
+    existing_df.columns = ['' if col.startswith(('Unnamed', 'Column')) else col for col in existing_df.columns]
+
+    # Ensure column E is empty
+    if existing_df.columns[4] != '':
+        existing_df.rename(columns={existing_df.columns[4]: ''}, inplace=True)
+
+    # Create DataFrame for peak fitting parameters
+    peak_params_df = pd.DataFrame()
+    for col in range(window.peak_params_grid.GetNumberCols()):
+        col_name = window.peak_params_grid.GetColLabelValue(col)
+        col_data = [window.peak_params_grid.GetCellValue(row, col) for row in
+                    range(window.peak_params_grid.GetNumberRows())]
+        peak_params_df[col_name] = col_data
+
+    # Add peak_params_df to existing_df starting from column 23 (X)
+    for i, col in enumerate(peak_params_df.columns):
+        existing_df.insert(23 + i, col, peak_params_df[col])
+
+    # Handle D-parameter derivative data
+    if window.selected_fitting_method == "D-parameter":
+        if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in window.Data['Core levels'][sheet_name][
+            'Fitting']:
+            d_param_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks'].get(
+                'D-parameter')
+            if d_param_data and 'Derivative' in d_param_data:
+                filtered_data['Derivative'] = d_param_data['Derivative']
+                existing_df.insert(7, 'Derivative', d_param_data['Derivative'])
+
+    # Restore experimental data columns if they were present
+    if exp_data_col is not None:
+        for i, col in enumerate(exp_data_columns):
+            col_idx = 50 + i  # Start at column 50 to be safe
+            existing_df.insert(col_idx, col.name if col.name else f"Exp_Data_{i}", col)
 
     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         existing_df.to_excel(writer, sheet_name=sheet_name, index=False)
