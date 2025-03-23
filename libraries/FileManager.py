@@ -1243,6 +1243,9 @@ class FileManagerWindow(wx.Frame):
                     global_min = min(global_min, min(y_values))
                     global_max = max(global_max, max(y_values))
 
+        # Clear the plot
+        self.parent.ax.clear()
+
         # Plot each selected sheet
         for i, sheet_name in enumerate(sheet_names):
             if sheet_name in self.parent.Data['Core levels']:
@@ -1863,97 +1866,223 @@ class FileManagerWindow(wx.Frame):
                 self.show_norm_cursors()
 
     def on_key_press(self, event):
-        if event.key == 'shift' and self.norm_check.GetValue() and not self.auto_check.GetValue():
-            # Show normalization cursors
-            self.show_norm_cursors()
+        if event.key == 'shift':
+            # Create and show a vertical line for BE normalization
+            self.show_be_norm_line()
+        # Keep other key handlers if needed
 
     def on_key_release(self, event):
         if event.key == 'shift':
-            # Hide normalization cursors unless they're being dragged
-            if not self.is_dragging_cursor:
-                self.hide_norm_cursors()
+            # Remove the vertical line when shift is released
+            self.hide_be_norm_line()
+        # Keep other key release handlers if needed
 
-    def show_norm_cursors(self):
-        """Display draggable cursors for manual normalization"""
-        if not self.parent.ax:
+    def show_be_norm_line(self):
+        """Add a vertical line to the plot for BE normalization"""
+        if not hasattr(self.parent, 'ax') or self.parent.ax is None:
             return
 
+        # Get current sheet names being plotted
         sheet_names = self.get_selected_sheet_names()
         if not sheet_names:
             return
 
-        # Get data from first sheet
-        first_sheet = sheet_names[0]
-        if first_sheet not in self.parent.Data['Core levels']:
-            return
+        # Get the center of the x-axis for initial position
+        x_lim = self.parent.ax.get_xlim()
+        initial_x = (x_lim[0] + x_lim[1]) / 2
 
-        x_values = self.parent.Data['Core levels'][first_sheet]['B.E.']
-        y_values = self.parent.Data['Core levels'][first_sheet]['Raw Data']
+        # Create new norm line each time to avoid visibility issues
+        if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+            self.be_norm_line.remove()
 
-        # Use more reasonable initial positions
-        x_min = min(x_values) + (max(x_values) - min(x_values)) * 0.2  # 20% from left
-        y_max = max(y_values) * 0.8  # 80% of max height
+        self.be_norm_line = self.parent.ax.axvline(initial_x, color='red', linestyle='-',
+                                                   linewidth=2, alpha=0.8)
 
-        # Create or update cursors with more visible styling
-        if self.norm_vlines[0] is None:
-            self.norm_vlines[0] = self.parent.ax.axvline(x_min, color='red', linestyle='-', alpha=0.9,
-                                                         linewidth=2, label='Min Norm')
-        else:
-            self.norm_vlines[0].set_xdata([x_min, x_min])
-            self.norm_vlines[0].set_visible(True)
+        # Use motion_notify_event directly while shift is held
+        if hasattr(self, 'be_drag_cid'):
+            self.parent.canvas.mpl_disconnect(self.be_drag_cid)
+        if hasattr(self, 'be_release_cid'):
+            self.parent.canvas.mpl_disconnect(self.be_release_cid)
 
-        if self.norm_vlines[1] is None:
-            self.norm_vlines[1] = self.parent.ax.axhline(y_max, color='green', linestyle='-', alpha=0.9,
-                                                         linewidth=2, label='Max Norm')
-        else:
-            self.norm_vlines[1].set_ydata([y_max, y_max])
-            self.norm_vlines[1].set_visible(True)
+        self.be_drag_cid = self.parent.canvas.mpl_connect('motion_notify_event', self.on_be_norm_motion)
+        self.be_release_cid = self.parent.canvas.mpl_connect('button_press_event', self.on_be_norm_click)
 
-        # Update normalization values
-        self.norm_min = 0  # Start at zero for better normalization
-        self.norm_max = y_max
-
-        # Make cursors draggable
-        self.make_cursors_draggable()
-
-        # Force redraw to ensure cursors are visible
-        self.parent.canvas.draw()
-
-    def hide_norm_cursors(self):
-        """Hide normalization cursors"""
-        for i, vline in enumerate(self.norm_vlines):
-            if vline:
-                vline.remove()
-                self.norm_vlines[i] = None
-
+        # Update the canvas
         self.parent.canvas.draw_idle()
 
+    def on_be_norm_motion(self, event):
+        """Move the BE norm line with mouse movement while shift is held"""
+        # Skip if no line or not in axes
+        if not hasattr(self, 'be_line_active') or not self.be_line_active:
+            return
+
+        if not event.inaxes or self.be_norm_line is None:
+            return
+
+        # Check shift key state
+        if not wx.GetKeyState(wx.WXK_SHIFT):
+            self.hide_be_norm_line()
+            return
+
+        # Update the line position
+        if event.xdata is not None:
+            self.be_norm_line.set_xdata([event.xdata, event.xdata])
+            self.parent.canvas.draw_idle()
+
+    def on_be_norm_click(self, event):
+        """Handle click to set the BE normalization value"""
+        # Skip if no line or not in axes
+        if not hasattr(self, 'be_line_active') or not self.be_line_active:
+            return
+
+        if not event.inaxes or self.be_norm_line is None:
+            return
+
+        # Only process if shift is held and it's a left click
+        if not wx.GetKeyState(wx.WXK_SHIFT) or event.button != 1:
+            return
+
+        # Get normalization value from click position
+        norm_be_value = event.xdata
+
+        # Get selected cells to determine which rows to update
+        selected_cells = self.get_selected_sheet_names()
+        rows_to_update = []
+
+        # Find grid rows for each selected sheet
+        for sheet_name in selected_cells:
+            for row in range(self.grid.GetNumberRows()):
+                for col in range(1, len(self.core_levels) + 1):
+                    if self.grid.GetCellValue(row, col) == sheet_name:
+                        rows_to_update.append(row)
+                        break
+
+        # If no specific rows selected, update all rows
+        if not rows_to_update:
+            rows_to_update = list(range(self.grid.GetNumberRows()))
+
+        # Update the BE normalization column for each row
+        norm_be_col = len(self.core_levels) + 2
+        for row in rows_to_update:
+            self.grid.SetCellValue(row, norm_be_col, f"{norm_be_value:.2f}")
+
+        # Refresh grid and replot if normalization is active
+        self.grid.ForceRefresh()
+        if self.norm_check.GetValue() and self.norm_type.GetValue() == "Norm. @ BE":
+            self.replot_with_normalization()
+
+    def hide_be_norm_line(self):
+        """Hide the BE normalization line"""
+        # Clear the active flag
+        if hasattr(self, 'be_line_active'):
+            self.be_line_active = False
+
+        # Remove the line
+        if hasattr(self, 'be_norm_line') and self.be_norm_line:
+            self.be_norm_line.remove()
+            self.be_norm_line = None
+
+        # Disconnect events
+        if hasattr(self, 'be_drag_cid'):
+            self.parent.canvas.mpl_disconnect(self.be_drag_cid)
+            self.be_drag_cid = None
+        if hasattr(self, 'be_release_cid'):
+            self.parent.canvas.mpl_disconnect(self.be_release_cid)
+            self.be_release_cid = None
+
+        # Update the canvas
+        self.parent.canvas.draw_idle()
+
+
+    def on_be_line_press(self, event):
+        """Handle mouse press for line dragging"""
+        if event.button != 1:  # Only left button
+            return
+
+        if not hasattr(self, 'be_norm_line') or self.be_norm_line is None:
+            return
+
+        # Check if click is near the line
+        line_x = self.be_norm_line.get_xdata()[0]
+        if abs(event.xdata - line_x) < 5:  # Within 5 units
+            self.be_line_pressed = True
+
+    def on_be_line_drag(self, event):
+        """Update the BE norm line position when dragged"""
+        if not hasattr(self, 'be_line_pressed') or not self.be_line_pressed:
+            return
+
+        if not event.inaxes or not hasattr(self, 'be_norm_line') or self.be_norm_line is None:
+            return
+
+        # Update line position
+        self.be_norm_line.set_xdata([event.xdata, event.xdata])
+
+        # Update the canvas
+        self.parent.canvas.draw_idle()
+
+    def on_be_line_release(self, event):
+        """Handle mouse release after dragging BE norm line"""
+        if not hasattr(self, 'be_line_pressed') or not self.be_line_pressed:
+            return
+
+        # Reset pressed state
+        self.be_line_pressed = False
+
+        # If we have a valid x position, update norm BE values
+        if event.xdata is not None and hasattr(self, 'be_norm_line'):
+            norm_be_value = event.xdata
+
+            # Get selected cells to determine which rows to update
+            selected_cells = self.get_selected_sheet_names()
+            rows_to_update = []
+
+            # Find grid rows for each selected sheet
+            for sheet_name in selected_cells:
+                for row in range(self.grid.GetNumberRows()):
+                    for col in range(1, len(self.core_levels) + 1):
+                        if self.grid.GetCellValue(row, col) == sheet_name:
+                            rows_to_update.append(row)
+                            break
+
+            # If no specific rows selected, update all rows
+            if not rows_to_update:
+                rows_to_update = list(range(self.grid.GetNumberRows()))
+
+            # Update the BE normalization column for each row
+            norm_be_col = len(self.core_levels) + 2
+            for row in rows_to_update:
+                self.grid.SetCellValue(row, norm_be_col, f"{norm_be_value:.2f}")
+
+            # Refresh grid and replot if normalization is active
+            self.grid.ForceRefresh()
+            if self.norm_check.GetValue() and self.norm_type.GetValue() == "Norm. @ BE":
+                self.replot_with_normalization()
+
+    def hide_be_norm_line(self):
+        """Hide the BE normalization line"""
+        if hasattr(self, 'be_norm_line') and self.be_norm_line:
+            self.be_norm_line.remove()
+            self.be_norm_line = None
+            self.parent.canvas.draw_idle()
+
+        # Disconnect events
+        if hasattr(self, 'be_drag_cid'):
+            self.parent.canvas.mpl_disconnect(self.be_drag_cid)
+        if hasattr(self, 'be_release_cid'):
+            self.parent.canvas.mpl_disconnect(self.be_release_cid)
+
+    def show_norm_cursors(self):
+        # Remove or replace this function
+        pass
+
+    def hide_norm_cursors(self):
+        # Remove or replace this function
+        pass
+
     def make_cursors_draggable(self):
-        """Make the normalization cursors draggable"""
-        self.is_dragging_cursor = False
-        self.active_cursor = None
-
-        def on_press(event):
-            if event.inaxes != self.parent.ax:
-                return
-
-            # Check if click is near either cursor with a larger threshold
-            for i, cursor in enumerate(self.norm_vlines):
-                if cursor is None or not cursor.get_visible():
-                    continue
-
-                if i == 0:  # Vertical line for min norm
-                    xdata = cursor.get_xdata()[0]
-                    if abs(event.xdata - xdata) < 10:  # Larger threshold
-                        self.is_dragging_cursor = True
-                        self.active_cursor = (cursor, i)
-                        return
-                else:  # Horizontal line for max intensity
-                    ydata = cursor.get_ydata()[0]
-                    if abs(event.ydata - ydata) < (max(self.parent.ax.get_ylim()) * 0.05):  # 5% of y-range
-                        self.is_dragging_cursor = True
-                        self.active_cursor = (cursor, i)
-                        return
+        # Remove or replace this function
+        pass
 
         def on_motion(event):
             if not self.is_dragging_cursor or self.active_cursor is None:
@@ -2161,10 +2290,13 @@ class FileManagerWindow(wx.Frame):
 
     def on_grid_right_click(self, event):
         """Handle right-click on grid to show context menu"""
+        row = event.GetRow()
+        col = event.GetCol()
+
         # Create context menu
         menu = wx.Menu()
 
-        # Add menu items
+        # Add standard menu items
         copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
         paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
 
@@ -2178,9 +2310,41 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_copy, copy_item)
         self.Bind(wx.EVT_MENU, self.on_paste, paste_item)
 
+        # Add normalization propagation options for BE and Area normalization columns
+        norm_be_col = len(self.core_levels) + 2
+        norm_area_col = len(self.core_levels) + 3
+
+        if col == norm_be_col or col == norm_area_col:
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value:
+                menu.AppendSeparator()
+                propagate_item = menu.Append(wx.ID_ANY, f"Propagate {cell_value} to all rows")
+                self.Bind(wx.EVT_MENU, lambda evt, r=row, c=col, v=cell_value: self.propagate_norm_value(r, c, v),
+                          propagate_item)
+
         # Show the menu
         self.grid.PopupMenu(menu)
         menu.Destroy()
+
+    def propagate_norm_value(self, source_row, column, value):
+        """Propagate a normalization value to all rows in the same column"""
+        # Ask for confirmation
+        col_label = self.grid.GetColLabelValue(column)
+        if wx.MessageBox(f"Propagate value '{value}' to all rows in column '{col_label}'?",
+                         "Confirm Propagation", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+            return
+
+        # Apply the value to all rows
+        for row in range(self.grid.GetNumberRows()):
+            self.grid.SetCellValue(row, column, value)
+
+        # Refresh grid
+        self.grid.ForceRefresh()
+
+        # If currently plotting multiple sheets, update the plot with new normalization
+        self.replot_with_normalization()
+
+        wx.MessageBox(f"Value '{value}' propagated to all rows.", "Success", wx.OK | wx.ICON_INFORMATION)
 
     def highlight_current_sheet(self, sheet_name):
         """Highlight the cell containing the current sheet name"""
