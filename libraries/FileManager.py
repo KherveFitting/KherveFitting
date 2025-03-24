@@ -1061,6 +1061,11 @@ class FileManagerWindow(wx.Frame):
         x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
         y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
 
+        # Update parent's data arrays
+        self.parent.x_values = np.array(x_values)
+        self.parent.y_values = np.array(y_values)
+        self.parent.background = np.array(y_values)  # Initialize background with raw data
+
         # Plot simple black line
         if self.parent.energy_scale == 'KE':
             self.parent.ax.plot(self.parent.photons - x_values, y_values, 'k-', linewidth=1)

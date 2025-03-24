@@ -423,20 +423,6 @@ class PlotManager:
             window.x_values = np.array(x_values)
             window.y_values = np.array(y_values)
 
-            # Initialize background to raw data if not already present
-            # if 'Bkg Y' not in window.Data['Core levels'][sheet_name]['Background'] or not \
-            #         window.Data['Core levels'][sheet_name]['Background']['Bkg Y']:
-            #     window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = window.y_values.tolist()
-            # window.background = np.array(window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
-
-
-            # THIS MAY BE NEEDED
-            # # Initialize background to zeros if not already present
-            # if 'Bkg Y' not in window.Data['Core levels'][sheet_name]['Background'] or not \
-            #         window.Data['Core levels'][sheet_name]['Background']['Bkg Y']:
-            #     window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = np.zeros_like(window.y_values).tolist()
-            # window.background = np.array(window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
-
             window.background = np.array(
                 window.Data['Core levels'][sheet_name]['Background']['Bkg Y']) if 'Background' in \
                             window.Data['Core levels'][sheet_name] and 'Bkg Y' in window.Data['Core levels'][
@@ -580,6 +566,16 @@ class PlotManager:
                                      alpha=self.background_alpha,
                                      linewidth=self.background_thickness,
                                      label='Background')
+
+            if 'Background' not in window.Data['Core levels'][sheet_name]:
+                window.Data['Core levels'][sheet_name]['Background'] = {
+                    'Bkg Type': "",
+                    'Bkg Low': "",
+                    'Bkg High': "",
+                    'Bkg Offset Low': "",
+                    'Bkg Offset High': "",
+                    'Bkg Y': window.y_values.tolist()
+                }
 
             self.canvas.draw()  # Update the plot
 
@@ -806,19 +802,30 @@ class PlotManager:
                                                 color=color, alpha=alpha)
 
 
-        # Plot the background if it exists
-        # if 'Bkg Y' in core_level_data['Background'] and len(core_level_data['Background']['Bkg Y']) > 0:
-        #     if "survey" in sheet_name.lower() or "wide" in sheet_name.lower():
-        #         pass
-        #     else:
-        if window.energy_scale == 'KE':
-            self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
-                         color=self.background_color, linewidth=self.background_thickness,
-                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
-        else:
-            self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
-                         linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
-                         linewidth=self.background_thickness)
+        # # Plot the background if it exists
+        # if window.energy_scale == 'KE':
+        #     self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
+        #                  color=self.background_color, linewidth=self.background_thickness,
+        #                  linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+        # else:
+        #     self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
+        #                  linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+        #                  linewidth=self.background_thickness)
+
+        # Only plot background if it's different from raw data or if Bkg Type is not empty
+        if (core_level_data['Background'].get('Bkg Type') != "" and
+                core_level_data['Background'].get('Bkg Low') != "" and
+                core_level_data['Background'].get('Bkg High') != ""):
+            if window.energy_scale == 'KE':
+                self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
+                             color=self.background_color, linewidth=self.background_thickness,
+                             linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+            else:
+                self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
+                             linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+                             linewidth=self.background_thickness)
+
+
         # Update overall fit and residuals
         if cst_unfit in ["Unfitted","D-parameter","SurveyID"] or any(x in sheet_name.lower() for x in ["survey", "wide"]):
             pass

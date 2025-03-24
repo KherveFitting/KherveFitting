@@ -249,14 +249,34 @@ def on_sheet_selected(window, event):
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
 
+                # # Update background information if available
+                # if 'Background' in core_level_data:
+                #     bg_data = core_level_data['Background']
+                #     window.bg_min_energy = bg_data.get('Bkg Low', None)
+                #     window.bg_max_energy = bg_data.get('Bkg High', None)
+                #     window.background_method = bg_data.get('Bkg Type', 'N/A')
+                #     window.offset_l = bg_data.get('Bkg Offset Low', 0)
+                #     window.offset_h = bg_data.get('Bkg Offset High', 0)
                 # Update background information if available
                 if 'Background' in core_level_data:
                     bg_data = core_level_data['Background']
-                    window.bg_min_energy = bg_data.get('Bkg Low', None)
-                    window.bg_max_energy = bg_data.get('Bkg High', None)
-                    window.background_method = bg_data.get('Bkg Type', 'N/A')
-                    window.offset_l = bg_data.get('Bkg Offset Low', 0)
-                    window.offset_h = bg_data.get('Bkg Offset High', 0)
+                    window.bg_min_energy = bg_data.get('Bkg Low', '')
+                    window.bg_max_energy = bg_data.get('Bkg High', '')
+                    window.background_method = bg_data.get('Bkg Type', '')  # Change 'N/A' to empty string
+                    window.offset_l = bg_data.get('Bkg Offset Low', '')
+                    window.offset_h = bg_data.get('Bkg Offset High', '')
+
+                    # Ensure background fields have empty strings when not defined
+                    if 'Bkg Type' not in bg_data:
+                        core_level_data['Background']['Bkg Type'] = ""
+                    if 'Bkg Low' not in bg_data:
+                        core_level_data['Background']['Bkg Low'] = ""
+                    if 'Bkg High' not in bg_data:
+                        core_level_data['Background']['Bkg High'] = ""
+                    if 'Bkg Offset Low' not in bg_data:
+                        core_level_data['Background']['Bkg Offset Low'] = ""
+                    if 'Bkg Offset High' not in bg_data:
+                        core_level_data['Background']['Bkg Offset High'] = ""
 
             else:
                 # If no fitting data, ensure the grid is empty

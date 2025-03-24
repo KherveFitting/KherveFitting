@@ -726,7 +726,7 @@ def open_avg_file(window):
         wx.MessageBox(f"Error processing AVG file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-def import_multiple_avg_files(window):
+def import_multiple_avg_files_OLD(window):
     with wx.DirDialog(window, "Choose a directory containing AVG files",
                       style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
 
@@ -769,6 +769,41 @@ def import_multiple_avg_files(window):
     except Exception as e:
         wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+
+def import_multiple_avg_files(window):
+    with wx.DirDialog(window, "Choose a directory containing AVG files",
+                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
+
+        if dirDialog.ShowModal() == wx.ID_CANCEL:
+            return
+
+        folder_path = dirDialog.GetPath()
+
+    try:
+        avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
+
+        if not avg_files:
+            wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Process each AVG file individually using the existing function
+        excel_files = []
+        for avg_file in avg_files:
+            avg_file_path = os.path.join(folder_path, avg_file)
+            excel_file_path = create_excel_from_avg(avg_file_path)
+            excel_files.append(excel_file_path)
+
+        # Create a message with all processed files
+        message = "Excel files created:\n" + "\n".join(excel_files)
+        wx.MessageBox(message, "Success", wx.OK | wx.ICON_INFORMATION)
+
+        # Open the first Excel file if any were created
+        if excel_files:
+            from libraries.Open import open_xlsx_file
+            open_xlsx_file(window, excel_files[0])
+
+    except Exception as e:
+        wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 def open_xlsx_file(window, file_path=None):
     """
