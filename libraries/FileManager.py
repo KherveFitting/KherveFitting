@@ -1308,9 +1308,8 @@ class FileManagerWindow(wx.Frame):
                 if normalize:
                     if norm_method == "Auto":
                         # Original auto normalization code
-                        norm_min = global_min
-                        norm_max = global_max
-
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
                         # Avoid division by zero
                         if norm_max != norm_min:
                             y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
@@ -1699,11 +1698,14 @@ class FileManagerWindow(wx.Frame):
 
                 # Update Excel file
                 import pandas as pd
+                # Use the specific length for this core level
+                data_length = len(adjusted_be_values)
                 df = pd.DataFrame({
                     'BE': adjusted_be_values,
-                    'Raw Data': core_level_data['Raw Data'],
-                    'Background': core_level_data.get('Background', {}).get('Bkg Y', core_level_data['Raw Data']),
-                    'Transmission': [1.0] * len(adjusted_be_values)
+                    'Raw Data': core_level_data['Raw Data'][:data_length],
+                    'Background': core_level_data.get('Background', {}).get('Bkg Y', core_level_data['Raw Data'])[
+                                  :data_length],
+                    'Transmission': [1.0] * data_length
                 })
 
                 with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
@@ -1883,7 +1885,7 @@ class FileManagerWindow(wx.Frame):
         """Handle normalization checkbox toggle."""
         if self.norm_check.GetValue():
             # self.replot_with_normalization()
-            if not self.auto_check.GetValue():
+            if self.norm_type.GetValue() != "Auto":
                 self.show_norm_cursors()
         else:
             self.hide_norm_cursors()
@@ -2412,7 +2414,7 @@ class FileManagerWindow(wx.Frame):
             if sheet_name in self.parent.Data['Core levels']:
                 core_level = self.parent.Data['Core levels'][sheet_name]
                 x_values = core_level['B.E.']
-                y_values = np.array(core_level['Raw Data'])
+                y_values = np.array(core_level['Raw Data'])                     
 
                 # Update min/max x values
                 x_min = min(x_min, min(x_values))
@@ -2420,11 +2422,12 @@ class FileManagerWindow(wx.Frame):
 
                 # Apply normalization if enabled
                 if normalize:
+                    # print("Normalise_before")
                     if norm_method == "Auto":
                         # Auto normalization
-                        norm_min = global_min
-                        norm_max = global_max
-
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+                        # print("Normalise")
                         # Avoid division by zero
                         if norm_max != norm_min:
                             y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
