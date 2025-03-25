@@ -1586,7 +1586,7 @@ class FileManagerWindow(wx.Frame):
 
         wx.MessageBox(f"{len(clipboard_data)} core level(s) copied", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
 
-    def on_paste(self, event):
+    def on_paste_OLD(self, event):
         """Paste the core levels to the selected cells"""
         import json
         import tempfile
@@ -1722,6 +1722,250 @@ class FileManagerWindow(wx.Frame):
 
         # Refresh the grid
         self.populate_grid()
+
+        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+
+    def on_paste(self, event):
+        """Paste the core levels to the selected cells, supporting paste between different instances"""
+        import json
+        import tempfile
+        import os
+        import re
+        import numpy as np
+        import pandas as pd
+        from copy import deepcopy
+
+        # Get the clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+
+        if not os.path.exists(clipboard_file):
+            wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Load the clipboard data
+        try:
+            with open(clipboard_file, 'r') as f:
+                clipboard_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid clipboard data", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not clipboard_data:
+            wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Determine target row based on cursor position
+        target_row = self.grid.GetGridCursorRow()
+
+        # Get BE corrections for target row
+        target_correction = self.parent.Data.get('BEcorrections', {}).get(str(target_row), 0.0)
+
+        # Group core levels by base name (e.g., "C1s" without the number)
+        core_level_groups = {}
+        for sheet_name in clipboard_data.keys():
+            # Extract the true base name (e.g., "C1s" from "C1s2")
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            if match:
+                base_name = match.group(1)
+                if base_name not in core_level_groups:
+                    core_level_groups[base_name] = []
+                core_level_groups[base_name].append(sheet_name)
+
+        # For each base name, determine the starting row
+        base_name_row_map = {}
+        current_row = target_row
+
+        for base_name, sheets in core_level_groups.items():
+            base_name_row_map[base_name] = current_row
+
+            # If there are multiple sheets with the same base name,
+            # increment the current row for the next base name
+            if len(sheets) > 1:
+                current_row += len(sheets)
+            # If it's just one sheet, keep the same row for the next base name
+
+        # Process each core level
+        for sheet_name, core_level_data in clipboard_data.items():
+            # Extract source row from original sheet name
+            match_row = re.search(r'(\d+)$', sheet_name)
+            source_row = match_row.group(1) if match_row else "0"
+
+            # Try to get source correction from clipboard data, or default to 0.0
+            # This allows pasting between different instances
+            source_correction = 0.0
+            if "BEcorrection" in core_level_data:
+                source_correction = core_level_data["BEcorrection"]
+
+            # Calculate the BE adjustment needed
+            be_adjustment = source_correction - target_correction
+
+            # Extract base name and determine which group it belongs to
+            match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            if match_base:
+                base_name = match_base.group(1)
+
+                # Find position in the group to determine row offset
+                group = core_level_groups[base_name]
+                position = group.index(sheet_name)
+
+                # Calculate the actual row for this sheet
+                actual_row = base_name_row_map[base_name] + position
+
+                # Create new sheet name
+                new_sheet_name = f"{base_name}{actual_row}"
+
+                # Check if new name already exists
+                counter = 0
+                while new_sheet_name in self.parent.Data['Core levels']:
+                    counter += 1
+                    new_sheet_name = f"{base_name}{actual_row}_{counter}"
+
+                # Ensure the required fields are present in core_level_data
+                if 'B.E.' not in core_level_data or 'Raw Data' not in core_level_data:
+                    wx.MessageBox(f"Invalid data structure for {sheet_name}", "Paste Failed", wx.OK | wx.ICON_ERROR)
+                    continue
+
+                # Adjust BE values to remove previous correction and apply new row's correction
+                adjusted_be_values = [be - be_adjustment for be in core_level_data['B.E.']]
+
+                # Create new core level data with adjusted BE values
+                new_core_level_data = deepcopy(core_level_data)
+                new_core_level_data['B.E.'] = adjusted_be_values
+                new_core_level_data['Name'] = new_sheet_name
+
+                # Ensure background structure exists
+                if 'Background' not in new_core_level_data:
+                    new_core_level_data['Background'] = {
+                        'Bkg Y': new_core_level_data['Raw Data'],
+                        'Bkg Type': '',
+                        'Bkg Low': min(adjusted_be_values),
+                        'Bkg High': max(adjusted_be_values),
+                        'Bkg Offset Low': 0,
+                        'Bkg Offset High': 0
+                    }
+
+                # Adjust background limits if present
+                if 'Background' in new_core_level_data:
+                    if 'Bkg Low' in new_core_level_data['Background'] and new_core_level_data['Background'][
+                        'Bkg Low'] != '':
+                        try:
+                            new_core_level_data['Background']['Bkg Low'] -= be_adjustment
+                        except (TypeError, ValueError):
+                            # Handle case where Bkg Low is not a number
+                            new_core_level_data['Background']['Bkg Low'] = min(adjusted_be_values)
+
+                    if 'Bkg High' in new_core_level_data['Background'] and new_core_level_data['Background'][
+                        'Bkg High'] != '':
+                        try:
+                            new_core_level_data['Background']['Bkg High'] -= be_adjustment
+                        except (TypeError, ValueError):
+                            # Handle case where Bkg High is not a number
+                            new_core_level_data['Background']['Bkg High'] = max(adjusted_be_values)
+
+                    # Ensure Bkg Y exists
+                    if 'Bkg Y' not in new_core_level_data['Background'] or not new_core_level_data['Background'][
+                        'Bkg Y']:
+                        new_core_level_data['Background']['Bkg Y'] = new_core_level_data['Raw Data']
+
+                # Adjust peak positions if present
+                if 'Fitting' in new_core_level_data and 'Peaks' in new_core_level_data['Fitting']:
+                    for peak in new_core_level_data['Fitting']['Peaks'].values():
+                        if 'Position' in peak:
+                            peak['Position'] -= be_adjustment
+                        if 'Constraints' in peak:
+                            pos_constraint = peak['Constraints'].get('Position', '')
+                            if pos_constraint and ',' in pos_constraint and not any(
+                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                                try:
+                                    min_val, max_val = map(float, pos_constraint.split(','))
+                                    peak['Constraints'][
+                                        'Position'] = f"{min_val - be_adjustment:.2f},{max_val - be_adjustment:.2f}"
+                                except ValueError:
+                                    # Skip if constraint has invalid format
+                                    pass
+
+                # Add to parent data
+                if 'Core levels' not in self.parent.Data:
+                    self.parent.Data['Core levels'] = {}
+                if 'Number of Core levels' not in self.parent.Data:
+                    self.parent.Data['Number of Core levels'] = 0
+
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+                self.parent.Data['Number of Core levels'] += 1
+
+                # Update Excel file
+                try:
+                    # Use the specific length for this core level
+                    data_length = len(adjusted_be_values)
+
+                    # Ensure arrays have the correct length
+                    raw_data = core_level_data['Raw Data']
+                    if len(raw_data) > data_length:
+                        raw_data = raw_data[:data_length]
+                    elif len(raw_data) < data_length:
+                        # Pad with zeros if too short
+                        raw_data = raw_data + [0] * (data_length - len(raw_data))
+
+                    # Get background data, defaulting to raw data if not available
+                    bkg_data = core_level_data.get('Background', {}).get('Bkg Y', raw_data)
+                    if len(bkg_data) > data_length:
+                        bkg_data = bkg_data[:data_length]
+                    elif len(bkg_data) < data_length:
+                        # Pad with zeros if too short
+                        bkg_data = bkg_data + [0] * (data_length - len(bkg_data))
+
+                    # Create DataFrame for Excel
+                    df = pd.DataFrame({
+                        'BE': adjusted_be_values,
+                        'Raw Data': raw_data,
+                        'Background': bkg_data,
+                        'Transmission': [1.0] * data_length
+                    })
+
+                    # Write to Excel
+                    with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                        if_sheet_exists='replace') as writer:
+                        df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+                except Exception as e:
+                    wx.MessageBox(f"Error writing to Excel: {str(e)}", "Warning", wx.OK | wx.ICON_WARNING)
+                    # Continue with the paste operation even if Excel write fails
+
+                # Update combobox in parent
+                if hasattr(self.parent, 'sheet_combobox'):
+                    self.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Refresh the grid
+        self.populate_grid()
+
+        # Update the JSON file
+        try:
+            self.save_be_corrections()
+            self.save_sample_names()
+
+            # Save to JSON file
+            if hasattr(self.parent, 'Data') and 'FilePath' in self.parent.Data:
+                import json
+                json_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+
+                # Try to ensure the file exists first
+                if not os.path.exists(json_path):
+                    with open(json_path, 'w') as f:
+                        json.dump({}, f)
+
+                try:
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+
+                    # Update BE corrections and sample names
+                    json_data['BEcorrections'] = self.parent.Data.get('BEcorrections', {})
+                    json_data['SampleNames'] = self.parent.Data.get('SampleNames', {})
+
+                    with open(json_path, 'w') as f:
+                        json.dump(json_data, f, indent=4)
+                except Exception as e:
+                    print(f"Error updating JSON file: {e}")
+        except Exception as e:
+            print(f"Error in final update steps: {e}")
 
         wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
 
