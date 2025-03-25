@@ -3707,7 +3707,7 @@ class MyFrame(wx.Frame):
 
         print(f"Applied BE correction of {correction:.2f} eV")
 
-    def apply_be_correction(self, correction):
+    def apply_be_correction_MULTI_NO_GOOD(self, correction):
         """
         Apply binding energy correction to all data from the same sample row.
 
@@ -3743,6 +3743,107 @@ class MyFrame(wx.Frame):
 
             if sheet_row == current_row:
                 # Update B.E. values
+                sheet_data['B.E.'] = [be + delta_correction for be in sheet_data['B.E.']]
+
+                # Update Background range
+                if 'Background' in sheet_data:
+                    if 'Bkg Low' in sheet_data['Background'] and sheet_data['Background']['Bkg Low'] != '':
+                        sheet_data['Background']['Bkg Low'] += delta_correction
+                    if 'Bkg High' in sheet_data['Background'] and sheet_data['Background']['Bkg High'] != '':
+                        sheet_data['Background']['Bkg High'] += delta_correction
+
+                # Update peak positions
+                if 'Fitting' in sheet_data and 'Peaks' in sheet_data['Fitting']:
+                    for peak in sheet_data['Fitting']['Peaks'].values():
+                        peak['Position'] += delta_correction
+                        if 'Constraints' in peak:
+                            pos_constraint = peak['Constraints'].get('Position', '')
+                            if pos_constraint and ',' in pos_constraint and not any(
+                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                                min_val, max_val = map(float, pos_constraint.split(','))
+                                peak['Constraints'][
+                                    'Position'] = f"{min_val + delta_correction:.2f},{max_val + delta_correction:.2f}"
+
+                # Update plot limits
+                if sheet_name in self.plot_config.plot_limits:
+                    limits = self.plot_config.plot_limits[sheet_name]
+                    limits['Xmin'] += delta_correction
+                    limits['Xmax'] += delta_correction
+
+        # Update peak_params_grid with corrected positions
+        if current_sheet == self.sheet_combobox.GetValue():
+            num_peaks = self.peak_params_grid.GetNumberRows() // 2
+            for i in range(num_peaks):
+                row = i * 2
+                try:
+                    pos = float(self.peak_params_grid.GetCellValue(row, 2))
+                    self.peak_params_grid.SetCellValue(row, 2, f"{pos + delta_correction:.2f}")
+                except ValueError:
+                    continue
+
+        # Update Results grid if it corresponds to the current row
+        for row in range(self.results_grid.GetNumberRows()):
+            sheet_name = self.results_grid.GetCellValue(row, 21)  # Sheetname column
+            match = re.search(r'(\d+)$', sheet_name)
+            grid_row = match.group(1) if match else "0"
+
+            if grid_row == current_row:
+                try:
+                    pos = float(self.results_grid.GetCellValue(row, 1))
+                    self.results_grid.SetCellValue(row, 1, f"{pos + delta_correction:.2f}")
+                except ValueError:
+                    continue
+
+        # Update current sheet display
+        on_sheet_selected(self, current_sheet)
+
+        # Update FileManager's BE corrections if open
+        if hasattr(self, 'file_manager') and self.file_manager is not None:
+            try:
+                self.file_manager.save_be_corrections()
+            except Exception as e:
+                print(f"Error updating FileManager: {e}")
+
+    def apply_be_correction(self, correction):
+        """
+        Apply binding energy correction to all data from the same sample row.
+
+        Args:
+            correction (float): New BE correction value in eV
+        """
+        delta_correction = correction - self.be_correction
+        self.be_correction = correction
+        self.Data['BEcorrection'] = correction
+
+        # Get the current sheet and extract its row number
+        current_sheet = self.sheet_combobox.GetValue()
+        current_row = None
+
+        # Extract row number from current sheet name using regex
+        import re
+        match = re.search(r'(\d+)$', current_sheet)
+        if match:
+            current_row = match.group(1)
+        else:
+            current_row = "0"  # Default to row 0 if no number found
+
+        # Update BEcorrections for this sample
+        if 'BEcorrections' not in self.Data:
+            self.Data['BEcorrections'] = {}
+        self.Data['BEcorrections'][current_row] = correction
+
+        # Process all sheets to find and update ones from the same row
+        for sheet_name, sheet_data in self.Data['Core levels'].items():
+            # Check if this sheet belongs to the same row (no number suffix)
+            sheet_match = re.search(r'(\d+)$', sheet_name)
+
+            # Only process sheets that either:
+            # 1. Have no number suffix (base core levels), or
+            # 2. Have the same row number as current_row
+            sheet_row = sheet_match.group(1) if sheet_match else "0"
+
+            if sheet_row == current_row:
+                # Update B.E. values in memory
                 sheet_data['B.E.'] = [be + delta_correction for be in sheet_data['B.E.']]
 
                 # Update Background range

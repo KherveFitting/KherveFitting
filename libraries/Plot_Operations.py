@@ -415,6 +415,8 @@ class PlotManager:
                     self.ax.get_xaxis().set_visible(True)
 
             x_values = window.Data['Core levels'][sheet_name]['B.E.']
+            # if hasattr(window, 'be_correction'):
+            #     x_values = np.array(x_values) + window.be_correction
             y_values = window.Data['Core levels'][sheet_name]['Raw Data']
 
             x_values = np.array(x_values)  # Ensure x_values is a numpy array

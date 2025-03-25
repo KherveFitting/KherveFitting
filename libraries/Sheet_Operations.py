@@ -63,6 +63,15 @@ def on_sheet_selected(window, event):
             # else:
             #     window.background = np.zeros_like(window.Data['Core levels'][selected_sheet]['Raw Data'])
 
+            # # Apply BE correction when loading x-values
+            # if hasattr(window, 'be_correction') and window.be_correction != 0:
+            #     # Create a corrected copy of the x-values for display purposes
+            #     window.x_values = np.array(core_level_data['B.E.']) + window.be_correction
+            # else:
+            #     window.x_values = np.array(core_level_data['B.E.'])
+            #
+            # window.y_values = np.array(core_level_data['Raw Data'])
+
             if 'Background' in window.Data['Core levels'][selected_sheet]:
                 if 'Bkg Y' not in window.Data['Core levels'][selected_sheet]['Background']:
                     window.Data['Core levels'][selected_sheet]['Background']['Bkg Y'] = \
