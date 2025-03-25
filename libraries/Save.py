@@ -537,7 +537,6 @@ def save_to_excel(window, data, file_path, sheet_name):
         window.canvas.draw_idle()
 
 
-
 def refresh_sheets(window, on_sheet_selected_func):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file currently open. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
@@ -547,6 +546,9 @@ def refresh_sheets(window, on_sheet_selected_func):
     file_path = window.Data['FilePath']
 
     try:
+        # Save BEcorrections data
+        be_corrections = window.Data.get('BEcorrections', {}).copy() if 'BEcorrections' in window.Data else {}
+
         # Save current state to JSON
         json_file_path = os.path.splitext(file_path)[0] + '.json'
         json_data = convert_to_serializable_and_round(window.Data)
@@ -581,8 +583,28 @@ def refresh_sheets(window, on_sheet_selected_func):
         # Update B.E. and Raw Data with current Excel data
         for sheet_name in sheet_names:
             df = pd.read_excel(file_path, sheet_name=sheet_name)
-            window.Data['Core levels'][sheet_name]['B.E.'] = df.iloc[:, 0].tolist()
+            raw_be_values = df.iloc[:, 0].tolist()
+
+            # Extract row number from sheet name
+            import re
+            sheet_correction = 0  # Default if no correction found
+            match = re.search(r'(\d+)$', sheet_name)
+            if match and be_corrections:
+                sample_row = match.group(1)
+                if sample_row in be_corrections:
+                    sheet_correction = be_corrections[sample_row]
+                elif "0" in be_corrections:  # Default fallback
+                    sheet_correction = be_corrections["0"]
+
+            print(f"Applying B.E. correction of {sheet_correction} eV to sheet {sheet_name}")
+
+            # Apply the sheet-specific BE correction
+            window.Data['Core levels'][sheet_name]['B.E.'] = [be + sheet_correction for be in raw_be_values]
             window.Data['Core levels'][sheet_name]['Raw Data'] = df.iloc[:, 1].tolist()
+
+        # Restore BE corrections data
+        if be_corrections:
+            window.Data['BEcorrections'] = be_corrections
 
         # Set the current sheet as selected if it still exists, otherwise select the first sheet
         if current_sheet in sheet_names:
@@ -590,6 +612,15 @@ def refresh_sheets(window, on_sheet_selected_func):
         elif sheet_names:
             window.sheet_combobox.SetValue(sheet_names[0])
             current_sheet = sheet_names[0]
+
+        # Update the spinbox value for the current sheet
+        if current_sheet:
+            match = re.search(r'(\d+)$', current_sheet)
+            if match and be_corrections and match.group(1) in be_corrections:
+                window.be_correction = be_corrections[match.group(1)]
+            elif be_corrections and "0" in be_corrections:
+                window.be_correction = be_corrections["0"]
+            window.be_correction_spinbox.SetValue(window.be_correction)
 
         # Update the plot for the current sheet
         event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)

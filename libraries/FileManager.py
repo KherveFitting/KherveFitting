@@ -251,7 +251,7 @@ class FileManagerWindow(wx.Frame):
         self.norm_check.SetToolTip("Normalise multiple plot data")
         self.norm_type = wx.ComboBox(self.toolbar, choices=["Auto", "Norm. @ BE", "Norm. to A"], style=wx.CB_READONLY)
         self.norm_type.SetSelection(0)  # Default to "Auto"
-        self.norm_type.SetToolTip("Choose normalization method")
+        self.norm_type.SetToolTip("Choose normalization method. \n Press the shift key to activate the vLine in Norm. @ BE mode.")
         self.norm_check.SetValue(True)  # Auto is checked by default
 
         self.toolbar.AddControl(self.norm_check)
@@ -1065,6 +1065,10 @@ class FileManagerWindow(wx.Frame):
         self.parent.x_values = np.array(x_values)
         self.parent.y_values = np.array(y_values)
         self.parent.background = np.array(y_values)  # Initialize background with raw data
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
         # Plot simple black line
         if self.parent.energy_scale == 'KE':
