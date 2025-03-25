@@ -581,22 +581,25 @@ def refresh_sheets(window, on_sheet_selected_func):
         window.Data['Number of Core levels'] = len(sheet_names)
 
         # Update B.E. and Raw Data with current Excel data
+        import re
         for sheet_name in sheet_names:
             df = pd.read_excel(file_path, sheet_name=sheet_name)
             raw_be_values = df.iloc[:, 0].tolist()
 
-            # Extract row number from sheet name
-            import re
+            # Get BE correction for this sheet
             sheet_correction = 0  # Default if no correction found
+
+            # Extract row number from sheet name
             match = re.search(r'(\d+)$', sheet_name)
+
             if match and be_corrections:
+                # Sheet name ends with a number
                 sample_row = match.group(1)
                 if sample_row in be_corrections:
                     sheet_correction = be_corrections[sample_row]
-                elif "0" in be_corrections:  # Default fallback
-                    sheet_correction = be_corrections["0"]
-
-            print(f"Applying B.E. correction of {sheet_correction} eV to sheet {sheet_name}")
+            elif be_corrections and "0" in be_corrections:
+                # Sheet name doesn't end with a number - treat as row "0"
+                sheet_correction = be_corrections["0"]
 
             # Apply the sheet-specific BE correction
             window.Data['Core levels'][sheet_name]['B.E.'] = [be + sheet_correction for be in raw_be_values]
@@ -619,7 +622,11 @@ def refresh_sheets(window, on_sheet_selected_func):
             if match and be_corrections and match.group(1) in be_corrections:
                 window.be_correction = be_corrections[match.group(1)]
             elif be_corrections and "0" in be_corrections:
+                # For sheets without a number suffix, use correction from row "0"
                 window.be_correction = be_corrections["0"]
+            else:
+                window.be_correction = 0
+
             window.be_correction_spinbox.SetValue(window.be_correction)
 
         # Update the plot for the current sheet
