@@ -1553,7 +1553,7 @@ def copy_core_level(window):
         with open(clipboard_file, 'w') as f:
             json.dump(convert_to_serializable_and_round(clipboard_data), f)
 
-        window.show_popup_message2("Core Level Copied", f"Core level '{sheet_name}' copied to clipboard")
+        window.show_popup_message2("Core Level Copied. Beware that core level retain their BE correction values", f"Core level '{sheet_name}' copied to clipboard")
     else:
         window.show_popup_message2("Copy Failed", "No core level data to copy")
 
@@ -1718,7 +1718,8 @@ def paste_core_level(window):
         window.clear_and_replot()
 
 
-        window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'")
+        window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'"
+                                                        f"\n Beware that core level retain their BE correction values")
 
     except Exception as e:
         import traceback

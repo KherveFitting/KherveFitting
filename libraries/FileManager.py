@@ -1584,7 +1584,7 @@ class FileManagerWindow(wx.Frame):
         with open(clipboard_file, 'w') as f:
             json.dump(clipboard_data, f)
 
-        wx.MessageBox(f"{len(clipboard_data)} core level(s) copied", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(f"{len(clipboard_data)} core level(s) copied. Beware that core level retain their BE correction values", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
 
     def on_paste_OLD(self, event):
         """Paste the core levels to the selected cells"""
@@ -1723,7 +1723,8 @@ class FileManagerWindow(wx.Frame):
         # Refresh the grid
         self.populate_grid()
 
-        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted."
+                      f"\n Beware that core level retain their BE correction values ", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
 
     def on_paste(self, event):
         """Paste the core levels to the selected cells, supporting paste between different instances"""
@@ -1967,7 +1968,8 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             print(f"Error in final update steps: {e}")
 
-        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted. "
+                      f"\n Beware that core level retain their BE correction values", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
 
     def on_rename(self, event):
         """Rename the selected core level"""
