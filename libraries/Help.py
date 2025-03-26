@@ -470,11 +470,11 @@ def show_version_log(window):
 - Release of the Mac Version
 - Added Samples/Experiment Manager for easy view of multiple files
 - Added Copy and paste menu for core levels and peak fitting grid
-- Added A propagation of the peak fitting parameters (menu and =) just like casa
+- Added a propagation of the peak fitting parameters (menu and =) just like casa
 - Added information in the Manual for installation instruction
 - Added Sort core levels for multiple samples
 - Added backup of the excel file and json file
-- Added 2D Sheet Manager similar to CasaXPS
+- Added experimental description from .vms and ,kal files in Sample Manager
 - Change Horizontal toolbar so that it is compatible with Mac
 - Preparation to the release of the Linux version for Synchrotron
 - Added File > New File in the menu open a new instance of KherveFitting
@@ -485,6 +485,7 @@ def show_version_log(window):
 - Remove the Noise Analysis from the toolbar. Only available in Tools
 - Move the Skewed Voigt in the non default as it was confusing for new users
 - Fix bugs that stop Fitting to continue
+- Fix bugs that shows the background equal to the data
 - Fix bugs with the vamas file from kratos
 - Added mini-game back to the help menu
 

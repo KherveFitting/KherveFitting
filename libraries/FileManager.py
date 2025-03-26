@@ -271,7 +271,8 @@ class FileManagerWindow(wx.Frame):
         else:
             exp_info_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
         exp_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Experimental Info", exp_info_bmp,
-                                             "View experimental description information")
+                                             "View experimental description information."
+                                             "\nCurrently only upport .vms and .kal")
         self.Bind(wx.EVT_TOOL, self.on_view_exp_info, exp_info_tool)
 
         # Backup button

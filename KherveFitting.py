@@ -36,7 +36,7 @@ from libraries.Peak_Functions import PeakFunctions
 # from libraries.Peak_Functions import AtomicConcentrations
 # from libraries.Peak_Functions import gauss_lorentz, S_gauss_lorentz
 
-from Functions import toggle_Col_1, update_sheet_names, rename_sheet
+from Functions import toggle_Col_1, update_sheet_names, rename_sheet, on_sheet_selected_wrapper
 from libraries.PreferenceWindow import PreferenceWindow
 
 # from libraries.Sheet_Operations import on_sheet_selected
@@ -320,6 +320,8 @@ class MyFrame(wx.Frame):
         # self.peak_params_grid.Bind(wx.EVT_CONTEXT_MENU, self.on_peak_params_context_menu)
         # Bind right-click events for peak_params_grid
 
+        self.Bind(wx.EVT_SIZE, self.on_window_resize)
+
 
 
         self.plot_manager.residuals_state = 2  # Set default state
@@ -359,7 +361,7 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_toggle_right_panel, tool)
         return tool
 
-    def on_toggle_right_panel(self, event):
+    def on_toggle_right_panel_OLD(self, event):
         splitter_width = self.splitter.GetSize().GetWidth()
         current_size = self.GetSize()
 
@@ -398,11 +400,254 @@ class MyFrame(wx.Frame):
         self.splitter.Refresh()
         self.canvas.draw()
 
+    def on_toggle_right_panel(self, event):
+        splitter_width = self.splitter.GetSize().GetWidth()
+        current_size = self.GetSize()
+
+        if self.is_right_panel_hidden:
+            # The right panel is currently hidden, so show it
+            new_sash_position = self.initial_sash_position
+            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR)
+            self.is_right_panel_hidden = False
+            self.SetMinSize((800, 600))  # Reset min size to allow resizing
+            self.SetMaxSize((-1, -1))
+            # Restore previous size
+            if hasattr(self, 'previous_size'):
+                self.SetSize(self.previous_size)
+
+            # Save current sheet selection before destroying toolbar
+            old_sheet_value = ""
+            if hasattr(self, 'sheet_combobox') and self.sheet_combobox:
+                old_sheet_value = self.sheet_combobox.GetValue()
+
+            # Restore the original toolbar
+            toolbar_panel = self.panel.GetChildren()[0]  # First child is toolbar panel
+            toolbar_sizer = toolbar_panel.GetSizer()
+
+            # Remove current toolbar
+            if self.toolbar:
+                toolbar_sizer.Detach(self.toolbar)
+                self.toolbar.Destroy()
+
+            # Import here to avoid circular imports
+            from libraries.Widgets_Toolbars import create_horizontal_toolbar
+            self.toolbar = create_horizontal_toolbar(toolbar_panel, self)
+            toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
+
+            # Repopulate sheet combobox and restore selection
+            if 'Core levels' in self.Data:
+                sheets = list(self.Data['Core levels'].keys())
+                self.sheet_combobox.Clear()
+                self.sheet_combobox.AppendItems(sheets)
+                if old_sheet_value in sheets:
+                    self.sheet_combobox.SetValue(old_sheet_value)
+                elif sheets:
+                    self.sheet_combobox.SetValue(sheets[0])
+
+            toolbar_panel.Layout()
+        else:
+            # The right panel is currently visible, so hide it
+            new_sash_position = splitter_width
+            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR)
+            self.is_right_panel_hidden = True
+
+            # Store current size and set to fixed width of 865
+            self.previous_size = current_size
+            fixed_width = 865
+            fixed_height = current_size.height
+
+            # Fix both width and height
+            self.SetSize((fixed_width, fixed_height))
+            self.SetMinSize((fixed_width, fixed_height))
+            self.SetMaxSize((fixed_width, fixed_height))  # Fix both dimensions
+
+            # Create minimal toolbar
+            toolbar_panel = self.panel.GetChildren()[0]
+            toolbar_sizer = toolbar_panel.GetSizer()
+
+            # Current toolbar value to save sheet selection
+            old_sheet_value = ""
+            old_sheets = []
+            if self.sheet_combobox:
+                old_sheet_value = self.sheet_combobox.GetValue()
+                old_sheets = [self.sheet_combobox.GetString(i) for i in range(self.sheet_combobox.GetCount())]
+
+            # Remove current toolbar
+            if self.toolbar:
+                toolbar_sizer.Detach(self.toolbar)
+                self.toolbar.Destroy()
+
+            # Create new minimal toolbar
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_path = os.path.join(current_dir, "libraries", "Icons")
+            if not os.path.exists(icon_path):
+                icon_path = os.path.join(current_dir, "Icons")
+
+            self.toolbar = wx.ToolBar(toolbar_panel, style=wx.TB_FLAT)
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+            # Define the rename dialog function here
+            def _show_rename_dialog(window):
+                dlg = wx.TextEntryDialog(window, 'Enter new sheet name:', 'Rename Sheet')
+                if dlg.ShowModal() == wx.ID_OK:
+                    from libraries.Utilities import rename_sheet
+                    rename_sheet(window, dlg.GetValue())
+                dlg.Destroy()
+
+            # Add all requested tools
+            open_tool = self.toolbar.AddTool(wx.ID_ANY, 'Open File',
+                                             wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="Open File\tCtrl+O")
+
+            save_tool = self.toolbar.AddTool(wx.ID_ANY, 'Save',
+                                             wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="Save")
+
+            save_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
+                                                 wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"),
+                                                           wx.BITMAP_TYPE_PNG),
+                                                 shortHelp="Save all sheets with plots")
+
+            # Undo/Redo
+            self.undo_tool = self.toolbar.AddTool(wx.ID_ANY, 'Undo',
+                                                  wx.Bitmap(os.path.join(icon_path, "undo-25.png"),
+                                                            wx.BITMAP_TYPE_PNG),
+                                                  shortHelp="Undo")
+            self.redo_tool = self.toolbar.AddTool(wx.ID_ANY, 'Redo',
+                                                  wx.Bitmap(os.path.join(icon_path, "redo-25.png"),
+                                                            wx.BITMAP_TYPE_PNG),
+                                                  shortHelp="Redo")
+
+            # File manager
+            file_manager_tool = self.toolbar.AddTool(wx.ID_ANY, "Sample Manager",
+                                                     wx.Bitmap(os.path.join(icon_path, "list-view-25.png"),
+                                                               wx.BITMAP_TYPE_PNG),
+                                                     shortHelp="Sample Manager")
+
+            # Sheet combobox
+            self.sheet_combobox = wx.ComboBox(self.toolbar, style=wx.CB_READONLY)
+            if 'Core levels' in self.Data:
+                sheets = list(self.Data['Core levels'].keys())
+                self.sheet_combobox.AppendItems(sheets)
+                if old_sheet_value in sheets:
+                    self.sheet_combobox.SetValue(old_sheet_value)
+                elif sheets:
+                    self.sheet_combobox.SetValue(sheets[0])
+            self.toolbar.AddControl(self.sheet_combobox)
+
+            # Refresh, Delete, Copy, Join, Rename
+            refresh_tool = self.toolbar.AddTool(wx.ID_ANY, 'Refresh',
+                                                wx.Bitmap(os.path.join(icon_path, "Refresh-25.png"),
+                                                          wx.BITMAP_TYPE_PNG),
+                                                shortHelp="Refresh")
+            delete_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete',
+                                               wx.Bitmap(os.path.join(icon_path, "delete-25.png"),
+                                                         wx.BITMAP_TYPE_PNG),
+                                               shortHelp="Delete")
+            copy_tool = self.toolbar.AddTool(wx.ID_ANY, 'Copy',
+                                             wx.Bitmap(os.path.join(icon_path, "copy-25.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="Copy")
+            join_tool = self.toolbar.AddTool(wx.ID_ANY, 'Join',
+                                             wx.Bitmap(os.path.join(icon_path, "join2-25.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="Join")
+            rename_tool = self.toolbar.AddTool(wx.ID_ANY, 'Rename',
+                                               wx.Bitmap(os.path.join(icon_path, "rename-25.png"),
+                                                         wx.BITMAP_TYPE_PNG),
+                                               shortHelp="Rename")
+
+            # BE correction
+            self.be_correction_spinbox = wx.SpinCtrlDouble(self.toolbar, value='0.00', min=-10000.00, max=10000.00,
+                                                           inc=0.01, size=(70, -1))
+            self.be_correction_spinbox.SetDigits(2)
+            self.be_correction_spinbox.SetValue(self.be_correction)
+            self.toolbar.AddControl(self.be_correction_spinbox)
+
+            auto_be_tool = self.toolbar.AddTool(wx.ID_ANY, 'Auto BE',
+                                                wx.Bitmap(os.path.join(icon_path, "BEcorrect-25.png"),
+                                                          wx.BITMAP_TYPE_PNG),
+                                                shortHelp="Auto BE")
+
+            # Add the requested tools
+            bkg_tool = self.toolbar.AddTool(wx.ID_ANY, 'Background/Area',
+                                            wx.Bitmap(os.path.join(icon_path, "BKG-25.png"),
+                                                      wx.BITMAP_TYPE_PNG),
+                                            shortHelp="Calculate Area Under Curve\tCtrl+A")
+
+            peak_fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Peak Fit',
+                                                 wx.Bitmap(os.path.join(icon_path, "C1s-25.png"),
+                                                           wx.BITMAP_TYPE_PNG),
+                                                 shortHelp="Peak Fit")
+
+            diff_tool = self.toolbar.AddTool(wx.ID_ANY, 'D-parameter',
+                                             wx.Bitmap(os.path.join(icon_path, "Dpara-25.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="D-parameter Calculation")
+
+            id_tool = self.toolbar.AddTool(wx.ID_ANY, 'Element ID',
+                                           wx.Bitmap(os.path.join(icon_path, "ID-25.png"),
+                                                     wx.BITMAP_TYPE_PNG),
+                                           shortHelp="Element identifications (ID)")
+
+            # Toggle right panel tool
+            self.toggle_right_panel_tool = self.toolbar.AddTool(wx.ID_ANY, "Toggle Right Panel",
+                                                                wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD,
+                                                                                         wx.ART_TOOLBAR),
+                                                                shortHelp="Toggle Right Panel")
+
+            self.toolbar.Realize()
+            toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
+            toolbar_panel.Layout()
+
+            # Rebind events
+            from libraries.Open import open_xlsx_file
+            from Functions import on_save, refresh_sheets, save_all_sheets_with_plots
+            from libraries.Sheet_Operations import on_sheet_selected
+            from libraries.Utilities import on_delete_sheet, copy_sheet, JoinSheetsWindow
+
+            self.Bind(wx.EVT_TOOL, lambda e: open_xlsx_file(self), open_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: on_save(self), save_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: save_all_sheets_with_plots(self), save_all_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: undo(self), self.undo_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: redo(self), self.redo_tool)
+            self.Bind(wx.EVT_TOOL, self.on_open_file_manager, file_manager_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: refresh_sheets(self, on_sheet_selected_wrapper), refresh_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: on_delete_sheet(self, e), delete_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: copy_sheet(self), copy_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: JoinSheetsWindow(self).Show(), join_tool)
+            self.Bind(wx.EVT_TOOL, lambda evt: _show_rename_dialog(self), rename_tool)
+            self.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_be_correction_change)
+            self.Bind(wx.EVT_TOOL, self.on_auto_be, auto_be_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: self.on_open_background_window(), bkg_tool)
+            self.Bind(wx.EVT_TOOL, lambda e: self.on_open_fitting_window(), peak_fit_tool)
+            self.Bind(wx.EVT_TOOL, self.on_differentiate, diff_tool)
+            self.Bind(wx.EVT_TOOL, self.open_periodic_table, id_tool)
+            self.Bind(wx.EVT_TOOL, self.on_toggle_right_panel, self.toggle_right_panel_tool)
+            self.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda e: on_sheet_selected(self, e))
+
+        self.splitter.SetSashPosition(new_sash_position)
+        self.toolbar.SetToolNormalBitmap(self.toggle_right_panel_tool.GetId(), new_bmp)
+
+        # Ensure the splitter and its children are properly updated
+        self.splitter.UpdateSize()
+        self.right_frame.Layout()
+        self.splitter.Refresh()
+        self.canvas.draw()
+
     def on_splitter_changed(self, event):
         self.right_frame.Layout()
         self.canvas.draw()
 
-
+    def on_window_resize(self, event):
+        event.Skip()
+        if hasattr(self, 'splitter') and self.splitter:
+            self.splitter.UpdateSize()
+            for panel in self.splitter.GetChildren():
+                panel.Layout()
+            self.splitter.Refresh()
 
     # I DON'T THINK IT IS USED
     def on_listbox_selection(self, event):

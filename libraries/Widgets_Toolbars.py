@@ -584,7 +584,7 @@ def create_horizontal_toolbar(parent, window):
     # Add File Manager button to toolbar
     file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-25.png"), wx.BITMAP_TYPE_PNG)
     file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp,
-                                        "Open Sample/Experiment Manager. Use F2 to plot properly")
+                                        "Open Sample/Experiment Manager. Make sure to use F2 or Ctrl+2 to plot with peak models")
     window.Bind(wx.EVT_TOOL, window.on_open_file_manager, file_manager_tool)
 
 
@@ -805,13 +805,8 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
                         ):
     window.Bind(wx.EVT_TOOL, lambda event: open_xlsx_file(window), open_file_tool)
     window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper), refresh_folder_tool)
-    # window.Bind(wx.EVT_TOOL, lambda event: toggle_plot(window), plot_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_background_window(), bkg_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(), fitting_tool)
-    # window.Bind(wx.EVT_TOOL, window.on_open_noise_analysis_window, noise_analysis_tool)
-    # window.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_legend(), toggle_legend_tool)
-    # window.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_fitting_results(), toggle_fit_results_tool)
-    # window.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_residuals(window), toggle_residuals_tool)
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected_wrapper(window, event))
     window.Bind(wx.EVT_TOOL, lambda event: on_save(window), save_tool)
     window.Bind(wx.EVT_TOOL, lambda event: on_save_plot(window), save_plot_tool)
@@ -820,7 +815,6 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
     window.Bind(wx.EVT_TOOL, lambda event: window.export_results(), export_tool)
     # window.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, window.on_be_correction_change)
     window.Bind(wx.EVT_TOOL, window.on_auto_be, auto_be_button)
-    # window.Bind(wx.EVT_TOOL, window.on_toggle_peak_fill, toggle_peak_fill_tool)
     window.Bind(wx.EVT_TOOL, lambda event: undo(window), window.undo_tool)
     window.Bind(wx.EVT_TOOL, lambda event: redo(window), window.redo_tool)
     window.Bind(wx.EVT_TOOL, window.open_periodic_table, id_tool)
