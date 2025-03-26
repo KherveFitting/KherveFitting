@@ -279,6 +279,7 @@ def on_canvas_click(event):
 
 
 def on_delete_sheet(window, event):
+    import wx
     sheet_name = window.sheet_combobox.GetValue()
     dlg = wx.MessageDialog(window, f"Are you sure you want to delete sheet {sheet_name}?",
                            "Confirm Delete", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
@@ -306,6 +307,21 @@ def on_delete_sheet(window, event):
         if window.sheet_combobox.GetCount() == 0:
             window.ax.clear()
             window.canvas.draw()
+
+        # Close and reopen the file manager if it exists
+        if hasattr(window, 'file_manager') and window.file_manager is not None:
+            try:
+                # Close existing file manager
+                window.file_manager.Close()
+                window.file_manager.Destroy()
+                window.file_manager = None
+
+                # Reopen file manager
+                import wx
+                wx.CallAfter(window.on_open_file_manager, None)
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
+                pass
 
     dlg.Destroy()
 
