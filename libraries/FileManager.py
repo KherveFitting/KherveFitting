@@ -924,12 +924,24 @@ class FileManagerWindow(wx.Frame):
         if not sheet_names:
             return
 
-        # Create a new sheet name
-        new_sheet_name = f"{base_name}1000"
-        counter = 1
-        while new_sheet_name in self.parent.Data['Core levels']:
-            new_sheet_name = f"{base_name}{1000 + counter}"
-            counter += 1
+        # Find the earliest available row
+        used_rows = []
+        for sheet in self.parent.Data['Core levels'].keys():
+            match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet)
+            if match:
+                sheet_base = match.group(1)
+                row_str = match.group(2)
+                if sheet_base == base_name:
+                    row_num = int(row_str) if row_str else 0
+                    used_rows.append(row_num)
+
+        # Find the first unused row number
+        row_num = 0
+        while row_num in used_rows:
+            row_num += 1
+
+        # Create the new sheet name with the available row
+        new_sheet_name = f"{base_name}{row_num}" if row_num > 0 else base_name
 
         # Get X values from the first sheet (assuming they're similar)
         first_sheet = sheet_names[0]
@@ -946,7 +958,6 @@ class FileManagerWindow(wx.Frame):
         avg_y = summed_y / len(sheet_names)
 
         # Create a new entry in the parent data
-        from libraries.ConfigFile import Init_Measurement_Data
         if 'Core levels' not in self.parent.Data:
             self.parent.Data['Core levels'] = {}
             self.parent.Data['Number of Core levels'] = 0
