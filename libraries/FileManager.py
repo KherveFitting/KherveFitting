@@ -1096,11 +1096,13 @@ class FileManagerWindow(wx.Frame):
             self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
             self.parent.ax.get_xaxis().set_visible(True)
 
+        # Apply text settings from preference window
+        self.parent.plot_manager.apply_text_settings(self.parent)
+
         # Draw
         self.parent.canvas.draw_idle()
 
         # Restore the original residuals state in the manager
-        # (but don't replot with it - we just want to maintain the state)
         self.parent.plot_manager.residuals_state = original_residuals_state
 
     def quick_plot_sheet_SLOW(self, sheet_name):
