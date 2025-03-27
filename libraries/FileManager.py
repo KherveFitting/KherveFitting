@@ -16,7 +16,7 @@ class FileManagerWindow(wx.Frame):
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
         # Add this line to set a minimum window size
-        self.SetMinSize((630, 350))  # Ensure toolbar icons remain visible
+        self.SetMinSize((630, 50))  # Ensure toolbar icons remain visible
 
         self.offset_multiplier = 1
         self.last_offset_sheets = []
