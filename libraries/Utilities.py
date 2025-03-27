@@ -4,6 +4,8 @@ import numpy as np
 import openpyxl
 from openpyxl import load_workbook
 import os
+import sys
+import shutil
 import pandas as pd
 import libraries.Sheet_Operations
 import json
@@ -12,40 +14,6 @@ from scipy.signal import savgol_filter
 from scipy.integrate import cumtrapz
 
 # from KherveFitting import FIRST_TIME_USE
-
-
-def check_first_time_use_OLD(frame):
-    config = frame.load_config()
-    times_opened = config.get('times_opened', 0)
-
-    if times_opened == 0:
-        dlg = wx.MessageDialog(None,
-                               "This appears to be your first time using KherveFitting. Would you like to open the "
-                               "manual to the Getting Started section?",
-                               "Welcome to KherveFitting",
-                               wx.YES_NO | wx.ICON_QUESTION)
-
-        if dlg.ShowModal() == wx.ID_YES:
-            import os
-            import sys
-            import webbrowser
-
-            if getattr(sys, 'frozen', False):
-                # If the application is run as a bundle, get the path of the executable
-                application_path = os.path.dirname(sys.executable)
-            else:
-                # If the application is run as a script, get the path of the script
-                application_path = os.path.dirname(os.path.abspath(__file__))
-
-            manual_path = os.path.join(application_path, "Manual.pdf")
-            webbrowser.open(manual_path)
-
-        dlg.Destroy()
-
-    config['times_opened'] = times_opened + 1
-
-    with open('config.json', 'w') as f:
-        json.dump(config, f, indent=2)
 
 
 def check_first_time_use(frame):
@@ -1193,3 +1161,59 @@ class JoinSheetsWindow(wx.Frame):
         on_sheet_selected(self.parent, new_sheet)
 
         self.Close()
+
+def perform_auto_backup(parent):
+    """Create an automatic backup of the current data files"""
+    if 'FilePath' not in parent.Data or not parent.Data['FilePath']:
+        print("No file open, skipping auto backup")
+        return
+
+    # Get current file paths
+    excel_file = parent.Data['FilePath']
+    json_file = os.path.splitext(excel_file)[0] + '.json'
+
+    # Check if files exist
+    if not os.path.exists(excel_file):
+        print(f"Excel file not found: {excel_file}, skipping auto backup")
+        return
+
+    # Create backup folder in the executable directory
+    executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+    # For development environment, fall back to current script directory
+    if not "KherveFitting" in executable_dir:
+        executable_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up one level if in libraries folder
+        if os.path.basename(executable_dir) == "libraries":
+            executable_dir = os.path.dirname(executable_dir)
+
+    backup_folder = os.path.join(executable_dir, "Backup")
+    if not os.path.exists(backup_folder):
+        os.makedirs(backup_folder)
+
+    # Generate timestamp in format: YYcDD_HHMMSS
+    import datetime
+    now = datetime.datetime.now()
+    month_letter = chr(ord('a') + now.month - 1)  # a=Jan, b=Feb, c=Mar, etc.
+    timestamp = f"{now.year % 100}{month_letter}{now.day:02d}_{now.hour:02d}{now.minute:02d}{now.second:02d}"
+
+    # Create backup filenames
+    excel_filename = os.path.basename(excel_file)
+    excel_name_no_ext = os.path.splitext(excel_filename)[0]
+    excel_backup = os.path.join(backup_folder, f"{excel_name_no_ext}_{timestamp}.xlsx")
+
+    # Copy the Excel file
+    try:
+        shutil.copy2(excel_file, excel_backup)
+
+        # Copy the JSON file if it exists
+        if os.path.exists(json_file):
+            json_filename = os.path.basename(json_file)
+            json_name_no_ext = os.path.splitext(json_filename)[0]
+            json_backup = os.path.join(backup_folder, f"{json_name_no_ext}_{timestamp}.json")
+            shutil.copy2(json_file, json_backup)
+
+        print(f"Auto backup completed at {datetime.datetime.now().strftime('%H:%M:%S')}")
+        return True
+    except Exception as e:
+        print(f"Auto backup error: {str(e)}")
+        return False

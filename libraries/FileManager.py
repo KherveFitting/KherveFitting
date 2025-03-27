@@ -2474,7 +2474,7 @@ class FileManagerWindow(wx.Frame):
 
         # Create backup filenames
         excel_filename = os.path.basename(excel_file)
-        excel_backup = os.path.join(backup_folder, f"{timestamp}_{excel_filename}")
+        excel_backup = os.path.join(backup_folder, f"{excel_filename}_{timestamp}")
 
         # Copy the Excel file
         try:
@@ -2484,7 +2484,7 @@ class FileManagerWindow(wx.Frame):
             # Copy the JSON file if it exists
             if os.path.exists(json_file):
                 json_filename = os.path.basename(json_file)
-                json_backup = os.path.join(backup_folder, f"{timestamp}_{json_filename}")
+                json_backup = os.path.join(backup_folder, f"{json_filename}_{timestamp}")
                 shutil.copy2(json_file, json_backup)
                 files_backed_up.append(json_backup)
 

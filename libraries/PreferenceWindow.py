@@ -50,6 +50,8 @@ class PreferenceWindow(wx.Frame):
         cancel_button.SetMinSize((110, 40))
         cancel_button.Bind(wx.EVT_BUTTON, lambda evt: self.Close())
         button_grid.Add(cancel_button, pos=(0, 1), flag=wx.ALL, border=5)
+        
+        
 
         main_sizer.Add(button_grid, 0, wx.LEFT, 5)
 
@@ -266,6 +268,23 @@ class PreferenceWindow(wx.Frame):
         other_grid.Add(self.export_width, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         other_grid.Add(self.export_height, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         other_grid.Add(self.export_dpi, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+        # Auto Backup Settings
+        auto_backup_box = wx.StaticBox(self.save_tab, label="Auto Backup Settings")
+        auto_backup_sizer = wx.StaticBoxSizer(auto_backup_box, wx.VERTICAL)
+        auto_backup_grid = wx.GridBagSizer(5, 5)
+
+        self.enable_auto_backup = wx.CheckBox(self.save_tab, label="Enable Automatic Backup")
+        auto_backup_grid.Add(self.enable_auto_backup, pos=(0, 0), span=(1, 2), flag=wx.EXPAND | wx.BOTTOM | wx.TOP,
+                             border=5)
+
+        auto_backup_grid.Add(wx.StaticText(self.save_tab, label="Backup Interval (minutes):"), pos=(1, 0),
+                             flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
+        self.backup_interval = wx.SpinCtrl(self.save_tab, value='30', min=1, max=240)
+        auto_backup_grid.Add(self.backup_interval, pos=(1, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
+
+        auto_backup_sizer.Add(auto_backup_grid, 0, wx.ALL, 5)
+        save_sizer.Add(auto_backup_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
 
         other_sizer.Add(other_grid, 5, wx.ALL, 5)
@@ -833,6 +852,17 @@ class PreferenceWindow(wx.Frame):
         self.export_height.SetValue(self.parent.export_height)
         self.export_dpi.SetValue(self.parent.export_dpi)
 
+        # Load auto backup settings
+        if hasattr(self.parent, 'enable_auto_backup'):
+            self.enable_auto_backup.SetValue(self.parent.enable_auto_backup)
+        else:
+            self.enable_auto_backup.SetValue(False)
+
+        if hasattr(self.parent, 'backup_interval'):
+            self.backup_interval.SetValue(self.parent.backup_interval)
+        else:
+            self.backup_interval.SetValue(30)  # Default to 30 minutes
+
         if hasattr(self.parent, 'current_instrument'):
             self.instrument_combo.SetValue(self.parent.current_instrument)
         if hasattr(self.parent, 'library_type'):
@@ -989,6 +1019,14 @@ class PreferenceWindow(wx.Frame):
         self.parent.export_width = self.export_width.GetValue()
         self.parent.export_height = self.export_height.GetValue()
         self.parent.export_dpi = self.export_dpi.GetValue()
+
+        # Auto backup settings
+        self.parent.enable_auto_backup = self.enable_auto_backup.GetValue()
+        self.parent.backup_interval = self.backup_interval.GetValue()
+
+        # Restart the backup timer if enabled
+        if hasattr(self.parent, 'setup_backup_timer'):
+            self.parent.setup_backup_timer()
 
 
         self.parent.current_instrument = self.instrument_combo.GetValue()

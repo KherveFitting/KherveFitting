@@ -286,12 +286,20 @@ class MyFrame(wx.Frame):
 
         self.library_type = "TPP-2M"  # Default value
 
+        # Add after other initializations
+        self.backup_timer = None
+        self.enable_auto_backup = False
+        self.backup_interval = 30  # Default to 30 minutes
+
         # Load config if exists
         self.load_config()
 
         create_widgets(self)
         create_menu(self)
         load_recent_files_from_config(self)
+
+        # At the end of __init__
+        self.setup_backup_timer()
 
 
 
@@ -3640,6 +3648,8 @@ class MyFrame(wx.Frame):
                 self.ref_peak_be = config.get('ref_peak_be', 284.8)
                 self.photons = config.get('photons', 1486.67)
                 self.times_opened = config.get('times_opened', 0)
+                self.enable_auto_backup = config.get('enable_auto_backup', False)
+                self.backup_interval = config.get('backup_interval', 30)
 
         else:
             config = {}
@@ -3719,6 +3729,10 @@ class MyFrame(wx.Frame):
             'export_width': self.export_width,
             'export_height': self.export_height,
             'export_dpi': self.export_dpi,
+
+            # Auto backup settings
+            'enable_auto_backup': self.enable_auto_backup,
+            'backup_interval': self.backup_interval,
 
             #Tines opened
             'times_opened': getattr(self, 'times_opened', 0),
@@ -4180,6 +4194,10 @@ class MyFrame(wx.Frame):
         redo(self)
 
     def on_close(self, event):
+        # Add this to the existing on_close method
+        if self.backup_timer:
+            self.backup_timer.Stop()
+
         self.Destroy()
         wx.GetApp().ExitMainLoop()
 
@@ -4291,13 +4309,32 @@ class MyFrame(wx.Frame):
         self.file_manager.Show()
         self.file_manager.Raise()
 
-    def on_open_file_manager_OLD(self, event):
-        """Open the file manager window"""
-        from libraries.FileManager import FileManagerWindow
-        if not hasattr(self, 'file_manager_window') or not self.file_manager_window:
-            self.file_manager_window = FileManagerWindow(self)
-        self.file_manager_window.Show()
-        self.file_manager_window.Raise()
+    def setup_backup_timer(self):
+        """Set up the automatic backup timer based on preferences"""
+        # Stop existing timer if it exists
+        if self.backup_timer is not None:
+            self.backup_timer.Stop()
+            self.backup_timer = None
+
+        if self.enable_auto_backup and hasattr(self, 'Data') and self.Data.get('FilePath'):
+            # Get interval in milliseconds
+            interval_ms = self.backup_interval * 60 * 1000
+
+            # Create and start the timer
+            self.backup_timer = wx.Timer(self)
+            self.Bind(wx.EVT_TIMER, self.on_backup_timer, self.backup_timer)
+            self.backup_timer.Start(interval_ms)
+            print(f"Auto backup set up: Every {self.backup_interval} minutes")
+
+    def on_backup_timer(self, event):
+        """Handler for backup timer event"""
+        # Only backup if we have a file open and changes made
+        if hasattr(self, 'Data') and self.Data.get('FilePath') and self.history:
+            from libraries.Utilities import perform_auto_backup
+            perform_auto_backup(self)
+        else:
+            print("No changes or no file open, skipping auto backup")
+
 
 def set_high_priority():
     try:

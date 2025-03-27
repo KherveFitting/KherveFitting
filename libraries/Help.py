@@ -52,30 +52,6 @@ License: HPND"""
     dlg.ShowModal()
     dlg.Destroy()
 
-def on_about_OLD(self, event):
-    about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 460))
-    panel = wx.Panel(about_dialog)
-    sizer = wx.BoxSizer(wx.VERTICAL)
-
-    # Add text information
-    name = wx.StaticText(panel, label="KherveFitting")
-    name.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-    version = wx.StaticText(panel, label="Version 1.42 Apr 25")
-    description = wx.StaticText(panel, label="XPS peak fitting software\ndeveloped by Dr. Gwilherm Kerherve\nat Imperial College London")
-    website = wx.adv.HyperlinkCtrl(panel, -1, "Imperial College Profile", "https://www.imperial.ac.uk/people/g.kerherve")
-    developers = wx.StaticText(panel, label="Developers:\nDr. Gwilherm Kerherve / g.kerherve@imperial.ac.uk\nWilliam Skinner")
-    copyright = wx.StaticText(panel, label="(C) 2024 Gwilherm Kerherve")
-
-
-    libraries_button = wx.Button(panel, label="Libraries Used")
-    libraries_button.Bind(wx.EVT_BUTTON, lambda evt: show_libraries_used(self))
-
-    # Add all elements to sizer
-    for item in [name, version, description, website, developers, copyright, libraries_button]:
-        sizer.Add(item, 0, wx.ALIGN_CENTER | wx.ALL, 5)
-
-    panel.SetSizer(sizer)
-
 def on_about(self, event):
     about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 470))
     panel = wx.Panel(about_dialog)
@@ -395,48 +371,6 @@ def show_mini_game(parent):
     sim.run()
     pygame.quit()
 
-def report_bug_OLD(window):
-    """Displays a bug report dialog with options for describing the issue and sending a bug report."""
-
-    dlg = wx.Dialog(window, title="Report Bug", size=(400, 300))
-    vbox = wx.BoxSizer(wx.VERTICAL)
-
-    # Widgets
-    description_label = wx.StaticText(dlg, label="Bug Description:")
-    description = wx.TextCtrl(dlg, style=wx.TE_MULTILINE, size=(380, 100))
-
-    def send_report(evt):
-        """Send the bug report via the default email client."""
-        subject = "KherveFitting Bug Report"
-        body = (f"{description.GetValue()}\n\n"
-                "Please attach an image of the bug if applicable.")
-        body_encoded = urllib.parse.quote(body)  # URL-encode the body for proper formatting
-
-        if not description.GetValue().strip():
-            wx.MessageBox("Please provide a bug description before sending.", "Warning", wx.ICON_WARNING)
-            return
-
-        try:
-            webbrowser.open(
-                f'mailto:g.kerherve@imperial.ac.uk?subject={urllib.parse.quote(subject)}&body={body_encoded}')
-            wx.MessageBox("Bug report opened in your email client. Please attach any relevant images before sending.",
-                          "Success", wx.ICON_INFORMATION)
-            dlg.Close()
-        except Exception as e:
-            wx.MessageBox(f"Failed to open email client: {str(e)}", "Error", wx.ICON_ERROR)
-
-    # Buttons
-    send_btn = wx.Button(dlg, label="Send Report")
-    send_btn.Bind(wx.EVT_BUTTON, send_report)
-
-    # Layout
-    vbox.Add(description_label, 0, wx.ALL, 5)
-    vbox.Add(description, 1, wx.EXPAND | wx.ALL, 5)
-    vbox.Add(send_btn, 0, wx.ALIGN_CENTER | wx.ALL, 10)
-
-    dlg.SetSizer(vbox)
-    dlg.ShowModal()
-    dlg.Destroy()
 
 def report_bug(window):
     """Opens the bug report form in the user's default web browser."""
@@ -472,6 +406,8 @@ def show_version_log(window):
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added a propagation of the peak fitting parameters (menu and =) just like casa
 - Added information in the Manual for installation instruction
+- Added a mini-game in the help menu
+- Added Backups of the excel file and json file in the preference window
 - Added Sort core levels for multiple samples
 - Added backup of the excel file and json file
 - Added experimental description from .vms and ,kal files in Sample Manager
