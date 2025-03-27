@@ -353,6 +353,21 @@ def rename_sheet(window, new_sheet_name):
     from libraries.Sheet_Operations import on_sheet_selected
     on_sheet_selected(window, new_sheet_name)
 
+    # Close and reopen the file manager if it exists
+    if hasattr(window, 'file_manager') and window.file_manager is not None:
+        try:
+            # Close existing file manager
+            window.file_manager.Close()
+            window.file_manager.Destroy()
+            window.file_manager = None
+
+            # Reopen file manager
+            import wx
+            wx.CallAfter(window.on_open_file_manager, None)
+        except Exception as e:
+            print(f"Error refreshing file manager: {e}")
+            pass
+
 
 def get_unique_sheet_name(base_name, existing_sheets):
     """Get unique sheet name by incrementing number suffix if name exists."""
@@ -475,6 +490,7 @@ def save_modified_data(self, x, y, sheet_name, operation_type):
     sheet_name = get_unique_sheet_name(sheet_name, wb.sheetnames)
 
     # Get unique sheet name
+    existing_sheets = wb.sheetnames
     sheet_name = get_unique_sheet_name(sheet_name, existing_sheets)
 
 def propagate_constraint(window, row, col):
@@ -688,11 +704,42 @@ class CropWindow(wx.Frame):
 
     def on_crop(self, event):
         sheet_name = self.parent.sheet_combobox.GetValue()
-        # new_name = self.name_ctrl.GetValue()
-        wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
-        new_name = get_unique_sheet_name(self.name_ctrl.GetValue(), wb.sheetnames)
+        suggested_name = self.name_ctrl.GetValue()
         min_be = self.min_ctrl.GetValue()
         max_be = self.max_ctrl.GetValue()
+
+        # Extract base name and ensure we don't create a '0' suffix
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', suggested_name)
+        if match:
+            base_name = match.group(1)  # Base name like C1s
+            number_suffix = match.group(2)  # Numeric suffix or empty
+
+            # Find existing sheets with this base name
+            existing_sheets = list(self.parent.Data['Core levels'].keys())
+            existing_base_sheets = [s for s in existing_sheets if re.match(r'^' + re.escape(base_name) + r'\d*$', s)]
+
+            # Find the earliest available row
+            used_suffixes = set()
+            for s in existing_base_sheets:
+                suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
+                if suffix_match:
+                    used_suffixes.add(int(suffix_match.group(1)))
+                elif s == base_name:  # Base without suffix is like having suffix 0
+                    used_suffixes.add(0)
+
+            # Find first unused number starting from 0
+            suffix = 0
+            while suffix in used_suffixes:
+                suffix += 1
+
+            # Create new name (don't add 0 suffix if base name is unused)
+            if suffix == 0 and base_name not in existing_sheets:
+                new_name = base_name
+            else:
+                new_name = f"{base_name}{suffix}"
+        else:
+            new_name = suggested_name
 
         data = self.parent.Data['Core levels'][sheet_name]
         x_values = np.array(data['B.E.'])
@@ -703,7 +750,7 @@ class CropWindow(wx.Frame):
             'B.E.': x_values[mask].tolist(),
             'Raw Data': np.array(data['Raw Data'])[mask].tolist(),
             'Background': {'Bkg Y': np.array(data['Background']['Bkg Y'])[mask].tolist()},
-            'Transmission': np.ones(sum(mask)).tolist()
+            'Name': new_name
         }
 
         # Update window.Data
@@ -711,15 +758,16 @@ class CropWindow(wx.Frame):
         self.parent.Data['Number of Core levels'] += 1
 
         # Update Excel file
-        wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
+        import pandas as pd
         df = pd.DataFrame({
-            'Binding Energy': new_data['B.E.'],
+            'BE': new_data['B.E.'],
             'Raw Data': new_data['Raw Data'],
             'Background': new_data['Background']['Bkg Y'],
-            'Transmission': new_data['Transmission']
+            'Transmission': np.ones(sum(mask)).tolist()
         })
 
-        with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a') as writer:
+        with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=new_name, index=False)
 
         # Update JSON file
@@ -730,11 +778,25 @@ class CropWindow(wx.Frame):
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
 
-        # Update sheet list
+        # Update sheet list and display
         self.parent.sheet_combobox.Append(new_name)
         self.parent.sheet_combobox.SetValue(new_name)
         from libraries.Sheet_Operations import on_sheet_selected
         on_sheet_selected(self.parent, new_name)
+
+        # Close and reopen the file manager if it exists
+        if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
+            try:
+                # Close existing file manager
+                self.parent.file_manager.Close()
+                self.parent.file_manager.Destroy()
+                self.parent.file_manager = None
+
+                # Reopen file manager
+                import wx
+                wx.CallAfter(self.parent.on_open_file_manager, None)
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
 
         self.Close()
 
@@ -748,10 +810,9 @@ class CropWindow(wx.Frame):
 
 
 class PlotModWindow(wx.Frame):
-    def __init__(self, parent,*args, **kw):
+    def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw, style=wx.DEFAULT_FRAME_STYLE & ~(
-                    wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
-
+                wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
 
         self.SetTitle("Plot Modifications")
         self.SetSize(340, 450)
@@ -850,67 +911,103 @@ class PlotModWindow(wx.Frame):
         constant = self.const_value.GetValue()
         operation = self.const_op.GetValue()
 
-        # Update Data structure based on operation
+        x = self.parent.Data['Core levels'][sheet_name]['B.E.']
+        y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+        # Apply the operation
         if operation == "Multiply":
-            self.parent.Data['Core levels'][sheet_name]['Raw Data'] = [y * constant for y in
-                                                                       self.parent.Data['Core levels'][sheet_name][
-                                                                           'Raw Data']]
+            modified_y = [val * constant for val in y]
         elif operation == "Divide":
-            self.parent.Data['Core levels'][sheet_name]['Raw Data'] = [y / constant for y in
-                                                                       self.parent.Data['Core levels'][sheet_name][
-                                                                           'Raw Data']]
+            modified_y = [val / constant for val in y]
         elif operation == "Add":
-            self.parent.Data['Core levels'][sheet_name]['Raw Data'] = [y + constant for y in
-                                                                       self.parent.Data['Core levels'][sheet_name][
-                                                                           'Raw Data']]
+            modified_y = [val + constant for val in y]
         elif operation == "Subtract":
-            self.parent.Data['Core levels'][sheet_name]['Raw Data'] = [y - constant for y in
-                                                                       self.parent.Data['Core levels'][sheet_name][
-                                                                           'Raw Data']]
+            modified_y = [val - constant for val in y]
 
-        # Update Excel file
-        wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
-        ws = wb[sheet_name]
+        # Get the base name
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        if match:
+            base_name = match.group(1)
+        else:
+            base_name = sheet_name
 
-        # Find the column header
-        for cell in ws[1]:
-            if cell.value in ["RAW DATA", "CORRECTED DATA"]:
-                col_letter = cell.column_letter
-                # Update column data
-                for i, y in enumerate(self.parent.Data['Core levels'][sheet_name]['Raw Data'], start=2):
-                    ws[f"{col_letter}{i}"].value = y
-                break
+        # Find the earliest available row
+        new_sheet_name = self.get_earliest_row_name(base_name)
 
-        wb.save(self.parent.Data['FilePath'])
-        self.parent.plot_manager.plot_data(self.parent)
+        # Save the data
+        self.save_modified_data(x, modified_y, new_sheet_name, f"{operation}d")
+
+    def get_earliest_row_name(self, base_name):
+        """
+        Find the earliest available row for a core level.
+        Returns the sheet name with appropriate row number.
+        """
+        import re
+
+        # Check all sheets in parent data
+        all_sheets = list(self.parent.Data['Core levels'].keys())
+
+        # Check if base name without number exists (row 0)
+        if base_name in all_sheets:
+            # Base name exists, need to find next available
+            rows_used = []
+        else:
+            # Base name doesn't exist, it's available
+            return base_name
+
+        # Pattern to match base name followed by optional number
+        pattern = re.compile(f"^{re.escape(base_name)}(\\d+)$")
+
+        # Collect all used row numbers
+        for sheet in all_sheets:
+            if sheet == base_name:  # This is row 0
+                rows_used.append(0)
+            else:
+                match = pattern.match(sheet)
+                if match:
+                    rows_used.append(int(match.group(1)))
+
+        # Find first unused row number
+        for i in range(1000):  # Reasonable upper limit
+            if i not in rows_used:
+                if i == 0:
+                    return base_name  # No suffix for row 0
+                else:
+                    return f"{base_name}{i}"
+
+        # Fallback (unlikely to reach)
+        return f"{base_name}{len(all_sheets)}"
 
     def save_modified_data(self, x, y, sheet_name, operation_type):
+        """Save modified data to a new sheet and refresh file manager."""
         import pandas as pd
         import openpyxl
-
-        original_sheet = sheet_name.split('_')[0]
 
         # Create DataFrame with required columns
         df = pd.DataFrame({
             'BE': x,
-            'Corrected Data': y,
-            'Raw Data': self.parent.Data['Core levels'][original_sheet]['Raw Data'],
-            'Transmission': np.ones_like(x)
+            'Raw Data': y,
+            'Background': y,
+            'Transmission': [1.0] * len(x)
         })
 
-        # Load workbook and add new sheet
+        # Load workbook
         wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
+
+        # Save to Excel
         with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
                             if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-        # Update window.Data - convert to list only if needed
+        # Update window.Data
         self.parent.Data['Core levels'][sheet_name] = {
             'B.E.': x if isinstance(x, list) else x.tolist(),
             'Raw Data': y if isinstance(y, list) else y.tolist(),
-            'Background': {'Bkg Y': np.ones_like(x).tolist()},
-            'Transmission': np.ones_like(x).tolist()
+            'Background': {'Bkg Y': y if isinstance(y, list) else y.tolist()},
+            'Name': sheet_name
         }
+        self.parent.Data['Number of Core levels'] += 1
 
         # Update JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
@@ -919,6 +1016,21 @@ class PlotModWindow(wx.Frame):
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
+
+        # Close and reopen file manager if it exists
+        if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
+            try:
+                # Close existing file manager
+                self.parent.file_manager.Close()
+                self.parent.file_manager.Destroy()
+                self.parent.file_manager = None
+
+                # Reopen file manager
+                import wx
+                wx.CallAfter(self.parent.on_open_file_manager, None)
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
+                pass
 
         # Update sheet list
         self.parent.sheet_combobox.Append(sheet_name)
@@ -937,15 +1049,26 @@ class PlotModWindow(wx.Frame):
         if method == "Gaussian":
             smoothed = gaussian_filter(y, width)
         elif method == "Savitzky-Golay":
+            if width % 2 == 0:  # Ensure odd window length for savgol_filter
+                width += 1
             smoothed = savgol_filter(y, width, 3)
-        else:
+        else:  # Moving Average
             kernel = np.ones(width) / width
             smoothed = np.convolve(y, kernel, mode='same')
 
-        # new_sheet = f"{sheet_name}_s"
-        wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
-        new_sheet = get_unique_sheet_name(f"{sheet_name}_s", wb.sheetnames)
-        self.save_modified_data(x, smoothed, new_sheet, "Smoothed")
+        # Get the base name
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        if match:
+            base_name = match.group(1)
+        else:
+            base_name = sheet_name
+
+        # Find the earliest available row
+        new_sheet_name = self.get_earliest_row_name(base_name)
+
+        # Save the data
+        self.save_modified_data(x, smoothed, new_sheet_name, "Smoothed")
 
     def on_differentiate(self, event):
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -955,12 +1078,26 @@ class PlotModWindow(wx.Frame):
         y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
 
         derivative = np.gradient(y, x)
+
+        # Ensure odd window length for savgol_filter
+        if width % 2 == 0:
+            width += 1
+
         smoothed_deriv = savgol_filter(derivative, width, 3)
 
-        # new_sheet = f"{sheet_name}_d"
-        wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
-        new_sheet = get_unique_sheet_name(f"{sheet_name}_d", wb.sheetnames)
-        self.save_modified_data(x, smoothed_deriv, new_sheet, "Differentiated")
+        # Get the base name
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        if match:
+            base_name = match.group(1)
+        else:
+            base_name = sheet_name
+
+        # Find the earliest available row
+        new_sheet_name = self.get_earliest_row_name(base_name)
+
+        # Save the data
+        self.save_modified_data(x, smoothed_deriv, new_sheet_name, "Differentiated")
 
     def on_integrate(self, event):
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -970,12 +1107,26 @@ class PlotModWindow(wx.Frame):
         y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
 
         integrated = cumtrapz(y, x, initial=0)
+
+        # Ensure odd window length for savgol_filter
+        if width % 2 == 0:
+            width += 1
+
         smoothed_int = savgol_filter(integrated, width, 3)
 
-        # new_sheet = f"{sheet_name}_i"
-        wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
-        new_sheet = get_unique_sheet_name(f"{sheet_name}_i", wb.sheetnames)
-        self.save_modified_data(x, smoothed_int, new_sheet, "Integrated")
+        # Get the base name
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        if match:
+            base_name = match.group(1)
+        else:
+            base_name = sheet_name
+
+        # Find the earliest available row
+        new_sheet_name = self.get_earliest_row_name(base_name)
+
+        # Save the data
+        self.save_modified_data(x, smoothed_int, new_sheet_name, "Integrated")
 
 
 class JoinSheetsWindow(wx.Frame):
