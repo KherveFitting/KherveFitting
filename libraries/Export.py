@@ -6,9 +6,9 @@ from libraries.Save import save_state
 from libraries.Open import load_library_data
 from libraries.Sheet_Operations import on_sheet_selected
 from libraries.Peak_Functions import AtomicConcentrations
+from libraries.Grid_Operations import CheckboxRenderer
 
-
-def export_results(window):
+def export_results_OLD(window):
     """
     Export peak fitting results to the results grid and update window.Data.
     """
@@ -52,6 +52,63 @@ def export_results(window):
     window.update_atomic_percentages()
 
     save_state(window)
+
+
+def export_results(window):
+    """
+    Export peak fitting results to the results grid and update window.Data.
+    """
+    save_state(window)
+    library_data = load_library_data()
+    current_instrument = window.current_instrument
+
+    current_rows = window.results_grid.GetNumberRows()
+    start_row = current_rows  # Preserve existing data
+
+    _ensure_results_grid_columns(window)
+
+    peak_data = []
+    sheet_name = window.sheet_combobox.GetValue()
+    num_peaks = window.peak_params_grid.GetNumberRows() // 2
+
+    # Get row number from sheet name
+    row_number = 0
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = int(match.group(1))
+
+    results_table_key = f'Results Table{row_number}'
+
+    # Ensure the results table exists
+    if results_table_key not in window.Data:
+        window.Data[results_table_key] = {'Peak': {}}
+
+    for i in range(num_peaks):
+        row = i * 2
+
+        peak_params = _extract_peak_parameters(window, row, library_data, current_instrument)
+        fitting_model = window.peak_params_grid.GetCellValue(row, 13)
+
+        area, normalized_area, rel_area = _calculate_peak_areas(window, peak_params, row)
+
+        peak_data.append((peak_params['name'], peak_params['position'], peak_params['height'],
+                          peak_params['fwhm'], peak_params['lg_ratio'], area, peak_params['rsf'], normalized_area))
+
+        # Update the correct Results Table based on sheet row number
+        peak_label = _update_data_structure(window, sheet_name, i, peak_params, area, rel_area, fitting_model,
+                                            results_table_key)
+
+        if start_row + i >= current_rows:
+            window.results_grid.AppendRows(1)
+
+        _update_results_grid(window, start_row + i, peak_params, area, rel_area, fitting_model, peak_label)
+
+    window.results_grid.ForceRefresh()
+    window.update_checkboxes_from_data()
+
+    window.update_atomic_percentages()
+
+    
 
 def _ensure_results_grid_columns(window):
     """Ensure that all necessary columns exist in the results grid."""
@@ -259,7 +316,7 @@ def _calculate_peak_areas(window, peak_params, row):
 
     return round(area, 2), round(normalized_area, 2), round(rel_area, 2)
 
-def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model, peak_label):
+def _update_results_grid_OLD(window, row, peak_params, area, rel_area, fitting_model, peak_label):
     """Update a row in the results grid with peak data."""
     window.results_grid.SetCellValue(row, 0, f"{peak_params['name']}")  # Keep the original peak name
     window.results_grid.SetCellValue(row, 1, f"{peak_params['position']:.2f}")
@@ -300,7 +357,60 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
     window.results_grid.RefreshAttr(row, 7)
 
 
-def _set_checkbox(window, row, col, state='0'):
+def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model, peak_label):
+    """Update a row in the results grid with peak data."""
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = 0
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = int(match.group(1))
+
+    results_table_key = f'Results Table{row_number}'
+
+    window.results_grid.SetCellValue(row, 0, f"{peak_params['name']}")  # Keep the original peak name
+    window.results_grid.SetCellValue(row, 1, f"{peak_params['position']:.2f}")
+    window.results_grid.SetCellValue(row, 2, f"{peak_params['height']:.2f}")
+    window.results_grid.SetCellValue(row, 3, f"{peak_params['fwhm']:.2f}")
+    window.results_grid.SetCellValue(row, 4, f"{peak_params['lg_ratio']:.2f}")
+    window.results_grid.SetCellValue(row, 5, f"{area:.2f}")
+    window.results_grid.SetCellValue(row, 6, "0.00")  # Initial atomic percentage
+
+    # Get checkbox state from the correct Results Table
+    checkbox_state = window.Data[results_table_key]['Peak'][peak_label].get('Checkbox', '0')
+    _set_checkbox(window, row, 7, checkbox_state)
+
+    window.results_grid.SetCellValue(row, 8, f"{peak_params['rsf']:.2f}")
+    window.results_grid.SetCellValue(row, 9, "1.0")  # TXFN default value
+    print(f"Library: {window.library_type}")
+    if window.library_type == "Scofield":
+        window.results_grid.SetCellValue(row, 10, "KE^0.6")
+    elif window.library_type == "Wagner":
+        window.results_grid.SetCellValue(row, 10, "KE^1.0")
+    elif window.library_type == "TPP-2M":
+        window.results_grid.SetCellValue(row, 10, "TPP-2M")
+    elif window.library_type == "EAL":
+        window.results_grid.SetCellValue(row, 10, "EAL")
+    else:
+        window.results_grid.SetCellValue(row, 10, "1.0")
+
+    window.results_grid.SetCellValue(row, 11, window.current_instrument)
+    window.results_grid.SetCellValue(row, 12, fitting_model)
+    window.results_grid.SetCellValue(row, 13, f"{rel_area:.2f}")
+    window.results_grid.SetCellValue(row, 14, f"{peak_params['sigma']:.2f}")  # Sigma
+    window.results_grid.SetCellValue(row, 15, f"{peak_params['gamma']:.2f}")  # Gamma
+    window.results_grid.SetCellValue(row, 17, f"{window.bg_min_energy:.2f}" if window.bg_min_energy is not None else "")
+    window.results_grid.SetCellValue(row, 18, f"{window.bg_max_energy:.2f}" if window.bg_max_energy is not None else "")
+    window.results_grid.SetCellValue(row, 21, window.sheet_combobox.GetValue())
+    _set_constraints(window, row, peak_params['constraints'])
+
+    # Force a refresh of the grid cell to ensure the checkbox is displayed correctly
+    window.results_grid.RefreshAttr(row, 7)
+
+
+def _set_checkbox_OLD(window, row, col, state='0'):
     """Set up a checkbox in the specified grid cell."""
     window.results_grid.SetCellRenderer(row, col, wx.grid.GridCellBoolRenderer())
     window.results_grid.SetCellEditor(row, col, wx.grid.GridCellBoolEditor())
@@ -308,6 +418,13 @@ def _set_checkbox(window, row, col, state='0'):
     # window.results_grid.SetCellValue(row, col, '1' if state == '1' else '0')
     window.results_grid.ForceRefresh()
 
+def _set_checkbox(window, row, col, state='0'):
+    """Set up a checkbox in the specified grid cell."""
+    window.results_grid.SetCellRenderer(row, col, CheckboxRenderer())
+    window.results_grid.SetReadOnly(row, col)
+    window.results_grid.SetCellValue(row, col, state)
+    window.results_grid.ForceRefresh()
+    
 def _set_constraints(window, row, constraints):
     """Set constraint values in the results grid."""
     window.results_grid.SetCellValue(row, 22, constraints['position'])
@@ -319,7 +436,7 @@ def _set_constraints(window, row, constraints):
     window.results_grid.SetCellValue(row, 28, constraints['gamma'])
 
 
-def _update_data_structure(window, sheet_name, peak_index, peak_params, area, rel_area, fitting_model):
+def _update_data_structure_OLD(window, sheet_name, peak_index, peak_params, area, rel_area, fitting_model):
     """Update the window.Data structure with peak results."""
     results = window.Data['Results']['Peak']
 
@@ -380,6 +497,78 @@ def _update_data_structure(window, sheet_name, peak_index, peak_params, area, re
     window.Data['Results']['Peak'][peak_label] = peak_data
     return peak_label  # Return the peak label for reference
 
+
+def _update_data_structure(window, sheet_name, peak_index, peak_params, area, rel_area, fitting_model, results_table_key):
+    """Update the window.Data structure with peak results."""
+    results = window.Data[results_table_key]['Peak']
+
+    # Find the next available peak number
+    existing_peaks = [int(key.split('_')[1]) for key in results.keys() if key.startswith('Peak_')]
+    next_peak_number = max(existing_peaks + [-1]) + 1
+
+    peak_label = f"Peak_{next_peak_number}"
+    peak_name = peak_params['name']
+
+    # Check if this peak already exists (by name and sheet)
+    existing_peak = next((key for key, value in results.items()
+                          if value['Name'] == peak_name and value['Sheetname'] == sheet_name), None)
+
+    if existing_peak:
+        peak_label = existing_peak
+
+    if window.library_type == "Scofield":
+        ecf_type = "KE^0.6"
+    elif window.library_type == "Wagner":
+        ecf_type = "KE^1.0"
+    elif window.library_type == "TPP-2M":
+        ecf_type = "TPP-2M"
+    else:
+        ecf_type = "1.0"
+
+    peak_data = {
+        'Label': peak_label,
+        'Name': peak_name,
+        'Position': peak_params['position'],
+        'Height': peak_params['height'],
+        'FWHM': peak_params['fwhm'],
+        'L/G': peak_params['lg_ratio'],
+        'Area': area,
+        'at. %': results.get(peak_label, {}).get('at. %', 0.00),  # Preserve existing at. % if available
+        'RSF': peak_params['rsf'],
+        'TXFN': 1.0,
+        'ECF': ecf_type,
+        'Instrument': window.current_instrument,
+        'Fitting Model': fitting_model,
+        'Rel. Area': rel_area,
+        'Sigma': peak_params['sigma'],
+        'Gamma': peak_params['gamma'],
+        'Skew': peak_params.get('skew', 0.0),  # Default to 0.0 if 'skew' is not in peak_params
+        'Bkg Low': window.bg_min_energy,
+        'Bkg High': window.bg_max_energy,
+        'Sheetname': sheet_name,
+        'Pos. Constraint': peak_params['constraints']['position'],
+        'Height Constraint': peak_params['constraints']['height'],
+        'FWHM Constraint': peak_params['constraints']['fwhm'],
+        'L/G Constraint': peak_params['constraints']['lg_ratio'],
+        'Area Constraint': peak_params['constraints']['area'],
+        'Sigma Constraint': peak_params['constraints']['sigma'],
+        'Gamma Constraint': peak_params['constraints']['gamma'],
+        'Checkbox': results.get(peak_label, {}).get('Checkbox', '0')  # Preserve existing checkbox state if available
+    }
+
+    if peak_label in window.Data[results_table_key]['Peak']:
+        # Ensure constraints are properly copied from source data
+        if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in window.Data['Core levels'][sheet_name][
+            'Fitting']:
+            source_peak = list(window.Data['Core levels'][sheet_name]['Fitting']['Peaks'].values())[peak_index]
+            if 'Constraints' in source_peak:
+                peak_data['Constraints'] = source_peak['Constraints']
+
+    window.Data[results_table_key]['Peak'][peak_label] = peak_data
+    return peak_label
+
+
+# Return the peak label for reference
 
 def _bind_grid_events(window):
     """Bind necessary events to the results grid."""

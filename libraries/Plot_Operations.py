@@ -894,6 +894,9 @@ class PlotManager:
         self.canvas.draw_idle()
         # window.update_checkbox_visuals()
 
+        # Make sure checkboxes retain their state
+        wx.CallAfter(window.update_checkboxes_from_data)
+
 
     def is_part_of_doublet(self, current_label, next_label):
         """

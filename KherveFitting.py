@@ -286,7 +286,7 @@ class MyFrame(wx.Frame):
 
         self.library_type = "TPP-2M"  # Default value
 
-        # Add after other initializations
+        # Add Backup initializations
         self.backup_timer = None
         self.enable_auto_backup = False
         self.backup_interval = 30  # Default to 30 minutes
@@ -298,7 +298,10 @@ class MyFrame(wx.Frame):
         create_menu(self)
         load_recent_files_from_config(self)
 
-        # At the end of __init__
+        # Add specific event handling for checkbox clicks
+        self.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_cell_click)
+
+        # Start Backup timer
         self.setup_backup_timer()
 
 
@@ -2661,7 +2664,7 @@ class MyFrame(wx.Frame):
     def on_drag_release(self, event):
         self.plot_config.on_drag_release(self, event)
 
-    def update_checkboxes_from_data(self):
+    def update_checkboxes_from_data_OLD(self):
         if 'Results' in self.Data and 'Peak' in self.Data['Results']:
             for row in range(self.results_grid.GetNumberRows()):
                 peak_label = f"Peak_{row}"
@@ -2674,22 +2677,33 @@ class MyFrame(wx.Frame):
                         self.results_grid.RefreshAttr(row, 7)
         self.results_grid.ForceRefresh()
 
-    def update_checkboxes_from_data_NEW(self):
-        if 'Results' in self.Data and 'Peak' in self.Data['Results']:
+
+    def update_checkboxes_from_data(self):
+        sheet_name = self.sheet_combobox.GetValue()
+        match = re.search(r'(\d+)$', sheet_name)
+        row_number = match.group(1) if match else "0"
+        results_table_key = f'Results Table{row_number}'
+
+        if results_table_key in self.Data and 'Peak' in self.Data[results_table_key]:
+            from libraries.Grid_Operations import CheckboxRenderer
+
             for row in range(self.results_grid.GetNumberRows()):
                 peak_label = f"Peak_{row}"
-                peak_data = self.Data['Results']['Peak'].get(peak_label)
-                if peak_data:
-                    atomic_conc = float(self.results_grid.GetCellValue(row, 6))
-                    checkbox_state = '0' if atomic_conc == 0 else peak_data.get('Checkbox', '0')
-
+                if peak_label in self.Data[results_table_key]['Peak']:
+                    checkbox_state = self.Data[results_table_key]['Peak'][peak_label].get('Checkbox', '0')
                     current_grid_state = self.results_grid.GetCellValue(row, 7)
+
+                    # Only update if the value has changed
                     if checkbox_state != current_grid_state:
                         self.results_grid.SetCellValue(row, 7, checkbox_state)
-                        self.results_grid.RefreshAttr(row, 7)
-                        self.Data['Results']['Peak'][peak_label]['Checkbox'] = checkbox_state
-        self.results_grid.ForceRefresh()
 
+                    # Always ensure the renderer is correct
+                    self.results_grid.SetCellRenderer(row, 7, CheckboxRenderer())
+                    self.results_grid.SetReadOnly(row, 7)
+                    self.results_grid.RefreshAttr(row, 7)
+
+        # Final refresh
+        self.results_grid.ForceRefresh()
 
     def on_plot_mouse_release(self, event):
         self.update_checkboxes_from_data()
@@ -2708,60 +2722,11 @@ class MyFrame(wx.Frame):
         save_state(self)
         export_results(self)
 
-    # def on_cell_changed_OLD(self, event):
-    #     row = event.GetRow()
-    #     col = event.GetCol()
-    #
-    #     try:
-    #         if col in [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
-    #             event.Veto()
-    #             return
-    #         elif col in [8]:  # RSF column
-    #             rsf = float(self.results_grid.GetCellValue(row, 8))
-    #             area = float(self.results_grid.GetCellValue(row, 5))
-    #             binding_energy = float(self.results_grid.GetCellValue(row, 1))
-    #             kinetic_energy = self.photons - binding_energy
-    #
-    #             # Calculate ECF based on method
-    #             if self.library_type == "Scofield":
-    #                 ecf = kinetic_energy ** 0.6
-    #             elif self.library_type == "Wagner":
-    #                 ecf = kinetic_energy ** 1.0
-    #             elif self.library_type == "TPP-2M":
-    #                 # Calculate IMFP using TPP-2M using the average matrix
-    #                 imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
-    #
-    #                 # 26.2 is a factor added by Avantage to match KE^0.6
-    #                 ecf = imfp * 26.2
-    #             elif window.library_type == "EAL":
-    #                 z_avg = 50  # Default values
-    #                 eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
-    #                 ecf = eal
-    #
-    #             elif self.library_type == "None":
-    #                 ecf = 1.0
-    #             else:
-    #                 ecf = 1.0
-    #
-    #             txfn = 1.0  # Transmission function because it is corrected in the Excel page
-    #             if rsf == 0 or txfn == 0 or ecf == 0:
-    #                 new_rel_area = 0
-    #             else:
-    #                 new_rel_area = area / (rsf * txfn * ecf)
-    #             self.results_grid.SetCellValue(row, 13, f"{new_rel_area:.2f}")
-    #
-    #             # Update the atomic percentages
-    #             self.update_atomic_percentages()
-    #         elif col in [16, 17, 18, 19]:  # Constraint columns
-    #             pass
-    #
-    #     except ValueError:
-    #         wx.MessageBox("Invalid value entered", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_cell_changed(self, event):
         return
 
-    def update_atomic_percentages(self):
+    def update_atomic_percentages_OLD(self):
         current_rows = self.results_grid.GetNumberRows()
         total_normalized_area = 0
         checked_indices = []
@@ -2831,6 +2796,111 @@ class MyFrame(wx.Frame):
 
         self.results_grid.ForceRefresh()
 
+    # In MyFrame class
+    def update_atomic_percentages(self):
+        # Get current sheet's row number
+        sheet_name = self.sheet_combobox.GetValue()
+        row_number = 0
+
+        import re
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            row_number = int(match.group(1))
+
+        results_table_key = f'Results Table{row_number}'
+
+        # Ensure the results table exists
+        if results_table_key not in self.Data:
+            self.Data[results_table_key] = {'Peak': {}}
+
+        current_rows = self.results_grid.GetNumberRows()
+        total_normalized_area = 0
+        checked_indices = []
+
+        # Calculate ECF for each peak
+        for i in range(current_rows):
+            if self.results_grid.GetCellValue(i, 7) == '1':  # If checkbox ticked
+                # Get values from grid
+                peak_name = self.results_grid.GetCellValue(i, 0)
+                binding_energy = float(self.results_grid.GetCellValue(i, 1))
+                area = float(self.results_grid.GetCellValue(i, 5))
+                rsf = float(self.results_grid.GetCellValue(i, 8))
+
+                # Calculate kinetic energy
+                kinetic_energy = self.photons - binding_energy
+
+                # Calculate ECF based on method selected
+                if self.library_type == "Scofield":
+                    ecf = kinetic_energy ** 0.6
+                elif self.library_type == "Wagner":
+                    ecf = kinetic_energy ** 1.0
+                elif self.library_type == "TPP-2M":
+                    # Calculate IMFP using TPP-2M
+                    imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
+                    ecf = imfp * 26.2
+                elif self.library_type == "EAL":
+                    z_avg = 50  # Default value
+                    eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
+                    ecf = eal
+                elif self.library_type == "None":
+                    ecf = 1.0
+                else:
+                    ecf = 1.0  # Default no correction
+
+                # Calculate Transmission function
+                txfn = 1.0  # Transmission function
+
+                # Angular correction
+                angular_correction = 1.0
+                if self.use_angular_correction:
+                    angular_correction = AtomicConcentrations.calculate_angular_correction(
+                        self, peak_name, self.analysis_angle
+                    )
+
+                # Calculate normalized area with ECF correction
+                normalized_area = area / (rsf * txfn * ecf * angular_correction)
+
+                total_normalized_area += normalized_area
+                checked_indices.append((i, normalized_area))
+
+                # Update the data in the correct Results Table
+                peak_key = f"Peak_{i}"
+                if peak_key not in self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_key] = {}
+
+                # Update ECF, TXFN values in the data structure
+                self.Data[results_table_key]['Peak'][peak_key].update({
+                    'ECF': ecf,
+                    'TXFN': txfn,
+                    'RSF': rsf,
+                    'Name': peak_name,
+                    'Position': binding_energy,
+                    'Area': area,
+                    'Checkbox': '1'
+                })
+            else:
+                # Set the atomic percentage to 0 for unticked rows
+                self.results_grid.SetCellValue(i, 6, "0.00")
+
+                # Update in data structure if it exists
+                peak_key = f"Peak_{i}"
+                if results_table_key in self.Data and 'Peak' in self.Data[results_table_key] and peak_key in \
+                        self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_key]['at. %'] = 0.00
+                    self.Data[results_table_key]['Peak'][peak_key]['Checkbox'] = '0'
+
+        # Calculate atomic percentages
+        for i, norm_area in checked_indices:
+            atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
+            self.results_grid.SetCellValue(i, 6, f"{atomic_percent:.2f}")
+
+            # Update in data structure
+            peak_key = f"Peak_{i}"
+            if peak_key in self.Data[results_table_key]['Peak']:
+                self.Data[results_table_key]['Peak'][peak_key]['at. %'] = atomic_percent
+
+        # Force a refresh to update the display
+        self.results_grid.ForceRefresh()
 
     def on_height_changed(self, event):
         row = event.GetRow()
@@ -3412,7 +3482,7 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.ForceRefresh()
 
 
-    def on_checkbox_update(self, event):
+    def on_checkbox_update_OLD(self, event):
         row = event.GetRow()
         col = event.GetCol()
 
@@ -3445,6 +3515,42 @@ class MyFrame(wx.Frame):
 
             except Exception as e:
                 print(f"Error updating checkbox: {e}")
+
+        event.Skip()
+
+    # In MyFrame class
+    def on_checkbox_update(self, event):
+        row = event.GetRow()
+        col = event.GetCol()
+
+        if col == 7:
+            # Toggle checkbox value
+            current_value = self.results_grid.GetCellValue(row, col)
+            new_value = '0' if current_value == '1' else '1'
+            self.results_grid.SetCellValue(row, col, new_value)
+
+            # Get current sheet's row number
+            sheet_name = self.sheet_combobox.GetValue()
+            row_number = 0
+
+            import re
+            match = re.search(r'(\d+)$', sheet_name)
+            if match:
+                row_number = int(match.group(1))
+
+            results_table_key = f'Results Table{row_number}'
+
+            # Update data structure
+            peak_label = f"Peak_{row}"
+            if results_table_key in self.Data and 'Peak' in self.Data[results_table_key] and peak_label in \
+                    self.Data[results_table_key]['Peak']:
+                self.Data[results_table_key]['Peak'][peak_label]['Checkbox'] = new_value
+
+            # Update calculations and display
+            self.update_atomic_percentages()
+            self.clear_and_replot()
+            self.canvas.draw_idle()
+            save_state(self)
 
         event.Skip()
 
@@ -4334,6 +4440,68 @@ class MyFrame(wx.Frame):
             perform_auto_backup(self)
         else:
             print("No changes or no file open, skipping auto backup")
+
+    def on_grid_cell_click(self, event):
+        row = event.GetRow()
+        col = event.GetCol()
+
+        if col == 7:  # Checkbox column
+            # Get current state and toggle
+            current_value = self.results_grid.GetCellValue(row, col)
+            new_value = '0' if current_value == '1' else '1'
+
+            # Get data structure key
+            sheet_name = self.sheet_combobox.GetValue()
+            match = re.search(r'(\d+)$', sheet_name)
+            row_number = match.group(1) if match else "0"
+            results_table_key = f'Results Table{row_number}'
+            peak_label = f"Peak_{row}"
+
+            # Update data structure with new checkbox state
+            if results_table_key in self.Data and 'Peak' in self.Data[results_table_key]:
+                if peak_label in self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_label]['Checkbox'] = new_value
+
+                    # Set cell value
+                    self.results_grid.SetCellValue(row, col, new_value)
+
+                    # Important: Update calculations immediately
+                    self.update_atomic_percentages()
+
+                    # Force complete grid refresh
+                    self.results_grid.ForceRefresh()
+
+                    # Redraw the plot to show changes
+                    self.clear_and_replot()
+
+                    # Save state for undo functionality
+                    from libraries.Save import save_state
+                    save_state(self)
+
+                    self.after_checkbox_update()
+
+            # Stop event propagation to prevent other handlers from overriding
+            return
+
+        event.Skip()
+
+    def after_checkbox_update(self):
+        # Update percentages
+        self.update_atomic_percentages()
+
+        # Make sure all checkboxes reflect the current data state
+        self.update_checkboxes_from_data()
+
+        # Update the plot to show changes
+        self.clear_and_replot()
+
+        # Make sure GUI is refreshed
+        self.results_grid.Update()
+        self.canvas.draw_idle()
+
+        # Save state
+        from libraries.Save import save_state
+        save_state(self)
 
 
 def set_high_priority():

@@ -74,7 +74,7 @@ def Init_Measurement_Data2(window):
     }
     return(Data)
 
-def Init_Measurement_Data(window):
+def Init_Measurement_Data_OLD(window):
     Data = {
         'FilePath': '',
         'Number of Core levels': 0,
@@ -86,6 +86,22 @@ def Init_Measurement_Data(window):
         }
     }
     return(Data)
+
+
+def Init_Measurement_Data(window):
+    Data = {
+        'FilePath': '',
+        'Number of Core levels': 0,
+        'Core levels': {},
+    }
+
+    # Initialize 10 Results Tables
+    for i in range(10):
+        Data[f'Results Table{i}'] = {
+            'Peak': {}
+        }
+
+    return Data
 
 
 def add_core_level_Data(data, window, file_path, sheet_name):
