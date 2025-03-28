@@ -3364,7 +3364,7 @@ class MyFrame(wx.Frame):
                 'FWHM': float(self.peak_params_grid.GetCellValue(row_data, 4)),
                 'L/G': float(self.peak_params_grid.GetCellValue(row_data, 5)),
                 'Area': float(self.peak_params_grid.GetCellValue(row_data, 6)),
-                'Sigma': float(self.peak_params_grid.GetCellValue(row_data, 7)),
+                'Sigma': float(self.peak_params_grid.GetCellValue(row_data, 7)) if self.peak_params_grid.GetCellValue(row_data, 7) else 0.0,
                 'Gamma': float(self.peak_params_grid.GetCellValue(row_data, 8)),
                 'Skew': float(self.peak_params_grid.GetCellValue(row_data, 9)),
                 'Fitting Model': self.peak_params_grid.GetCellValue(row_data, 13)
@@ -3554,7 +3554,7 @@ class MyFrame(wx.Frame):
 
         event.Skip()
 
-    def on_key_down(self, event):
+    def on_key_down_OLD(self, event):
         keycode = event.GetKeyCode()
         if keycode == wx.WXK_DELETE:
             selected_rows = self.get_selected_rows()
@@ -3580,6 +3580,61 @@ class MyFrame(wx.Frame):
                 self.results_grid.ForceRefresh()
                 self.update_atomic_percentages()
                 save_state(self)
+        else:
+            event.Skip()
+
+    def on_key_down(self, event):
+        keycode = event.GetKeyCode()
+        if keycode == wx.WXK_DELETE:
+            selected_rows = self.get_selected_rows()
+            if selected_rows:
+                # Get the current sheet and extract its row number
+                sheet_name = self.sheet_combobox.GetValue()
+                row_number = "0"
+
+                # Extract row number from sheet name
+                import re
+                match = re.search(r'(\d+)$', sheet_name)
+                if match:
+                    row_number = match.group(1)
+
+                results_table_key = f'Results Table{row_number}'
+
+                # Check if the results table exists
+                if results_table_key not in self.Data:
+                    print(f"Results table {results_table_key} not found")
+                    event.Skip()
+                    return
+
+                # Sort rows in descending order to avoid index shifting
+                selected_rows.sort(reverse=True)
+
+                for row in selected_rows:
+                    peak_name = self.results_grid.GetCellValue(row, 0)  # Get peak name
+                    peak_label = f"Peak_{row}"
+
+                    # Delete the row from the grid
+                    self.results_grid.DeleteRows(row)
+
+                    # Remove the peak from self.Data
+                    if peak_label in self.Data[results_table_key]['Peak']:
+                        del self.Data[results_table_key]['Peak'][peak_label]
+
+                # Renumber the remaining peaks in self.Data
+                new_data = {}
+                for i, (key, value) in enumerate(self.Data[results_table_key]['Peak'].items()):
+                    new_key = f"Peak_{i}"
+                    new_data[new_key] = value
+
+                self.Data[results_table_key]['Peak'] = new_data
+
+                # Refresh and update
+                self.results_grid.ForceRefresh()
+                self.update_atomic_percentages()
+                from libraries.Save import save_state
+                save_state(self)
+            else:
+                event.Skip()
         else:
             event.Skip()
 

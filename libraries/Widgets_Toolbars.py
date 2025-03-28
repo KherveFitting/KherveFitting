@@ -173,7 +173,8 @@ def create_grids_panel(window):
     # Bind size event to maintain 50-50 split
     def on_size(event):
         size = inner_splitter.GetSize()
-        inner_splitter.SetSashPosition(size.GetHeight() // 2)
+        # Change this value to adjust the ratio (e.g., 0.6 gives 60% to peak params grid)
+        inner_splitter.SetSashPosition(int(size.GetHeight() * 0.6))
         event.Skip()
 
     inner_splitter.Bind(wx.EVT_SIZE, on_size)
@@ -773,24 +774,76 @@ def create_horizontal_toolbar(parent, window):
 
 # Bind the delete toolbar tools
 def on_delete_all(window, event):
-    window.results_grid.DeleteRows(0, window.results_grid.GetNumberRows())
-    window.Data['Results']['Peak'] = {}
-    save_state(window)
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = "0"
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = match.group(1)
+
+    results_table_key = f'Results Table{row_number}'
+
+    # Check if table exists
+    if results_table_key in window.Data:
+        window.results_grid.DeleteRows(0, window.results_grid.GetNumberRows())
+        window.Data[results_table_key]['Peak'] = {}
+        save_state(window)
+
 
 def on_delete_last(window, event):
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = "0"
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = match.group(1)
+
+    results_table_key = f'Results Table{row_number}'
+
     last_row = window.results_grid.GetNumberRows() - 1
-    window.results_grid.DeleteRows(last_row)
-    peak_keys = list(window.Data['Results']['Peak'].keys())
-    if peak_keys:
-        del window.Data['Results']['Peak'][peak_keys[-1]]
-    save_state(window)
+    if last_row >= 0:
+        window.results_grid.DeleteRows(last_row)
+
+        if results_table_key in window.Data:
+            peak_keys = list(window.Data[results_table_key]['Peak'].keys())
+            if peak_keys:
+                del window.Data[results_table_key]['Peak'][peak_keys[-1]]
+        save_state(window)
+
 
 def on_delete_first(window, event):
-    window.results_grid.DeleteRows(0)
-    peak_keys = list(window.Data['Results']['Peak'].keys())
-    if peak_keys:
-        del window.Data['Results']['Peak'][peak_keys[0]]
-    save_state(window)
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = "0"
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = match.group(1)
+
+    results_table_key = f'Results Table{row_number}'
+
+    if window.results_grid.GetNumberRows() > 0:
+        window.results_grid.DeleteRows(0)
+
+        if results_table_key in window.Data:
+            peak_keys = list(window.Data[results_table_key]['Peak'].keys())
+            if peak_keys:
+                del window.Data[results_table_key]['Peak'][peak_keys[0]]
+
+                # Renumber remaining peaks
+                new_data = {}
+                for i, (key, value) in enumerate(window.Data[results_table_key]['Peak'].items()):
+                    if i > 0:  # Skip the first one that was deleted
+                        new_key = f"Peak_{i - 1}"
+                        new_data[new_key] = value
+
+                window.Data[results_table_key]['Peak'] = new_data
+        save_state(window)
 
 def add_vertical_separator(toolbar, separators):
     separators.append(wx.StaticLine(toolbar, style=wx.LI_VERTICAL))

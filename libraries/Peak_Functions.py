@@ -978,7 +978,7 @@ class AtomicConcentrations:
         return correction
 
     @staticmethod
-    def extract_orbital_type(peak_name):
+    def extract_orbital_type_OLD(peak_name):
         """
         Extract orbital type (s, p, d, f) from peak name.
         Examples:
@@ -1002,6 +1002,39 @@ class AtomicConcentrations:
                     print(f'Peak name: {peak_name} Chosen name: {core_level[i+2].lower()}')
                     return core_level[i+2].lower()
             i += 1
+
+        return 's'  # Default to s if no orbital found
+
+    @staticmethod
+    def extract_orbital_type(peak_name):
+        """
+        Extract orbital type (s, p, d, f) from peak name.
+        Examples:
+        'Ti2p3/2' -> 'p'
+        'C1s' -> 's'
+        'Sr3d5/2' -> 'd'
+        'Ti 2p3/2' -> 'p'
+        'C 1s' -> 's'
+        'Sr 3d5/2' -> 'd'
+        """
+        import re
+
+        # First try to match the pattern in the whole string
+        match = re.search(r'\d+([spdf])', peak_name.lower())
+        if match:
+            return match.group(1)
+
+        # If no match, try individual parts
+        parts = peak_name.split()
+        for part in parts:
+            match = re.search(r'\d+([spdf])', part.lower())
+            if match:
+                return match.group(1)
+
+        # Last resort - just look for any orbital character
+        for char in peak_name.lower():
+            if char in 'spdf':
+                return char
 
         return 's'  # Default to s if no orbital found
 

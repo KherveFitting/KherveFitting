@@ -815,7 +815,7 @@ def save_plot_as_svg(window):
 
 
 
-def save_results_table(window):
+def save_results_table_OLD(window):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
         return
@@ -895,6 +895,194 @@ def save_results_table(window):
         # window.show_popup_message2("Table Saved","Results table has been saved to the Excel file.")
 
     except Exception as e:
+        wx.MessageBox(f"Error saving results table: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def save_results_table(window):
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    file_path = window.Data['FilePath']
+    json_file_path = os.path.splitext(file_path)[0] + '.json'
+
+    try:
+        wb = openpyxl.load_workbook(file_path)
+        sheet_name = 'Results Table'
+        if sheet_name in wb.sheetnames:
+            wb.remove(wb[sheet_name])
+        ws = wb.create_sheet(sheet_name)
+
+        def get_column_letter(n):
+            result = ""
+            while n > 0:
+                n, remainder = divmod(n - 1, 26)
+                result = chr(65 + remainder) + result
+            return result
+
+        # Get headers from results grid
+        headers = [window.results_grid.GetColLabelValue(col) for col in range(window.results_grid.GetNumberCols())]
+
+        # Set styles
+        header_font = Font(bold=True)
+        header_fill = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
+        center_align = Alignment(horizontal="center", vertical="center")
+
+        # Current row in the worksheet
+        current_row = 2
+
+        # Identify result table keys in window.Data
+        result_table_keys = sorted([k for k in window.Data.keys() if k.startswith('Results Table')],
+                                   key=lambda x: int(x.replace('Results Table', '')) if x.replace('Results Table',
+                                                                                                  '').isdigit() else 0)
+
+        # If no Result Tables found, fallback to old format
+        if not result_table_keys and 'Results' in window.Data:
+            result_table_keys = ['Results']
+
+        # Keep track of tables to remove
+        tables_to_remove = []
+
+        for table_key in result_table_keys:
+            # Check if the table has any peaks
+            if 'Peak' not in window.Data[table_key] or not window.Data[table_key]['Peak']:
+                tables_to_remove.append(table_key)
+                continue
+
+            # Get sample number
+            sample_num = table_key.replace('Results Table', '') if table_key != 'Results' else '0'
+
+            # Write sample title
+            title_cell = ws.cell(row=current_row, column=2, value=f"Sample {sample_num}")
+            title_cell.font = Font(bold=True, size=12)
+            current_row += 1
+
+            # Write headers
+            header_row = current_row
+            for col, header in enumerate(headers, start=2):
+                cell = ws.cell(row=header_row, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_align
+
+            # Get peak data for this table
+            peaks_data = window.Data[table_key]['Peak']
+
+            # Sort peaks by their numeric index
+            sorted_peaks = []
+            for peak_key, peak_data in peaks_data.items():
+                if peak_key.startswith('Peak_') and peak_key[5:].isdigit():
+                    index = int(peak_key[5:])
+                    sorted_peaks.append((index, peak_data))
+
+            sorted_peaks.sort(key=lambda x: x[0])
+
+            # Write peak data
+            data_start_row = header_row + 1
+            for i, (_, peak_data) in enumerate(sorted_peaks):
+                row_num = data_start_row + i
+
+                # Map fields to columns
+                field_map = {
+                    0: 'Name',  # Peak Label
+                    1: 'Position',  # Position
+                    2: 'Height',  # Height
+                    3: 'FWHM',  # FWHM
+                    4: 'L/G',  # L/G
+                    5: 'Area',  # Area
+                    6: 'at. %',  # Atomic %
+                    7: 'Checkbox',  # Checkbox
+                    8: 'RSF',  # RSF
+                    9: 'TXFN',  # TXFN
+                    10: 'ECF',  # ECF
+                    11: 'Instrument',  # Instrument
+                    12: 'Fitting Model',  # Fitting Model
+                    13: 'Rel. Area',  # Rel Area
+                    14: 'Sigma',  # Sigma
+                    15: 'Gamma',  # Gamma
+                    16: 'Bkg Type',  # Bkg Type
+                    17: 'Bkg Low',  # Bkg Low
+                    18: 'Bkg High',  # Bkg High
+                    19: 'Bkg Offset Low',  # Bkg Offset Low
+                    20: 'Bkg Offset High',  # Bkg Offset High
+                    21: 'Sheetname',  # Sheetname
+                    22: 'Pos. Constraint',  # Position Constraint
+                    23: 'Height Constraint',  # Height Constraint
+                    24: 'FWHM Constraint',  # FWHM Constraint
+                    25: 'L/G Constraint',  # L/G Constraint
+                    26: 'Area Constraint',  # Area Constraint
+                    27: 'Sigma Constraint',  # Sigma Constraint
+                    28: 'Gamma Constraint'  # Gamma Constraint
+                }
+
+                # Write each cell
+                for col_idx in range(len(headers)):
+                    field_name = field_map.get(col_idx, f"Column_{col_idx}")
+                    value = peak_data.get(field_name, "")
+
+                    # Format checkbox
+                    if col_idx == 7:  # Checkbox column
+                        value = '✓' if value == '1' else ''
+
+                    # Format numeric values
+                    if isinstance(value, (int, float)) and col_idx in [1, 2, 3, 4, 5, 6, 13, 14, 15]:
+                        value = f"{value:.2f}"
+
+                    cell = ws.cell(row=row_num, column=col_idx + 2, value=value)
+                    cell.alignment = center_align
+
+            # Calculate last row of this table
+            data_end_row = data_start_row + len(sorted_peaks) - 1 if sorted_peaks else data_start_row
+
+            # Apply borders
+            max_col = len(headers) + 1
+
+            # Headers row - thick border
+            for col in range(2, max_col + 2):
+                cell = ws.cell(row=header_row, column=col)
+                cell.border = Border(
+                    left=Side(style='medium' if col == 2 else 'thin'),
+                    right=Side(style='medium' if col == max_col + 1 else 'thin'),
+                    top=Side(style='medium'),
+                    bottom=Side(style='thin')
+                )
+
+            # Data cells
+            for row in range(data_start_row, data_end_row + 1):
+                for col in range(2, max_col + 2):
+                    cell = ws.cell(row=row, column=col)
+                    cell.border = Border(
+                        left=Side(style='medium' if col == 2 else 'thin'),
+                        right=Side(style='medium' if col == max_col + 1 else 'thin'),
+                        top=Side(style='thin'),
+                        bottom=Side(style='medium' if row == data_end_row else 'thin')
+                    )
+
+            # Move to next table position (leave gap)
+            current_row = data_end_row + 4
+
+        # Remove empty tables from window.Data
+        for table_key in tables_to_remove:
+            del window.Data[table_key]
+
+        # Adjust column widths
+        for column_cells in ws.columns:
+            if column_cells:
+                length = max(len(str(cell.value) or '') for cell in column_cells)
+                ws.column_dimensions[column_cells[0].column_letter].width = length + 2
+
+        # Save Excel file
+        wb.save(file_path)
+
+        # Save JSON file with updated window.Data (after empty tables removal)
+        from libraries.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         wx.MessageBox(f"Error saving results table: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
