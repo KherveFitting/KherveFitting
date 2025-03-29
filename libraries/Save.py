@@ -23,7 +23,8 @@ import shutil
 
 def save_all_sheets_with_plots(window):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
-        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        # wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2("Error", "No file selected. Please open a file first.")
         return
 
     file_path = window.Data['FilePath']

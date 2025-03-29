@@ -1106,7 +1106,8 @@ class PreferenceWindow(wx.Frame):
 
         self.parent.library_data = load_library_data()  # Reload library
 
-        wx.MessageBox("Library converted to JSON", "Success")
+        # wx.MessageBox("Library converted to JSON", "Success")
+        self.parent.show_popup_message2("Success", "Library converted to JSON")
 
     def on_view_library(self, evt):
         instrument = self.instrument_combo.GetValue()

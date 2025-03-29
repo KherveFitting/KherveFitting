@@ -91,6 +91,7 @@ class FileManagerWindow(wx.Frame):
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_cell_changing)
         self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
 
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
@@ -103,6 +104,19 @@ class FileManagerWindow(wx.Frame):
         current_sheet = self.parent.sheet_combobox.GetValue()
         if current_sheet:
             self.highlight_current_sheet(current_sheet)
+
+    def on_cell_changed(self, event):
+        """Handle completed cell edit event"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        # Handle sample name column
+        if col == 0:
+            name = self.grid.GetCellValue(row, 0)
+            self.sample_names[str(row)] = name
+            self.save_sample_names()
+
+        event.Skip()
 
     def create_vertical_toolbar(self):
         """Create vertical toolbar with buttons for core level management"""
@@ -1002,7 +1016,8 @@ class FileManagerWindow(wx.Frame):
         self.populate_grid()
 
         # Notify the user
-        wx.MessageBox(f"Created summed spectrum: {new_sheet_name}", "Sum Complete", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"Created summed spectrum: {new_sheet_name}", "Sum Complete", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Sum Complete", f"Created summed spectrum: {new_sheet_name}")
 
     def get_selected_sheet_names(self):
         """Get names of all currently selected sheets in the grid"""
@@ -1507,7 +1522,8 @@ class FileManagerWindow(wx.Frame):
                     self.save_be_corrections()
 
             except ValueError:
-                wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
+                # wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
+                self.parent.show_popup_message2( "Invalid Value", "BE correction must be a number")
                 event.Veto()
                 return
 
@@ -1517,8 +1533,10 @@ class FileManagerWindow(wx.Frame):
             if old_value in self.parent.Data['Core levels']:
                 # Check if new name already exists
                 if new_value in self.parent.Data['Core levels']:
-                    wx.MessageBox(f"A core level named '{new_value}' already exists.",
-                                  "Duplicate Name", wx.OK | wx.ICON_ERROR)
+                    # wx.MessageBox(f"A core level named '{new_value}' already exists.",
+                    #               "Duplicate Name", wx.OK | wx.ICON_ERROR)
+                    self.parent.show_popup_message2("Duplicate Name", f"A core level named '{new_value}' already "
+                                                                      f"exists.")
                     event.Veto()
                     return
 
@@ -1602,7 +1620,9 @@ class FileManagerWindow(wx.Frame):
         with open(clipboard_file, 'w') as f:
             json.dump(clipboard_data, f)
 
-        wx.MessageBox(f"{len(clipboard_data)} core level(s) copied. Beware that core level retain their BE correction values", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"{len(clipboard_data)} core level(s) copied. Beware that core level retain their BE correction values", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Copy Successful",
+                                        f"{len(clipboard_data)} core level(s) copied. Beware that core level retain their BE correction values")
 
     def on_paste_OLD(self, event):
         """Paste the core levels to the selected cells"""
@@ -1615,7 +1635,8 @@ class FileManagerWindow(wx.Frame):
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
 
         if not os.path.exists(clipboard_file):
-            wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Paste Failed", "No data in clipboard")
             return
 
         # Load the clipboard data
@@ -1623,7 +1644,8 @@ class FileManagerWindow(wx.Frame):
             clipboard_data = json.load(f)
 
         if not clipboard_data:
-            wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Paste Failed", "Clipboard is empty")
             return
 
         # Determine target row based on cursor position
@@ -1741,8 +1763,10 @@ class FileManagerWindow(wx.Frame):
         # Refresh the grid
         self.populate_grid()
 
-        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted."
-                      f"\n Beware that core level retain their BE correction values ", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted."
+        #               f"\n Beware that core level retain their BE correction values ", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Paste Successful", f"{len(clipboard_data)} core level(s) pasted."
+                                                            f"\n Beware that core level retain their BE correction values ")
 
     def on_paste(self, event):
         """Paste the core levels to the selected cells, supporting paste between different instances"""
@@ -1986,8 +2010,10 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             print(f"Error in final update steps: {e}")
 
-        wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted. "
-                      f"\n Beware that core level retain their BE correction values", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted. "
+        #               f"\n Beware that core level retain their BE correction values", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Paste Successful",
+                                        f"{len(clipboard_data)} core level(s) pasted.\nBeware that core level retain their BE correction values")
 
     def on_rename(self, event):
         """Rename the selected core level"""
@@ -2062,7 +2088,8 @@ class FileManagerWindow(wx.Frame):
         sheet_names = list(set(sheet_names))
 
         if not sheet_names:
-            wx.MessageBox("No core levels selected.", "Information", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox("No core levels selected.", "Information", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Information", "No core levels selected.")
             return
 
         # Confirm deletion
@@ -2110,7 +2137,8 @@ class FileManagerWindow(wx.Frame):
         # Refresh the grid
         self.populate_grid()
 
-        wx.MessageBox(f"Deleted {len(sheet_names)} core level(s).", "Success", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"Deleted {len(sheet_names)} core level(s).", "Success", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Success", f"Deleted {len(sheet_names)} core level(s).")
 
     def on_preferences(self, event):
         dlg = wx.Dialog(self, title="Normalization Settings", size=(300, 200))
@@ -2382,8 +2410,10 @@ class FileManagerWindow(wx.Frame):
 
         # Check if already sorted
         if sheet_names == sorted_sheet_names:
-            wx.MessageBox("Sheets are already sorted.", "Information", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox("Sheets are already sorted.", "Information", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Information", "Sheets are already sorted.")
             return
+
 
         # Sort the Excel file
         try:
@@ -2433,7 +2463,9 @@ class FileManagerWindow(wx.Frame):
             # Refresh grid
             self.populate_grid()
 
-            wx.MessageBox("Sheets sorted successfully.", "Success", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox("Sheets sorted successfully.", "Success", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Success", "Sheets sorted successfully.")
+
 
         except Exception as e:
             wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -2489,11 +2521,14 @@ class FileManagerWindow(wx.Frame):
                 files_backed_up.append(json_backup)
 
             # Show success message
-            wx.MessageBox(f"Backup created successfully:\n" + "\n".join(files_backed_up),
-                          "Backup Complete", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox(f"Backup created successfully:\n" + "\n".join(files_backed_up),
+            #               "Backup Complete", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Backup Complete", f"Backup created successfully:\n" + "\n".join(
+                files_backed_up))
 
         except Exception as e:
-            wx.MessageBox(f"Error creating backup: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox(f"Error creating backup: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Error", f"Error creating backup: {str(e)}")
 
     def on_grid_right_click(self, event):
         """Handle right-click on grid to show context menu"""
@@ -2551,7 +2586,8 @@ class FileManagerWindow(wx.Frame):
         # If currently plotting multiple sheets, update the plot with new normalization
         self.replot_with_normalization()
 
-        wx.MessageBox(f"Value '{value}' propagated to all rows.", "Success", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"Value '{value}' propagated to all rows.", "Success", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Success", f"Value '{value}' propagated to all rows.")
 
     def highlight_current_sheet(self, sheet_name):
         """Highlight the cell containing the current sheet name"""

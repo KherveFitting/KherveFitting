@@ -120,25 +120,16 @@ def add_core_level_Data(data, window, file_path, sheet_name):
     # Check headers in first row
     headers_df = pd.read_excel(file_path, sheet_name=sheet_name, nrows=1)
 
-    # # Check if headers are missing or are numbers
-    # if (headers_df.empty or
-    #         pd.isna(headers_df.iloc[0, 0]) or
-    #         pd.isna(headers_df.iloc[0, 1]) or
-    #         isinstance(headers_df.iloc[0, 0], (int, float)) or
-    #         isinstance(headers_df.iloc[0, 1], (int, float))):
-    #     print(f'Header: {headers_df.iloc[0, 0]}')
-    #     wx.MessageBox(
-    #         f"Sheet '{sheet_name}' has invalid headers in row 1.\nColumn A should be labeled 'BE' or 'Binding Energy'\nColumn B should be labeled 'Raw Data' or 'Intensity'\nHeaders cannot be numbers.",
-    #         "Invalid Headers", wx.OK | wx.ICON_WARNING)
-    #     return data
-
     # Rest of the function remains the same
     df = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=skip_rows)
 
     if df.empty or df.shape[1] < 2:
-        wx.MessageBox(
-            f"All sheets must be filled with data and named after their core level (e.g., C1s, O1s).\nSheet '{sheet_name}' is empty or has insufficient columns.",
-            "Invalid Sheet", wx.OK | wx.ICON_WARNING)
+        # wx.MessageBox(
+        #     f"All sheets must be filled with data and named after their core level (e.g., C1s, O1s).\nSheet '{sheet_name}' is empty or has insufficient columns.",
+        #     "Invalid Sheet", wx.OK | wx.ICON_WARNING)
+        self.parent.show_popup_message2("Invalid Sheet", f"All sheets must be filled with data and named after their "
+                            f"core level (e.g., C1s, O1s).\nSheet '{sheet_name}' is empty or has insufficient columns.")
+            
         return data
 
     x_values = df.iloc[:, 0].tolist()

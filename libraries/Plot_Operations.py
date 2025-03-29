@@ -393,7 +393,8 @@ class PlotManager:
 
     def plot_data(self, window):
         if 'Core levels' not in window.Data or not window.Data['Core levels']:
-            wx.MessageBox("No data available to plot.", "Error", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox("No data available to plot.", "Error", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Error", "No data available to plot.")
             return
 
         sheet_name = window.sheet_combobox.GetValue()
@@ -1840,7 +1841,8 @@ class PlotManager:
         bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
 
         if bg_min_energy is None or bg_max_energy is None or bg_min_energy > bg_max_energy:
-            wx.MessageBox("Invalid energy range selected.", "Warning", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox("Invalid energy range selected.", "Warning", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Warning", "Invalid energy range selected.")
             return None, None
 
         # Add this before the mask line to remove the

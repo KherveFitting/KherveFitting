@@ -188,9 +188,10 @@ def open_spe_fileOLD1(window, file_path):
 
     except Exception as e:
         wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
-# With header
+        # With header
 def open_spe_file2(window, file_path):
     try:
         from yadg.extractors.phi.spe import extract
@@ -262,7 +263,8 @@ def open_spe_file2(window, file_path):
         open_xlsx_file(window, excel_path)
 
     except Exception as e:
-        wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        # wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
 def open_spe_file(window, file_path):
@@ -363,7 +365,8 @@ def open_spe_file(window, file_path):
         open_xlsx_file(window, excel_path)
 
     except Exception as e:
-        wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        # wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
 def open_spe_file_dialog(window):
@@ -471,10 +474,12 @@ def import_mrs_file(window):
         open_xlsx_file(window, excel_path)
 
     except Exception as e:
-        wx.MessageBox(f"Error processing MRS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        # wx.MessageBox(f"Error processing MRS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2("Error", f"Error processing MRS file: {str(e)}")
 
 
 def import_avantage_file_direct(window, file_path):
+    import re
     wb = openpyxl.load_workbook(file_path)
     new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
 
@@ -482,7 +487,27 @@ def import_avantage_file_direct(window, file_path):
     for sheet_name in wb.sheetnames:
         sheet = wb[sheet_name]
         if "Survey" in sheet_name or "Scan" in sheet_name:
-            new_name = "Survey XPS" if "Survey" in sheet_name or "survey" in sheet_name else sheet_name.split()[0]
+            # Handle Survey sheets
+            if "Survey" in sheet_name or "survey" in sheet_name:
+                # Extract number if present in "Survey Scan (2)" format
+                number_match = re.search(r'\((\d+)\)', sheet_name)
+                if number_match:
+                    number = number_match.group(1)
+                    new_name = f"Survey{number}"
+                else:
+                    new_name = "Survey"
+            else:
+                # Extract element name and number for patterns like "C1s Scan (1)"
+                parts = sheet_name.split()
+                element = parts[0]
+                # Check if there's a number in parentheses
+                number_match = re.search(r'\((\d+)\)', sheet_name)
+                if number_match:
+                    number = number_match.group(1)
+                    new_name = f"{element}{number}"
+                else:
+                    new_name = element
+
             wb.create_sheet(new_name)
             new_sheet = wb[new_name]
             new_sheet['A1'] = "Binding Energy"
@@ -519,8 +544,29 @@ def import_avantage_file_direct_xls(window, file_path):
     for sheet_name in wb_xls.sheet_names():
         sheet = wb_xls.sheet_by_name(sheet_name)
         if "Survey" in sheet_name or "Scan" in sheet_name:
-            new_name = "Survey XPS" if "Survey" in sheet_name or "survey" in sheet_name else sheet_name.split()[0]
-            new_sheet = wb_new.create_sheet(new_name)
+            # Handle Survey sheets
+            if "Survey" in sheet_name or "survey" in sheet_name:
+                # Extract number if present in "Survey Scan (2)" format
+                number_match = re.search(r'\((\d+)\)', sheet_name)
+                if number_match:
+                    number = number_match.group(1)
+                    new_name = f"Survey{number}"
+                else:
+                    new_name = "Survey"
+            else:
+                # Extract element name and number for patterns like "C1s Scan (1)"
+                parts = sheet_name.split()
+                element = parts[0]
+                # Check if there's a number in parentheses
+                number_match = re.search(r'\((\d+)\)', sheet_name)
+                if number_match:
+                    number = number_match.group(1)
+                    new_name = f"{element}{number}"
+                else:
+                    new_name = element
+
+            wb.create_sheet(new_name)
+            new_sheet = wb[new_name]
             new_sheet['A1'] = "Binding Energy"
             new_sheet['B1'] = "Raw Data"
 
@@ -723,8 +769,8 @@ def open_avg_file(window):
         from libraries.Open import open_xlsx_file
         open_xlsx_file(window, excel_file_path)
     except Exception as e:
-        wx.MessageBox(f"Error processing AVG file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
+        # wx.MessageBox(f"Error processing AVG file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2("Error", f"Error processing AVG file: {str(e)}")
 
 def import_multiple_avg_files_OLD(window):
     with wx.DirDialog(window, "Choose a directory containing AVG files",
@@ -739,7 +785,8 @@ def import_multiple_avg_files_OLD(window):
         avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
 
         if not avg_files:
-            wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Information", "No AVG files found in the selected folder.")
             return
 
         folder_name = os.path.basename(folder_path)
@@ -760,15 +807,16 @@ def import_multiple_avg_files_OLD(window):
 
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-        wx.MessageBox(f"Excel file created: {excel_file_path}", "Success", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"Excel file created: {excel_file_path}", "Success", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Success", f"Excel file created: {excel_file_path}")
 
         # Open the created Excel file
         from libraries.Open import open_xlsx_file
         open_xlsx_file(window, excel_file_path)
 
     except Exception as e:
-        wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
+        # wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        self.parent.show_popup_message2( "Error", f"Error processing AVG files: {str(e)}")
 
 def import_multiple_avg_files(window):
     with wx.DirDialog(window, "Choose a directory containing AVG files",

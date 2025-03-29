@@ -516,7 +516,8 @@ class FittingWindow(wx.Frame):
             dlg.SetSizer(sizer)
             dlg.Show()
         else:
-            wx.MessageBox("No fit report available. Please perform a fit first.", "No Report")
+            # wx.MessageBox("No fit report available. Please perform a fit first.", "No Report")
+            self.parent.show_popup_message2("No Report", "No fit report available. Please perform a fit first.")
 
     def get_optimization_method(self):
         selection = self.optimization_method.GetValue()
@@ -614,7 +615,8 @@ class FittingWindow(wx.Frame):
     def on_fit_multi(self, event):
         save_state(self.parent)
         if self.parent.peak_params_grid.GetNumberRows() == 0:
-            wx.MessageBox("No peaks to fit. Add at least one peak first.", "Error", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox("No peaks to fit. Add at least one peak first.", "Error", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Error", "No peaks to fit. Add at least one peak first.")
             return
         save_state(self.parent)
         iterations = self.fit_iterations_spin.GetValue()
@@ -687,7 +689,8 @@ class FittingWindow(wx.Frame):
     def on_add_doublet_OLD(self, event):
         save_state(self.parent)
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
-            wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
+            # wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
+            self.parent.show_popup_message2("No Background", "Please create a background first.")
             return
 
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -701,8 +704,9 @@ class FittingWindow(wx.Frame):
         orbital = re.search(r'([2-5][spdf])', first_word)
 
         if not orbital:
-            wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
-                          "Error", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
+            #               "Error", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Error", "Cannot fit doublet peak on a S orbital core level.")
             return
 
         orbital = orbital.group()
@@ -827,7 +831,8 @@ class FittingWindow(wx.Frame):
     def on_add_doublet(self, event):
         save_state(self.parent)
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
-            wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
+            # wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
+            self.parent.show_popup_message2("No Background", "Please create a background first.")
             return
 
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -842,8 +847,9 @@ class FittingWindow(wx.Frame):
         # Check if it's a valid orbital for doublet
         orbital = re.search(r'(\d+[spdf])', element_orbital)
         if not orbital:
-            wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
-                          "Error", wx.OK | wx.ICON_ERROR)
+            # wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
+            #               "Error", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Error", "Cannot fit doublet peak on a S orbital core level.")
             return
 
         orbital = orbital.group()

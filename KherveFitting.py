@@ -792,6 +792,9 @@ class MyFrame(wx.Frame):
         self.peak_params_grid.SetCellValue(row + 1, 4, "0.3:3.5")
         self.peak_params_grid.SetCellValue(row + 1, 5, "2:80")
         self.peak_params_grid.SetCellValue(row + 1, 6, "1:1e7")
+        self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
+        self.peak_params_grid.SetCellValue(row + 1, 8, "0.3:3")
+        self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')
         if self.selected_fitting_method == "ExpGauss.(Area, \u03c3, \u03b3)":
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:1")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:3")
@@ -825,20 +828,20 @@ class MyFrame(wx.Frame):
         # Set background color for Height, FWHM, and L/G ratio cells if Voigt function
         if self.selected_fitting_method == "Voigt (Area, L/G, \u03c3)":
             for col in [3, 4, 8]:  # Columns for Height, FWHM, L/G ratio
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [5, 6, 7]:  # Columns for Height, FWHM, L/G ratio
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
             for col in [9]:  # Columns for Area, sigma and gamma
-                self.peak_params_grid.SetCellValue(row, col, "0")
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                self.peak_params_grid.SetCellValue(row, col, "0.1")
+                self.peak_params_grid.SetCellValue(row + 1, col, "0.1:1")
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
         elif self.selected_fitting_method == "Voigt (Area, L/G, \u03c3, S)":
             for col in [3, 4, 8]:  # Columns for Height, FWHM, L/G ratio
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [5, 6, 7, 9]:  # Columns for Height, FWHM, L/G ratio
@@ -846,46 +849,46 @@ class MyFrame(wx.Frame):
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
         elif self.selected_fitting_method in ["Voigt (Area, \u03c3, \u03b3)", "ExpGauss.(Area, \u03c3, \u03b3)"]:
             for col in [3,4, 5, 9]:  # Columns for Height, FWHM, L/G ratio
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [6, 7, 8]:  # Columns for Height, FWHM
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
             for col in [9]:  # Columns for Area, sigma and gamma
-                self.peak_params_grid.SetCellValue(row, col, "0")
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                self.peak_params_grid.SetCellValue(row, col, "0.1")
+                self.peak_params_grid.SetCellValue(row + 1, col, "0.1:1")
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
         elif self.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)" ]:
             for col in [3, 5]:  # Columns for Height, FWHM, L/G ratio
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [4, 6, 7, 8]:  # Columns for Height, FWHM
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
             for col in [9]:  # Columns for Area, sigma and gamma
-                self.peak_params_grid.SetCellValue(row, col, "0")
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                self.peak_params_grid.SetCellValue(row, col, "0.1")
+                self.peak_params_grid.SetCellValue(row + 1, col, "0.1:1")
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
         elif self.selected_fitting_method in ["LA (Area, \u03c3/\u03b3, \u03b3)"]:
-            for col in [3,7,]:  # Columns for Height, FWHM, L/G ratio
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+            for col in [3,7]:  # Columns for Height, FWHM, L/G ratio
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [4, 5, 6, 8]:  # Columns for Height, FWHM
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
             for col in [9]:  # Columns for Area, sigma and gamma
-                self.peak_params_grid.SetCellValue(row, col, "0")
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                self.peak_params_grid.SetCellValue(row, col, "0.1")
+                self.peak_params_grid.SetCellValue(row + 1, col, "0.1:1")
                 self.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
         elif self.selected_fitting_method in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
             for col in [3,7]:  # Columns for Height, FWHM, L/G ratio
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [4, 5, 6, 8, 9]:  # Columns for Height, FWHM
@@ -894,13 +897,13 @@ class MyFrame(wx.Frame):
         elif self.selected_fitting_method in  ["Pseudo-Voigt (Area)", "GL (Area)", "SGL (Area)"]:
             for col in [3]:  # Height
                 # self.peak_params_grid.SetCellBackgroundColour(row, col, wx.Colour(200,245,228))
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [7,8, 9]:  # Columns for Area, sigma and gamma
                 # self.peak_params_grid.SetCellBackgroundColour(row, col, wx.Colour(240,240,240))
-                self.peak_params_grid.SetCellValue(row , col, "0")
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row , col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(255,255,255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [4, 5, 6]:  # Columns for Height, FWHM, L/G ratio
@@ -909,12 +912,12 @@ class MyFrame(wx.Frame):
         else:
             for col in [6]:  # Columns for Area, sigma and gamma
                 # self.peak_params_grid.SetCellBackgroundColour(row, col, wx.Colour(240,240,240))
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(128, 128, 128))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [7,8, 9]:  # Columns for Area, sigma and gamma
                 # self.peak_params_grid.SetCellBackgroundColour(row, col, wx.Colour(240,240,240))
-                self.peak_params_grid.SetCellValue(row + 1, col, "0")
+                # self.peak_params_grid.SetCellValue(row + 1, col, "0")
                 self.peak_params_grid.SetCellTextColour(row , col, wx.Colour(255,255,255))
                 self.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200,245,228))
             for col in [3, 4, 5]:  # Columns for Height, FWHM, L/G ratio
@@ -2526,12 +2529,12 @@ class MyFrame(wx.Frame):
                 core_level_data['Fitting']['Peaks'][peak_label] = {
                     'Position': peak_x,
                     'Height': peak_y,
-                    'FWHM': float(self.peak_params_grid.GetCellValue(row, 4)),
-                    'L/G': float(self.peak_params_grid.GetCellValue(row, 5)),
-                    'Area': try_float(self.peak_params_grid.GetCellValue(row, 6), 0.0),
-                    'Sigma': float(self.peak_params_grid.GetCellValue(row, 7)),
-                    'Gamma': float(self.peak_params_grid.GetCellValue(row, 8)),
-                    'Skew': float(self.peak_params_grid.GetCellValue(row, 9))
+                    'FWHM': self.try_float(self.peak_params_grid.GetCellValue(row, 4), 1.6),
+                    'L/G': self.try_float(self.peak_params_grid.GetCellValue(row, 5), 20.0),
+                    'Area': self.try_float(self.peak_params_grid.GetCellValue(row, 6), 0.0),
+                    'Sigma': self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.5),
+                    'Gamma': self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.5),
+                    'Skew': self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.1)
                 }
 
         self.selected_peak_index = None
@@ -2935,6 +2938,10 @@ class MyFrame(wx.Frame):
                 raise ValueError("Sigma and gamma are required for Voigt models")
             area = PeakFunctions.voigt_height_to_area(height, sigma / 2.355, gamma / 2)
         elif model == "Voigt (Area, L/G, \u03c3, S)":
+            # Set default values if parameters are missing
+            sigma = sigma or 0.5
+            gamma = gamma or 0.5
+            skew = skew or 0.1
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for Voigt models")
             area = PeakFunctions.skewedvoigt_height_to_area(height, sigma / 2.355, gamma / 2, skew)
@@ -2986,9 +2993,12 @@ class MyFrame(wx.Frame):
         sheet_name = self.sheet_combobox.GetValue()
         peak_index = row // 2
 
-        # Define default constraint values
+        # # Define default constraint values
+        # sheet_name = self.sheet_combobox.GetValue()
+        # x_values = self.Data['Core levels'][sheet_name]['B.E.']
+        # new_value = f"{min(x_values):.2f}:{max(x_values):.2f}"
         default_constraints = {
-            2: '0:1000',  # Position
+            2: '1:1000',  # Position
             3: '1:1e7',  # Height
             4: '0.3:3.5',  # FWHM
             5: '5:80',  # L/G
@@ -3019,6 +3029,7 @@ class MyFrame(wx.Frame):
                 event.Veto()
                 return
         elif col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1:  # Constraint rows
+            print('It is a constraint row')
 
             if new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
                 new_value = 'Fixed'
@@ -3057,14 +3068,15 @@ class MyFrame(wx.Frame):
             # Pattern to match all possible formats
             pattern = r'^([A-P])([+\-*/])(\d+\.?\d*)(?:#(\d+\.?\d*))?$'
             match = re.match(pattern, new_value)
-
+            print(f'Checking if it is an empty string: {new_value}')
             if not new_value:  # If empty string
+                print('emptry string')
                 if col == 2:
                     sheet_name = self.sheet_combobox.GetValue()
                     x_values = self.Data['Core levels'][sheet_name]['B.E.']
                     new_value = f"{min(x_values):.2f}:{max(x_values):.2f}"
                 elif col == 4:
-                    new_value = "0.3:35"
+                    new_value = "0.3:3.5"
                 elif col == 5:
                     new_value = "1:80"
                 elif col == 6:
@@ -3155,9 +3167,11 @@ class MyFrame(wx.Frame):
             letter_index = ord(new_value.upper()) - 65
             if letter_index * 2 == row - 1:  # Same peak
                 if col == 2:
-                    new_value = "0:1000"
+                    sheet_name = window.sheet_combobox.GetValue()
+                    x_values = window.Data['Core levels'][sheet_name]['B.E.']
+                    new_value = f"{min(x_values):.2f}:{max(x_values):.2f}"
                 elif col ==4:
-                    new_value = "0.3:35"
+                    new_value = "0.3:3.5"
                 elif col ==5:
                     new_value = "1:80"
                 elif col ==6:
@@ -3166,7 +3180,7 @@ class MyFrame(wx.Frame):
                     new_value = "0.2:3"
                 elif col ==8:
                     new_value = "0.2:3"
-                elif col ==8:
+                elif col ==9:
                     new_value = "0.1:1"
             else:
                 new_value = new_value.upper() + '*1'
@@ -3301,15 +3315,197 @@ class MyFrame(wx.Frame):
                     elif col == 13:  # Fitting Model changed
                         peaks[correct_peak_key]['Fitting Model'] = new_value
 
+                        # Default values based on model type
+                        if new_value in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)"]:
+                            # LA models
+                            fraction = 50.0
+                            sigma = 2.7
+                            gamma = 2.7
+                            skew = 0.64
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "Fixed")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:10")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:10")  # Gamma constraint
+                        elif new_value in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                            # LA*G model
+                            fraction = 50.0
+                            sigma = 2.7
+                            gamma = 2.7
+                            skew = 0.64
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "Fixed")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:4")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:4")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:2")  # Skew constraint
+                        elif new_value == "Pseudo-Voigt (Area)":
+                            # Pseudo-Voigt
+                            fraction = 20.0
+                            sigma = 1.0
+                            gamma = 0.15
+                            skew = 0.0
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "5:80")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "Fixed")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "Fixed")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "Fixed")  # Skew constraint
+                        elif new_value in ["Voigt (Area, L/G, \u03c3)"]:
+                            # Voigt models with L/G
+                            fraction = 20.0
+                            sigma = 1.0
+                            gamma = 0.5
+                            skew = 0.0
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "15:85")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.3:3")  # Gamma constraint
+                        elif new_value in ["Voigt (Area, \u03c3, \u03b3)"]:
+                            # Voigt models with separate sigma/gamma
+                            fraction = 20.0
+                            sigma = 1.0
+                            gamma = 0.5
+                            skew = 0.0
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "Fixed")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.3:3")  # Gamma constraint
+                        elif new_value in ["Voigt (Area, L/G, \u03c3, S)"]:
+                            # Skewed Voigt
+                            fraction = 20.0
+                            sigma = 1.2
+                            gamma = 0.4
+                            skew = 0.01
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "15:85")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:0.7")  # Skew constraint
+                        elif new_value == "ExpGauss.(Area, \u03c3, \u03b3)":
+                            # Exponential Gaussian
+                            fraction = 20.0
+                            sigma = 0.3
+                            gamma = 1.2
+                            skew = 0.64
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "Fixed")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.01:1")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.01:3")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:2")  # Skew constraint
+                        elif new_value == "GL (Area)":
+                            # GL Area based
+                            fraction = 20.0
+                            sigma = 1.0
+                            gamma = 0.15
+                            skew = 0.0
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "5:80")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "Fixed")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "Fixed")  # Gamma constraint
+                        elif new_value == "SGL (Area)":
+                            # SGL Area based
+                            fraction = 20.0
+                            sigma = 1.0
+                            gamma = 0.15
+                            skew = 0.1
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "5:80")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "Fixed")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "Fixed")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:1")  # Skew constraint
+                        elif new_value == "D-parameter":
+                            # D-parameter
+                            fraction = 2.0
+                            sigma = 1.0
+                            gamma = 1.0
+                            skew = 7.0
+                            # Set constraints
+                            self.peak_params_grid.SetCellValue(row + 1, 5, "Fixed")  # L/G constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "Fixed")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "Fixed")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "5:9")  # Skew constraint
+                        else:
+                            # Default values for any other model
+                            fraction = 20.0
+                            sigma = 1.0
+                            gamma = 0.15
+                            skew = 0.1
+
+                        # Get height and FWHM from grid
+                        height = float(
+                            self.peak_params_grid.GetCellValue(row, 3)) if self.peak_params_grid.GetCellValue(row,
+                                                                                                              3) else 1000.0
+                        fwhm = float(self.peak_params_grid.GetCellValue(row, 4)) if self.peak_params_grid.GetCellValue(
+                            row, 4) else 1.6
+
+                        # Update grid values with model-specific defaults
+                        self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
+                        self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
+                        self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                        self.peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+
+                        # Recalculate area with new model parameters
+                        area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma, skew)
+                        self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
+
+                        # Update peak data in memory
+                        peaks[correct_peak_key].update({
+                            'L/G': fraction,
+                            'Sigma': sigma,
+                            'Gamma': gamma,
+                            'Skew': skew,
+                            'Area': area
+                        })
+
+                        # Update constraints in data structure
+                        if 'Constraints' not in peaks[correct_peak_key]:
+                            peaks[correct_peak_key]['Constraints'] = {}
+
+                        # Get all constraint values from grid
+                        for c_idx, c_key in enumerate(
+                                ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew'], 2):
+                            constraint_value = self.peak_params_grid.GetCellValue(row + 1, c_idx)
+                            peaks[correct_peak_key]['Constraints'][c_key] = constraint_value
+
+                        # Refresh the display
+                        on_sheet_selected(self, sheet_name)
+                    elif col == 13:  # Fitting Model changed
+                        peaks[correct_peak_key]['Fitting Model'] = new_value
+
                         # Recalculate area with new model
                         model = peaks[correct_peak_key]['Fitting Model']
-                        height = float(self.peak_params_grid.GetCellValue(row, 3))
-                        fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
-                        fraction = float(self.peak_params_grid.GetCellValue(row, 5))
-                        sigma = float(self.peak_params_grid.GetCellValue(row, 7))
-                        gamma = float(self.peak_params_grid.GetCellValue(row, 8))
-                        skew = float(self.peak_params_grid.GetCellValue(row, 9))
-                        area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma)
+                        # Default values for empty cells
+                        height = float(
+                            self.peak_params_grid.GetCellValue(row, 3)) if self.peak_params_grid.GetCellValue(row,
+                                                                                                              3) else 1000.0
+                        fwhm = float(self.peak_params_grid.GetCellValue(row, 4)) if self.peak_params_grid.GetCellValue(
+                            row, 4) else 1.6
+                        fraction = float(
+                            self.peak_params_grid.GetCellValue(row, 5)) if self.peak_params_grid.GetCellValue(row,
+                                                                                                              5) else 20.0
+                        area = float(self.peak_params_grid.GetCellValue(row, 6)) if self.peak_params_grid.GetCellValue(
+                            row, 6) else 1000.0
+                        sigma = float(self.peak_params_grid.GetCellValue(row, 7)) if self.peak_params_grid.GetCellValue(
+                            row, 7) else 0.5
+                        gamma = float(self.peak_params_grid.GetCellValue(row, 8)) if self.peak_params_grid.GetCellValue(
+                            row, 8) else 0.5
+                        skew = float(self.peak_params_grid.GetCellValue(row, 9)) if self.peak_params_grid.GetCellValue(
+                            row, 9) else 0.1
+
+                        # Set the values in the grid if they were empty
+                        if not self.peak_params_grid.GetCellValue(row, 3):
+                            self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
+                        if not self.peak_params_grid.GetCellValue(row, 4):
+                            self.peak_params_grid.SetCellValue(row, 4, f"{fwhm:.2f}")
+                        if not self.peak_params_grid.GetCellValue(row, 5):
+                            self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
+                        if not self.peak_params_grid.GetCellValue(row, 6):
+                            self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
+                        if not self.peak_params_grid.GetCellValue(row, 7):
+                            self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
+                        if not self.peak_params_grid.GetCellValue(row, 8):
+                            self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                        if not self.peak_params_grid.GetCellValue(row, 9):
+                            self.peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+                        area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma,skew)
 
                         self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
                         peaks[correct_peak_key]['Area'] = area
@@ -3332,9 +3528,9 @@ class MyFrame(wx.Frame):
                                 'FWHM': '0.3:3.5',
                                 'L/G': '5:80',
                                 'Area': '1:1e7',
-                                'Sigma': '0.01:4',
-                                'Gamma': '0.01:4',
-                                'Skew': '0.02:2'
+                                'Sigma': '0.3:4',
+                                'Gamma': '0.3:4',
+                                'Skew': '0.02:1'
                             }
                             new_value = default_constraints[col]
                             self.peak_params_grid.SetCellValue(row, col, new_value)
@@ -3365,7 +3561,7 @@ class MyFrame(wx.Frame):
                 'L/G': float(self.peak_params_grid.GetCellValue(row_data, 5)),
                 'Area': float(self.peak_params_grid.GetCellValue(row_data, 6)),
                 'Sigma': float(self.peak_params_grid.GetCellValue(row_data, 7)) if self.peak_params_grid.GetCellValue(row_data, 7) else 0.0,
-                'Gamma': float(self.peak_params_grid.GetCellValue(row_data, 8)),
+                'Gamma': float(self.peak_params_grid.GetCellValue(row_data, 8)) if self.peak_params_grid.GetCellValue(row_data, 8) else 0.0,
                 'Skew': float(self.peak_params_grid.GetCellValue(row_data, 9)),
                 'Fitting Model': self.peak_params_grid.GetCellValue(row_data, 13)
             }
@@ -3453,16 +3649,16 @@ class MyFrame(wx.Frame):
                 # self.peak_params_grid.SetCellValue(row, 6, f"{peak_data['Area']:.2f}")
                 self.peak_params_grid.SetCellValue(row, 7, f"{peak_data['Sigma']:.2f}")
                 self.peak_params_grid.SetCellValue(row, 8, f"{peak_data['Gamma']:.2f}")
-                self.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', 0):.2f}")
+                self.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', 0.1):.2f}")
                 if 'Constraints' in peak_data:
                     self.peak_params_grid.SetCellValue(row + 1, 2, str(peak_data['Constraints'].get('Position', '')))
                     self.peak_params_grid.SetCellValue(row + 1, 3, str(peak_data['Constraints'].get('Height', '')))
                     self.peak_params_grid.SetCellValue(row + 1, 4, str(peak_data['Constraints'].get('FWHM', '')))
                     self.peak_params_grid.SetCellValue(row + 1, 5, str(peak_data['Constraints'].get('L/G', '')))
                     self.peak_params_grid.SetCellValue(row + 1, 6, str(peak_data['Constraints'].get('Area', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 7, str(peak_data['Constraints'].get('Sigma', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 8, str(peak_data['Constraints'].get('Gamma', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 9, str(peak_data['Constraints'].get('Skew', '')))
+                    self.peak_params_grid.SetCellValue(row + 1, 7, str(peak_data['Constraints'].get('Sigma', '0.3:4')))
+                    self.peak_params_grid.SetCellValue(row + 1, 8, str(peak_data['Constraints'].get('Gamma', '0.3:4')))
+                    self.peak_params_grid.SetCellValue(row + 1, 9, str(peak_data['Constraints'].get('Skew', '0.1:1')))
         self.peak_params_grid.ForceRefresh()
 
     def refresh_peak_params_grid_release(self):
@@ -4583,11 +4779,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.44 25c26")
+        frame = MyFrame(None, "KherveFitting-v1.45 25c28")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.44 25c26")
+        frame = MyFrame(None, "KherveFitting-v1.45 25c28")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.44 25c26")
+        frame = MyFrame(None, "KherveFitting-v1.45 25c28")
     frame.Show(True)
 
     if splash:

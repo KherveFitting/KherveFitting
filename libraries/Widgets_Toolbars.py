@@ -683,8 +683,7 @@ def create_horizontal_toolbar(parent, window):
 
     toolbar.AddStretchableSpace()
 
-    window.toggle_right_panel_tool = window.add_toggle_tool(toolbar, "Toggle Right Panel", wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR))
-    toggle_Col_1_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals', wx.Bitmap(os.path.join(icon_path, "HideColumn-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Toggle Columns Peak Fitting Parameters")
+
 
 
     # Export and toggle tools
@@ -711,7 +710,11 @@ def create_horizontal_toolbar(parent, window):
                                       shortHelp="Open Preference Window")
 
 
-
+    toggle_Col_1_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',
+                                        wx.Bitmap(os.path.join(icon_path, "HideColumn-25.png"), wx.BITMAP_TYPE_PNG),
+                                        shortHelp="Toggle Columns Peak Fitting Parameters")
+    window.toggle_right_panel_tool = window.add_toggle_tool(toolbar, "Toggle Right Panel",
+                                                            wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR))
 
 
     def show_delete_toolbar(event):

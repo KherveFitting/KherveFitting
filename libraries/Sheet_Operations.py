@@ -391,14 +391,14 @@ def on_sheet_selected(window, event):
                     window.peak_params_grid.SetCellValue(row, 0, chr(65 + i))  # A, B, C, etc.
                     window.peak_params_grid.SetCellValue(row, 1, peak_label)
                     window.peak_params_grid.SetCellValue(row, 2, f"{peak_data.get('Position', 'N/A'):.2f}")
-                    window.peak_params_grid.SetCellValue(row, 3, f"{peak_data.get('Height', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 4, f"{peak_data.get('FWHM', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 5, f"{peak_data.get('L/G', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 6, f"{peak_data.get('Area', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 7, f"{peak_data.get('Sigma', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 8, f"{peak_data.get('Gamma', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', '0')}")
-                    window.peak_params_grid.SetCellValue(row, 13, f"{peak_data.get('Fitting Model', '0')}")
+                    window.peak_params_grid.SetCellValue(row, 3, f"{peak_data.get('Height', '1e4')}")
+                    window.peak_params_grid.SetCellValue(row, 4, f"{peak_data.get('FWHM', '1.6')}")
+                    window.peak_params_grid.SetCellValue(row, 5, f"{peak_data.get('L/G', '20')}")
+                    window.peak_params_grid.SetCellValue(row, 6, f"{peak_data.get('Area', '1e4')}")
+                    window.peak_params_grid.SetCellValue(row, 7, f"{peak_data.get('Sigma', '0.6')}")
+                    window.peak_params_grid.SetCellValue(row, 8, f"{peak_data.get('Gamma', '0.4')}")
+                    window.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', '0.1')}")
+                    window.peak_params_grid.SetCellValue(row, 13, f"{peak_data.get('Fitting Model', 'GL (Area)')}")
                     window.peak_params_grid.SetCellValue(row, 14, f"{peak_data.get('Bkg Type', '0')}")
                     window.peak_params_grid.SetCellValue(row, 15, f"{peak_data.get('Bkg Low', '0')}")
                     window.peak_params_grid.SetCellValue(row, 16, f"{peak_data.get('Bkg High', '0')}")
@@ -410,11 +410,11 @@ def on_sheet_selected(window, event):
                         constraints = peak_data['Constraints']
                         window.peak_params_grid.SetCellValue(row + 1, 2, str(constraints.get('Position', '1:1200')))
                         window.peak_params_grid.SetCellValue(row + 1, 3, str(constraints.get('Height', '1:1e7')))
-                        window.peak_params_grid.SetCellValue(row + 1, 4, str(constraints.get('FWHM', '0.4:3')))
-                        window.peak_params_grid.SetCellValue(row + 1, 5, str(constraints.get('L/G', '10:90')))
+                        window.peak_params_grid.SetCellValue(row + 1, 4, str(constraints.get('FWHM', '0.3:3.5')))
+                        window.peak_params_grid.SetCellValue(row + 1, 5, str(constraints.get('L/G', '2:80')))
                         window.peak_params_grid.SetCellValue(row + 1, 6, str(constraints.get('Area', '1:1e7')))
-                        window.peak_params_grid.SetCellValue(row + 1, 7, str(constraints.get('Sigma', '0.01:1')))
-                        window.peak_params_grid.SetCellValue(row + 1, 8, str(constraints.get('Gamma', '0.01:1')))
+                        window.peak_params_grid.SetCellValue(row + 1, 7, str(constraints.get('Sigma', '0.3:2')))
+                        window.peak_params_grid.SetCellValue(row + 1, 8, str(constraints.get('Gamma', '0.3:2')))
                         window.peak_params_grid.SetCellValue(row + 1, 9, str(constraints.get('Skew', '0.01:2')))
 
                     # Set background color for constraint rows
@@ -431,20 +431,20 @@ def on_sheet_selected(window, event):
                     window.selected_fitting_method = window.peak_params_grid.GetCellValue(row, 13)
                     if window.selected_fitting_method == "Voigt (Area, L/G, \u03c3)":
                         for col in [3,4,8]:  # Columns for Height, FWHM
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [5,6,7]:  # Columns for Height, FWHM, L/G ratio
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                         for col in [9]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row, col, "0")
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                     elif window.selected_fitting_method == "Voigt (Area, L/G, \u03c3, S)":
                         for col in [3,4,8]:  # Columns for Height, FWHM
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [5,6,7,9]:  # Columns for Height, FWHM, L/G ratio
@@ -453,58 +453,58 @@ def on_sheet_selected(window, event):
                     elif window.selected_fitting_method in ["Voigt (Area, \u03c3, \u03B3)",
                                         "ExpGauss.(Area, \u03c3, \u03b3)"]:
                         for col in [3,4,5]:  # Columns for Height, FWHM, L/G ratio
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [6,7,8]:  # Columns for Height, FWHM
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                         for col in [9]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row, col, "0")
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                     elif window.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)"]:
                         for col in [3,5]:  # Columns for Height, FWHM, L/G ratio
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [4,6,7,8]:  # Columns for Height, FWHM
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                         for col in [9]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row, col, "0")
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                     elif window.selected_fitting_method in ["LA (Area, \u03c3/\u03b3, \u03b3)"]: # LA (Area, \u03c3/\u03b3, \u03b3)
                         for col in [3,7]:  # Columns for Height, FWHM, L/G ratio
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [4,5,6,8]:  # Columns for Height, FWHM
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                         for col in [9]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row, col, "0")
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                     elif window.selected_fitting_method in ["Pseudo-Voigt (Area)", "GL (Area)", "SGL (Area)"]:
                         for col in [3]:  # Height
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [7, 8]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [4,5,6]:  # Columns for Height, FWHM, L/G ratio
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                         for col in [9]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row, col, "0")
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                     elif window.selected_fitting_method == "D-parameter":
@@ -518,19 +518,19 @@ def on_sheet_selected(window, event):
                     else:
                         print("Fitting method not recognized")
                         for col in [6]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [7, 8]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [3,4,5]:  # Columns for Height, FWHM, L/G ratio
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                         for col in [9]:  # Columns for Area, sigma and gamma
-                            window.peak_params_grid.SetCellValue(row, col, "0")
-                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
 
