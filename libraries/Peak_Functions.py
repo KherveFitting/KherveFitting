@@ -529,6 +529,28 @@ class PeakFunctions:
         # print(f"RSD: {rsd2}")
         return rsd
 
+    @staticmethod
+    def get_doniach_sunjic_height(amplitude, sigma, gamma, skew):
+        """
+        Calculate the height of a Doniach-Sunjic profile.
+        """
+        model = lmfit.models.DoniachModel()
+        params = model.make_params(amplitude=amplitude, center=0, sigma=sigma, gamma=gamma, asymmetry=skew)
+        return model.eval(params, x=0)
+
+    @staticmethod
+    def doniach_sunjic_height_to_area(height, sigma, gamma, skew):
+        """
+        Convert height to area for a Doniach-Sunjic profile.
+        """
+        model = lmfit.models.DoniachModel()
+        x = np.linspace(-10 * sigma, 10 * sigma, 1000)
+        params = model.make_params(center=0, sigma=sigma, gamma=gamma, asymmetry=skew, amplitude=1)
+        y = model.eval(params, x=x)
+        max_y = np.max(y)
+        amplitude = height / max_y
+        return amplitude
+
 
 
 from scipy.signal import savgol_filter
@@ -1079,5 +1101,6 @@ class OtherCalc:
         normalized_deriv = ((derivative - np.min(derivative)) / deriv_range * data_range) + np.min(y_values)
 
         return normalized_deriv
+
 
 

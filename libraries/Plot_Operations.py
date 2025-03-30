@@ -239,6 +239,15 @@ class PlotManager:
             gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
             skew =  float(window.peak_params_grid.GetCellValue(row, 9))
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
+        elif fitting_model == "DS (A, \u03c3, \u03b3)":
+            peak_model = lmfit.models.DoniachModel()
+            amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
+            # sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
+            sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 1
+            # gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
+            gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 1
+            skew = float(window.peak_params_grid.GetCellValue(row, 9))
+            params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, asymmetry=skew)
         elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
             peak_model = lmfit.models.ExponentialGaussianModel()
             area = float(window.peak_params_grid.GetCellValue(row, 6))
@@ -1136,12 +1145,19 @@ class PlotManager:
                 peak_model = lmfit.models.SkewedVoigtModel()
                 skew = float(window.peak_params_grid.GetCellValue(row, 9))
                 sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
-                # sigma = float(window.peak_params_grid.GetCellValue(row, 7))
                 gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
-                # gamma = float(window.peak_params_grid.GetCellValue(row, 8))
-                # amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0, skew=skew)
                 amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
+            elif fitting_model == "DS (A, \u03c3, \u03b3)":
+                peak_model = lmfit.models.DoniachModel()
+                amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
+                # sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
+                sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 1
+                # gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
+                gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 1
+                skew = float(window.peak_params_grid.GetCellValue(row, 9))
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma,
+                                                asymmetry=skew)
             elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
                 peak_model = lmfit.models.ExponentialGaussianModel()
                 area = float(window.peak_params_grid.GetCellValue(row, 6))

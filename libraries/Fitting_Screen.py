@@ -276,15 +276,12 @@ class FittingWindow(wx.Frame):
                  "Voigt (Area, L/G, \u03c3)",
                  "Others---------------",
                  "Area Based----------",
-                 # "GL (Area)",
-                 # "SGL (Area)",
+                 "Pseudo-Voigt (Area)",
+                 "DS (A, \u03c3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3, S)",
                  "Voigt (Area, \u03c3, \u03b3)",
-                 # "Voigt (Area, L/G, \u03c3)",
                  "LA (Area, \u03c3, \u03b3)",
-                 # "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "LA*G (Area, \u03c3/\u03b3, \u03b3)",
-                 "Pseudo-Voigt (Area)",
                  "ExpGauss.(Area, \u03c3, \u03b3)",
                  "Height Based---------",
                  "GL (Height)",
@@ -655,19 +652,7 @@ class FittingWindow(wx.Frame):
         splittings = {}
 
         return
-        # for key, value in library_data.items():
-        #     element, orbital = key
-        #     if orbital.endswith(('p', 'd', 'f')):
-        #         try:
-        #             splittings[f"{element}{orbital}"] = value['C-Al1486']['ds']  # Must match Excel exactly
-        #             print(f'Loading Splittings for {element} {orbital} Value {value['C-Al1486']['ds']}, split'
-        #                   f' {splittings[f"{element}{orbital}"]}')
-        #             # print(f'Element: {element} , Orbital:{orbital}, Split: {splittings}')
-        #         except KeyError:
-        #             print(f"Error\nAvailable instruments for {element}{orbital}: {list(value.keys())}")
-        #             # print(f"Full value data: {value}")
-        #             continue
-        # return splittings
+
 
     def get_doublet_splitting(self, element, orbital, instrument):
         # Extract number and letter from orbital (e.g., "3d" -> "3" and "d")
