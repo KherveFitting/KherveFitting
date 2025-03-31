@@ -1025,7 +1025,6 @@ class FileManagerWindow(wx.Frame):
 
         # Check for selected blocks first
         blocks = self.grid.GetSelectedBlocks()
-        # For newer wxPython versions, blocks is an iterable object
         for block in blocks:
             top = block.GetTopRow()
             bottom = block.GetBottomRow()
@@ -1050,12 +1049,13 @@ class FileManagerWindow(wx.Frame):
         if not sheet_names:
             row = self.grid.GetGridCursorRow()
             col = self.grid.GetGridCursorCol()
-            if row >= 0 and col >= 0:  # Make sure we have valid coordinates
+            if row >= 0 and col >= 0:
                 cell_value = self.grid.GetCellValue(row, col)
                 if cell_value and cell_value in self.parent.Data['Core levels']:
                     sheet_names.append(cell_value)
 
-        return sheet_names
+        # Deduplicate the list before returning
+        return list(dict.fromkeys(sheet_names))  # Preserves order unlike set conversion
 
     def plot_selected_cell(self):
         # Get the current cell

@@ -2902,20 +2902,27 @@ class MyFrame(wx.Frame):
                 # Calculate ECF based on method selected
                 if self.library_type == "Scofield":
                     ecf = kinetic_energy ** 0.6
+                    self.results_grid.SetCellValue(i, 10, "KE^0.6")
                 elif self.library_type == "Wagner":
                     ecf = kinetic_energy ** 1.0
+                    self.results_grid.SetCellValue(i, 10, "KE^1.0")
                 elif self.library_type == "TPP-2M":
                     # Calculate IMFP using TPP-2M
                     imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
                     ecf = imfp * 26.2
+                    self.results_grid.SetCellValue(i, 10, "TPP-2M")
                 elif self.library_type == "EAL":
                     z_avg = 50  # Default value
                     eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
                     ecf = eal
+                    self.results_grid.SetCellValue(i, 10, "EAL")
                 elif self.library_type == "None":
                     ecf = 1.0
+                    self.results_grid.SetCellValue(i, 10, "None: 1.0")
                 else:
                     ecf = 1.0  # Default no correction
+                    elf.results_grid.SetCellValue(i, 10, "None: 1.0")
+
 
                 # Calculate Transmission function
                 txfn = 1.0  # Transmission function
@@ -2940,7 +2947,7 @@ class MyFrame(wx.Frame):
 
                 # Update ECF, TXFN values in the data structure
                 self.Data[results_table_key]['Peak'][peak_key].update({
-                    'ECF': ecf,
+                    # 'ECF': ecf,
                     'TXFN': txfn,
                     'RSF': rsf,
                     'Name': peak_name,
@@ -4024,7 +4031,7 @@ class MyFrame(wx.Frame):
         sheet_name = self.sheet_combobox.GetValue()
 
         # Skip fit_peaks for D-parameter model
-        if grid_fitting_method != "D-parameter":
+        if grid_fitting_method not in ["D-parameter", "Unfitted"]:
             if hasattr(self, 'peak_params_grid') and self.peak_params_grid.GetNumberRows() > 0:
                 from Functions import fit_peaks
                 fit_result = fit_peaks(self, self.peak_params_grid, evaluate=True)

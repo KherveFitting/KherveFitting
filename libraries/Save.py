@@ -66,27 +66,33 @@ def save_data(window, data):
     sheet_name = window.sheet_combobox.GetValue()
 
     try:
-        # Save to Excel
-        save_to_excel(window, data, file_path, sheet_name)
-
-        save_plot_to_excel(window)
-
         # Save JSON file with entire window.Data
         json_file_path = os.path.splitext(file_path)[0] + '.json'
 
         # Create a copy of window.Data to modify
         json_data = window.Data.copy()
+        print('Created copy of json Data')
 
         # Convert numpy arrays and other non-serializable types to lists, and round floats
         json_data = convert_to_serializable_and_round(json_data)
+        print('Converted json data to serializable and rounded')
 
         with open(json_file_path, 'w') as json_file:
             json.dump(json_data, json_file, indent=2)
+        print('Saved json file')
 
         # print(json.dumps(window.Data['Results']['Peak'], indent=2))
 
+        # Save to Excel
+        save_to_excel(window, data, file_path, sheet_name)
+        print('Saved to Excel')
+
+        save_plot_to_excel(window)
+        print('Saved plot to Excel')
+
         # Save results table
         save_results_table(window)
+        print('Saved results table')
 
         print("Data Saved")
     except Exception as e:
