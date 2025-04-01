@@ -2586,13 +2586,6 @@ class MyFrame(wx.Frame):
 
                 peak_label = self.peak_params_grid.GetCellValue(row, 1)
 
-
-                def try_float(value, default=0.0):
-                    try:
-                        return float(value)
-                    except ValueError:
-                        return default
-
                 core_level_data['Fitting']['Peaks'][peak_label] = {
                     'Position': peak_x,
                     'Height': peak_y,
@@ -4863,6 +4856,12 @@ class MyFrame(wx.Frame):
         # Save state
         from libraries.Save import save_state
         save_state(self)
+
+    def try_float(value, default=0.0):
+        try:
+            return float(value)
+        except ValueError:
+            return default
 
 
 def set_high_priority():
