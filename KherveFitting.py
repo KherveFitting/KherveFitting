@@ -4857,7 +4857,7 @@ class MyFrame(wx.Frame):
         from libraries.Save import save_state
         save_state(self)
 
-    def try_float(value, default=0.0):
+    def try_float(self, value, default=0.0):
         try:
             return float(value)
         except ValueError:
