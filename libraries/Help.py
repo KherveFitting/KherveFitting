@@ -403,6 +403,7 @@ def show_version_log(window):
     version_log = """Version 1.41-1.5 (March-Apr 2025)
 - Release of the Mac Version
 - Added Samples/Experiment Manager for easy view of multiple files
+- Added Sum, copy, paste, normalise to the Samples/Experiment Manager
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added a propagation of the peak fitting parameters (menu and =) just like casa
 - Added information in the Manual for installation instruction
@@ -423,7 +424,6 @@ def show_version_log(window):
 - Fix bugs that stop Fitting to continue
 - Fix bugs that shows the background equal to the data
 - Fix bugs with the vamas file from kratos
-- Added mini-game back to the help menu
 
 
 Version 1.4 (February 2025)
