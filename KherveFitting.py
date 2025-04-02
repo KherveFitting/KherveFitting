@@ -2894,7 +2894,7 @@ class MyFrame(wx.Frame):
                     self.results_grid.SetCellValue(i, 10, "None: 1.0")
                 else:
                     ecf = 1.0  # Default no correction
-                    elf.results_grid.SetCellValue(i, 10, "None: 1.0")
+                    self.results_grid.SetCellValue(i, 10, "None: 1.0")
 
 
                 # Calculate Transmission function
@@ -3222,8 +3222,8 @@ class MyFrame(wx.Frame):
             letter_index = ord(new_value.upper()) - 65
             if letter_index * 2 == row - 1:  # Same peak
                 if col == 2:
-                    sheet_name = window.sheet_combobox.GetValue()
-                    x_values = window.Data['Core levels'][sheet_name]['B.E.']
+                    sheet_name = self.sheet_combobox.GetValue()
+                    x_values = self.Data['Core levels'][sheet_name]['B.E.']
                     new_value = f"{min(x_values):.2f}:{max(x_values):.2f}"
                 elif col ==4:
                     new_value = "0.3:3.5"

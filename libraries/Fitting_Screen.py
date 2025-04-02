@@ -277,7 +277,6 @@ class FittingWindow(wx.Frame):
                  "Others---------------",
                  "Area Based----------",
                  "Pseudo-Voigt (Area)",
-                 "DS (A, \u03c3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3, S)",
                  "Voigt (Area, \u03c3, \u03b3)",
                  "LA (Area, \u03c3, \u03b3)",
@@ -286,7 +285,8 @@ class FittingWindow(wx.Frame):
                  "Height Based---------",
                  "GL (Height)",
                  "SGL (Height)",
-                 # "Under Test -----------",
+                 "Under Test -----------",
+                 "DS (A, \u03c3, \u03b3)"
                  ]
 
 
