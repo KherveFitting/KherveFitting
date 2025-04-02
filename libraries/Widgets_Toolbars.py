@@ -111,10 +111,6 @@ def create_widgets(window):
     # Add content sizer to main sizer
     main_sizer.Add(content_sizer, 1, wx.EXPAND)
 
-    # # Add vertical toolbar and content sizer to main sizer .... IT WAS USED JUST BEFORE HORIZONTAL
-    # main_sizer.Add(window.v_toolbar, 0, wx.EXPAND)
-    # main_sizer.Add(content_sizer, 1, wx.EXPAND)
-
     window.panel.SetSizer(main_sizer)
 
     # # Create the horizontal toolbar .... IT WAS USED JUST BEFORE HORIZ
@@ -127,27 +123,14 @@ def create_widgets(window):
     bind_events_widgets(window)
 
 
-def create_grids_panel_OLD(window):
-    grids_panel = wx.Panel(window.splitter)
-    grids_sizer = wx.BoxSizer(wx.VERTICAL)
-
-    # Create peak params grid
-    peak_params_sizer = create_peak_params_grid(window, grids_panel)
-    grids_sizer.Add(peak_params_sizer, 1, wx.EXPAND | wx.ALL, 5)
-
-    # Create results grid
-    results_sizer = create_results_grid(window, grids_panel)
-    grids_sizer.Add(results_sizer, 1, wx.EXPAND | wx.ALL, 5)
-
-    grids_panel.SetSizer(grids_sizer)
-    return grids_panel
-
-
 def create_grids_panel(window):
     grids_panel = wx.Panel(window.splitter)
 
     # Create splitter window
     inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
+
+    # Store reference to inner_splitter for later access
+    window.inner_splitter = inner_splitter
 
     # Create peak params panel and grid
     peak_params_panel = wx.Panel(inner_splitter)

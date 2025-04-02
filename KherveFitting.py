@@ -372,44 +372,6 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_toggle_right_panel, tool)
         return tool
 
-    def on_toggle_right_panel_OLD(self, event):
-        splitter_width = self.splitter.GetSize().GetWidth()
-        current_size = self.GetSize()
-
-        if self.is_right_panel_hidden:
-            # The right panel is currently hidden, so show it
-            new_sash_position = self.initial_sash_position
-            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR)
-            self.is_right_panel_hidden = False
-            self.SetMinSize((800, 600))  # Reset min size to allow resizing
-            self.SetMaxSize((-1, -1))
-            # Restore previous size
-            if hasattr(self, 'previous_size'):
-                self.SetSize(self.previous_size)
-        else:
-            # The right panel is currently visible, so hide it
-            new_sash_position = splitter_width
-            new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR)
-            self.is_right_panel_hidden = True
-
-            # Store current size and set to fixed width of 865
-            self.previous_size = current_size
-            fixed_width = 865
-            fixed_height = current_size.height
-
-            # Fix both width and height
-            self.SetSize((fixed_width, fixed_height))
-            self.SetMinSize((fixed_width, fixed_height))
-            self.SetMaxSize((fixed_width, fixed_height))  # Fix both dimensions
-
-        self.splitter.SetSashPosition(new_sash_position)
-        self.toolbar.SetToolNormalBitmap(self.toggle_right_panel_tool.GetId(), new_bmp)
-
-        # Ensure the splitter and its children are properly updated
-        self.splitter.UpdateSize()
-        self.right_frame.Layout()
-        self.splitter.Refresh()
-        self.canvas.draw()
 
     def on_toggle_right_panel(self, event):
         splitter_width = self.splitter.GetSize().GetWidth()
@@ -1229,6 +1191,24 @@ class MyFrame(wx.Frame):
 
     def clear_and_replot(self):
         self.plot_manager.clear_and_replot(self)
+
+        # # Force refresh of peak params grid for Mac compatibility
+        # if self.peak_params_grid:
+        #     self.peak_params_grid.ForceRefresh()
+        #     self.peak_params_grid.Refresh(True)
+        #
+        #     # For Mac, additional forced layout update
+        #     if 'wxMac' in wx.PlatformInfo:
+        #         # Update layout of parent containers
+        #         if self.peak_params_grid.GetParent():
+        #             self.peak_params_grid.GetParent().Layout()
+        #             self.peak_params_grid.GetParent().Refresh()
+        #
+        #         # Ensure grid cells are properly rendered
+        #         for row in range(self.peak_params_grid.GetNumberRows()):
+        #             for col in range(self.peak_params_grid.GetNumberCols()):
+        #                 self.peak_params_grid.RefreshAttr(row, col)
+
 
     def plot_data(self):
         self.plot_manager.plot_data(self)

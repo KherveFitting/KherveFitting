@@ -2,10 +2,10 @@
 
 # LIBRARIES----------------------------------------------------------------------
 import wx.grid
-
+import os
+import pandas as pd
 import numpy as np
 import lmfit
-
 import sys
 from scipy.stats import linregress
 
@@ -19,10 +19,6 @@ from libraries.Save import undo, redo, save_state, update_undo_redo_state
 from libraries.Open import update_recent_files, import_avantage_file, open_avg_file, import_multiple_avg_files
 from libraries.Utilities import load_rsf_data
 from libraries.Grid_Operations import populate_results_grid
-
-
-
-
 
 # -------------------------------------------------------------------------------
 
@@ -44,9 +40,6 @@ def safe_delete_rows(grid, pos, num_rows):
             wx.MessageBox("Invalid row indices for deletion.", "Information", wx.OK | wx.ICON_INFORMATION)
     except Exception as e:
         print("Error")
-
-
-
 
 
 def remove_peak(window):
@@ -85,9 +78,26 @@ def remove_peak(window):
         # Call the method to clear and replot everything
         window.clear_and_replot()
 
+        # Mac workaround: Use the stored inner_splitter reference
+        if 'wxMac' in wx.PlatformInfo and hasattr(window, 'inner_splitter'):
+            # Get current position
+            current_pos = window.inner_splitter.GetSashPosition()
+
+            # Move sash significantly (by 150 pixels) and back
+            window.inner_splitter.SetSashPosition(current_pos - 1)
+            window.panel.Layout()
+            window.inner_splitter.Update()
+
+            # Return to original position after a brief delay
+            def restore_position():
+                window.inner_splitter.SetSashPosition(current_pos)
+                window.panel.Layout()
+                window.peak_params_grid.ForceRefresh()
+
+            wx.CallLater(100, restore_position)
+
         # Layout the updated panel
         window.panel.Layout()
-
         window.canvas.draw_idle()
     else:
         wx.MessageBox("No peaks to remove.", "Information", wx.OK | wx.ICON_INFORMATION)
