@@ -1940,8 +1940,8 @@ class MyFrame(wx.Frame):
                             self.offset_h = event.ydata - raw_y
                             self.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.offset_h
                             self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
-
                     self.plot_manager.plot_background(self)
+                    return
             elif event.button == 1:  # Left click
                 if event.key == 'shift':  # SHIFT + left click
                     if self.peak_fitting_tab_selected and self.selected_peak_index is not None:

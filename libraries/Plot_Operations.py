@@ -1562,81 +1562,6 @@ class PlotManager:
                 self.ax.legend(filtered_handles, filtered_labels, loc='upper left')
         self.canvas.draw_idle()
 
-    def update_legend_OLD(self, window):
-        sheet_name = window.sheet_combobox.GetValue()  # Add this line
-        handles, labels = self.ax.get_legend_handles_labels()
-
-        if self.legend_visible == 2:
-            # Filter out Raw Data, Background, Overall Fit
-            handles = [h for h, l in zip(handles, labels)
-                       if l not in ["Raw Data", "Background", "Overall Fit"]]
-            labels = [l for l in labels
-                      if l not in ["Raw Data", "Background", "Overall Fit"]]
-
-        has_overall_fit = "Overall Fit" in labels
-        has_raw_data = "Raw Data" in labels
-
-        if hasattr(self, 'residuals_state') and self.residuals_state == 2:
-            legend_order = []
-            legend_order2 = []
-            if has_raw_data:
-                legend_order.append("Raw Data")
-                legend_order2.append("Raw Data")
-            legend_order.append("Background")
-            legend_order2.append("Background")
-            if has_overall_fit:
-                legend_order.append("Overall Fit")
-                legend_order2.append("Overall Fit")
-        else:
-            legend_order = []
-            legend_order2 = []
-            if has_raw_data:
-                legend_order.append("Raw Data")
-                legend_order2.append("Raw Data")
-            legend_order.append("Background")
-            legend_order2.append("Background")
-            if has_overall_fit:
-                legend_order.extend(["Overall Fit", "Residuals"])
-                legend_order2.extend(["Overall Fit", "Residuals"])
-            elif "Residuals" in labels:
-                legend_order.append("Residuals")
-                legend_order2.append("Residuals")
-
-        num_peaks = window.peak_params_grid.GetNumberRows() // 2
-        peak_labels = []
-        filtered_peak_labels = []
-        for i in range(num_peaks):
-            label = window.peak_params_grid.GetCellValue(i * 2, 1)
-            formatted_label = re.sub(r'(\d+/\d+)', r'$_{\1}$', label)
-            clean_label = re.sub(r'\$.*?\$', '', formatted_label)
-            split_label = clean_label.split()
-
-            if "survey" in sheet_name.lower() or "wide" in sheet_name.lower():
-                peak_labels.append(label)
-                filtered_peak_labels.append(formatted_label)
-            else:
-                if len(split_label) > 1 and split_label[1].strip():
-                    peak_labels.append(label)
-                    filtered_peak_labels.append(formatted_label)
-
-        legend_order += peak_labels
-        legend_order2 += filtered_peak_labels
-
-        if legend_order and self.legend_visible:
-            ordered_handles = []
-            for l in legend_order:
-                for index, label in enumerate(labels):
-                    if label == l:
-                        ordered_handles.append(handles[index])
-                        break
-
-
-            self.ax.legend(ordered_handles, legend_order2, loc='upper left')
-        else:
-            self.ax.legend().remove()
-            self.ax.legend().set_visible(False)
-
-        self.canvas.draw_idle()
 
     def update_legend(self, window):
         sheet_name = window.sheet_combobox.GetValue()
@@ -1782,7 +1707,7 @@ class PlotManager:
             # Apply smoothing if requested
             if use_smoothing:
                 from scipy.ndimage import gaussian_filter1d
-                y_values_for_calculation = gaussian_filter1d(y_values, sigma=2)
+                y_values_for_calculation = gaussian_filter1d(y_values, sigma=5)
             else:
                 y_values_for_calculation = y_values
 
