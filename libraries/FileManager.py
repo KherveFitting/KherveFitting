@@ -59,13 +59,25 @@ class FileManagerWindow(wx.Frame):
         # NOW load BE corrections after the grid is created
         self.load_be_corrections()
 
-        # Position window relative to main window
-        main_pos = parent.GetPosition()
-        main_size = parent.GetSize()
-        file_manager_size = self.GetSize()
-        pos_x = main_pos.x + (main_size.width - file_manager_size.width) // 2
-        pos_y = main_pos.y + (main_size.height - file_manager_size.height) // 2
-        self.SetPosition((pos_x, pos_y))
+        # # Position window relative to main window
+        # main_pos = parent.GetPosition()
+        # main_size = parent.GetSize()
+        # file_manager_size = self.GetSize()
+        # pos_x = main_pos.x + (main_size.width - file_manager_size.width) // 2
+        # pos_y = main_pos.y + (main_size.height - file_manager_size.height) // 2
+        # self.SetPosition((pos_x, pos_y))
+
+        # Position window using saved position or relative to main window
+        if hasattr(parent, 'file_manager_position') and parent.file_manager_position:
+            self.SetPosition(parent.file_manager_position)
+        else:
+            # Default positioning relative to main window
+            main_pos = parent.GetPosition()
+            main_size = parent.GetSize()
+            file_manager_size = self.GetSize()
+            pos_x = main_pos.x + (main_size.width - file_manager_size.width) // 2
+            pos_y = main_pos.y + (main_size.height - file_manager_size.height) // 2
+            self.SetPosition((pos_x, pos_y))
 
         # Initialize normalization values
         self.norm_min = 0
@@ -2350,6 +2362,7 @@ class FileManagerWindow(wx.Frame):
     def on_close(self, event):
         self.save_sample_names()
         self.save_be_corrections()  # Add this line
+        self.parent.file_manager_position = self.GetPosition()
         event.Skip()
 
     def sort_excel_sheets(self, event):

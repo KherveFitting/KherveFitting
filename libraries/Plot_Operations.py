@@ -1231,11 +1231,16 @@ class PlotManager:
         # Scale residuals
         scaled_residuals = residuals * scaling_factor
 
-        # Start of change for new residuals
+        # # Create a masked array where 0 values are masked
+        # masked_residuals = ma.masked_where(np.isclose(scaled_residuals, 0, atol=5e-1), scaled_residuals)
+        # masked_residuals2 = ma.masked_where(np.isclose(scaled_residuals, 0, atol=5e-1), residuals)
 
-        # Create a masked array where 0 values are masked
-        masked_residuals = ma.masked_where(np.isclose(scaled_residuals, 0, atol=5e-1), scaled_residuals)
-        masked_residuals2 = ma.masked_where(np.isclose(scaled_residuals, 0, atol=5e-1), residuals)
+        # Calculate threshold as percentage of maximum intensity
+        threshold = 0.0005 * np.max(np.abs(scaled_residuals))  # 5% of max residual
+
+        # Create a masked array using threshold instead of zero
+        masked_residuals = ma.masked_where(np.abs(scaled_residuals) < threshold, scaled_residuals)
+        masked_residuals2 = ma.masked_where(np.abs(scaled_residuals) < threshold, residuals)
 
         # Remove old overall fit and residuals, keep background lines
         for line in self.ax.lines:

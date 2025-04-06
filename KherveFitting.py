@@ -91,6 +91,7 @@ class MyFrame(wx.Frame):
 
         #
         self.previous_size = None
+        self.file_manager_position = None
 
         # Initial folder path
         self.Working_directory =  os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
