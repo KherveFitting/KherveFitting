@@ -424,7 +424,8 @@ def show_version_log(window):
 - Fix bugs that stop Fitting to continue
 - Fix bugs that shows the background equal to the data
 - Fix bugs with the vamas file from kratos
-
+- Fix bugs with RSD
+- Fix the Area of the SGL
 
 Version 1.4 (February 2025)
 - Mac version coming soon

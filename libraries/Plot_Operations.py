@@ -1755,7 +1755,7 @@ class PlotManager:
         self.peak_fill_enabled = not self.peak_fill_enabled
         return self.peak_fill_enabled  # Return the new state
 
-    def plot_background(self, window):
+    def plot_background(self, window, use_smoothing=False):
         """
         Calculate and plot the background for the selected sheet.
 
@@ -1778,6 +1778,13 @@ class PlotManager:
             # Extract x and y values for the current sheet
             x_values = np.array(window.Data['Core levels'][sheet_name]['B.E.'], dtype=float)
             y_values = np.array(window.Data['Core levels'][sheet_name]['Raw Data'], dtype=float)
+
+            # Apply smoothing if requested
+            if use_smoothing:
+                from scipy.ndimage import gaussian_filter1d
+                y_values_for_calculation = gaussian_filter1d(y_values, sigma=2)
+            else:
+                y_values_for_calculation = y_values
 
             # Remove any existing background lines from the plot
             lines_to_remove = [line for line in self.ax.lines if line.get_label().startswith("Background")]
@@ -1806,10 +1813,12 @@ class PlotManager:
 
             # Calculate background based on the selected method
             if method == "Multi-Regions Smart":
-                background_filtered, label = self._calculate_adaptive_smart_background(window, x_values, y_values,
+                background_filtered, label = self._calculate_adaptive_smart_background(window, x_values,
+                                                                                       y_values_for_calculation,
                                                                                        offset_h, offset_l)
             else:
-                background_filtered, label = self._calculate_other_background(window, x_values, y_values, method,
+                background_filtered, label = self._calculate_other_background(window, x_values,
+                                                                              y_values_for_calculation, method,
                                                                               offset_h, offset_l)
 
             # Update the background data in the window.Data structure
@@ -1818,8 +1827,11 @@ class PlotManager:
             window.background = background_filtered
 
             # Plot the calculated background
-            self.ax.plot(x_values, window.background, color='grey', linestyle='--', label=label,
-                         linewidth=self.background_thickness)
+            self.ax.plot(x_values, window.background, color=self.background_color,
+                         linestyle=self.background_linestyle,
+                         alpha=self.background_alpha,
+                         linewidth=self.background_thickness,
+                         label=label)
 
             # Replot everything if peaks exist
             if window.peak_params_grid.GetNumberRows() > 0:
@@ -1858,15 +1870,28 @@ class PlotManager:
     def _calculate_other_background(self, window, x_values, y_values, method, offset_h, offset_l):
         """Helper method to calculate background for non-Multi-Regions Smart methods."""
         sheet_name = window.sheet_combobox.GetValue()
-        bg_min_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg Low')
-        bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
+
+        # bg_min_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg Low')
+        # bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
+        #
+        # if bg_min_energy is None or bg_max_energy is None or bg_min_energy > bg_max_energy:
+        #     # wx.MessageBox("Invalid energy range selected.", "Warning", wx.OK | wx.ICON_INFORMATION)
+        #     self.parent.show_popup_message2("Warning", "Invalid energy range selected.")
+        #     return None, None
+
+        # Get the proper energy range from vlines or from stored values
+        if window.vline1 is not None and window.vline2 is not None:
+            bg_min_energy = min(window.vline1.get_xdata()[0], window.vline2.get_xdata()[0])
+            bg_max_energy = max(window.vline1.get_xdata()[0], window.vline2.get_xdata()[0])
+        else:
+            bg_min_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg Low')
+            bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
 
         if bg_min_energy is None or bg_max_energy is None or bg_min_energy > bg_max_energy:
-            # wx.MessageBox("Invalid energy range selected.", "Warning", wx.OK | wx.ICON_INFORMATION)
-            self.parent.show_popup_message2("Warning", "Invalid energy range selected.")
-            return None, None
+            # Default to full range if invalid
+            bg_min_energy = min(x_values)
+            bg_max_energy = max(x_values)
 
-        # Add this before the mask line to remove the
         try:
             bg_min_energy = float(bg_min_energy) if bg_min_energy != '' else min(x_values)
             bg_max_energy = float(bg_max_energy) if bg_max_energy != '' else max(x_values)

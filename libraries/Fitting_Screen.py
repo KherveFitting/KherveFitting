@@ -117,6 +117,11 @@ class FittingWindow(wx.Frame):
         self.averaging_points_text = wx.TextCtrl(self.background_panel, value="5")
         self.averaging_points_text.Bind(wx.EVT_TEXT, self.on_averaging_points_change)
 
+        # Add after averaging_points_text line:
+        self.smooth_data_checkbox = wx.CheckBox(self.background_panel, label="Smooth noisy data")
+        self.smooth_data_checkbox.SetToolTip("Apply Gaussian smoothing (width=2) to data before calculating shirley background")
+        self.smooth_data_checkbox.Bind(wx.EVT_CHECKBOX, self.on_smooth_data_change)
+
         self.cross_section_label = wx.StaticText(self.background_panel, label = 'Tougaard1: B,C,D,T0')
         self.cross_section = wx.TextCtrl(self.background_panel, value="2866,1643,1,0")
         self.cross_section.Bind(wx.EVT_TEXT, self.on_cross_section_change)
@@ -214,6 +219,7 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.offset_l_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(averaging_points_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.smooth_data_checkbox, pos=(5, 0), span=(1, 2), flag=wx.EXPAND | wx.EXPAND, border=1)
             background_sizer.Add(self.cross_section_label,  pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.cross_section, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.cross_section2_label,  pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
@@ -237,6 +243,7 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.offset_l_text, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(averaging_points_label, pos=(4, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.smooth_data_checkbox, pos=(5, 0), span=(1, 2), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.cross_section_label,  pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.cross_section2_label,  pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -519,6 +526,10 @@ class FittingWindow(wx.Frame):
     def get_optimization_method(self):
         selection = self.optimization_method.GetValue()
         return selection.split()[0]  # Get just the method name without description
+
+    def on_smooth_data_change(self, event):
+        save_state(self.parent)
+        # Pass - we'll access the checkbox state directly when calculating background
 
     def on_method_change_OLD(self, event):
         new_method = self.model_combobox.GetValue()
@@ -966,7 +977,11 @@ class FittingWindow(wx.Frame):
                 self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = self.parent.bg_min_energy
                 self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = self.parent.bg_max_energy
 
-        self.parent.plot_manager.plot_background(self.parent)
+        # Get smooth checkbox state
+        use_smoothing = self.smooth_data_checkbox.GetValue()
+
+        # Call plot_background with the smoothing flag
+        self.parent.plot_manager.plot_background(self.parent, use_smoothing=use_smoothing)
 
         sheet_name = self.parent.sheet_combobox.GetValue()
         if sheet_name in self.parent.Data['Core levels']:
