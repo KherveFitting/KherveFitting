@@ -1042,7 +1042,8 @@ class PlotManager:
                 area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
             elif window.selected_fitting_method == "D-parameter":
-                return area, 0, 0  # Return original area and zero for normalized/relative areas
+                # return area, 0, 0  # Return original area and zero for normalized/relative areas
+                return 0, 0, 0  # Return original area and zero for normalized/relative areas
             else:  # Default to GL (Height) as a safe bet
                 peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, amplitude=y)
@@ -1439,7 +1440,7 @@ class PlotManager:
             # Redraw the canvas
             window.canvas.draw_idle()
 
-    def add_cross_to_peak(self, window, index):
+    def add_cross_to_peak_OLD(self, window, index):
         try:
             row = index * 2  # Each peak uses two rows in the grid
             peak_x = float(window.peak_params_grid.GetCellValue(row, 2))  # Position
@@ -1469,6 +1470,24 @@ class PlotManager:
             self.ax.text(peak_x, peak_y + y_offset, peak_letter,
                          ha='center', va='bottom', fontsize=12)
 
+            # Calculate FWHM markers
+            peak_height = peak_y
+            mid_height = bkg_y + (peak_height - bkg_y) / 2
+            fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
+            half_width = fwhm / 2
+            left_x = peak_x - half_width
+            right_x = peak_x + half_width
+
+            # Draw horizontal line at mid-height
+            self.fwhm_line = self.ax.plot([left_x, right_x], [mid_height, mid_height], 'k', linewidth=1)
+            # Draw arrows at endpoints
+            self.left_arrow = self.ax.arrow(left_x, mid_height, 0, 0, width=1, head_width=0.5, head_length=0.5,
+                                            fc='b', ec='b')
+            self.right_arrow = self.ax.arrow(right_x, mid_height, 0, 0, width=1, head_width=0.5, head_length=0.5,
+                                             fc='b', ec='b')
+            # Add FWHM text
+            self.fwhm_text = self.ax.text(peak_x, mid_height, f"{fwhm:.2f} eV", ha='center', va='bottom', fontsize=10)
+
             # Connect event handlers
             self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers
             self.canvas.mpl_disconnect('button_release_event')
@@ -1485,6 +1504,87 @@ class PlotManager:
             print(f"Unexpected error adding cross to peak: {e}")
             # You might want to show an error message to the user here
 
+    def add_cross_to_peak(self, window, index):
+        # Get peak parameters
+        row = index * 2
+        peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
+        peak_y = float(window.peak_params_grid.GetCellValue(row, 3))
+
+        # Find background value at peak position
+        closest_index = np.argmin(np.abs(window.x_values - peak_x))
+        bkg_y = window.background[closest_index]
+        peak_y += bkg_y
+
+        # Clean up previous markers
+        if self.cross:
+            self.cross.remove()
+
+        # Remove previous FWHM elements if they exist
+        if hasattr(self, 'fwhm_line'):
+            for line in self.fwhm_line:
+                line.remove()
+        if hasattr(self, 'left_anno'):
+            self.left_anno.remove()
+        if hasattr(self, 'right_anno'):
+            self.right_anno.remove()
+        if hasattr(self, 'fwhm_text'):
+            self.fwhm_text.remove()
+
+        # Draw cross
+        self.cross, = self.ax.plot(peak_x, peak_y, 'bx', markersize=15, markerfacecolor='none',
+                                   picker=5, linewidth=3)
+
+        # Add peak letter
+        peak_letter = chr(65 + index)
+        plot_height = self.ax.get_ylim()[1] - self.ax.get_ylim()[0]
+        y_offset = plot_height * 0.02
+        self.ax.text(peak_x, peak_y + y_offset, peak_letter, ha='center', va='bottom', fontsize=12)
+
+        # Calculate FWHM by finding half-max points
+        half_height = bkg_y + (peak_y - bkg_y) / 2
+
+        # Use the correct FWHM from the grid
+        fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
+        area = float(window.peak_params_grid.GetCellValue(row, 6))
+        half_width = fwhm / 2
+        left_x = peak_x + half_width*0.9
+        right_x = peak_x - half_width*0.9
+
+
+        # Add left arrow (no label)
+        arrow_props_left = dict(arrowstyle='->', linewidth=1, color='black')
+        self.left_anno = self.ax.annotate("",
+                                          xy=(left_x, half_height),
+                                          xytext=(left_x + fwhm * 0.3, half_height),
+                                          arrowprops=arrow_props_left,
+                                          ha='left', va='center', fontsize=8)
+
+        # Add right arrow with FWHM label
+        arrow_props_right = dict(arrowstyle='->', linewidth=1, color='black')
+
+        # Determine text position based on axis direction
+        xlim = self.ax.get_xlim()
+        if xlim[0] > xlim[1]:  # If x-axis is reversed (BE mode)
+            text_x = right_x - fwhm * 0.3 #- fwhm
+            ha = 'left'
+        else:
+            print('Not reversed')
+            text_x = right_x #+ fwhm * 0.25 #+ fwhm
+            ha = 'right'
+
+        self.right_anno = self.ax.annotate(f"FWHM: {fwhm:.2f} eV\nArea: {area:.1f} CPS",
+                                           xy=(right_x, half_height),
+                                           xytext=(text_x, half_height),
+                                           arrowprops=arrow_props_right,
+                                           ha=ha, va='center', fontsize=8, color='grey')
+
+        # Connect event handlers
+        self.canvas.mpl_disconnect('motion_notify_event')
+        self.canvas.mpl_disconnect('button_release_event')
+        self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
+        self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
+
+        self.canvas.draw_idle()
 
     def toggle_residuals(self, window):
         if not hasattr(self, 'residuals_state'):

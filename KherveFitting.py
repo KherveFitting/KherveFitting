@@ -334,7 +334,7 @@ class MyFrame(wx.Frame):
 
         self.Bind(wx.EVT_SIZE, self.on_window_resize)
 
-
+        self.shift_pressed = False
 
         self.plot_manager.residuals_state = 2  # Set default state
 
@@ -1261,11 +1261,32 @@ class MyFrame(wx.Frame):
         event.Skip()
 
 
+    def remove_cross_from_peak_OLD(self):
+        if hasattr(self, 'cross'):
+            if self.cross in self.ax.lines:
+                self.cross.remove()
+            del self.cross
+        self.canvas.mpl_disconnect('motion_notify_event')
+        self.canvas.mpl_disconnect('button_release_event')
+
     def remove_cross_from_peak(self):
         if hasattr(self, 'cross'):
             if self.cross in self.ax.lines:
                 self.cross.remove()
             del self.cross
+        if hasattr(self.plot_manager, 'fwhm_line'):
+            for line in self.plot_manager.fwhm_line:
+                line.remove()
+            del self.plot_manager.fwhm_line
+        if hasattr(self.plot_manager, 'left_arrow'):
+            self.plot_manager.left_arrow.remove()
+            del self.plot_manager.left_arrow
+        if hasattr(self.plot_manager, 'right_arrow'):
+            self.plot_manager.right_arrow.remove()
+            del self.plot_manager.right_arrow
+        if hasattr(self.plot_manager, 'fwhm_text'):
+            self.plot_manager.fwhm_text.remove()
+            del self.plot_manager.fwhm_text
         self.canvas.mpl_disconnect('motion_notify_event')
         self.canvas.mpl_disconnect('button_release_event')
 
@@ -1902,7 +1923,11 @@ class MyFrame(wx.Frame):
     def on_click(self, event):
         if event.inaxes:
             x_click = event.xdata
-            if event.button == 1 and event.key == 'shift' and self.background_tab_selected:
+
+            # Set a class-level flag to track shift state
+            self.shift_pressed = (event.key == 'shift')
+
+            if event.button == 1 and self.shift_pressed and self.background_tab_selected:
                 # Store current motion handler if it exists
                 self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', self.on_motion)
                 self.button_release_id = self.canvas.mpl_connect('button_release_event', self.on_release)
@@ -1941,7 +1966,7 @@ class MyFrame(wx.Frame):
                             self.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.offset_h
                             self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
                     self.plot_manager.plot_background(self)
-                    return
+                return
             elif event.button == 1:  # Left click
                 if event.key == 'shift':  # SHIFT + left click
                     if self.peak_fitting_tab_selected and self.selected_peak_index is not None:
@@ -2050,7 +2075,7 @@ class MyFrame(wx.Frame):
             on_sheet_selected(self, mock_event)
             save_state(self)
 
-    def highlight_selected_peak(self):
+    def highlight_selected_peak_OLD(self):
         if self.selected_peak_index is not None:
             num_peaks = self.peak_params_grid.GetNumberRows() // 2
 
@@ -2109,6 +2134,129 @@ class MyFrame(wx.Frame):
                                 print(
                                     f"Warning: selected_peak_index ({self.selected_peak_index}) is out of range for peaks in Data structure")
 
+                        self.canvas.mpl_connect('motion_notify_event', self.on_cross_drag)
+                        self.canvas.mpl_connect('button_release_event', self.on_cross_release)
+                    except ValueError as e:
+                        print(f"Warning: Invalid data for selected peak. Cannot highlight. Error: {e}")
+                else:
+                    print(f"Warning: Empty data for selected peak. Cannot highlight.")
+            else:
+                print(f"Warning: Row {row} does not exist in peak_params_grid")
+
+            self.peak_params_grid.Refresh()
+        else:
+            print("No peak selected (selected_peak_index is None)")
+
+    def highlight_selected_peak(self):
+        if self.selected_peak_index is not None:
+            num_peaks = self.peak_params_grid.GetNumberRows() // 2
+
+            if self.selected_peak_index >= num_peaks:
+                print(
+                    f"Warning: selected_peak_index ({self.selected_peak_index}) is out of range. Max index: {num_peaks - 1}")
+                self.selected_peak_index = None
+                return
+
+            for i in range(num_peaks):
+                row = i * 2
+                is_selected = (i == self.selected_peak_index)
+                self.peak_params_grid.SetCellBackgroundColour(row, 0, wx.LIGHT_GREY if is_selected else wx.WHITE)
+                self.peak_params_grid.SetCellBackgroundColour(row + 1, 0, wx.LIGHT_GREY if is_selected else wx.WHITE)
+
+            row = self.selected_peak_index * 2
+
+            if row < self.peak_params_grid.GetNumberRows():
+                peak_label = self.peak_params_grid.GetCellValue(row, 1)
+                x_str = self.peak_params_grid.GetCellValue(row, 2)
+                y_str = self.peak_params_grid.GetCellValue(row, 3)
+                fwhm_str = self.peak_params_grid.GetCellValue(row, 4)
+
+                if x_str and y_str and fwhm_str:
+                    try:
+                        x = float(x_str)
+                        y = float(y_str)
+                        fwhm = float(fwhm_str)
+                        bkg_index = np.argmin(np.abs(self.x_values - x))
+                        bkg_y = self.background[bkg_index]
+                        total_y = y + bkg_y
+
+                        # Remove any existing elements
+                        self.remove_cross_from_peak()
+                        if hasattr(self, 'peak_letter') and self.peak_letter:
+                            self.peak_letter.remove()
+                        if hasattr(self, 'fwhm_line') and self.fwhm_line:
+                            self.fwhm_line.remove()
+                        if hasattr(self, 'left_arrow') and self.left_arrow:
+                            self.left_arrow.remove()
+                        if hasattr(self, 'right_arrow') and self.right_arrow:
+                            self.right_arrow.remove()
+                        if hasattr(self, 'fwhm_text') and self.fwhm_text:
+                            self.fwhm_text.remove()
+
+                        # Add cross at peak top
+                        self.cross, = self.ax.plot(x, total_y, 'bx', markersize=15, markerfacecolor='none', picker=5,
+                                                   linewidth=3)
+
+                        # Add peak letter above cross
+                        peak_letter = chr(65 + self.selected_peak_index)
+                        max_y = self.ax.get_ylim()[1]
+                        y_offset = max_y * 0.02
+                        self.peak_letter = self.ax.text(x, total_y + y_offset, peak_letter, ha='center', va='bottom',
+                                                        fontsize=12)
+
+                        # Add FWHM display
+                        mid_height = bkg_y + (total_y - bkg_y) / 2
+                        half_width = fwhm / 2
+                        left_x = x - half_width
+                        right_x = x + half_width
+
+                        # Draw horizontal line at mid-height with larger arrows
+                        self.fwhm_line, = self.ax.plot([left_x, right_x], [mid_height, mid_height], 'b-', linewidth=1.5)
+
+                        # Calculate arrow dimensions (make them bigger)
+                        arrow_head_width = max(0.1 * fwhm, 0.2)
+                        arrow_length = max(0.1 * fwhm, 0.2)
+
+                        # Add arrows at both ends
+                        self.left_arrow = self.ax.arrow(left_x, mid_height, arrow_length, 0,
+                                                        width=1, head_width=arrow_head_width,
+                                                        head_length=arrow_length, fc='k', ec='k')
+                        self.right_arrow = self.ax.arrow(right_x, mid_height, -arrow_length, 0,
+                                                         width=1, head_width=arrow_head_width,
+                                                         head_length=arrow_length, fc='k', ec='k')
+
+                        # Add FWHM text on the right side (low BE side)
+                        # Find which side is low BE (since BE axis is reversed, the "right" side in the plot is low BE)
+                        xlim = self.ax.get_xlim()
+                        if xlim[0] > xlim[1]:  # If x-axis is reversed (BE mode)
+                            text_x = min(left_x, right_x) - 0.05 * fwhm  # Place text on right side in plot (low BE)
+                        else:  # If axis is not reversed (KE mode)
+                            text_x = max(left_x, right_x) + 0.05 * fwhm  # Place text on right side in plot
+
+                        self.fwhm_text = self.ax.text(text_x, mid_height, f"FWHM = {fwhm:.2f} eV",
+                                                      ha='left', va='center', fontsize=10,
+                                                      bbox=None)  # No background box
+
+                        # Update grid selection
+                        self.peak_params_grid.ClearSelection()
+                        self.peak_params_grid.SelectRow(row, addToSelected=False)
+                        self.peak_params_grid.Refresh()
+                        self.canvas.draw_idle()
+
+                        # Update data structure
+                        sheet_name = self.sheet_combobox.GetValue()
+                        if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][
+                            sheet_name] and 'Peaks' in self.Data['Core levels'][sheet_name]['Fitting']:
+                            peaks = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                            if self.selected_peak_index < len(peaks):
+                                old_label = list(peaks.keys())[self.selected_peak_index]
+                                if old_label != peak_label:
+                                    peaks[peak_label] = peaks.pop(old_label)
+                            else:
+                                print(
+                                    f"Warning: selected_peak_index ({self.selected_peak_index}) is out of range for peaks in Data structure")
+
+                        # Connect event handlers
                         self.canvas.mpl_connect('motion_notify_event', self.on_cross_drag)
                         self.canvas.mpl_connect('button_release_event', self.on_cross_release)
                     except ValueError as e:
@@ -2446,7 +2594,11 @@ class MyFrame(wx.Frame):
         self.canvas.draw_idle()
 
     def on_motion(self, event):
-        if event.button == 1 and event.key == 'shift' and self.background_tab_selected:
+        # Update shift state in motion handler too
+        if event.key == 'shift':
+            self.shift_pressed = True
+
+        if event.button == 1 and self.shift_pressed and self.background_tab_selected:
             # print('ON MOTION')
             x_click = event.xdata
             sheet_name = self.sheet_combobox.GetValue()
@@ -2483,9 +2635,13 @@ class MyFrame(wx.Frame):
                         self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
 
                 self.plot_manager.plot_background(self)
+                return
         elif event.inaxes and self.moving_vline is not None:
             x_click = event.xdata
             self.moving_vline.set_xdata([x_click])
+
+            if event.key == 'shift':
+                return  # Skip vLine movement entirely if shift is pressed
 
             sheet_name = self.sheet_combobox.GetValue()
             if sheet_name in self.Data['Core levels']:
@@ -2521,6 +2677,8 @@ class MyFrame(wx.Frame):
             self.canvas.draw_idle()
 
     def on_release(self, event):
+        self.shift_pressed = False
+
         if self.moving_vline is not None:
             # Disconnect motion handler when mouse is released
             if hasattr(self, 'motion_notify_id'):

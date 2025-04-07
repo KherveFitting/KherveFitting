@@ -120,7 +120,7 @@ class FittingWindow(wx.Frame):
         # Add after averaging_points_text line:
         smooth_data_label = wx.StaticText(self.background_panel, label="Smooth noisy data:")
         self.smooth_data_checkbox = wx.CheckBox(self.background_panel, label="")
-        self.smooth_data_checkbox.SetToolTip("Apply Gaussian smoothing (width=2) to data before calculating shirley background")
+        self.smooth_data_checkbox.SetToolTip("Apply Gaussian smoothing to data before calculating shirley background")
         self.smooth_data_checkbox.Bind(wx.EVT_CHECKBOX, self.on_smooth_data_change)
 
         self.cross_section_label = wx.StaticText(self.background_panel, label = 'Tougaard1: B,C,D,T0')
