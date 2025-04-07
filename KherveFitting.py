@@ -1274,21 +1274,60 @@ class MyFrame(wx.Frame):
             if self.cross in self.ax.lines:
                 self.cross.remove()
             del self.cross
-        if hasattr(self.plot_manager, 'fwhm_line'):
-            for line in self.plot_manager.fwhm_line:
-                line.remove()
-            del self.plot_manager.fwhm_line
-        if hasattr(self.plot_manager, 'left_arrow'):
-            self.plot_manager.left_arrow.remove()
-            del self.plot_manager.left_arrow
-        if hasattr(self.plot_manager, 'right_arrow'):
-            self.plot_manager.right_arrow.remove()
-            del self.plot_manager.right_arrow
-        if hasattr(self.plot_manager, 'fwhm_text'):
-            self.plot_manager.fwhm_text.remove()
-            del self.plot_manager.fwhm_text
+
+        if hasattr(self, 'peak_letter') and self.peak_letter:
+            self.peak_letter.remove()
+            del self.peak_letter
+
+        # if hasattr(self.plot_manager, 'fwhm_line'):
+        #     for line in self.plot_manager.fwhm_line:
+        #         line.remove()
+        #     del self.plot_manager.fwhm_line
+        # if hasattr(self.plot_manager, 'left_arrow'):
+        #     self.plot_manager.left_arrow.remove()
+        #     del self.plot_manager.left_arrow
+        # if hasattr(self.plot_manager, 'right_arrow'):
+        #     self.plot_manager.right_arrow.remove()
+        #     del self.plot_manager.right_arrow
+        # if hasattr(self.plot_manager, 'fwhm_text'):
+        #     self.plot_manager.fwhm_text.remove()
+        #     del self.plot_manager.fwhm_text
+
+        # Add these lines to remove FWHM annotations
+        if hasattr(self.plot_manager, 'left_anno'):
+            self.plot_manager.left_anno.remove()
+            delattr(self.plot_manager, 'left_anno')
+
+        if hasattr(self.plot_manager, 'right_anno'):
+            self.plot_manager.right_anno.remove()
+            delattr(self.plot_manager, 'right_anno')
+
+        if hasattr(self, 'peak_letter'):
+            if self.peak_letter in self.ax.texts:
+                self.peak_letter.remove()
+            delattr(self, 'peak_letter')
+
+        # # Make sure to redraw the canvas
+        # self.canvas.draw_idle()
+
+
         self.canvas.mpl_disconnect('motion_notify_event')
         self.canvas.mpl_disconnect('button_release_event')
+
+    def deselect_all_peaks(self):
+        self.selected_peak_index = None
+        self.plot_manager.clear_peak_annotations()
+
+        # Clear any selections in the peak_params_grid
+        self.peak_params_grid.ClearSelection()
+
+        # If you want to uncheck any checkboxes in the results_grid
+        for row in range(self.results_grid.GetNumberRows()):
+            self.results_grid.SetCellValue(row, 7, '0')  # Assuming column 7 is the checkbox column
+
+        # Refresh both grids
+        self.peak_params_grid.ForceRefresh()
+        self.results_grid.ForceRefresh()
 
     def update_peak_grid(self, index, x, y):
         row = index * 2  # Assuming each peak uses two rows in the grid
@@ -2592,6 +2631,10 @@ class MyFrame(wx.Frame):
 
 
         self.remove_cross_from_peak()
+
+        # Clear annotations when switching tabs
+        self.plot_manager.clear_peak_annotations()
+
         if self.peak_fitting_tab_selected:
             self.highlight_selected_peak()
 

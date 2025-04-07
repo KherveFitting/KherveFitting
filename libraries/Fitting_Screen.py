@@ -1107,6 +1107,10 @@ class FittingWindow(wx.Frame):
         self.parent.peak_fitting_tab_selected = (selected_page == 1)
         self.parent.show_hide_vlines()
 
+        # Clear annotations when switching tabs
+        self.parent.plot_manager.clear_peak_annotations()
+        self.parent.canvas.draw_idle()
+
         if selected_page == 0:
             self.parent.enable_background_interaction()
         else:
@@ -1122,6 +1126,19 @@ class FittingWindow(wx.Frame):
         self.parent.peak_fitting_tab_selected = False
         self.parent.show_hide_vlines()
         self.parent.deselect_all_peaks()
+
+        # Ensure all peak annotations are removed
+        if hasattr(self.parent.plot_manager, 'left_anno'):
+            self.parent.plot_manager.left_anno.remove()
+            delattr(self.parent.plot_manager, 'left_anno')
+
+        if hasattr(self.parent.plot_manager, 'right_anno'):
+            self.parent.plot_manager.right_anno.remove()
+            delattr(self.parent.plot_manager, 'right_anno')
+
+        self.parent.canvas.draw_idle()
+
+
         self.Destroy()
 
     def parse_cross_section(self, text):

@@ -1504,7 +1504,7 @@ class PlotManager:
             print(f"Unexpected error adding cross to peak: {e}")
             # You might want to show an error message to the user here
 
-    def add_cross_to_peak(self, window, index):
+    def add_cross_to_peak_OLD2(self, window, index):
         # Get peak parameters
         row = index * 2
         peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
@@ -1583,6 +1583,118 @@ class PlotManager:
         self.canvas.mpl_disconnect('button_release_event')
         self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
         self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
+
+        self.canvas.draw_idle()
+
+    def add_cross_to_peak(self, window, index):
+        # Clear any existing annotations first
+        self.clear_all_annotations()
+
+        # Create new list to track all annotations
+        if not hasattr(self, 'annotations'):
+            self.annotations = []
+
+        # Get peak parameters
+        row = index * 2
+        peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
+        peak_y = float(window.peak_params_grid.GetCellValue(row, 3))
+        bkg_index = np.argmin(np.abs(window.x_values - peak_x))
+        bkg_y = window.background[bkg_index]
+        total_y = peak_y + bkg_y
+        fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
+        area = float(window.peak_params_grid.GetCellValue(row, 6))
+
+        # Add cross
+        cross = self.ax.plot(peak_x, total_y, 'bx', markersize=15, markerfacecolor='none',
+                             picker=5, linewidth=3)[0]
+        self.annotations.append(cross)
+        window.cross = cross  # Also store in window for compatibility
+
+        # Add peak letter
+        peak_letter = chr(65 + index)
+        max_y = self.ax.get_ylim()[1]
+        y_offset = max_y * 0.02
+        letter_text = self.ax.text(peak_x, total_y + y_offset, peak_letter,
+                                   ha='center', va='bottom', fontsize=12)
+        self.annotations.append(letter_text)
+        window.peak_letter = letter_text  # Store in window
+
+        # Add FWHM annotations
+        half_height = bkg_y + (total_y - bkg_y) / 2
+        half_width = fwhm / 2
+        left_x = peak_x + half_width * 0.9
+        right_x = peak_x - half_width * 0.9
+
+        # Add arrows with annotations
+        arrow_props_left = dict(arrowstyle='->', linewidth=1, color='black')
+        left_anno = self.ax.annotate("", xy=(left_x, half_height),
+                                     xytext=(left_x + fwhm * 0.3, half_height),
+                                     arrowprops=arrow_props_left,
+                                     ha='left', va='center', fontsize=8)
+        self.annotations.append(left_anno)
+        self.left_anno = left_anno  # Store for compatibility
+
+        arrow_props_right = dict(arrowstyle='->', linewidth=1, color='black')
+        xlim = self.ax.get_xlim()
+        text_x = right_x - fwhm * 0.3 if xlim[0] > xlim[1] else right_x
+        ha = 'left' if xlim[0] > xlim[1] else 'right'
+
+        right_anno = self.ax.annotate(f"FWHM: {fwhm:.2f} eV\nArea: {area:.1f} CPS",
+                                      xy=(right_x, half_height),
+                                      xytext=(text_x, half_height),
+                                      arrowprops=arrow_props_right,
+                                      ha=ha, va='center', fontsize=8, color='grey')
+        self.annotations.append(right_anno)
+        self.right_anno = right_anno  # Store for compatibility
+
+        # Connect event handlers
+        window.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
+        window.canvas.mpl_connect('button_release_event', window.on_cross_release)
+
+        self.canvas.draw_idle()
+
+    def clear_peak_annotations(self):
+        # Clear all annotation objects
+        for attr in ['left_anno', 'right_anno', 'peak_letter', 'fwhm_line', 'fwhm_text']:
+            if hasattr(self, attr):
+                try:
+                    obj = getattr(self, attr)
+                    if hasattr(obj, 'remove'):
+                        obj.remove()
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            if hasattr(item, 'remove'):
+                                item.remove()
+                    delattr(self, attr)
+                except Exception as e:
+                    print(f"Error removing {attr}: {e}")
+
+        # Force redraw
+        self.canvas.draw_idle()
+
+    def clear_all_annotations(self):
+        # Remove all stored annotations
+        if hasattr(self, 'annotations'):
+            for anno in self.annotations:
+                try:
+                    if anno in self.ax.texts:
+                        anno.remove()
+                    elif anno in self.ax.lines:
+                        anno.remove()
+                    elif hasattr(anno, 'remove'):
+                        anno.remove()
+                except:
+                    pass
+            self.annotations = []
+
+        # Clear individual references
+        for attr in ['left_anno', 'right_anno']:
+            if hasattr(self, attr):
+                try:
+                    getattr(self, attr).remove()
+                except:
+                    pass
+                delattr(self, attr)
 
         self.canvas.draw_idle()
 
