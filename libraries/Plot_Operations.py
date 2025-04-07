@@ -25,6 +25,10 @@ class PlotManager:
         self.canvas = canvas
         self.figure = ax.figure # Add this line
         self.cross = None
+        self.peak_letter = None
+        self.peak_info = None
+        self.peak_letter_t = None
+        self.peak_info_t = None
         self.peak_fill_enabled = True
         self.fitting_results_text = None
         self.fitting_results_visible = False
@@ -502,6 +506,13 @@ class PlotManager:
             # Hide the cross if it exists
             if hasattr(window, 'cross') and window.cross:
                 window.cross.remove()
+            if hasattr(window, 'peak_letter') and window.peak_letter:
+                window.peak_letter.remove()
+                window.peak_letter = None
+            if hasattr(window, 'peak_info') and window.peak_info:
+                window.peak_info.remove()
+                window.peak_info = None
+
 
             # Switch to "None" ticked box and hide background lines
             window.vline1 = None
@@ -1042,7 +1053,8 @@ class PlotManager:
                 area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
             elif window.selected_fitting_method == "D-parameter":
-                return area, 0, 0  # Return original area and zero for normalized/relative areas
+                # return area, 0, 0  # Return original area and zero for normalized/relative areas
+                return 0, 0, 0  # Return original area and zero for normalized/relative areas
             else:  # Default to GL (Height) as a safe bet
                 peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, amplitude=y)
@@ -1445,6 +1457,9 @@ class PlotManager:
             peak_x = float(window.peak_params_grid.GetCellValue(row, 2))  # Position
             peak_y = float(window.peak_params_grid.GetCellValue(row, 3))  # Height
 
+            fwhm = float(window.peak_params_grid.GetCellValue(row, 4)) # fwhm
+            area = float(window.peak_params_grid.GetCellValue(row, 6)) # area
+
             # Find the closest background value
             closest_index = np.argmin(np.abs(window.x_values - peak_x))
             bkg_y = window.background[closest_index]
@@ -1455,19 +1470,26 @@ class PlotManager:
             # Remove existing cross if it exists
             if self.cross:
                 self.cross.remove()
+            if self.peak_info_t:
+                self.peak_info_t.remove()
+            if self.peak_letter_t:
+                self.peak_letter_t.remove()
 
             # Plot new cross
             self.cross, = self.ax.plot(peak_x, peak_y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                        linewidth=3)
 
             # Get peak letter (A, B, C etc)
-            peak_letter = chr(65 + index)
+            self.peak_letter = chr(65 + index)
+            self.peak_info = f'fwhm: {fwhm} eV\narea: {area} cps'
 
             # Add letter above cross with offset
             max_y = window.ax.get_ylim()[1]
             y_offset = max_y * 0.02  # 2% of plot height for offset
-            self.ax.text(peak_x, peak_y + y_offset, peak_letter,
+            self.peak_letter_t, = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
                          ha='center', va='bottom', fontsize=12)
+            self.peak_info_t, = self.ax.text(peak_x - fwhm/2, peak_y + y_offset, self.peak_info,
+                         ha='left', va='bottom', fontsize=8, color='grey')
 
             # Connect event handlers
             self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers

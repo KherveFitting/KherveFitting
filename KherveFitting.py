@@ -129,6 +129,7 @@ class MyFrame(wx.Frame):
         self.is_right_panel_hidden = False
 
         self.peak_letter = None
+        self.peak_info = None
 
         # X axis correction from KE to BE
         self.photons = 1486.67
@@ -1266,6 +1267,15 @@ class MyFrame(wx.Frame):
             if self.cross in self.ax.lines:
                 self.cross.remove()
             del self.cross
+
+        if hasattr(self, 'peak_letter') and self.peak_letter:
+            self.peak_letter.remove()
+            self.peak_letter = None
+            del self.peak_letter
+        if hasattr(self, 'peak_info') and self.peak_info:
+            self.peak_info.remove()
+            self.peak_info = None
+            del self.peak_info
         self.canvas.mpl_disconnect('motion_notify_event')
         self.canvas.mpl_disconnect('button_release_event')
 
@@ -2072,6 +2082,8 @@ class MyFrame(wx.Frame):
                 peak_label = self.peak_params_grid.GetCellValue(row, 1)
                 x_str = self.peak_params_grid.GetCellValue(row, 2)
                 y_str = self.peak_params_grid.GetCellValue(row, 3)
+                fwhm = float(self.peak_params_grid.GetCellValue(row, 4))  # fwhm
+                area = float(self.peak_params_grid.GetCellValue(row, 6))  # area
 
                 if x_str and y_str:
                     try:
@@ -2082,15 +2094,22 @@ class MyFrame(wx.Frame):
                         self.remove_cross_from_peak()
                         if hasattr(self, 'peak_letter') and self.peak_letter:
                             self.peak_letter.remove()
+                        if hasattr(self, 'peak_info') and self.peak_info:
+                            self.peak_info.remove()
 
                         self.cross, = self.ax.plot(x, y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                                    linewidth=3)
 
                         peak_letter = chr(65 + self.selected_peak_index)
+                        peak_info = f'fwhm: {fwhm} eV\narea: {area} cps'
+
                         max_y = self.ax.get_ylim()[1]
                         y_offset = max_y * 0.02
                         self.peak_letter = self.ax.text(x, y + y_offset, peak_letter, ha='center', va='bottom',
                                                         fontsize=12)
+
+                        self.ax.text(x - fwhm / 2, y + y_offset, peak_info,
+                                     ha='left', va='bottom', fontsize=8, color='grey')
 
                         self.peak_params_grid.ClearSelection()
                         self.peak_params_grid.SelectRow(row, addToSelected=False)
@@ -3942,9 +3961,12 @@ class MyFrame(wx.Frame):
         self.selected_peak_index = None
         self.remove_cross_from_peak()
 
-        if hasattr(self, 'peak_letter') and self.peak_letter:
-            self.peak_letter.remove()
-            self.peak_letter = None
+        # if hasattr(self, 'peak_letter') and self.peak_letter:
+        #     self.peak_letter.remove()
+        #     self.peak_letter = None
+        # if hasattr(self, 'peak_info') and self.peak_info:
+        #     self.peak_info.remove()
+        #     self.peak_info = None
 
         # Clear any selections in the peak_params_grid
         self.peak_params_grid.ClearSelection()
