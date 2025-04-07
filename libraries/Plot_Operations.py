@@ -509,9 +509,11 @@ class PlotManager:
             if hasattr(window, 'peak_letter') and window.peak_letter:
                 window.peak_letter.remove()
                 window.peak_letter = None
+                del self.peak_letter
             if hasattr(window, 'peak_info') and window.peak_info:
                 window.peak_info.remove()
                 window.peak_info = None
+                del self.peak_info
 
 
             # Switch to "None" ticked box and hide background lines
@@ -1486,9 +1488,9 @@ class PlotManager:
             # Add letter above cross with offset
             max_y = window.ax.get_ylim()[1]
             y_offset = max_y * 0.02  # 2% of plot height for offset
-            self.peak_letter_t, = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
+            self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
                          ha='center', va='bottom', fontsize=12)
-            self.peak_info_t, = self.ax.text(peak_x - fwhm/2, peak_y + y_offset, self.peak_info,
+            self.peak_info_t = self.ax.text(peak_x - fwhm/2, peak_y + y_offset, self.peak_info,
                          ha='left', va='bottom', fontsize=8, color='grey')
 
             # Connect event handlers

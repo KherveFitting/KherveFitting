@@ -130,6 +130,8 @@ class MyFrame(wx.Frame):
 
         self.peak_letter = None
         self.peak_info = None
+        self.peak_letter_t = None
+        self.peak_info_t = None
 
         # X axis correction from KE to BE
         self.photons = 1486.67
@@ -1262,7 +1264,7 @@ class MyFrame(wx.Frame):
         event.Skip()
 
 
-    def remove_cross_from_peak(self):
+    def remove_cross_from_peak_OLD(self):
         if hasattr(self, 'cross'):
             if self.cross in self.ax.lines:
                 self.cross.remove()
@@ -1276,6 +1278,32 @@ class MyFrame(wx.Frame):
             self.peak_info.remove()
             self.peak_info = None
             del self.peak_info
+        self.canvas.mpl_disconnect('motion_notify_event')
+        self.canvas.mpl_disconnect('button_release_event')
+
+    def remove_cross_from_peak(self):
+        if hasattr(self, 'cross'):
+            if self.cross in self.ax.lines:
+                self.cross.remove()
+            del self.cross
+
+        if hasattr(self, 'peak_letter_t') and self.peak_letter_t:
+            self.peak_letter_t.remove()
+            self.peak_letter_t = None
+            del self.peak_letter_t
+        if hasattr(self, 'peak_info_t') and self.peak_info_t:
+            self.peak_info_t.remove()
+            self.peak_info_t = None
+            del self.peak_info_t
+        if hasattr(self, 'peak_letter') and self.peak_letter:
+            self.peak_letter.remove()
+            self.peak_letter = None
+            del self.peak_letter
+        if hasattr(self, 'peak_info') and self.peak_info:
+            self.peak_info.remove()
+            self.peak_info = None
+            del self.peak_info
+
         self.canvas.mpl_disconnect('motion_notify_event')
         self.canvas.mpl_disconnect('button_release_event')
 
@@ -2094,8 +2122,20 @@ class MyFrame(wx.Frame):
                         self.remove_cross_from_peak()
                         if hasattr(self, 'peak_letter') and self.peak_letter:
                             self.peak_letter.remove()
+                            self.peak_letter = None
+                            del self.peak_letter
                         if hasattr(self, 'peak_info') and self.peak_info:
                             self.peak_info.remove()
+                            self.peak_info = None
+                            del self.peak_info
+                        if hasattr(self, 'peak_letter_t') and self.peak_letter_t:
+                            self.peak_letter_t.remove()
+                            self.peak_letter_t = None
+                            del self.peak_letter_t
+                        if hasattr(self, 'peak_info_t') and self.peak_info_t:
+                            self.peak_info_t.remove()
+                            self.peak_info_t = None
+                            del self.peak_info_t
 
                         self.cross, = self.ax.plot(x, y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                                    linewidth=3)
@@ -2105,10 +2145,10 @@ class MyFrame(wx.Frame):
 
                         max_y = self.ax.get_ylim()[1]
                         y_offset = max_y * 0.02
-                        self.peak_letter = self.ax.text(x, y + y_offset, peak_letter, ha='center', va='bottom',
+                        self.peak_letter_t = self.ax.text(x, y + y_offset, peak_letter, ha='center', va='bottom',
                                                         fontsize=12)
 
-                        self.ax.text(x - fwhm / 2, y + y_offset, peak_info,
+                        self.peak_info_t = self.ax.text(x - fwhm / 2, y + y_offset, peak_info,
                                      ha='left', va='bottom', fontsize=8, color='grey')
 
                         self.peak_params_grid.ClearSelection()
@@ -2456,9 +2496,26 @@ class MyFrame(wx.Frame):
         else:
             self.selected_peak_index = (self.selected_peak_index + direction) % num_peaks
 
-
+        # if hasattr(self, 'peak_letter_t') and self.peak_letter_t:
+        #     self.peak_letter_t.remove()
+        #     self.peak_letter_t = None
+        #     del self.peak_letter_t
+        # if hasattr(self, 'peak_info_t') and self.peak_info_t:
+        #     self.peak_info_t.remove()
+        #     self.peak_info_t = None
+        #     del self.peak_info_t
+        # if hasattr(self, 'peak_letter') and self.peak_letter:
+        #     self.peak_letter.remove()
+        #     self.peak_letter = None
+        #     del self.peak_letter
+        # if hasattr(self, 'peak_info') and self.peak_info:
+        #     self.peak_info.remove()
+        #     self.peak_info = None
+        #     del self.peak_info
 
         self.remove_cross_from_peak()
+
+
         if self.peak_fitting_tab_selected:
             self.highlight_selected_peak()
 
