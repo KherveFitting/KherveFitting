@@ -2204,38 +2204,42 @@ class MyFrame(wx.Frame):
                         self.peak_letter = self.ax.text(x, total_y + y_offset, peak_letter, ha='center', va='bottom',
                                                         fontsize=12)
 
-                        # Add FWHM display
-                        mid_height = bkg_y + (total_y - bkg_y) / 2
+                        # Calculate FWHM by finding half-max points
+                        half_height = bkg_y + (total_y - bkg_y) / 2
+
+                        # Use the correct FWHM from the grid
+                        fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+                        area = float(self.peak_params_grid.GetCellValue(row, 6))
                         half_width = fwhm / 2
-                        left_x = x - half_width
-                        right_x = x + half_width
+                        left_x = x + half_width * 0.9
+                        right_x = x - half_width * 0.9
 
-                        # Draw horizontal line at mid-height with larger arrows
-                        self.fwhm_line, = self.ax.plot([left_x, right_x], [mid_height, mid_height], 'b-', linewidth=1.5)
+                        # Add left arrow (no label)
+                        arrow_props_left = dict(arrowstyle='->', linewidth=1, color='black')
+                        self.left_anno = self.ax.annotate("",
+                                                          xy=(left_x, half_height),
+                                                          xytext=(left_x + fwhm * 0.3, half_height),
+                                                          arrowprops=arrow_props_left,
+                                                          ha='left', va='center', fontsize=8)
 
-                        # Calculate arrow dimensions (make them bigger)
-                        arrow_head_width = max(0.1 * fwhm, 0.2)
-                        arrow_length = max(0.1 * fwhm, 0.2)
+                        # Add right arrow with FWHM label
+                        arrow_props_right = dict(arrowstyle='->', linewidth=1, color='black')
 
-                        # Add arrows at both ends
-                        self.left_arrow = self.ax.arrow(left_x, mid_height, arrow_length, 0,
-                                                        width=1, head_width=arrow_head_width,
-                                                        head_length=arrow_length, fc='k', ec='k')
-                        self.right_arrow = self.ax.arrow(right_x, mid_height, -arrow_length, 0,
-                                                         width=1, head_width=arrow_head_width,
-                                                         head_length=arrow_length, fc='k', ec='k')
-
-                        # Add FWHM text on the right side (low BE side)
-                        # Find which side is low BE (since BE axis is reversed, the "right" side in the plot is low BE)
+                        # Determine text position based on axis direction
                         xlim = self.ax.get_xlim()
                         if xlim[0] > xlim[1]:  # If x-axis is reversed (BE mode)
-                            text_x = min(left_x, right_x) - 0.05 * fwhm  # Place text on right side in plot (low BE)
-                        else:  # If axis is not reversed (KE mode)
-                            text_x = max(left_x, right_x) + 0.05 * fwhm  # Place text on right side in plot
+                            text_x = right_x - fwhm * 0.3  # - fwhm
+                            ha = 'left'
+                        else:
+                            print('Not reversed')
+                            text_x = right_x  # + fwhm * 0.25 #+ fwhm
+                            ha = 'right'
 
-                        self.fwhm_text = self.ax.text(text_x, mid_height, f"FWHM = {fwhm:.2f} eV",
-                                                      ha='left', va='center', fontsize=10,
-                                                      bbox=None)  # No background box
+                        self.right_anno = self.ax.annotate(f"FWHM: {fwhm:.2f} eV\nArea: {area:.1f} CPS",
+                                                           xy=(right_x, half_height),
+                                                           xytext=(text_x, half_height),
+                                                           arrowprops=arrow_props_right,
+                                                           ha=ha, va='center', fontsize=8, color='grey')
 
                         # Update grid selection
                         self.peak_params_grid.ClearSelection()
