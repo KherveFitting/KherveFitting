@@ -93,6 +93,8 @@ class MyFrame(wx.Frame):
         self.previous_size = None
         self.file_manager_position = None
 
+        self.shift_key_pressed = False
+
         # Initial folder path
         self.Working_directory =  os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
 
@@ -1196,24 +1198,6 @@ class MyFrame(wx.Frame):
     def clear_and_replot(self):
         self.plot_manager.clear_and_replot(self)
 
-        # # Force refresh of peak params grid for Mac compatibility
-        # if self.peak_params_grid:
-        #     self.peak_params_grid.ForceRefresh()
-        #     self.peak_params_grid.Refresh(True)
-        #
-        #     # For Mac, additional forced layout update
-        #     if 'wxMac' in wx.PlatformInfo:
-        #         # Update layout of parent containers
-        #         if self.peak_params_grid.GetParent():
-        #             self.peak_params_grid.GetParent().Layout()
-        #             self.peak_params_grid.GetParent().Refresh()
-        #
-        #         # Ensure grid cells are properly rendered
-        #         for row in range(self.peak_params_grid.GetNumberRows()):
-        #             for col in range(self.peak_params_grid.GetNumberCols()):
-        #                 self.peak_params_grid.RefreshAttr(row, col)
-
-
     def plot_data(self):
         self.plot_manager.plot_data(self)
 
@@ -2050,6 +2034,31 @@ class MyFrame(wx.Frame):
 
 
     def on_mouse_wheel(self, event):
+        # Handle SHIFT + wheel for peak width adjustment
+        if hasattr(self,
+                   'shift_key_pressed') and self.shift_key_pressed and self.selected_peak_index is not None and self.peak_fitting_tab_selected:
+            delta = 0.05 if event.step > 0 else -0.05
+            row = self.selected_peak_index * 2
+
+            # Get current FWHM directly from grid
+            current_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+            new_fwhm = max(current_fwhm + delta, 0.3)  # Ensure minimum FWHM of 0.3 eV
+
+            # Update peak FWHM
+            self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
+
+            # Recalculate area
+            self.recalculate_peak_area(self.selected_peak_index)
+
+            # Update linked peaks
+            self.update_linked_fwhm_recursive(self.selected_peak_index, new_fwhm)
+
+            # Redraw everything
+            self.clear_and_replot()
+            self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
+            save_state(self)
+            return
+
         if event.step != 0:
             current_index = self.sheet_combobox.GetSelection()
             num_sheets = self.sheet_combobox.GetCount()
@@ -2185,6 +2194,11 @@ class MyFrame(wx.Frame):
             print("No peak selected (selected_peak_index is None)")
 
     def on_key_press(self, event):
+
+        if event.key == 'shift':
+            self.shift_key_pressed = True
+            return
+
         if self.selected_peak_index is not None:
             num_peaks = self.peak_params_grid.GetNumberRows() // 2  # Assuming each peak uses two rows
 
@@ -2195,13 +2209,18 @@ class MyFrame(wx.Frame):
                     self.change_selected_peak(1)  # Move to next peak
                 return  # Prevent event from propagating
             elif event.key == 'q':
-                # print("Local Key q")
-                # self.change_selected_peak(-1)
                 pass
 
             self.highlight_selected_peak()
             self.clear_and_replot()
             self.canvas.draw_idle()
+
+        # Connect to key release event
+        self.canvas.mpl_connect('key_release_event', self.on_key_release)
+
+    def on_key_release(self, event):
+        if event.key == 'shift':
+            self.shift_key_pressed = False
 
     def on_key_press_global(self, event):
         keycode = event.GetKeyCode()
@@ -2490,37 +2509,24 @@ class MyFrame(wx.Frame):
 
     def change_selected_peak(self, direction):
 
-
         num_peaks = self.peak_params_grid.GetNumberRows() // 2
-
 
         if self.selected_peak_index is None:
             self.selected_peak_index = 0 if direction > 0 else num_peaks - 1
         else:
             self.selected_peak_index = (self.selected_peak_index + direction) % num_peaks
 
-        # if hasattr(self, 'peak_letter_t') and self.peak_letter_t:
-        #     self.peak_letter_t.remove()
-        #     self.peak_letter_t = None
-        #     del self.peak_letter_t
-        # if hasattr(self, 'peak_info_t') and self.peak_info_t:
-        #     self.peak_info_t.remove()
-        #     self.peak_info_t = None
-        #     del self.peak_info_t
-        # if hasattr(self, 'peak_letter') and self.peak_letter:
-        #     self.peak_letter.remove()
-        #     self.peak_letter = None
-        #     del self.peak_letter
-        # if hasattr(self, 'peak_info') and self.peak_info:
-        #     self.peak_info.remove()
-        #     self.peak_info = None
-        #     del self.peak_info
-
         self.remove_cross_from_peak()
 
 
         if self.peak_fitting_tab_selected:
+            # Initialize the FWHM and position values when changing peaks
+            row = self.selected_peak_index * 2
+            self.initial_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))  # FWHM
+            self.initial_x = float(self.peak_params_grid.GetCellValue(row, 2))  # Position
+
             self.highlight_selected_peak()
+            # self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
 
         self.canvas.draw_idle()
 
