@@ -551,6 +551,84 @@ class PeakFunctions:
         amplitude = height / max_y
         return amplitude
 
+    @staticmethod
+    def calculate_actual_fwhm(x_values, position, height, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model):
+        """Calculate the actual FWHM from the peak shape."""
+        # Create a high-resolution x range around the peak for accurate FWHM measurement
+        x_range = 10 * grid_fwhm
+        x_high_res = np.linspace(position - x_range / 2, position + x_range / 2, 1000)
+
+        # Generate peak shape based on the model
+        if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
+            peak_model = lmfit.models.VoigtModel()
+            sigma_val = sigma / 2.355
+            gamma_val = gamma / 2
+            amplitude = height / peak_model.eval(center=0, amplitude=1, sigma=sigma_val, gamma=gamma_val, x=0)
+            params = peak_model.make_params(center=position, amplitude=amplitude, sigma=sigma_val, gamma=gamma_val)
+            y_values = peak_model.eval(params, x=x_high_res)
+        elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
+            peak_model = lmfit.models.SkewedVoigtModel()
+            params = peak_model.make_params(center=position, amplitude=area, sigma=sigma / 2.355, gamma=gamma / 2,
+                                            skew=skew)
+            y_values = peak_model.eval(params, x=x_high_res)
+        elif model == "DS (A, \u03c3, \u03b3)":
+            peak_model = lmfit.models.DoniachModel()
+            params = peak_model.make_params(center=position, amplitude=area, sigma=sigma, gamma=gamma, asymmetry=skew)
+            y_values = peak_model.eval(params, x=x_high_res)
+        elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
+            peak_model = lmfit.models.ExponentialGaussianModel()
+            params = peak_model.make_params(center=position, amplitude=area, sigma=sigma, gamma=gamma)
+            y_values = peak_model.eval(params, x=x_high_res)
+        elif model == "Pseudo-Voigt (Area)":
+            peak_model = lmfit.models.PseudoVoigtModel()
+            amplitude = height / peak_model.eval(center=0, amplitude=1, sigma=grid_fwhm / 2, fraction=lg_ratio / 100,
+                                                 x=0)
+            params = peak_model.make_params(center=position, amplitude=amplitude, sigma=grid_fwhm / 2,
+                                            fraction=lg_ratio / 100)
+            y_values = peak_model.eval(params, x=x_high_res)
+        elif model in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)"]:
+            y_values = PeakFunctions.LA(x_high_res, position, area, grid_fwhm, sigma, gamma)
+        elif model in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+            y_values = PeakFunctions.LAxG(x_high_res, position, area, grid_fwhm, sigma, gamma, skew)
+        elif model == "GL (Height)":
+            y_values = PeakFunctions.gauss_lorentz(x_high_res, position, grid_fwhm, lg_ratio, height)
+        elif model == "SGL (Height)":
+            y_values = PeakFunctions.S_gauss_lorentz(x_high_res, position, grid_fwhm, lg_ratio, height)
+        elif model == "GL (Area)":
+            y_values = PeakFunctions.gauss_lorentz_Area(x_high_res, position, area, grid_fwhm, lg_ratio)
+        elif model == "SGL (Area)":
+            y_values = PeakFunctions.S_gauss_lorentz_Area(x_high_res, position, area, grid_fwhm, lg_ratio)
+        elif model == "D-parameter":
+            return grid_fwhm  # Return grid FWHM for D-parameter
+        else:
+            return grid_fwhm  # Return grid FWHM for unknown models
+
+        # Calculate the FWHM from the peak shape
+        peak_max = np.max(y_values)
+        half_max = peak_max / 2
+
+        # Find crossing points
+        above_half_max = y_values >= half_max
+        crossing_indices = np.where(np.diff(above_half_max))[0]
+
+        if len(crossing_indices) >= 2:
+            # Linear interpolation to find more accurate crossing points
+            x1, x2 = crossing_indices[0], crossing_indices[-1]
+
+            # Left crossing
+            y1, y2 = y_values[x1], y_values[x1 + 1]
+            x_left = x_high_res[x1] + (half_max - y1) * (x_high_res[x1 + 1] - x_high_res[x1]) / (y2 - y1)
+
+            # Right crossing
+            y1, y2 = y_values[x2], y_values[x2 + 1]
+            x_right = x_high_res[x2] + (half_max - y1) * (x_high_res[x2 + 1] - x_high_res[x2]) / (y2 - y1)
+
+            actual_fwhm = x_right - x_left
+        else:
+            # Fallback to grid FWHM if crossing points can't be found
+            actual_fwhm = grid_fwhm
+
+        return actual_fwhm
 
 
 from scipy.signal import savgol_filter

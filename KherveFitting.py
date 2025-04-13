@@ -1264,23 +1264,6 @@ class MyFrame(wx.Frame):
         event.Skip()
 
 
-    def remove_cross_from_peak_OLD(self):
-        if hasattr(self, 'cross'):
-            if self.cross in self.ax.lines:
-                self.cross.remove()
-            del self.cross
-
-        if hasattr(self, 'peak_letter') and self.peak_letter:
-            self.peak_letter.remove()
-            self.peak_letter = None
-            del self.peak_letter
-        if hasattr(self, 'peak_info') and self.peak_info:
-            self.peak_info.remove()
-            self.peak_info = None
-            del self.peak_info
-        self.canvas.mpl_disconnect('motion_notify_event')
-        self.canvas.mpl_disconnect('button_release_event')
-
     def remove_cross_from_peak(self):
         if hasattr(self, 'cross'):
             if self.cross in self.ax.lines:
@@ -1616,6 +1599,23 @@ class MyFrame(wx.Frame):
         if not "LA" in fitting_model:
             self.recalculate_peak_area(peak_index)
 
+        # Recalculate and store the actual FWHM after updating the peak
+        grid_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+        lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
+        area = float(self.peak_params_grid.GetCellValue(row, 6))
+        sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
+        gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
+        skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.0)
+
+        from libraries.Peak_Functions import PeakFunctions
+        actual_fwhm = PeakFunctions.calculate_actual_fwhm(
+            self.x_values, new_x, new_height, grid_fwhm, lg_ratio, area, sigma, gamma, skew, fitting_model
+        )
+
+        if not hasattr(self, 'actual_fwhms'):
+            self.actual_fwhms = {}
+        self.actual_fwhms[peak_index] = actual_fwhm
+
     def update_linked_peak_fwhm(self, peak_index, new_fwhm):
         row = peak_index * 2
         constraint_row = row + 1
@@ -1839,22 +1839,6 @@ class MyFrame(wx.Frame):
                 self.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_label]['Area'] = area
 
         return area
-
-    def show_hide_vlines_OLD(self):
-        background_lines_visible = hasattr(self, 'fitting_window') and self.background_tab_selected
-        noise_lines_visible = self.noise_analysis_window is not None and self.noise_tab_selected
-
-        if self.vline1 is not None:
-            self.vline1.set_visible(background_lines_visible)
-        if self.vline2 is not None:
-            self.vline2.set_visible(background_lines_visible)
-
-        if self.vline3 is not None:
-            self.vline3.set_visible(noise_lines_visible)
-        if self.vline4 is not None:
-            self.vline4.set_visible(noise_lines_visible)
-
-        self.canvas.draw_idle()
 
     def show_hide_vlines(self):
         # Hide vlines if zooming or dragging
@@ -2110,14 +2094,30 @@ class MyFrame(wx.Frame):
                 peak_label = self.peak_params_grid.GetCellValue(row, 1)
                 x_str = self.peak_params_grid.GetCellValue(row, 2)
                 y_str = self.peak_params_grid.GetCellValue(row, 3)
-                fwhm = float(self.peak_params_grid.GetCellValue(row, 4))  # fwhm
-                area = float(self.peak_params_grid.GetCellValue(row, 6))  # area
+                grid_fwhm = self.try_float(self.peak_params_grid.GetCellValue(row, 4), 1.6)
+                lg_ratio = self.try_float(self.peak_params_grid.GetCellValue(row, 5), 20.0)
+                area = self.try_float(self.peak_params_grid.GetCellValue(row, 6), 100.0)
+                sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
+                gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
+                skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.0)
+                model = self.peak_params_grid.GetCellValue(row, 13)
 
                 if x_str and y_str:
                     try:
                         x = float(x_str)
                         y = float(y_str)
-                        y += self.background[np.argmin(np.abs(self.x_values - x))]
+                        y_with_bg = y + self.background[np.argmin(np.abs(self.x_values - x))]
+
+                        # Calculate actual FWHM using the function from PeakFunctions
+                        from libraries.Peak_Functions import PeakFunctions
+                        actual_fwhm = PeakFunctions.calculate_actual_fwhm(
+                            self.x_values, x, y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
+                        )
+
+                        # Store the calculated FWHM in the window object
+                        if not hasattr(self, 'actual_fwhms'):
+                            self.actual_fwhms = {}
+                        self.actual_fwhms[self.selected_peak_index] = actual_fwhm
 
                         self.remove_cross_from_peak()
                         if hasattr(self, 'peak_letter') and self.peak_letter:
@@ -2137,19 +2137,22 @@ class MyFrame(wx.Frame):
                             self.peak_info_t = None
                             del self.peak_info_t
 
-                        self.cross, = self.ax.plot(x, y, 'bx', markersize=15, markerfacecolor='none', picker=5,
+                        self.cross, = self.ax.plot(x, y_with_bg, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                                    linewidth=3)
 
                         peak_letter = chr(65 + self.selected_peak_index)
-                        peak_info = f'fwhm: {fwhm} eV\narea: {area} cps'
+                        peak_info = (f'Model: {model}\n'
+                                     f'FWHM meas.: {actual_fwhm:.3f} eV\n'
+                                     f'Area: {area:.1f} CPS')
 
                         max_y = self.ax.get_ylim()[1]
                         y_offset = max_y * 0.02
-                        self.peak_letter_t = self.ax.text(x, y + y_offset, peak_letter, ha='center', va='bottom',
-                                                        fontsize=12)
+                        self.peak_letter_t = self.ax.text(x, y_with_bg + y_offset, peak_letter, ha='center',
+                                                          va='bottom',
+                                                          fontsize=12)
 
-                        self.peak_info_t = self.ax.text(x - fwhm / 2, y + y_offset, peak_info,
-                                     ha='left', va='bottom', fontsize=8, color='grey')
+                        self.peak_info_t = self.ax.text(x - actual_fwhm / 2, y_with_bg + y_offset, peak_info,
+                                                        ha='left', va='bottom', fontsize=8, color='grey')
 
                         self.peak_params_grid.ClearSelection()
                         self.peak_params_grid.SelectRow(row, addToSelected=False)
@@ -2784,18 +2787,6 @@ class MyFrame(wx.Frame):
     def on_drag_release(self, event):
         self.plot_config.on_drag_release(self, event)
 
-    def update_checkboxes_from_data_OLD(self):
-        if 'Results' in self.Data and 'Peak' in self.Data['Results']:
-            for row in range(self.results_grid.GetNumberRows()):
-                peak_label = f"Peak_{row}"
-                peak_data = self.Data['Results']['Peak'].get(peak_label)
-                if peak_data:
-                    checkbox_state = peak_data.get('Checkbox', '0')
-                    current_grid_state = self.results_grid.GetCellValue(row, 7)
-                    if checkbox_state != current_grid_state:
-                        self.results_grid.SetCellValue(row, 7, checkbox_state)
-                        self.results_grid.RefreshAttr(row, 7)
-        self.results_grid.ForceRefresh()
 
 
     def update_checkboxes_from_data(self):
@@ -2846,75 +2837,6 @@ class MyFrame(wx.Frame):
     def on_cell_changed(self, event):
         return
 
-    def update_atomic_percentages_OLD(self):
-        current_rows = self.results_grid.GetNumberRows()
-        total_normalized_area = 0
-        checked_indices = []
-
-        # Calculate ECF for each peak
-        for i in range(current_rows):
-            if self.results_grid.GetCellValue(i, 7) == '1':  # If checkbox ticked
-                # Get values from grid
-                peak_name = self.results_grid.GetCellValue(i, 0)
-                binding_energy = float(self.results_grid.GetCellValue(i, 1))
-                area = float(self.results_grid.GetCellValue(i, 5))
-                rsf = float(self.results_grid.GetCellValue(i, 8))
-
-                # Calculate kinetic energy
-                kinetic_energy = self.photons - binding_energy
-                print(f"Library Type:{self.library_type}")
-
-                # Calculate ECF based on method selected
-                if self.library_type == "Scofield":
-                    ecf = kinetic_energy ** 0.6
-                elif self.library_type == "Wagner":
-                    ecf = kinetic_energy ** 1.0
-                elif self.library_type == "TPP-2M":
-                    # Calculate IMFP using TPP-2M using the average matrix
-                    imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
-
-                    # 26.2 is a factor added by Avantage to match KE^0.6
-                    ecf = imfp * 26.2
-                elif self.library_type == "None":
-                    ecf = 1.0
-                else:
-                    ecf = 1.0  # Default no correction
-
-                # Get raw area and RSF
-                area = float(self.results_grid.GetCellValue(i, 5))
-                rsf = float(self.results_grid.GetCellValue(i, 8))
-                if rsf == 0:
-                    self.results_grid.SetCellValue(i, 6, "0.00")
-                    continue
-
-
-                # Calculate Transmission function
-                txfn = 1.0  # Transmission function
-
-                # Angular correction
-                angular_correction = 1.0
-                if self.use_angular_correction:
-                    angular_correction = AtomicConcentrations.calculate_angular_correction(
-                        self,
-                        peak_name,
-                        self.analysis_angle
-                    )
-
-                # Calculate normalized area with ECF correction
-                normalized_area = area / (rsf * txfn * ecf * angular_correction)
-
-                total_normalized_area += normalized_area
-                checked_indices.append((i, normalized_area))
-            else:
-                # Set the atomic percentage to 0 for unticked rows
-                self.results_grid.SetCellValue(i, 6, "0.00")
-
-        # Calculate atomic percentages
-        for i, norm_area in checked_indices:
-            atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
-            self.results_grid.SetCellValue(i, 6, f"{atomic_percent:.2f}")
-
-        self.results_grid.ForceRefresh()
 
     # In MyFrame class
     def update_atomic_percentages(self):
@@ -3838,42 +3760,6 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.ForceRefresh()
 
 
-    def on_checkbox_update_OLD(self, event):
-        row = event.GetRow()
-        col = event.GetCol()
-
-        if col == 7:
-            try:
-                # Force current_value to be either '0' or '1'
-                current_value = self.results_grid.GetCellValue(row, col)
-                current_value = '1' if current_value == '1' else '0'
-
-                new_value = '0' if current_value == '1' else '1'
-
-                self.results_grid.SetCellEditor(row, col, wx.grid.GridCellBoolEditor())
-                self.results_grid.SetCellRenderer(row, col, wx.grid.GridCellBoolRenderer())
-                self.results_grid.SetCellValue(row, col, new_value)
-
-                peak_label = f"Peak_{row}"
-                if 'Results' in self.Data and 'Peak' in self.Data['Results'] and peak_label in self.Data['Results'][
-                    'Peak']:
-                    self.Data['Results']['Peak'][peak_label]['Checkbox'] = new_value
-
-                self.update_atomic_percentages()
-                self.results_grid.RefreshAttr(row, col)
-                # self.results_grid.ForceRefresh()
-
-                # Simulate plot click behavior
-                self.update_checkboxes_from_data()
-                self.plot_manager.clear_and_replot(self)
-                self.canvas.draw_idle()
-                save_state(self)
-
-            except Exception as e:
-                print(f"Error updating checkbox: {e}")
-
-        event.Skip()
-
     # In MyFrame class
     def on_checkbox_update(self, event):
         row = event.GetRow()
@@ -3909,35 +3795,6 @@ class MyFrame(wx.Frame):
             save_state(self)
 
         event.Skip()
-
-    def on_key_down_OLD(self, event):
-        keycode = event.GetKeyCode()
-        if keycode == wx.WXK_DELETE:
-            selected_rows = self.get_selected_rows()
-            if selected_rows:
-                selected_rows.sort(reverse=True)
-                for row in selected_rows:
-                    peak_name = self.results_grid.GetCellValue(row, 0)  # Get the peak name from the first column
-                    self.results_grid.DeleteRows(row)
-
-                    # Remove the peak from self.Data
-                    for key, value in list(self.Data['Results']['Peak'].items()):
-                        if value.get('Name') == peak_name:
-                            del self.Data['Results']['Peak'][key]
-                            break
-
-                # Renumber the remaining peaks in self.Data
-                new_data = {}
-                for i, (key, value) in enumerate(self.Data['Results']['Peak'].items()):
-                    new_key = f"Peak_{i}"
-                    new_data[new_key] = value
-                self.Data['Results']['Peak'] = new_data
-
-                self.results_grid.ForceRefresh()
-                self.update_atomic_percentages()
-                save_state(self)
-        else:
-            event.Skip()
 
     def on_key_down(self, event):
         keycode = event.GetKeyCode()

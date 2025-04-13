@@ -71,15 +71,6 @@ class PlotManager:
 
         self.y_axis_visible = True
 
-    def toggle_y_axis_OLD(self):
-        self.y_axis_visible = not self.y_axis_visible
-        self.ax.yaxis.set_visible(self.y_axis_visible)
-
-        # Also toggle y-axis for residuals subplot if it exists
-        if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
-            self.residuals_subplot.yaxis.set_visible(self.y_axis_visible)
-
-        self.canvas.draw_idle()
 
     def toggle_y_axis(self):
         if not hasattr(self, 'y_axis_state'):
@@ -1453,14 +1444,41 @@ class PlotManager:
             # Redraw the canvas
             window.canvas.draw_idle()
 
+    def try_float(self, value, default=0.0):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+
     def add_cross_to_peak(self, window, index):
         try:
             row = index * 2  # Each peak uses two rows in the grid
             peak_x = float(window.peak_params_grid.GetCellValue(row, 2))  # Position
             peak_y = float(window.peak_params_grid.GetCellValue(row, 3))  # Height
 
-            fwhm = float(window.peak_params_grid.GetCellValue(row, 4)) # fwhm
-            area = float(window.peak_params_grid.GetCellValue(row, 6)) # area
+            grid_fwhm = float(window.peak_params_grid.GetCellValue(row, 4))  # fwhm from grid
+            area = float(window.peak_params_grid.GetCellValue(row, 6))  # area
+            model = window.peak_params_grid.GetCellValue(row, 13)
+
+            # Use stored actual FWHM if available, otherwise calculate it
+            if hasattr(self, 'actual_fwhms') and index in self.actual_fwhms:
+                fwhm = self.actual_fwhms[index]
+            else:
+                # Calculate and store the actual FWHM
+                lg_ratio = float(window.peak_params_grid.GetCellValue(row, 5))
+                sigma = self.try_float(window.peak_params_grid.GetCellValue(row, 7), 0.0)
+                gamma = self.try_float(window.peak_params_grid.GetCellValue(row, 8), 0.0)
+                skew = self.try_float(window.peak_params_grid.GetCellValue(row, 9), 0.0)
+                model = window.peak_params_grid.GetCellValue(row, 13)
+
+                from libraries.Peak_Functions import PeakFunctions
+                fwhm = PeakFunctions.calculate_actual_fwhm(
+                    window.x_values, peak_x, peak_y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
+                )
+
+                if not hasattr(self, 'actual_fwhms'):
+                    self.actual_fwhms = {}
+                self.actual_fwhms[index] = fwhm
 
             # Find the closest background value
             closest_index = np.argmin(np.abs(window.x_values - peak_x))
@@ -1483,15 +1501,17 @@ class PlotManager:
 
             # Get peak letter (A, B, C etc)
             self.peak_letter = chr(65 + index)
-            self.peak_info = f'fwhm: {fwhm} eV\narea: {area} cps'
+            self.peak_info = (f'Model: {model}\n'
+                              f'FWHM meas.: {fwhm:.3f} eV\n'
+                              f'Area: {area} CPS')
 
             # Add letter above cross with offset
             max_y = window.ax.get_ylim()[1]
             y_offset = max_y * 0.02  # 2% of plot height for offset
             self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
-                         ha='center', va='bottom', fontsize=12)
-            self.peak_info_t = self.ax.text(peak_x - fwhm/2, peak_y + y_offset, self.peak_info,
-                         ha='left', va='bottom', fontsize=8, color='grey')
+                                              ha='center', va='bottom', fontsize=12)
+            self.peak_info_t = self.ax.text(peak_x - fwhm / 2, peak_y + y_offset, self.peak_info,
+                                            ha='left', va='bottom', fontsize=8, color='grey')
 
             # Connect event handlers
             self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers
@@ -1504,10 +1524,8 @@ class PlotManager:
 
         except ValueError as e:
             print(f"Error adding cross to peak: {e}")
-            # You might want to show an error message to the user here
         except Exception as e:
             print(f"Unexpected error adding cross to peak: {e}")
-            # You might want to show an error message to the user here
 
 
     def toggle_residuals(self, window):
@@ -1557,12 +1575,6 @@ class PlotManager:
         )
         self.fitting_results_text.set_visible(self.fitting_results_visible)
 
-    def toggle_legend_OLD(self):
-        self.legend_visible = not self.legend_visible
-        legend = self.ax.get_legend()
-        if legend:
-            legend.set_visible(self.legend_visible)
-        self.canvas.draw_idle()
 
     def toggle_legend(self):
         self.legend_visible = (self.legend_visible + 1) % 3
@@ -2002,36 +2014,6 @@ class PlotManager:
             return
             # wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
 
-
-    def clear_background_only_OLD(self, window):
-        sheet_name = window.sheet_combobox.GetValue()
-        if sheet_name in window.Data['Core levels']:
-            # Reset background to raw data
-            window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = window.Data['Core levels'][sheet_name][
-                'Raw Data']
-            window.background = np.array(window.Data['Core levels'][sheet_name]['Raw Data'])
-
-            # Reset background parameters
-            window.Data['Core levels'][sheet_name]['Background'].update({
-                'Bkg Type': '',
-                'Bkg Low': '',
-                'Bkg High': '',
-                'Bkg Offset Low': '',
-                'Bkg Offset High': ''
-            })
-
-            # Reset vlines
-            window.vline1 = None
-            window.vline2 = None
-            window.show_hide_vlines()
-
-            window.offset_l = 0
-            window.offset_h = 0
-            window.fitting_window.offset_l_text.SetValue('0')
-            window.fitting_window.offset_h_text.SetValue('0')
-
-            # Redraw the plot
-            self.clear_and_replot(window)
 
     def clear_background_only(self, window):
         sheet_name = window.sheet_combobox.GetValue()
