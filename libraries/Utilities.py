@@ -654,8 +654,60 @@ class CropWindow(wx.Frame):
         max_be = max(x_values) - 2
         self.min_ctrl.SetValue(min_be)
         self.max_ctrl.SetValue(max_be)
-        self.name_ctrl.SetValue(f"{sheet_name}_crop")
+
+        # Extract base name from sheet_name
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        if match:
+            base_name = match.group(1)
+        else:
+            base_name = sheet_name
+
+        # Find the earliest available row name
+        new_name = self.get_earliest_row_name(base_name)
+        self.name_ctrl.SetValue(new_name)
         self.show_vlines()
+
+    def get_earliest_row_name(self, base_name):
+        """
+        Find the earliest available row for a core level.
+        Returns the sheet name with appropriate row number.
+        """
+        import re
+
+        # Check all sheets in parent data
+        all_sheets = list(self.parent.Data['Core levels'].keys())
+
+        # Check if base name without number exists (row 0)
+        if base_name in all_sheets:
+            # Base name exists, need to find next available
+            rows_used = []
+        else:
+            # Base name doesn't exist, it's available
+            return base_name
+
+        # Pattern to match base name followed by optional number
+        pattern = re.compile(f"^{re.escape(base_name)}(\\d+)$")
+
+        # Collect all used row numbers
+        for sheet in all_sheets:
+            if sheet == base_name:  # This is row 0
+                rows_used.append(0)
+            else:
+                match = pattern.match(sheet)
+                if match:
+                    rows_used.append(int(match.group(1)))
+
+        # Find first unused row number
+        for i in range(1000):  # Reasonable upper limit
+            if i not in rows_used:
+                if i == 0:
+                    return base_name  # No suffix for row 0
+                else:
+                    return f"{base_name}{i}"
+
+        # Fallback (unlikely to reach)
+        return f"{base_name}{len(all_sheets)}"
 
     def show_vlines(self):
         if self.vline_min:

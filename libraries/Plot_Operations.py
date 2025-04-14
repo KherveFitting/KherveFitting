@@ -1514,7 +1514,7 @@ class PlotManager:
             self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
                                               ha='center', va='bottom', fontsize=12)
             self.peak_info_t = self.ax.text(peak_x - fwhm / 2, peak_y + y_offset, self.peak_info,
-                                            ha='left', va='bottom', fontsize=8, color='grey')
+                                            ha='left', va='top', fontsize=8, color='grey')
 
             # Connect event handlers
             self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers

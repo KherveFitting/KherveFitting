@@ -2173,7 +2173,7 @@ class MyFrame(wx.Frame):
                                                           fontsize=12)
 
                         self.peak_info_t = self.ax.text(x - actual_fwhm / 2, y_with_bg + y_offset, peak_info,
-                                                        ha='left', va='bottom', fontsize=8, color='grey')
+                                                        ha='left', va='top', fontsize=8, color='grey')
 
                         self.peak_params_grid.ClearSelection()
                         self.peak_params_grid.SelectRow(row, addToSelected=False)
@@ -4825,11 +4825,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.46 25d01")
+        frame = MyFrame(None, "KherveFitting-v1.47 25d14")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.46 25d01")
+        frame = MyFrame(None, "KherveFitting-v1.47 25d14")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.46 25d01")
+        frame = MyFrame(None, "KherveFitting-v1.47 25d14")
     frame.Show(True)
 
     if splash:

@@ -570,6 +570,83 @@ def refresh_sheets(window, on_sheet_selected_func):
         sheet_names = [name for name in all_sheet_names if
                        name.lower() not in ["results table", "experimental description"]]
 
+        # Normalize sheet names
+        name_changes = {}
+        for old_name in sheet_names:
+            new_name = old_name
+
+            lower_name = old_name.lower()
+            if 'survey' in lower_name:
+                new_name = 'Survey'
+            elif 'xps survey' in lower_name:
+                    new_name = 'Survey'
+            elif 'survey scan' in lower_name:
+                    new_name = 'Survey'
+            elif 'wide' in lower_name:
+                new_name = 'Wide'
+            elif 'wide scan' in lower_name:
+                new_name = 'Wide'
+            else:
+                # Remove spaces between element and orbital (e.g., "C 1s" → "C1s")
+                import re
+                match = re.search(r'([A-Z][a-z]?)\s+(\d+[spdf])', old_name)
+                if match:
+                    element, orbital = match.groups()
+                    new_name = f"{element}{orbital}"
+
+                # Simplify names like "C1s Scan" to just "C1s"
+                match = re.search(r'([A-Z][a-z]?\d+[spdf])', new_name)
+                if match and len(new_name) > len(match.group(1)):
+                    new_name = match.group(1)
+
+            # Preserve sample number suffix if it exists
+            suffix_match = re.search(r'(\d+)$', old_name)
+            if suffix_match and not re.search(r'\d+$', new_name):
+                new_name = f"{new_name}{suffix_match.group(1)}"
+
+            if new_name != old_name:
+                name_changes[old_name] = new_name
+
+        # Rename sheets in Excel file if needed
+        if name_changes:
+            wb = openpyxl.load_workbook(file_path)
+            for old_name, new_name in name_changes.items():
+                if old_name in wb.sheetnames and new_name not in wb.sheetnames:
+                    sheet = wb[old_name]
+                    sheet.title = new_name
+            wb.save(file_path)
+
+            # Reopen Excel file to get updated sheet names
+            excel_file = pd.ExcelFile(file_path)
+            all_sheet_names = excel_file.sheet_names
+            sheet_names = [name for name in all_sheet_names if
+                           name.lower() not in ["results table", "experimental description"]]
+
+            # Update window.Data with new sheet names
+            updated_core_levels = {}
+            for old_name, new_name in name_changes.items():
+                if old_name in window.Data['Core levels']:
+                    updated_core_levels[new_name] = window.Data['Core levels'][old_name]
+
+                    # Update plot_config data structures
+                    if hasattr(window, 'plot_config'):
+                        # Update plot_limits
+                        if old_name in window.plot_config.plot_limits:
+                            window.plot_config.plot_limits[new_name] = window.plot_config.plot_limits.pop(old_name)
+
+                        # Update original_limits - THIS IS THE FIX
+                        if hasattr(window.plot_config,
+                                   'original_limits') and old_name in window.plot_config.original_limits:
+                            window.plot_config.original_limits[new_name] = window.plot_config.original_limits.pop(
+                                old_name)
+
+            # Add any remaining sheets that weren't renamed
+            for name in window.Data['Core levels']:
+                if name not in name_changes and name not in updated_core_levels:
+                    updated_core_levels[name] = window.Data['Core levels'][name]
+
+            window.Data['Core levels'] = updated_core_levels
+
         # Update sheet names in the combobox
         window.sheet_combobox.Clear()
         window.sheet_combobox.AppendItems(sheet_names)
@@ -616,6 +693,10 @@ def refresh_sheets(window, on_sheet_selected_func):
         if be_corrections:
             window.Data['BEcorrections'] = be_corrections
 
+        # Handle current sheet selection after normalization
+        if current_sheet in name_changes:
+            current_sheet = name_changes[current_sheet]
+
         # Set the current sheet as selected if it still exists, otherwise select the first sheet
         if current_sheet in sheet_names:
             window.sheet_combobox.SetValue(current_sheet)
@@ -636,19 +717,32 @@ def refresh_sheets(window, on_sheet_selected_func):
 
             window.be_correction_spinbox.SetValue(window.be_correction)
 
+        # Initialize plot limits for new sheets
+        for sheet_name in sheet_names:
+            if hasattr(window, 'plot_config') and sheet_name not in window.plot_config.plot_limits:
+                # This will update both plot_limits and original_limits
+                window.plot_config.update_plot_limits(window, sheet_name)
+
         # Update the plot for the current sheet
         event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
         event.SetString(current_sheet)
         on_sheet_selected_func(window, event)
 
-        # Update plot limits
-        window.plot_config.update_plot_limits(window, current_sheet)
+        # Update plot limits for the current sheet
+        if hasattr(window, 'plot_config'):
+            window.plot_config.update_plot_limits(window, current_sheet)
 
         # Refresh the plot
         window.plot_manager.plot_data(window)
         window.clear_and_replot()
 
-        wx.MessageBox(f"Sheets refreshed. Total sheets: {len(sheet_names)}", "Success", wx.OK | wx.ICON_INFORMATION)
+        # If there were any name changes, show them in the message
+        if name_changes:
+            changes_msg = "\n".join([f"{old} → {new}" for old, new in name_changes.items()])
+            wx.MessageBox(f"Sheets refreshed and normalized:\n{changes_msg}\n\nTotal sheets: {len(sheet_names)}",
+                          "Success", wx.OK | wx.ICON_INFORMATION)
+        else:
+            wx.MessageBox(f"Sheets refreshed. Total sheets: {len(sheet_names)}", "Success", wx.OK | wx.ICON_INFORMATION)
 
     except Exception as e:
         import traceback
