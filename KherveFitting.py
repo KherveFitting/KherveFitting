@@ -1207,7 +1207,7 @@ class MyFrame(wx.Frame):
     def update_peak_plot(self, x, y, remove_old_peaks=True):
         self.plot_manager.update_peak_plot(self, x, y, remove_old_peaks)
 
-    def update_peak_fwhm(self, x):
+    def update_peak_fwhm_SECOND(self, x):
         self.plot_manager.update_peak_fwhm(self, x)
 
 
@@ -1358,10 +1358,10 @@ class MyFrame(wx.Frame):
                         self.update_peak(self.selected_peak_index, x, y)
                         self.update_linked_peaks_recursive(self.selected_peak_index, x, y)
 
-            self.remove_cross_from_peak()
-            self.cross = self.ax.plot(x, y + bkg_y, 'bx', markersize=15, markerfacecolor='none', picker=5, linewidth=3)[
-                0]
-            self.canvas.draw_idle()
+            # self.remove_cross_from_peak()
+            # self.cross = self.ax.plot(x, y + bkg_y, 'bx', markersize=15, markerfacecolor='none', picker=5, linewidth=3)[
+            #     0]
+            # self.canvas.draw_idle()
 
         if hasattr(self, 'motion_cid'):
             self.canvas.mpl_disconnect(self.motion_cid)
@@ -1369,6 +1369,8 @@ class MyFrame(wx.Frame):
         if hasattr(self, 'release_cid'):
             self.canvas.mpl_disconnect(self.release_cid)
             delattr(self, 'release_cid')
+
+        # self.highlight_selected_peak()
 
         self.refresh_peak_params_grid_release()
 
@@ -1788,6 +1790,12 @@ class MyFrame(wx.Frame):
             # Recalculate area
             self.recalculate_peak_area(self.selected_peak_index)
 
+            # Redraw everything with updated peak info
+            self.clear_and_replot()
+
+            # Add this line to update the displayed FWHM
+            self.highlight_selected_peak()
+
             return new_fwhm
 
         return None
@@ -2053,9 +2061,11 @@ class MyFrame(wx.Frame):
             # Update linked peaks
             self.update_linked_fwhm_recursive(self.selected_peak_index, new_fwhm)
 
-            # Redraw everything
+            # Redraw everything with updated peak info
             self.clear_and_replot()
-            self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
+
+            self.highlight_selected_peak()
+
             save_state(self)
             return
 
@@ -2152,7 +2162,9 @@ class MyFrame(wx.Frame):
                         peak_letter = chr(65 + self.selected_peak_index)
                         peak_info = (f'Model: {model}\n'
                                      f'FWHM meas.: {actual_fwhm:.3f} eV\n'
-                                     f'Area: {area:.1f} CPS')
+                                     f'Area: {area:.1f} CPS\n\n'
+                                     f'? Change width ?\n'
+                                     f'SHIFT+wheel button')
 
                         max_y = self.ax.get_ylim()[1]
                         y_offset = max_y * 0.02
@@ -2226,9 +2238,10 @@ class MyFrame(wx.Frame):
         keycode = event.GetKeyCode()
         if event.AltDown() and self.selected_peak_index is not None:
             if event.ShiftDown() and keycode in [wx.WXK_LEFT, wx.WXK_RIGHT] and self.selected_peak_index is not None:
+                save_state(self)
                 row = self.selected_peak_index * 2
                 model = self.peak_params_grid.GetCellValue(row, 13)
-                delta = 0.1 if keycode == wx.WXK_RIGHT else -0.1
+                delta = 0.05 if keycode == wx.WXK_RIGHT else -0.05
                 current_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
                 new_fwhm = current_fwhm
 
@@ -2262,10 +2275,11 @@ class MyFrame(wx.Frame):
                 self.recalculate_peak_area(self.selected_peak_index)
                 self.update_linked_fwhm_recursive(self.selected_peak_index, new_fwhm)
                 self.clear_and_replot()
-                self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
-                save_state(self)
+                self.highlight_selected_peak()
+
                 return
             elif keycode in [wx.WXK_LEFT, wx.WXK_RIGHT]:
+                save_state(self)
                 row = self.selected_peak_index * 2
                 current_position = float(self.peak_params_grid.GetCellValue(row, 2))
 
@@ -2283,9 +2297,9 @@ class MyFrame(wx.Frame):
                 # Refresh display
                 self.clear_and_replot()
                 self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
-                save_state(self)
                 return
             elif keycode in [wx.WXK_UP, wx.WXK_DOWN]:
+                save_state(self)
                 row = self.selected_peak_index * 2
                 current_height = float(self.peak_params_grid.GetCellValue(row, 3))
                 intensity_factor = 0.05
@@ -2303,7 +2317,7 @@ class MyFrame(wx.Frame):
 
                 self.clear_and_replot()
                 self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
-                save_state(self)
+
                 return
         elif event.ControlDown():
             if keycode == ord('B'):

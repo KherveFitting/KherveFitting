@@ -1439,7 +1439,10 @@ class PlotManager:
             window.clear_and_replot()
 
             # Add the cross back
-            window.plot_manager.add_cross_to_peak(window, window.selected_peak_index)
+            # window.plot_manager.add_cross_to_peak(window, window.selected_peak_index)
+
+            # Add this line to update the displayed FWHM
+            self.highlight_selected_peak()
 
             # Redraw the canvas
             window.canvas.draw_idle()
