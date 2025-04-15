@@ -1530,7 +1530,6 @@ class PlotManager:
         except Exception as e:
             print(f"Unexpected error adding cross to peak: {e}")
 
-
     def toggle_residuals(self, window):
         if not hasattr(self, 'residuals_state'):
             self.residuals_state = 0
