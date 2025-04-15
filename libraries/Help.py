@@ -413,6 +413,7 @@ def show_version_log(window):
 - Added backup of the excel file and json file
 - Added experimental description from .vms and ,kal files in Sample Manager
 - Change Horizontal toolbar so that it is compatible with Mac
+- Improve the refresh capability to correct core level names if needed
 - Preparation to the release of the Linux version for Synchrotron
 - Added File > New File in the menu open a new instance of KherveFitting
 - Added File > Save as... in the menu
