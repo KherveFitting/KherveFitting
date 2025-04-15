@@ -96,6 +96,7 @@ class MyFrame(wx.Frame):
         self.last_popup_time = 0
 
         self.shift_key_pressed = False
+        self.actual_fwhms = {}  # Store calculated FWHM values
 
         # Initial folder path
         self.Working_directory =  os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
@@ -1327,11 +1328,13 @@ class MyFrame(wx.Frame):
 
                     self.update_ratios()
                     self.clear_and_replot()
-                    self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
+                    # Pass skip_fwhm_calc=True to skip FWHM calculation during dragging
+                    self.plot_manager.add_cross_to_peak(self, self.selected_peak_index, skip_fwhm_calc=True)
                     self.canvas.draw_idle()
 
                 except Exception as e:
                     print(f"Error during cross drag: {e}")
+
 
     def on_cross_release(self, event):
         save_state(self)
@@ -1360,10 +1363,20 @@ class MyFrame(wx.Frame):
                         self.update_peak(self.selected_peak_index, x, y)
                         self.update_linked_peaks_recursive(self.selected_peak_index, x, y)
 
-            # self.remove_cross_from_peak()
-            # self.cross = self.ax.plot(x, y + bkg_y, 'bx', markersize=15, markerfacecolor='none', picker=5, linewidth=3)[
-            #     0]
-            # self.canvas.draw_idle()
+            # Calculate the actual FWHM since we're done dragging
+            lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
+            grid_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+            area = float(self.peak_params_grid.GetCellValue(row, 6))
+            sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
+            gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
+            skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.0)
+
+            from libraries.Peak_Functions import PeakFunctions
+            actual_fwhm = PeakFunctions.calculate_actual_fwhm(
+                self.x_values, x, y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, fitting_model
+            )
+
+            self.actual_fwhms[self.selected_peak_index] = actual_fwhm
 
         if hasattr(self, 'motion_cid'):
             self.canvas.mpl_disconnect(self.motion_cid)
@@ -1371,8 +1384,6 @@ class MyFrame(wx.Frame):
         if hasattr(self, 'release_cid'):
             self.canvas.mpl_disconnect(self.release_cid)
             delattr(self, 'release_cid')
-
-        # self.highlight_selected_peak()
 
         self.refresh_peak_params_grid_release()
 
@@ -1600,8 +1611,6 @@ class MyFrame(wx.Frame):
             self.x_values, new_x, new_height, grid_fwhm, lg_ratio, area, sigma, gamma, skew, fitting_model
         )
 
-        if not hasattr(self, 'actual_fwhms'):
-            self.actual_fwhms = {}
         self.actual_fwhms[peak_index] = actual_fwhm
 
     def update_linked_peak_fwhm(self, peak_index, new_fwhm):
@@ -2135,9 +2144,7 @@ class MyFrame(wx.Frame):
                             self.x_values, x, y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
                         )
 
-                        # Store the calculated FWHM in the window object
-                        if not hasattr(self, 'actual_fwhms'):
-                            self.actual_fwhms = {}
+                        # Store the calculated FWHM
                         self.actual_fwhms[self.selected_peak_index] = actual_fwhm
 
                         self.remove_cross_from_peak()
@@ -2232,9 +2239,32 @@ class MyFrame(wx.Frame):
         # Connect to key release event
         self.canvas.mpl_connect('key_release_event', self.on_key_release)
 
+    # Update the on_key_release method:
     def on_key_release(self, event):
         if event.key == 'shift':
             self.shift_key_pressed = False
+
+            # Store FWHM for currently selected peak when shift is released
+            if self.selected_peak_index is not None:
+                row = self.selected_peak_index * 2
+                peak_x = float(self.peak_params_grid.GetCellValue(row, 2))
+                peak_y = float(self.peak_params_grid.GetCellValue(row, 3))
+                grid_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+                lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
+                area = float(self.peak_params_grid.GetCellValue(row, 6))
+                sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
+                gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
+                skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.0)
+                model = self.peak_params_grid.GetCellValue(row, 13)
+
+                from libraries.Peak_Functions import PeakFunctions
+                actual_fwhm = PeakFunctions.calculate_actual_fwhm(
+                    self.x_values, peak_x, peak_y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
+                )
+
+                self.actual_fwhms[self.selected_peak_index] = actual_fwhm
+
+
 
     def on_key_press_global(self, event):
         keycode = event.GetKeyCode()

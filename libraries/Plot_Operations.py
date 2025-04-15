@@ -1453,44 +1453,40 @@ class PlotManager:
         except (ValueError, TypeError):
             return default
 
-    def add_cross_to_peak(self, window, index):
+    def add_cross_to_peak(self, window, index, skip_fwhm_calc=False):
         try:
-            row = index * 2  # Each peak uses two rows in the grid
-            peak_x = float(window.peak_params_grid.GetCellValue(row, 2))  # Position
-            peak_y = float(window.peak_params_grid.GetCellValue(row, 3))  # Height
-
-            grid_fwhm = float(window.peak_params_grid.GetCellValue(row, 4))  # fwhm from grid
-            area = float(window.peak_params_grid.GetCellValue(row, 6))  # area
+            row = index * 2
+            peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
+            peak_y = float(window.peak_params_grid.GetCellValue(row, 3))
+            grid_fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
+            area = float(window.peak_params_grid.GetCellValue(row, 6))
             model = window.peak_params_grid.GetCellValue(row, 13)
 
-            # Use stored actual FWHM if available, otherwise calculate it
-            if hasattr(self, 'actual_fwhms') and index in self.actual_fwhms:
-                fwhm = self.actual_fwhms[index]
+            # Use stored FWHM value if available and skipping calculation
+            if skip_fwhm_calc and index in window.actual_fwhms:
+                fwhm = window.actual_fwhms[index]
+            # Otherwise check if we have stored FWHM
+            elif index in window.actual_fwhms:
+                fwhm = window.actual_fwhms[index]
+            # Calculate if needed
             else:
                 # Calculate and store the actual FWHM
                 lg_ratio = float(window.peak_params_grid.GetCellValue(row, 5))
                 sigma = self.try_float(window.peak_params_grid.GetCellValue(row, 7), 0.0)
                 gamma = self.try_float(window.peak_params_grid.GetCellValue(row, 8), 0.0)
                 skew = self.try_float(window.peak_params_grid.GetCellValue(row, 9), 0.0)
-                model = window.peak_params_grid.GetCellValue(row, 13)
 
                 from libraries.Peak_Functions import PeakFunctions
                 fwhm = PeakFunctions.calculate_actual_fwhm(
                     window.x_values, peak_x, peak_y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
                 )
+                window.actual_fwhms[index] = fwhm
 
-                if not hasattr(self, 'actual_fwhms'):
-                    self.actual_fwhms = {}
-                self.actual_fwhms[index] = fwhm
-
-            # Find the closest background value
+            # Rest of method stays the same
             closest_index = np.argmin(np.abs(window.x_values - peak_x))
             bkg_y = window.background[closest_index]
-
-            # Add background to peak height
             peak_y += bkg_y
 
-            # Remove existing cross if it exists
             if self.cross:
                 self.cross.remove()
             if self.peak_info_t:
@@ -1498,31 +1494,25 @@ class PlotManager:
             if self.peak_letter_t:
                 self.peak_letter_t.remove()
 
-            # Plot new cross
             self.cross, = self.ax.plot(peak_x, peak_y, 'bx', markersize=15, markerfacecolor='none', picker=5,
                                        linewidth=3)
-
-            # Get peak letter (A, B, C etc)
             self.peak_letter = chr(65 + index)
             self.peak_info = (f'Model: {model}\n'
                               f'FWHM meas.: {fwhm:.3f} eV\n'
                               f'Area: {area} CPS')
 
-            # Add letter above cross with offset
             max_y = window.ax.get_ylim()[1]
-            y_offset = max_y * 0.02  # 2% of plot height for offset
+            y_offset = max_y * 0.02
             self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
                                               ha='center', va='bottom', fontsize=12)
             self.peak_info_t = self.ax.text(peak_x - fwhm / 2, peak_y + y_offset, self.peak_info,
                                             ha='left', va='top', fontsize=8, color='grey')
 
-            # Connect event handlers
-            self.canvas.mpl_disconnect('motion_notify_event')  # Disconnect existing handlers
+            self.canvas.mpl_disconnect('motion_notify_event')
             self.canvas.mpl_disconnect('button_release_event')
             self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
             self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
 
-            # Redraw canvas
             self.canvas.draw_idle()
 
         except ValueError as e:
