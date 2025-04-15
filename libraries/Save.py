@@ -24,7 +24,7 @@ import shutil
 def save_all_sheets_with_plots(window):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         # wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2("Error", "No file selected. Please open a file first.")
+        window.show_popup_message2("Error", "No file selected. Please open a file first.")
         return
 
     file_path = window.Data['FilePath']
@@ -126,7 +126,7 @@ def convert_to_serializable_and_round2(obj, decimal_places=2):
     except Exception as e:
         return str(obj)  # Return a string representation as a fallback
 
-def convert_to_serializable_and_round(obj, decimal_places=2):
+def convert_to_serializable_and_round(obj, window=None, decimal_places=2):
     try:
         if isinstance(obj, (float, np.float32, np.float64)):
             return round(float(obj), decimal_places)
@@ -739,10 +739,13 @@ def refresh_sheets(window, on_sheet_selected_func):
         # If there were any name changes, show them in the message
         if name_changes:
             changes_msg = "\n".join([f"{old} → {new}" for old, new in name_changes.items()])
-            wx.MessageBox(f"Sheets refreshed and normalized:\n{changes_msg}\n\nTotal sheets: {len(sheet_names)}",
-                          "Success", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox(f"Sheets refreshed and normalized:\n{changes_msg}\n\nTotal sheets: {len(sheet_names)}",
+            #               "Success", wx.OK | wx.ICON_INFORMATION)
+            window.show_popup_message2(f"Sheets refreshed and normalized:\n{changes_msg}\n\nTotal sheets: {len(sheet_names)}", "Success")
         else:
-            wx.MessageBox(f"Sheets refreshed. Total sheets: {len(sheet_names)}", "Success", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox(f"Sheets refreshed. Total sheets: {len(sheet_names)}", "Success", wx.OK | wx.ICON_INFORMATION)
+            window.show_popup_message2(
+                f"Sheets refreshed. Total sheets: {len(sheet_names)}", "Success")
 
     except Exception as e:
         import traceback

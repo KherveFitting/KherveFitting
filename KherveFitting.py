@@ -93,6 +93,8 @@ class MyFrame(wx.Frame):
         self.previous_size = None
         self.file_manager_position = None
 
+        self.last_popup_time = 0
+
         self.shift_key_pressed = False
 
         # Initial folder path
@@ -2395,9 +2397,13 @@ class MyFrame(wx.Frame):
             return
 
         if keycode == wx.WXK_TAB:
-            if not self.peak_fitting_tab_selected:
+            import time
+            current_time = time.time()
+            # Only show popup if 10+ seconds have passed since last one
+            if not self.peak_fitting_tab_selected and (current_time - self.last_popup_time > 10):
                 self.show_popup_message("Open the Peak Fitting Tab to move or select a peak")
-            else:
+                self.last_popup_time = current_time
+            elif self.peak_fitting_tab_selected:
                 self.change_selected_peak(1)  # Move to next peak
             return  # Prevent event from propagating
         elif keycode == ord('Q'):
