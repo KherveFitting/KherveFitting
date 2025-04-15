@@ -1498,6 +1498,7 @@ class PlotManager:
                                        linewidth=3)
             self.peak_letter = chr(65 + index)
             self.peak_info = (f'Model: {model}\n'
+                              f'Position: {peak_x} eV\n'
                               f'FWHM meas.: {fwhm:.3f} eV\n'
                               f'Area: {area} CPS')
 

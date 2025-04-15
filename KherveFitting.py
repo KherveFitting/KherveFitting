@@ -2124,6 +2124,7 @@ class MyFrame(wx.Frame):
                 peak_label = self.peak_params_grid.GetCellValue(row, 1)
                 x_str = self.peak_params_grid.GetCellValue(row, 2)
                 y_str = self.peak_params_grid.GetCellValue(row, 3)
+                pos = self.try_float(self.peak_params_grid.GetCellValue(row, 2), 0)
                 grid_fwhm = self.try_float(self.peak_params_grid.GetCellValue(row, 4), 1.6)
                 lg_ratio = self.try_float(self.peak_params_grid.GetCellValue(row, 5), 20.0)
                 area = self.try_float(self.peak_params_grid.GetCellValue(row, 6), 100.0)
@@ -2170,10 +2171,11 @@ class MyFrame(wx.Frame):
 
                         peak_letter = chr(65 + self.selected_peak_index)
                         peak_info = (f'Model: {model}\n'
+                                     f'Position: {pos} eV\n'
                                      f'FWHM meas.: {actual_fwhm:.3f} eV\n'
                                      f'Area: {area:.1f} CPS\n\n'
                                      f'? Change width ?\n'
-                                     f'SHIFT+wheel button')
+                                     f'SHIFT + wheel button')
 
                         max_y = self.ax.get_ylim()[1]
                         y_offset = max_y * 0.02
