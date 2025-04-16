@@ -533,9 +533,9 @@ class PlotManager:
             else:
                 self.ax.legend(loc='upper left')
 
-            # Check if a peak is selected and add cross
-            if window.selected_peak_index is not None:
-                window.plot_manager.add_cross_to_peak(window, window.selected_peak_index)
+            # # Check if a peak is selected and add cross
+            # if window.selected_peak_index is not None:
+            #     window.plot_manager.add_cross_to_peak(window, window.selected_peak_index)
 
             # Remove any existing sheet name text
             for txt in self.ax.texts:

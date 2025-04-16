@@ -1335,7 +1335,6 @@ class MyFrame(wx.Frame):
                 except Exception as e:
                     print(f"Error during cross drag: {e}")
 
-
     def on_cross_release(self, event):
         save_state(self)
         if event.inaxes and self.selected_peak_index is not None:
@@ -1363,27 +1362,43 @@ class MyFrame(wx.Frame):
                         self.update_peak(self.selected_peak_index, x, y)
                         self.update_linked_peaks_recursive(self.selected_peak_index, x, y)
 
-            # Calculate the actual FWHM since we're done dragging
-            lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
-            grid_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
-            area = float(self.peak_params_grid.GetCellValue(row, 6))
-            sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
-            gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
-            skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.0)
+            # Disconnect motion and release handlers
+            if hasattr(self, 'motion_cid'):
+                self.canvas.mpl_disconnect(self.motion_cid)
+                delattr(self, 'motion_cid')
+            if hasattr(self, 'release_cid'):
+                self.canvas.mpl_disconnect(self.release_cid)
+                delattr(self, 'release_cid')
 
-            from libraries.Peak_Functions import PeakFunctions
-            actual_fwhm = PeakFunctions.calculate_actual_fwhm(
-                self.x_values, x, y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, fitting_model
-            )
+            # First thoroughly remove any existing cross
+            if hasattr(self, 'cross'):
+                if self.cross in self.ax.lines:
+                    self.cross.remove()
+                self.cross = None
 
-            self.actual_fwhms[self.selected_peak_index] = actual_fwhm
+            if hasattr(self.plot_manager, 'cross'):
+                if self.plot_manager.cross in self.ax.lines:
+                    self.plot_manager.cross.remove()
+                self.plot_manager.cross = None
 
-        if hasattr(self, 'motion_cid'):
-            self.canvas.mpl_disconnect(self.motion_cid)
-            delattr(self, 'motion_cid')
-        if hasattr(self, 'release_cid'):
-            self.canvas.mpl_disconnect(self.release_cid)
-            delattr(self, 'release_cid')
+            if hasattr(self, 'peak_letter_t') and self.peak_letter_t:
+                self.peak_letter_t.remove()
+                self.peak_letter_t = None
+
+            if hasattr(self, 'peak_info_t') and self.peak_info_t:
+                self.peak_info_t.remove()
+                self.peak_info_t = None
+
+            if hasattr(self.plot_manager, 'peak_letter_t') and self.plot_manager.peak_letter_t:
+                self.plot_manager.peak_letter_t.remove()
+                self.plot_manager.peak_letter_t = None
+
+            if hasattr(self.plot_manager, 'peak_info_t') and self.plot_manager.peak_info_t:
+                self.plot_manager.peak_info_t.remove()
+                self.plot_manager.peak_info_t = None
+
+            # Now highlight the peak with the full FWHM calculation
+            self.highlight_selected_peak()
 
         self.refresh_peak_params_grid_release()
 
