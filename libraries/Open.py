@@ -1094,6 +1094,7 @@ def save_recent_files_to_config(window):
 
 def normalize_sheet_name(name):
     """Normalize core level name to standard format."""
+    import re
     new_name = name
 
     lower_name = name.lower()
@@ -1109,7 +1110,7 @@ def normalize_sheet_name(name):
         new_name = 'Wide'
     else:
         # Remove spaces between element and orbital (e.g., "C 1s" → "C1s")
-        import re
+
         match = re.search(r'([A-Z][a-z]?)\s+(\d+[spdf])', name)
         if match:
             element, orbital = match.groups()
