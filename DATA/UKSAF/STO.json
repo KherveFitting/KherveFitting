@@ -11600,7 +11600,9 @@
   },
   "BEcorrection": 1.0,
   "SampleNames": {
-    "0": "Sample 1"
+    "0": "Sample 1",
+    "1": "Sample 2",
+    "2": "Sample 3"
   },
   "BEcorrections": {
     "0": 1.0,

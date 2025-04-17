@@ -553,6 +553,7 @@ def refresh_sheets(window, on_sheet_selected_func):
     file_path = window.Data['FilePath']
 
     try:
+        import re
         # Save BEcorrections data
         be_corrections = window.Data.get('BEcorrections', {}).copy() if 'BEcorrections' in window.Data else {}
 
@@ -582,13 +583,14 @@ def refresh_sheets(window, on_sheet_selected_func):
                     new_name = 'Survey'
             elif 'survey scan' in lower_name:
                     new_name = 'Survey'
+            elif 'xps' in lower_name:
+                    new_name = 'Survey'
             elif 'wide' in lower_name:
                 new_name = 'Wide'
             elif 'wide scan' in lower_name:
                 new_name = 'Wide'
             else:
                 # Remove spaces between element and orbital (e.g., "C 1s" → "C1s")
-                import re
                 match = re.search(r'([A-Z][a-z]?)\s+(\d+[spdf])', old_name)
                 if match:
                     element, orbital = match.groups()

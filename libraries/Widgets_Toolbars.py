@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
 from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
-from libraries.Open import ExcelDropTarget, open_xlsx_file
+from libraries.Open import ExcelDropTarget, open_xlsx_file, open_avg_file
 from libraries.Plot_Operations import PlotManager
 from Functions import toggle_Col_1
 from libraries.Save import update_undo_redo_state

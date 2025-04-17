@@ -590,8 +590,70 @@ def import_avantage_file_direct_xls(window, file_path):
 
 
 def open_avg_file_direct(window, avg_file_path):
-    excel_file_path = create_excel_from_avg(avg_file_path)
-    open_xlsx_file(window, excel_file_path)
+
+    # Get the basename without extension
+    raw_sheet_name = os.path.basename(avg_file_path).split('.')[0]
+
+    # Normalize the sheet name to follow KherveFitting conventions
+    sheet_name = normalize_sheet_name(raw_sheet_name)
+
+    photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
+    be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
+
+    df = pd.DataFrame({
+        'BE': be_values,
+        'Intensity': y_values[:num_points]
+    })
+
+    output_path = avg_file_path.rsplit('.', 1)[0] + '.xlsx'
+
+    # Extract metadata
+    metadata = extract_metadata_from_avg(avg_file_path)
+
+    # Fields in the order shown in the example
+    field_order = [
+        'Sample ID', 'Date', 'Time', 'Technique', 'Species & Transition',
+        'Number of scans', 'Source Label', 'Source Energy', 'Source width X',
+        'Source width Y', 'Pass Energy', 'Work Function', 'Analyzer Mode',
+        'Sputtering Energy', 'Take-off Polar Angle', 'Take-off Azimuth',
+        'Target Bias', 'Analysis Width X', 'Analysis Width Y', 'X Label',
+        'X Units', 'X Start', 'X Step', 'Num Y Values', 'Num Scans',
+        'Collection Time', 'Time Correction', 'Y Unit'
+    ]
+
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        # Use the normalized sheet name instead of the raw file name
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        # Add metadata to the main sheet
+        workbook = writer.book
+        worksheet = writer.sheets[sheet_name]
+
+        # Add experimental description at column 50
+        exp_col = 50
+        worksheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+        for i, field in enumerate(field_order, start=2):
+            worksheet.cell(row=i, column=exp_col, value=field)
+            worksheet.cell(row=i, column=exp_col + 1, value=metadata.get(field, "N/A"))
+
+        # Set column widths
+        from openpyxl.utils import get_column_letter
+        worksheet.column_dimensions[get_column_letter(exp_col)].width = 25
+        worksheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
+        # Create separate experimental description sheet
+        exp_sheet = workbook.create_sheet(title="Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+
+        exp_sheet['A1'] = "Experimental Description"
+
+        for row, field in enumerate(field_order, start=2):
+            exp_sheet[f'A{row}'] = field
+            exp_sheet[f'B{row}'] = metadata.get(field, "N/A")
+
+    return output_path
 
 def import_avantage_file(window):
     # Opens a file dialog for user to select file
@@ -608,7 +670,7 @@ def import_avantage_file(window):
             import_avantage_file_direct_xls(window, file_path)
 
 
-def parse_avg_file(file_path):
+def parse_avg_file_OLD(file_path):
     with open(file_path, 'r') as file:
         content = file.read()
 
@@ -625,28 +687,67 @@ def parse_avg_file(file_path):
     return photon_energy, start_energy, width, int(num_points), y_values
 
 
-def create_excel_from_avg_OLD(avg_file_path):
-    sheet_name = os.path.basename(avg_file_path).split()[0]
-    photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
+def parse_avg_file(file_path):
+    with open(file_path, 'r') as file:
+        content = file.read()
 
-    be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
+    photon_energy = float(re.search(r'DS_SOPROPID_ENERGY\s+:\s+VT_R4\s+=\s+(\d+\.\d+)', content).group(1))
+    start_energy, width, num_points = map(float, re.search(r'\$SPACEAXES=1\s+0=\s+(\d+\.\d+),\s+(\d+\.\d+),\s+(\d+),',
+                                                           content).groups())
 
-    df = pd.DataFrame({
-        'BE': be_values,
-        'Intensity': y_values[:num_points]  # Use only the correct number of y values
-    })
+    # Extract all intensity values using a different approach
+    y_values = []
+    in_list_section = False
+    list_counter = 0
 
-    output_path = avg_file_path.rsplit('.', 1)[0] + '.xlsx'
-    with pd.ExcelWriter(output_path) as writer:
-        df.to_excel(writer, sheet_name=sheet_name, index=False)
+    for line in content.split('\n'):
+        if line.strip().startswith('LIST@'):
+            in_list_section = True
+            # Get values from the first line
+            values_part = line.split('=', 1)[1].strip()
+            # Process values from this line
+            for val in values_part.split(','):
+                if val.strip():
+                    try:
+                        y_values.append(float(val.strip()))
+                    except ValueError:
+                        pass
+        elif in_list_section:
+            # Check if this line likely contains data values
+            if ',' in line and not line.strip().startswith('$') and not line.strip().startswith('DS_'):
+                # Process values from continuation lines
+                for val in line.split(','):
+                    if val.strip():
+                        try:
+                            y_values.append(float(val.strip()))
+                        except ValueError:
+                            pass
+            else:
+                # If we hit a line that doesn't look like data, we're probably out of the LIST section
+                in_list_section = False
 
-    return output_path
+    # Ensure we have the correct number of points
+    if len(y_values) > int(num_points):
+        y_values = y_values[:int(num_points)]
+
+    # If we still don't have enough points, print warning
+    if len(y_values) < int(num_points):
+        print(f"Warning: Expected {int(num_points)} points but found only {len(y_values)}.")
+        # This is serious - don't silently pad with zeros as it would give misleading data
+        # Instead, let's just return what we have and make it known there's an issue
+
+    return photon_energy, start_energy, width, int(num_points), y_values
 
 
 def create_excel_from_avg(avg_file_path):
     from openpyxl.utils import get_column_letter
 
-    sheet_name = os.path.basename(avg_file_path).split()[0]
+    # Extract the raw sheet name from the file name
+    raw_sheet_name = os.path.basename(avg_file_path).split()[0]
+
+    # Normalize the sheet name to follow KherveFitting conventions
+    sheet_name = normalize_sheet_name(raw_sheet_name)
+
     photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
 
     be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
@@ -673,6 +774,7 @@ def create_excel_from_avg(avg_file_path):
     ]
 
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        # Use normalized sheet name
         df.to_excel(writer, sheet_name=sheet_name, index=False)
 
         # Add metadata to the main sheet
@@ -764,50 +866,13 @@ def open_avg_file(window):
         avg_file_path = fileDialog.GetPath()
 
     try:
+        # Use create_excel_from_avg which we need to modify to normalize sheet names
         excel_file_path = create_excel_from_avg(avg_file_path)
 
         from libraries.Open import open_xlsx_file
         open_xlsx_file(window, excel_file_path)
     except Exception as e:
-        # wx.MessageBox(f"Error processing AVG file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        window.show_popup_message2("Error", f"Error processing AVG file: {str(e)}")
-
-
-def import_multiple_avg_files_OLD(window):
-    with wx.DirDialog(window, "Choose a directory containing AVG files",
-                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
-
-        if dirDialog.ShowModal() == wx.ID_CANCEL:
-            return
-
-        folder_path = dirDialog.GetPath()
-
-    try:
-        avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
-
-        if not avg_files:
-            wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
-            return
-
-        # Process each AVG file individually using the existing function
-        excel_files = []
-        for avg_file in avg_files:
-            avg_file_path = os.path.join(folder_path, avg_file)
-            excel_file_path = create_excel_from_avg(avg_file_path)
-            excel_files.append(excel_file_path)
-
-        # Create a message with all processed files
-        message = "Excel files created:\n" + "\n".join(excel_files)
-        wx.MessageBox(message, "Success", wx.OK | wx.ICON_INFORMATION)
-
-        # Open the first Excel file if any were created
-        if excel_files:
-            from libraries.Open import open_xlsx_file
-            open_xlsx_file(window, excel_files[0])
-
-    except Exception as e:
-        wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
+        wx.MessageBox(f"Error processing AVG file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 def import_multiple_avg_files(window):
     with wx.DirDialog(window, "Choose a directory containing AVG files",
@@ -816,77 +881,107 @@ def import_multiple_avg_files(window):
         if dirDialog.ShowModal() == wx.ID_CANCEL:
             return
 
-        folder_path = dirDialog.GetPath()
+        root_folder_path = dirDialog.GetPath()
 
     try:
-        # Find all AVG files in the folder
-        avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
+        # Function to process a single folder
+        def process_folder(folder_path):
+            folder_name = os.path.basename(folder_path)
+            avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
 
-        if not avg_files:
-            wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
-            return
+            if not avg_files:
+                return None  # No AVG files in this folder
 
-        # Create a single Excel file
-        folder_name = os.path.basename(folder_path)
-        excel_file_path = os.path.join(folder_path, f"{folder_name}.xlsx")
+            # Create Excel file for this folder
+            excel_file_path = os.path.join(folder_path, f"{folder_name}.xlsx")
+            wb = openpyxl.Workbook()
+            wb.remove(wb.active)  # Remove default sheet
 
-        # Create workbook
-        wb = openpyxl.Workbook()
-        wb.remove(wb.active)  # Remove default sheet
+            # Process each AVG file in this folder
+            for avg_file in avg_files:
+                avg_file_path = os.path.join(folder_path, avg_file)
 
-        # Process each AVG file and add as separate sheet
-        for avg_file in avg_files:
-            avg_file_path = os.path.join(folder_path, avg_file)
+                # Extract raw sheet name from file name (without extension)
+                raw_sheet_name = os.path.splitext(avg_file)[0]
 
-            # Extract raw sheet name from file name (without extension)
-            raw_sheet_name = os.path.splitext(avg_file)[0]
+                # Normalize the sheet name according to KherveFitting nomenclature
+                sheet_name = normalize_sheet_name(raw_sheet_name)
 
-            # Normalize the sheet name according to KherveFitting nomenclature
-            sheet_name = normalize_sheet_name(raw_sheet_name)
+                # Handle duplicate sheet names if needed
+                suffix = 1
+                original_sheet_name = sheet_name
+                while sheet_name in wb.sheetnames:
+                    sheet_name = f"{original_sheet_name}{suffix}"
+                    suffix += 1
 
-            # Handle duplicate sheet names if needed
-            suffix = 1
-            original_sheet_name = sheet_name
-            while sheet_name in wb.sheetnames:
-                sheet_name = f"{original_sheet_name}{suffix}"
-                suffix += 1
+                # Parse AVG file
+                try:
+                    photon_energy, start_energy, width, expected_points, y_values = parse_avg_file(avg_file_path)
 
-            # Parse AVG file
-            try:
-                photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
-                be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
+                    # Use the actual number of points we retrieved, not the expected number
+                    actual_points = len(y_values)
 
-                # Create new sheet
-                ws = wb.create_sheet(title=sheet_name)
+                    # If we got fewer points than expected, adjust the width of the energy range
+                    if actual_points < expected_points:
+                        print(f"Warning: {avg_file} - Expected {expected_points} points but found {actual_points}.")
+                        # Generate BE values based on the actual number of points we have
+                        be_values = [photon_energy - (start_energy + i * width) for i in range(actual_points)]
+                    else:
+                        be_values = [photon_energy - (start_energy + i * width) for i in range(actual_points)]
 
-                # Add headers
-                ws.append(["BE", "Intensity"])
+                    # Create new sheet
+                    ws = wb.create_sheet(title=sheet_name)
 
-                # Add data
-                for be, intensity in zip(be_values, y_values[:num_points]):
-                    ws.append([be, intensity])
+                    # Add headers
+                    ws.append(["BE", "Intensity"])
 
-                # Extract metadata if available
-                metadata = extract_metadata_from_avg(avg_file_path)
+                    # Add data - only use the points we actually have
+                    for be, intensity in zip(be_values, y_values):
+                        ws.append([be, intensity])
 
-                # Add metadata starting at column 50
-                exp_col = 50
-                ws.cell(row=1, column=exp_col, value="Experimental Description")
+                    # Extract metadata if available
+                    metadata = extract_metadata_from_avg(avg_file_path)
 
-                for i, (key, value) in enumerate(metadata.items(), start=2):
-                    ws.cell(row=i, column=exp_col, value=key)
-                    ws.cell(row=i, column=exp_col + 1, value=value)
+                    # Add metadata starting at column 50
+                    exp_col = 50
+                    ws.cell(row=1, column=exp_col, value="Experimental Description")
 
-            except Exception as e:
-                print(f"Error processing {avg_file}: {str(e)}")
-                continue
+                    for i, (key, value) in enumerate(metadata.items(), start=2):
+                        ws.cell(row=i, column=exp_col, value=key)
+                        ws.cell(row=i, column=exp_col + 1, value=value)
 
-        # Save the Excel file
-        wb.save(excel_file_path)
+                except Exception as e:
+                    print(f"Error processing {avg_file}: {str(e)}")
+                    continue
 
-        # Open the created Excel file
-        from libraries.Open import open_xlsx_file
-        open_xlsx_file(window, excel_file_path)
+            # Save the Excel file if any sheets were created
+            if len(wb.sheetnames) > 0:
+                wb.save(excel_file_path)
+                return excel_file_path
+            else:
+                return None
+
+        # Process the root folder and all subfolders
+        excel_files = []
+
+        # Walk through directory tree
+        for dirpath, dirnames, filenames in os.walk(root_folder_path):
+            # Process current folder
+            excel_path = process_folder(dirpath)
+            if excel_path:
+                excel_files.append(excel_path)
+
+        # Show results
+        if excel_files:
+            message = f"Created {len(excel_files)} Excel files:\n" + "\n".join(excel_files)
+            wx.MessageBox(message, "Success", wx.OK | wx.ICON_INFORMATION)
+
+            # Open the first Excel file
+            from libraries.Open import open_xlsx_file
+            open_xlsx_file(window, excel_files[0])
+        else:
+            wx.MessageBox("No AVG files found in the selected folder or subfolders.",
+                          "Information", wx.OK | wx.ICON_INFORMATION)
 
     except Exception as e:
         wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -1136,9 +1231,9 @@ def normalize_sheet_name(name):
     new_name = name
 
     lower_name = name.lower()
-    if 'survey' in lower_name:
+    if 'xps survey' in lower_name:
         new_name = 'Survey'
-    elif 'xps survey' in lower_name:
+    elif 'survey' in lower_name:
         new_name = 'Survey'
     elif 'survey scan' in lower_name:
         new_name = 'Survey'
