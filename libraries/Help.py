@@ -415,6 +415,7 @@ def show_version_log(window):
 - Change Horizontal toolbar so that it is compatible with Mac
 - Improve the refresh capability to correct core level names if needed
 - Preparation to the release of the Linux version for Synchrotron
+- Second peak of the doublet is named with 1 word to remove it from the legend
 - Added File > New File in the menu open a new instance of KherveFitting
 - Added File > Save as... in the menu
 - Added File > Optimise File menu

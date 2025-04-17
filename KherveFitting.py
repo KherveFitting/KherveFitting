@@ -1925,7 +1925,7 @@ class MyFrame(wx.Frame):
                 # Calculate the Euclidean distance in display coordinates
                 distance = np.sqrt((x_display - x_peak_display) ** 2 + (y_display - y_peak_display) ** 2)
 
-                if distance < 300:  # Adjust the tolerance as needed (10 pixels here as an example)
+                if distance < 100:  # Adjust the tolerance as needed (10 pixels here as an example)
                     return i
         return None
 

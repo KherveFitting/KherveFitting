@@ -685,148 +685,6 @@ class FittingWindow(wx.Frame):
         return 0.0
 
 
-    def on_add_doublet_OLD(self, event):
-        save_state(self.parent)
-        if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
-            # wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
-            self.parent.show_popup_message2("No Background", "Please create a background first.")
-            return
-
-        sheet_name = self.parent.sheet_combobox.GetValue()
-        # first_word = sheet_name.split()[0]  # Get the first word of the sheet name
-        # orbital = re.search(r'[spdf]', first_word)
-
-        # Looking into library
-        first_word = sheet_name.split()[0]
-        print(f'First word {first_word}')
-        # element = re.match(r'([A-Z][a-z]*)', first_word).group(1)
-        orbital = re.search(r'([2-5][spdf])', first_word)
-
-        if not orbital:
-            # wx.MessageBox("Cannot fit doublet peak on a S orbital core level.",
-            #               "Error", wx.OK | wx.ICON_ERROR)
-            self.parent.show_popup_message2("Error", "Cannot fit doublet peak on a S orbital core level.")
-            return
-
-        orbital = orbital.group()
-
-
-        if orbital[-1] == 's':
-            self.parent.add_peak_params()
-        else:
-            first_peak = self.parent.add_peak_params()
-            second_peak = self.parent.add_peak_params()
-
-
-            self.parent.peak_fill_types[second_peak] = self.parent.peak_fill_types[first_peak]
-            self.parent.peak_hatch_patterns[second_peak] = self.parent.peak_hatch_patterns[first_peak]
-            self.hatch_density = 2
-
-            # Set constraints for the second peak
-            row1 = first_peak * 2
-            row2 = second_peak * 2
-
-            # L/G ratio constraint
-            lg_constraint = f"{chr(65 + first_peak)}*1"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 5, lg_constraint)
-
-            # FWHM constraint
-            if any(element in sheet_name for element in ['Ti2p', 'V2p']) and any(
-                    x in self.parent.selected_fitting_method for x in ["LA", "GL", "SGL"]):
-                fwhm_constraint = "0.3:3.5"  # Independent FWHM for Ti2p and V2p
-            else:
-                if "Voigt" in self.parent.selected_fitting_method:
-                    fwhm_constraint = "0.3:3.5"
-                else:
-                    fwhm_constraint = f"{chr(65 + first_peak)}*1"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 4, fwhm_constraint)
-
-            # Height constraint
-            height_factor = {'p': 0.5, 'd': 0.667, 'f': 0.75}
-            height_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[1]]}#0.05"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 3, height_constraint)
-
-            # Area constraint
-            Area_factor = {'p': 0.5, 'd': 0.667, 'f': 0.75}
-            area_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[-1]]}#0.05"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 6, area_constraint)
-
-            # Position constraint
-            # splitting = self.doublet_splittings.get(first_word, 0)
-            element = re.match(r'([A-Z][a-z]*)', first_word).group(1)
-            splitting = self.get_doublet_splitting(element, orbital, self.parent.current_instrument)
-
-            position_constraint = f"{chr(65 + first_peak)}+{splitting}#0.2"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 2, position_constraint)
-
-            # Sigma constraint
-            if any(element in sheet_name for element in ['Ti2p', 'V2p']) and any(
-                    x in self.parent.selected_fitting_method for x in ["Voigt"]):
-                sigma_constraint = "0.3:3"  # Independent FWHM for Ti2p and V2p
-            else:
-                sigma_constraint = f"{chr(65 + first_peak)}*1"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 7, sigma_constraint)
-
-            # Gamma constraint
-            gamma_constraint = f"{chr(65 + first_peak)}*1"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 8, gamma_constraint)
-
-            # Skew constraint
-            skew_constraint = f"{chr(65 + first_peak)}*1"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 9, skew_constraint)
-
-            # Calculate peak numbers
-            peak_number1 = first_peak + 1
-            peak_number2 = second_peak + 1
-
-            # Set peak names
-            if orbital[-1] == 'p':
-                peak1_name = f"{first_word}3/2 p{peak_number1}"
-                peak2_name = f"{first_word}1/2 p{peak_number2}"
-            elif orbital[-1] == 'd':
-                peak1_name = f"{first_word}5/2 p{peak_number1}"
-                peak2_name = f"{first_word}3/2 p{peak_number2}"
-            elif orbital[-1] == 'f':
-                peak1_name = f"{first_word}7/2 p{peak_number1}"
-                peak2_name = f"{first_word}5/2 p{peak_number2}"
-
-            self.parent.peak_params_grid.SetCellValue(row1, 1, peak1_name)
-            self.parent.peak_params_grid.SetCellValue(row2, 1, peak2_name)
-
-            # Position the second peak
-            first_peak_position = float(self.parent.peak_params_grid.GetCellValue(row1, 2))
-            second_peak_position = first_peak_position + splitting
-            self.parent.peak_params_grid.SetCellValue(row2, 2, f"{second_peak_position:.2f}")
-
-            # Update window.Data with new constraints and names
-            if 'Fitting' in self.parent.Data['Core levels'][sheet_name] and 'Peaks' in \
-                    self.parent.Data['Core levels'][sheet_name]['Fitting']:
-                peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
-                new_peaks = {}
-                for i, (key, value) in enumerate(peaks.items()):
-                    if i == first_peak:
-                        new_peaks[peak1_name] = value
-                        new_peaks[peak1_name]['Name'] = peak1_name
-                    elif i == second_peak:
-                        new_peaks[peak2_name] = value
-                        new_peaks[peak2_name]['Name'] = peak2_name
-                        new_peaks[peak2_name]['Position'] = second_peak_position
-                        new_peaks[peak2_name]['Constraints'] = {
-                            'Position': position_constraint,
-                            'Height': height_constraint,
-                            'FWHM': fwhm_constraint,
-                            'L/G': lg_constraint,
-                            'Area': area_constraint,
-                            'Sigma': sigma_constraint,
-                            'Gamma': gamma_constraint,
-                            'Skew': skew_constraint
-                        }
-                    else:
-                        new_peaks[key] = value
-                self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = new_peaks
-
-        self.parent.clear_and_replot()
-
     def on_add_doublet(self, event):
         save_state(self.parent)
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
@@ -923,13 +781,13 @@ class FittingWindow(wx.Frame):
             # Set peak names with correct suborbital designations
             if orbital[-1] == 'p':
                 peak1_name = f"{element_orbital}3/2 p{peak_number1}"
-                peak2_name = f"{element_orbital}1/2 p{peak_number2}"
+                peak2_name = f"{element_orbital}1/2_p{peak_number2}"
             elif orbital[-1] == 'd':
                 peak1_name = f"{element_orbital}5/2 p{peak_number1}"
-                peak2_name = f"{element_orbital}3/2 p{peak_number2}"
+                peak2_name = f"{element_orbital}3/2_p{peak_number2}"
             elif orbital[-1] == 'f':
                 peak1_name = f"{element_orbital}7/2 p{peak_number1}"
-                peak2_name = f"{element_orbital}5/2 p{peak_number2}"
+                peak2_name = f"{element_orbital}5/2_p{peak_number2}"
 
             self.parent.peak_params_grid.SetCellValue(row1, 1, peak1_name)
             self.parent.peak_params_grid.SetCellValue(row2, 1, peak2_name)
