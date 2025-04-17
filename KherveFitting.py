@@ -1925,7 +1925,7 @@ class MyFrame(wx.Frame):
                 # Calculate the Euclidean distance in display coordinates
                 distance = np.sqrt((x_display - x_peak_display) ** 2 + (y_display - y_peak_display) ** 2)
 
-                if distance < 10:  # Adjust the tolerance as needed (10 pixels here as an example)
+                if distance < 300:  # Adjust the tolerance as needed (10 pixels here as an example)
                     return i
         return None
 
@@ -2065,57 +2065,61 @@ class MyFrame(wx.Frame):
             self.show_hide_vlines()
             self.canvas.draw()
 
-
-
     def on_mouse_wheel(self, event):
+        # Check if shift is currently pressed based on event.key
+        shift_currently_pressed = event.key == 'shift'
+
+        # Update the shift_key_pressed flag based on the current event
+        if shift_currently_pressed:
+            self.shift_key_pressed = True
+        else:
+            self.shift_key_pressed = False
+
         # Handle SHIFT + wheel for peak width adjustment
-        if hasattr(self,
-                   'shift_key_pressed') and self.shift_key_pressed and self.selected_peak_index is not None and self.peak_fitting_tab_selected:
+        if self.shift_key_pressed and self.selected_peak_index is not None and self.peak_fitting_tab_selected:
             delta = 0.05 if event.step > 0 else -0.05
             row = self.selected_peak_index * 2
+            fitting_model = self.peak_params_grid.GetCellValue(row, 13)
 
-            # Get current FWHM directly from grid
-            current_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
-            new_fwhm = max(current_fwhm + delta, 0.3)  # Ensure minimum FWHM of 0.3 eV
+            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
+                                 "Voigt (Area, L/G, \u03c3, S)"]:
+                # For Voigt models, adjust sigma (W_g) directly
+                current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
+                new_sigma = max(current_sigma + delta, 0.2)  # Ensure minimum sigma
 
-            # Update peak FWHM
-            self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
+                # Update sigma
+                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+
+                # Get L/G ratio and recalculate gamma (W_l) based on it
+                lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
+                new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
+                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+
+                # Update FWHM for consistency (optional)
+                # new_fwhm = 2.355 * new_sigma  # Gaussian FWHM approximation
+                # self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
+            else:
+                # Get current FWHM directly from grid
+                current_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+                new_fwhm = max(current_fwhm + delta, 0.3)  # Ensure minimum FWHM of 0.3 eV
+
+                # Update peak FWHM
+                self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
 
             # Recalculate area
             self.recalculate_peak_area(self.selected_peak_index)
 
             # Update linked peaks
-            self.update_linked_fwhm_recursive(self.selected_peak_index, new_fwhm)
+            self.update_linked_fwhm_recursive(self.selected_peak_index,
+                                              new_sigma if fitting_model.startswith("Voigt") else new_fwhm)
 
             # Redraw everything with updated peak info
             self.clear_and_replot()
-
             self.highlight_selected_peak()
 
             save_state(self)
             return
 
-        if event.step != 0:
-            current_index = self.sheet_combobox.GetSelection()
-            num_sheets = self.sheet_combobox.GetCount()
-
-            if event.step > 0:
-                # Scroll up, move to previous sheet
-                new_index = (current_index - 1) % num_sheets
-            else:
-                # Scroll down, move to next sheet
-                new_index = (current_index + 1) % num_sheets
-
-            self.sheet_combobox.SetSelection(new_index)
-            new_sheet = self.sheet_combobox.GetString(new_index)
-
-            # Create a mock event to pass to on_sheet_selected
-            mock_event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId, self.sheet_combobox.GetId())
-            mock_event.SetString(new_sheet)
-
-            # Call on_sheet_selected with the mock event
-            on_sheet_selected(self, mock_event)
-            save_state(self)
 
     def highlight_selected_peak(self):
         if self.selected_peak_index is not None:

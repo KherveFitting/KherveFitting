@@ -188,7 +188,7 @@ def open_spe_fileOLD1(window, file_path):
 
     except Exception as e:
         wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
         # With header
@@ -264,7 +264,7 @@ def open_spe_file2(window, file_path):
 
     except Exception as e:
         # wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
 def open_spe_file(window, file_path):
@@ -366,7 +366,7 @@ def open_spe_file(window, file_path):
 
     except Exception as e:
         # wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
 def open_spe_file_dialog(window):
@@ -770,55 +770,10 @@ def open_avg_file(window):
         open_xlsx_file(window, excel_file_path)
     except Exception as e:
         # wx.MessageBox(f"Error processing AVG file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2("Error", f"Error processing AVG file: {str(e)}")
+        window.show_popup_message2("Error", f"Error processing AVG file: {str(e)}")
+
 
 def import_multiple_avg_files_OLD(window):
-    with wx.DirDialog(window, "Choose a directory containing AVG files",
-                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
-
-        if dirDialog.ShowModal() == wx.ID_CANCEL:
-            return
-
-        folder_path = dirDialog.GetPath()
-
-    try:
-        avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
-
-        if not avg_files:
-            # wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
-            self.parent.show_popup_message2("Information", "No AVG files found in the selected folder.")
-            return
-
-        folder_name = os.path.basename(folder_path)
-        excel_file_path = os.path.join(folder_path, f"{folder_name}.xlsx")
-
-        with pd.ExcelWriter(excel_file_path) as writer:
-            for avg_file in avg_files:
-                avg_file_path = os.path.join(folder_path, avg_file)
-                sheet_name = os.path.splitext(avg_file)[0]  # Use file name without extension as sheet name
-
-                photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
-                be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
-
-                df = pd.DataFrame({
-                    'BE': be_values,
-                    'Intensity': y_values[:num_points]
-                })
-
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-        # wx.MessageBox(f"Excel file created: {excel_file_path}", "Success", wx.OK | wx.ICON_INFORMATION)
-        self.parent.show_popup_message2("Success", f"Excel file created: {excel_file_path}")
-
-        # Open the created Excel file
-        from libraries.Open import open_xlsx_file
-        open_xlsx_file(window, excel_file_path)
-
-    except Exception as e:
-        # wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2( "Error", f"Error processing AVG files: {str(e)}")
-
-def import_multiple_avg_files(window):
     with wx.DirDialog(window, "Choose a directory containing AVG files",
                       style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
 
@@ -849,6 +804,89 @@ def import_multiple_avg_files(window):
         if excel_files:
             from libraries.Open import open_xlsx_file
             open_xlsx_file(window, excel_files[0])
+
+    except Exception as e:
+        wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def import_multiple_avg_files(window):
+    with wx.DirDialog(window, "Choose a directory containing AVG files",
+                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
+
+        if dirDialog.ShowModal() == wx.ID_CANCEL:
+            return
+
+        folder_path = dirDialog.GetPath()
+
+    try:
+        # Find all AVG files in the folder
+        avg_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.avg')]
+
+        if not avg_files:
+            wx.MessageBox("No AVG files found in the selected folder.", "Information", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Create a single Excel file
+        folder_name = os.path.basename(folder_path)
+        excel_file_path = os.path.join(folder_path, f"{folder_name}.xlsx")
+
+        # Create workbook
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)  # Remove default sheet
+
+        # Process each AVG file and add as separate sheet
+        for avg_file in avg_files:
+            avg_file_path = os.path.join(folder_path, avg_file)
+
+            # Extract raw sheet name from file name (without extension)
+            raw_sheet_name = os.path.splitext(avg_file)[0]
+
+            # Normalize the sheet name according to KherveFitting nomenclature
+            sheet_name = normalize_sheet_name(raw_sheet_name)
+
+            # Handle duplicate sheet names if needed
+            suffix = 1
+            original_sheet_name = sheet_name
+            while sheet_name in wb.sheetnames:
+                sheet_name = f"{original_sheet_name}{suffix}"
+                suffix += 1
+
+            # Parse AVG file
+            try:
+                photon_energy, start_energy, width, num_points, y_values = parse_avg_file(avg_file_path)
+                be_values = [photon_energy - (start_energy + i * width) for i in range(num_points)]
+
+                # Create new sheet
+                ws = wb.create_sheet(title=sheet_name)
+
+                # Add headers
+                ws.append(["BE", "Intensity"])
+
+                # Add data
+                for be, intensity in zip(be_values, y_values[:num_points]):
+                    ws.append([be, intensity])
+
+                # Extract metadata if available
+                metadata = extract_metadata_from_avg(avg_file_path)
+
+                # Add metadata starting at column 50
+                exp_col = 50
+                ws.cell(row=1, column=exp_col, value="Experimental Description")
+
+                for i, (key, value) in enumerate(metadata.items(), start=2):
+                    ws.cell(row=i, column=exp_col, value=key)
+                    ws.cell(row=i, column=exp_col + 1, value=value)
+
+            except Exception as e:
+                print(f"Error processing {avg_file}: {str(e)}")
+                continue
+
+        # Save the Excel file
+        wb.save(excel_file_path)
+
+        # Open the created Excel file
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, excel_file_path)
 
     except Exception as e:
         wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
