@@ -2203,7 +2203,7 @@ class MyFrame(wx.Frame):
                                      f'Position: {pos} eV\n'
                                      f'FWHM meas.: {actual_fwhm:.3f} eV\n'
                                      f'Area: {area:.1f} CPS\n\n'
-                                     f'? Change width ?\n'
+                                     f'\u00BF Change width ?\n'
                                      f'SHIFT + wheel button')
 
                         max_y = self.ax.get_ylim()[1]

@@ -398,7 +398,7 @@ class PlotManager:
                     'alpha': alpha,
                     'edgecolor': 'none'
                 }
-            else:  # Hatch
+            elif window.peak_fill_types[peak_index] == "Hatch":
                 fill_params = {
                     'color': 'none',
                     'hatch': window.peak_hatch_patterns[peak_index] * window.hatch_density,
@@ -406,6 +406,18 @@ class PlotManager:
                     'edgecolor': color,
                     'alpha': alpha
                 }
+            elif window.peak_fill_types[peak_index] == "None":
+                # Skip the fill_between call and only draw the line
+                if window.peak_line_style != "No Line":
+                    if window.energy_scale == 'KE':
+                        self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                                     linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
+                                     label=peak_label)
+                    else:
+                        self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                                     linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
+                                     label=peak_label)
+                return peak_y
 
             if window.energy_scale == 'KE':
                 self.ax.fill_between(window.photons - x_values, background, peak_y,

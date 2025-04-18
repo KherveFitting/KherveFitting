@@ -572,7 +572,7 @@ class PreferenceWindow(wx.Frame):
 
         # Peak fill type
         peak_fill_type_label = wx.StaticText(self.plot_tab, label="Peak Fill Type:")
-        self.peak_fill_type_combo = wx.ComboBox(self.plot_tab, choices=["Solid Fill", "Hatch"], style=wx.CB_READONLY)
+        self.peak_fill_type_combo = wx.ComboBox(self.plot_tab, choices=["Solid Fill", "Hatch", "None"], style=wx.CB_READONLY)
         self.peak_fill_type_combo.SetMinSize((100, -1))
         sizer.Add(peak_fill_type_label, pos=(6, 4), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.peak_fill_type_combo, pos=(6, 5), flag= wx.BOTTOM | wx.TOP, border=0)
