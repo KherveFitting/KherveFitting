@@ -33,9 +33,10 @@ class PlotManager:
         self.fitting_results_text = None
         self.fitting_results_visible = False
 
-        self.residuals_state = 0  # Add this line
-        self.residuals_subplot = None  # Add this line
-        self.residuals_visible = True  # Keep existing
+        self.residuals_state = 2  # Default to subplot
+        self.residuals_subplot = None  # Initialize to None
+        self.legend_visible = 1  # Default to full legend
+        self.y_axis_state = 0  # Default to full y-axis
 
         # init for preference window
         self.plot_style = "scatter"
@@ -72,7 +73,7 @@ class PlotManager:
         self.y_axis_visible = True
 
 
-    def toggle_y_axis(self):
+    def toggle_y_axis_OLD(self):
         if not hasattr(self, 'y_axis_state'):
             self.y_axis_state = 0
 
@@ -101,6 +102,51 @@ class PlotManager:
             if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
                 self.residuals_subplot.yaxis.set_visible(True)
                 self.residuals_subplot.yaxis.set_ticklabels([])
+
+        self.canvas.draw_idle()
+
+    def toggle_y_axis(self):
+        if not hasattr(self, 'y_axis_state'):
+            self.y_axis_state = 0
+
+        self.y_axis_state = (self.y_axis_state + 1) % 3
+
+        if self.y_axis_state == 0:
+            # Show label and values
+            self.ax.yaxis.set_visible(True)
+            for label in self.ax.get_yticklabels():
+                label.set_visible(True)
+            self.ax.set_ylabel("Intensity (CPS)")
+            self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+            self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+            if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
+                self.residuals_subplot.yaxis.set_visible(True)
+                for label in self.residuals_subplot.get_yticklabels():
+                    label.set_visible(True)
+                self.residuals_subplot.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+                self.residuals_subplot.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        elif self.y_axis_state == 1:
+            # Hide everything
+            self.ax.yaxis.set_visible(False)
+
+            if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
+                self.residuals_subplot.yaxis.set_visible(False)
+
+        else:  # y_axis_state == 2
+            # Show "Intensity (a.u.)" but hide values
+            self.ax.yaxis.set_visible(True)
+            self.ax.set_ylabel("Intensity (a.u.)")
+
+            # Hide just the tick labels
+            for label in self.ax.get_yticklabels():
+                label.set_visible(False)
+
+            if hasattr(self, 'residuals_subplot') and self.residuals_subplot:
+                self.residuals_subplot.yaxis.set_visible(True)
+                for label in self.residuals_subplot.get_yticklabels():
+                    label.set_visible(False)
 
         self.canvas.draw_idle()
 
@@ -792,7 +838,7 @@ class PlotManager:
                     else:  # Second peak of the doublet
                         # Use the same color as the first peak of the doublet, but with lower alpha
                         color = self.peak_colors[(i - 1) % len(self.peak_colors)]
-                        alpha = self.peak_alpha * 0.8  # Reduce alpha for the second peak
+                        alpha = self.peak_alpha * 0.99  # Reduce alpha for the second peak
                 else:
                     color = self.peak_colors[i % len(self.peak_colors)]
                     alpha = self.peak_alpha
@@ -812,21 +858,10 @@ class PlotManager:
                 }
                 if window.energy_scale == 'KE':
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
-                                                color=color, alpha=alpha) #, linewidth=self.background_thickness)
+                                                color=color, alpha=alpha)
                 else:
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
                                                 color=color, alpha=alpha)
-
-
-        # # Plot the background if it exists
-        # if window.energy_scale == 'KE':
-        #     self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
-        #                  color=self.background_color, linewidth=self.background_thickness,
-        #                  linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
-        # else:
-        #     self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
-        #                  linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
-        #                  linewidth=self.background_thickness)
 
         # Only plot background if it's different from raw data or if Bkg Type is not empty
         if (core_level_data['Background'].get('Bkg Type') != "" and
@@ -903,6 +938,16 @@ class PlotManager:
 
         # Add this line before canvas.draw_idle()
         self.apply_text_settings(window)
+
+        # Apply y-axis state
+        if hasattr(self, 'y_axis_state'):
+            if self.y_axis_state == 1:  # Hidden
+                self.ax.yaxis.set_visible(False)
+            elif self.y_axis_state == 2:  # Label only
+                self.ax.yaxis.set_visible(True)
+                self.ax.set_ylabel("Intensity (a.u.)")
+                for label in self.ax.get_yticklabels():
+                    label.set_visible(False)
 
         # Draw the canvas
         self.canvas.draw_idle()

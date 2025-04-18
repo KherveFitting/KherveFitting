@@ -30,6 +30,7 @@ from libraries.ConfigFile import *
 from libraries.Export import export_results
 from libraries.PlotConfig import PlotConfig
 from libraries.Utilities import check_first_time_use, DraggableText
+from libraries.Plot_Operations import PlotManager
 
 from libraries.Peak_Functions import PeakFunctions
 
@@ -169,6 +170,12 @@ class MyFrame(wx.Frame):
         self.selected_fitting_method = "GL (Area)"
 
         # self.fitting_results_visible = False
+
+        self.residuals_state = 0  # Add this line
+        self.residuals_subplot = None  # Add this line
+        self.legend_visible = 1  # Add this line
+        self.y_axis_state = 0  # Add this line
+        self.rsd_text = None  # Add this line
 
         self.background_method = "Multi-Regions Smart"
         self.offset_h = 0
@@ -333,21 +340,24 @@ class MyFrame(wx.Frame):
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_peak_params_cell_changed)
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_peak_params_cell_changed)
         self.Bind(wx.EVT_CLOSE, self.on_close)
-        # Bind right-click events for peak_params_grid
 
-        # self.peak_params_grid.Bind(wx.EVT_RIGHT_DOWN, self.on_peak_params_grid_right_click)  # For empty grid
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_peak_params_right_click)
-        # self.peak_params_grid.Bind(wx.EVT_CONTEXT_MENU, self.on_peak_params_context_menu)
-        # Bind right-click events for peak_params_grid
 
         self.Bind(wx.EVT_SIZE, self.on_window_resize)
 
+        # self.plot_manager.residuals_state = 2  # Set default state
+        # self.plot_manager.legend_visible = (int(self.legend_visible_setting)
+        #                                     if isinstance(self.legend_visible_setting, int)
+        #                                     else (1 if self.legend_visible_setting else 0))
+        # self.plot_manager.y_axis_state = self.y_axis_state_setting
+        # self.plot_manager.residuals_state = self.residuals_state_setting
+        self.plot_manager = PlotManager(self.ax, self.canvas)
+        self.plot_manager.peak_colors = self.peak_colors.copy()
+        self.plot_manager.residuals_state = self.residuals_state
+        self.plot_manager.legend_visible = self.legend_visible
+        self.plot_manager.y_axis_state = self.y_axis_state
 
 
-        self.plot_manager.residuals_state = 2  # Set default state
-
-
-        # Add this method too:
     def on_peak_params_context_menu(self, event):
         # Alternative event handler for context menu
         position = event.GetPosition()
@@ -4104,6 +4114,9 @@ class MyFrame(wx.Frame):
                 self.times_opened = config.get('times_opened', 0)
                 self.enable_auto_backup = config.get('enable_auto_backup', False)
                 self.backup_interval = config.get('backup_interval', 30)
+                self.legend_visible = config.get('legend_visible', 1)
+                self.y_axis_state = config.get('y_axis_state', 0)
+                self.residuals_state = config.get('residuals_state', 2)
 
         else:
             config = {}
@@ -4144,6 +4157,9 @@ class MyFrame(wx.Frame):
             'peak_fill_types': self.peak_fill_types,
             'peak_hatch_patterns': self.peak_hatch_patterns,
             'hatch_density': self.hatch_density,
+            'legend_visible': self.legend_visible,
+            'y_axis_state': self.y_axis_state,
+            'residuals_state': self.residuals_state,
             'current_instrument': self.current_instrument,
             'plot_font': self.plot_font,
             'axis_title_size': self.axis_title_size,

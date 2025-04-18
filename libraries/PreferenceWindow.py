@@ -646,6 +646,22 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.peak_line_alpha_label, pos=(13, 4), flag= wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.peak_line_alpha_spin, pos=(13, 5), flag= wx.BOTTOM | wx.TOP, border=0)
 
+        legend_label = wx.StaticText(self.plot_tab, label="Legend Display:")
+        self.legend_choice = wx.ComboBox(self.plot_tab, choices=["Hidden", "Full", "Peaks Only"], style=wx.CB_READONLY)
+        sizer.Add(legend_label, pos=(15, 4), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.legend_choice, pos=(15, 5), flag=wx.BOTTOM | wx.TOP, border=0)
+
+        y_axis_label = wx.StaticText(self.plot_tab, label="Y-Axis Display:")
+        self.y_axis_choice = wx.ComboBox(self.plot_tab, choices=["Full", "Hidden", "Label Only"], style=wx.CB_READONLY)
+        sizer.Add(y_axis_label, pos=(16, 4), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.y_axis_choice, pos=(16, 5), flag=wx.BOTTOM | wx.TOP, border=0)
+
+        residuals_label = wx.StaticText(self.plot_tab, label="Residuals Display:")
+        self.residuals_choice = wx.ComboBox(self.plot_tab, choices=["Off", "In Main Plot", "In Subplot"],
+                                            style=wx.CB_READONLY)
+        sizer.Add(residuals_label, pos=(17, 4), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.residuals_choice, pos=(17, 5), flag=wx.BOTTOM | wx.TOP, border=0)
+
 
         # Bind the spin control to update the color picker
         self.peak_number_spin.Bind(wx.EVT_SPINCTRL, self.OnPeakNumberChange)
@@ -674,9 +690,33 @@ class PreferenceWindow(wx.Frame):
         self.background_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnBackgroundThicknessChange)
         self.envelope_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnEnvelopeThicknessChange)
         self.residual_thickness_spin.Bind(wx.EVT_SPINCTRL, self.OnResidualThicknessChange)
+        self.legend_choice.Bind(wx.EVT_CHOICE, self.OnLegendDisplayChange)
+        self.y_axis_choice.Bind(wx.EVT_CHOICE, self.OnYAxisDisplayChange)
+        self.residuals_choice.Bind(wx.EVT_CHOICE, self.OnResidualsDisplayChange)
 
         self.plot_tab.SetSizer(sizer)
         self.Centre()
+
+    def OnLegendDisplayChange(self, event):
+        selection = self.legend_choice.GetSelection()
+        self.parent.legend_visible = selection
+        self.parent.plot_manager.legend_visible = selection
+        self.parent.plot_manager.toggle_legend()
+        self.update_plot()
+
+    def OnYAxisDisplayChange(self, event):
+        selection = self.y_axis_choice.GetSelection()
+        self.parent.y_axis_state = selection
+        self.parent.plot_manager.y_axis_state = selection
+        self.parent.plot_manager.toggle_y_axis()
+        self.update_plot()
+
+    def OnResidualsDisplayChange(self, event):
+        selection = self.residuals_choice.GetSelection()
+        self.parent.residuals_state = selection
+        self.parent.plot_manager.residuals_state = selection
+        self.parent.plot_manager.toggle_residuals(self.parent)
+        self.update_plot()
 
     def OnBackgroundThicknessChange(self, event):
         self.parent.background_thickness = self.background_thickness_spin.GetValue()
@@ -812,6 +852,15 @@ class PreferenceWindow(wx.Frame):
         self.background_thickness_spin.SetValue(self.parent.background_thickness)
         self.envelope_thickness_spin.SetValue(self.parent.envelope_thickness)
         self.residual_thickness_spin.SetValue(self.parent.residual_thickness)
+
+        if hasattr(self.parent, 'legend_visible'):
+            self.legend_choice.SetSelection(self.parent.legend_visible)
+
+        if hasattr(self.parent, 'y_axis_state'):
+            self.y_axis_choice.SetSelection(self.parent.y_axis_state)
+
+        if hasattr(self.parent, 'residuals_state'):
+            self.residuals_choice.SetSelection(self.parent.residuals_state)
 
         # Add loading of text settings
         self.font_combo.SetValue(self.parent.plot_font)
@@ -984,6 +1033,19 @@ class PreferenceWindow(wx.Frame):
         self.parent.peak_fill_types[current_peak] = self.peak_fill_type_combo.GetValue()
         self.parent.peak_hatch_patterns[current_peak] = self.peak_hatch_combo.GetValue()
         self.parent.hatch_density = self.hatch_density_spin.GetValue()
+
+        # Update both parent and plot_manager
+        selection = self.legend_choice.GetSelection()
+        self.parent.legend_visible = selection
+        self.parent.plot_manager.legend_visible = selection
+
+        selection = self.y_axis_choice.GetSelection()
+        self.parent.y_axis_state = selection
+        self.parent.plot_manager.y_axis_state = selection
+
+        selection = self.residuals_choice.GetSelection()
+        self.parent.residuals_state = selection
+        self.parent.plot_manager.residuals_state = selection
 
         # Save text settings
         self.parent.plot_font = self.font_combo.GetValue()
