@@ -19,6 +19,7 @@ import wx.grid
 import wx.adv
 import sys
 import platform
+import re
 
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
@@ -4351,18 +4352,23 @@ class MyFrame(wx.Frame):
         self.be_correction = 0.0
         self.be_correction_spinbox.SetValue(self.be_correction)
 
-
     def on_auto_be(self, event):
         c1s_correction = self.calculate_c1s_correction()
         if c1s_correction is not None:
+            # Update the spinbox value
             self.be_correction_spinbox.SetValue(c1s_correction)
 
-            # Trigger the change event to update BEcorrections
-            evt = wx.SpinDoubleEvent(wx.EVT_SPINCTRLDOUBLE.typeId, self.be_correction_spinbox.GetId())
-            evt.SetEventObject(self.be_correction_spinbox)
-            wx.PostEvent(self.be_correction_spinbox, evt)
+            # Create and post a spin control event to trigger the change handler
+            spin_event = wx.SpinDoubleEvent(wx.EVT_SPINCTRLDOUBLE.typeId, self.be_correction_spinbox.GetId())
+            spin_event.SetEventObject(self.be_correction_spinbox)
+            spin_event.SetValue(c1s_correction)
+            wx.PostEvent(self.be_correction_spinbox, spin_event)
+        else:
+            # No reference peak found - don't change anything
+            wx.MessageBox(f"Reference peak '{self.ref_peak_name}' not found in the current row's sheets.",
+                          "No Reference Peak", wx.OK | wx.ICON_INFORMATION)
 
-            self.apply_be_correction(c1s_correction)
+
 
     def apply_be_correction_SINGLEBE(self, correction):
         """
@@ -4635,12 +4641,35 @@ class MyFrame(wx.Frame):
                 print(f"Error updating FileManager: {e}")
 
     def calculate_c1s_correction(self):
-        ref_sheet = next((sheet for sheet in self.Data['Core levels'] if self.ref_peak_name[0] in sheet), None)
-        if ref_sheet:
-            peaks = self.Data['Core levels'][ref_sheet]['Fitting']['Peaks']
-            ref_peak = next((peak for label, peak in peaks.items() if self.ref_peak_name in label), None)
-            if ref_peak:
-                return self.ref_peak_be - ref_peak['Position']
+        # Get the current sheet and extract its row number
+        current_sheet = self.sheet_combobox.GetValue()
+        current_row = "0"  # Default to row 0
+
+        # Extract row number using regex
+        import re
+        match = re.search(r'(\d+)$', current_sheet)
+        if match:
+            current_row = match.group(1)
+
+        # Look only in sheets from the same row
+        matching_sheets = []
+        for sheet_name in self.Data['Core levels']:
+            sheet_match = re.search(r'(\d+)$', sheet_name)
+            sheet_row = sheet_match.group(1) if sheet_match else "0"
+
+            if sheet_row == current_row and self.ref_peak_name[0] in sheet_name:
+                matching_sheets.append(sheet_name)
+
+        # Check each matching sheet for the reference peak
+        for ref_sheet in matching_sheets:
+            if 'Fitting' in self.Data['Core levels'][ref_sheet] and 'Peaks' in self.Data['Core levels'][ref_sheet][
+                'Fitting']:
+                peaks = self.Data['Core levels'][ref_sheet]['Fitting']['Peaks']
+                ref_peak = next((peak for label, peak in peaks.items() if self.ref_peak_name in label), None)
+                if ref_peak:
+                    return self.ref_peak_be - ref_peak['Position']
+
+        # If no reference peak found in this row, return None
         return None
 
     def load_be_correction(self):
