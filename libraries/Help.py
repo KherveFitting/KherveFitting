@@ -406,6 +406,7 @@ def show_version_log(window):
 - Added Sum, copy, paste, normalise to the Samples/Experiment Manager
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added a propagation of the peak fitting parameters (menu and =) just like casa
+- Added the Doniach Sunjic model
 - Added information in the Manual for installation instruction
 - Added a mini-game in the help menu
 - Added Backups of the excel file and json file in the preference window
