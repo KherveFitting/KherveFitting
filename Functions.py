@@ -495,16 +495,17 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                 elif peak_model_choice == "DS (A, \u03c3, \u03b3)":
                     try:
-                        # sigma = float(peak_params_grid.GetCellValue(row, 7)) / 2.355
-                        sigma = float(peak_params_grid.GetCellValue(row, 7)) / 1
-                        # gamma = float(peak_params_grid.GetCellValue(row, 8)) / 2
-                        gamma = float(peak_params_grid.GetCellValue(row, 8)) / 1
+                        peak_model = lmfit.models.DoniachModel()
+                        height = float(window.peak_params_grid.GetCellValue(row, 3))
+                        sigma = float(peak_params_grid.GetCellValue(row, 7))
+                        gamma = float(peak_params_grid.GetCellValue(row, 8))
                         skew = float(peak_params_grid.GetCellValue(row, 9))
+                        amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
 
                     except ValueError:
-                        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-                        gamma = lg_ratio / 100 * sigma
-                        skew = 0.1
+                        sigma = fwhm / 2
+                        gamma = 0
+                        skew = 0
 
                     # Parse constraints
                     sigma_min, sigma_max, sigma_vary = parse_constraints(peak_params_grid.GetCellValue(row + 1, 7),
@@ -513,6 +514,10 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                                                          gamma, peak_params_grid, i, "Gamma")
                     skew_min, skew_max, skew_vary = parse_constraints(peak_params_grid.GetCellValue(row + 1, 9),
                                                                       skew, peak_params_grid, i, "Skew")
+                    area_min, area_max, area_vary = parse_constraints(peak_params_grid.GetCellValue(row + 1, 6),
+                                                                      area, peak_params_grid, i, "area")
+
+
 
                     # Evaluate constraints
                     sigma_min = evaluate_constraint(sigma_min, peak_params_grid, 'sigma', sigma)
@@ -521,6 +526,9 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     gamma_max = evaluate_constraint(gamma_max, peak_params_grid, 'gamma', gamma)
                     skew_min = evaluate_constraint(skew_min, peak_params_grid, 'skew', skew)
                     skew_max = evaluate_constraint(skew_max, peak_params_grid, 'skew', skew)
+                    area_min = evaluate_constraint(area_min, peak_params_grid, 'area', area)
+                    area_max = evaluate_constraint(area_max, peak_params_grid, 'area', area)
+                    # print(f'Area min max vary: {area_min}, {area_max},  {area_vary}')
 
                     # Make sure skew is within reasonable bounds to avoid numerical issues
                     skew = max(0.01, min(skew, 0.99))
@@ -532,12 +540,20 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma_min = max(0, gamma_min - 0.0001)
                         gamma_max += 0.0001
 
+                    # Special case for amplitude as it is not area
+                    amplitude_min = PeakFunctions.doniach_sunjic_area_to_amplitude(area_min, sigma, gamma, skew)
+                    amplitude_max = PeakFunctions.doniach_sunjic_area_to_amplitude(area_max, sigma, gamma, skew)
+                    amplitude_vary = PeakFunctions.doniach_sunjic_area_to_amplitude(area_vary, sigma, gamma, skew)
+                    # print(f'Amplitude min max vary: {amplitude_min}, {amplitude_max},  {amplitude_vary}')
+
                     peak_model = lmfit.models.DoniachModel(prefix=prefix)
-                    params.add(f'{prefix}amplitude', value=area, min=area_min, max=area_max, vary=area_vary)
+
+                    params.add(f'{prefix}amplitude', value=amplitude, min=amplitude_min, max=amplitude_max, vary=amplitude_vary)
                     params.add(f'{prefix}center', value=center, min=center_min, max=center_max, vary=center_vary)
                     params.add(f'{prefix}sigma', value=sigma, min=sigma_min, max=sigma_max, vary=sigma_vary)
                     params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=gamma_vary)
-                    params.add(f'{prefix}asymmetry', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
+                    # params.add(f'{prefix}asymmetry', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
+                    params.add(f'{prefix}asymmetry', value=0, min=-0.001, max=0.001, vary=0)
 
                 elif peak_model_choice == "Voigt (Area, \u03c3, \u03b3)":
                     try:
@@ -820,11 +836,21 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         skew = result.params[f'{prefix}asymmetry'].value
 
                         # # Create DS model instance
-                        # model = lmfit.models.DoniachModel()
+                        model = lmfit.models.DoniachModel()
 
                         # Get height directly from model
-                        height = model.eval(x=[center], amplitude=amplitude, center=center,
+                        height = model.eval(x=np.array([center]), amplitude=amplitude, center=center,
                                             sigma=sigma, gamma=gamma, asymmetry=skew)[0]
+                        # print(f'DS Height: {height}')
+                        # print(f'DS Amplitude : {amplitude}')
+                        # amplitude_calc = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
+                        # print(f'DS Amplitude calculated: {amplitude_calc}')
+                        area_calc= PeakFunctions.doniach_sunjic_height_to_area(height, sigma, gamma, skew)
+                        # print(f'DS Area calculated: {area_calc}')
+                        # height_calc = PeakFunctions.doniach_sunjic_area_to_height(area_calc, sigma, gamma, skew)
+                        # print(f'DS Height inverse: {height_calc}')
+                        # amplitude_calc2 = PeakFunctions.doniach_sunjic_area_to_amplitude(area_calc, sigma, gamma, skew)
+                        # print(f'DS Amplitude calculated from area: {amplitude_calc2}')
 
                         # Calculate height numerically using the SAME x array
                         y_values = model.eval(x=x_values_filtered, amplitude=amplitude, center=center,
@@ -837,13 +863,15 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         if len(indices) >= 2:
                             fwhm = abs(x_values_filtered[indices[-1]] - x_values_filtered[indices[0]])
                         else:
-                            fwhm = 2.355 * sigma  # Fallback to Gaussian FWHM
+                            fwhm = 2 * sigma  # Fallback to Gaussian FWHM
+                        fwhm = round(float(sigma * 2), 3)
                         # sigma = round(float(sigma * 2.355), 2)
-                        sigma = round(float(sigma * 1), 2)
+                        sigma = round(float(sigma * 1), 3)
                         # gamma = round(float(gamma * 2), 2)
-                        gamma = round(float(gamma * 1), 2)
+                        gamma = round(float(gamma * 1), 3)
                         skew = round(float(skew), 2)
-                        area = round(float(amplitude), 2)
+                        # area = round(float(amplitude), 2)
+                        area = round(float(area_calc), 2)
 
                     elif peak_model_choice == "Pseudo-Voigt (Area)":
                         amplitude = result.params[f'{prefix}area'].value
@@ -962,9 +990,9 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         fraction = round(float(fraction), 2)
                         area = round(float(area), 2)
                     elif peak_model_choice == "DS (A, \u03c3, \u03b3)":
-                        sigma = round(float(sigma * 1), 2)
-                        gamma = round(float(gamma * 1), 2)
-                        fraction = round(0.2 * 100, 2)
+                        sigma = round(float(sigma * 1), 3)
+                        gamma = round(float(gamma * 1), 3)
+                        fraction = round(0.2 * 100, 3)
                         area = round(float(area), 2)
                     else:
                         sigma = round(float(sigma * 2.355), 2)
@@ -1069,7 +1097,21 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 'background_filtered': background_filtered,
                 'y_values_subtracted': y_values_subtracted
             }
-            window.fit_results['fitted_peak'][mask] = result.best_fit + background_filtered
+            # Add before line 1101 in Functions.py
+            if mask.size != window.fit_results['fitted_peak'].size:
+                mask = mask[:window.fit_results['fitted_peak'].size]
+
+            # Before assigning values with the mask
+            if len(result.best_fit) != np.sum(mask):
+                # Resize the arrays to match
+                best_fit_masked = result.best_fit[:np.sum(mask)]
+                background_filtered_masked = background_filtered[:np.sum(mask)]
+                window.fit_results['fitted_peak'][mask] = best_fit_masked + background_filtered_masked
+            else:
+                window.fit_results['fitted_peak'][mask] = result.best_fit + background_filtered
+
+
+            # window.fit_results['fitted_peak'][mask] = result.best_fit + background_filtered
 
             # Add text annotations with fit results
             std_value_int = int(window.noise_std_value) if hasattr(window, 'noise_std_value') else "N/A"

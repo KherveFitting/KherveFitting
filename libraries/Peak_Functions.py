@@ -536,10 +536,11 @@ class PeakFunctions:
         """
         model = lmfit.models.DoniachModel()
         params = model.make_params(amplitude=amplitude, center=0, sigma=sigma, gamma=gamma, asymmetry=skew)
-        return model.eval(params, x=0)
+        height = model.eval(params, x=0)
+        return height
 
     @staticmethod
-    def doniach_sunjic_height_to_area(height, sigma, gamma, skew):
+    def doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew):
         """
         Convert height to area for a Doniach-Sunjic profile.
         """
@@ -550,6 +551,103 @@ class PeakFunctions:
         max_y = np.max(y)
         amplitude = height / max_y
         return amplitude
+
+    @staticmethod
+    def doniach_sunjic_area_to_amplitude(area, sigma, gamma, skew):
+        """
+        Convert area to amplitude for a Doniach-Sunjic profile.
+
+        Inverse of doniach_sunjic_height_to_area function.
+        """
+        model = lmfit.models.DoniachModel()
+
+        # Convert area to float to ensure scalar value
+        area = float(area)
+
+        # Calculate the area of a unit-amplitude peak
+        x_wide = np.linspace(-20 * sigma, 20 * sigma + 40 * sigma * skew, 2000)
+        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, gamma=gamma, amplitude=1.0)
+        y = model.eval(params, x=x_wide)
+
+        # Calculate area of unit-amplitude peak
+        unit_area = float(np.trapz(y, x_wide))
+
+        # Required amplitude to achieve desired area
+        amplitude = area / unit_area if unit_area != 0 else 0
+
+        return amplitude
+
+    @staticmethod
+    def doniach_sunjic_height_to_area(height, sigma, gamma, skew):
+        model = lmfit.models.DoniachModel()
+
+        # First, find amplitude that gives desired height
+        x_test = np.array([0])  # Just evaluate at center
+        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, amplitude=1)
+        max_y = model.eval(params, x=x_test)[0]
+        amplitude = height / max_y
+
+        # Now calculate the area with this amplitude
+        x_wide = np.linspace(-20 * sigma, 20 * sigma + 40 * sigma * skew, 2000)
+        y = model.eval(params, x=x_wide)
+        y = y * amplitude  # Scale by our calculated amplitude
+
+        # Numerical integration to get area
+        area = np.trapz(y, x_wide)
+
+        return area  # Return the actual integrated area
+
+    @staticmethod
+    def doniach_sunjic_area_to_height_OLD(area, sigma, gamma, skew):
+        model = lmfit.models.DoniachModel()
+
+        # First, create a peak with known amplitude and get its height at center
+        test_amplitude = 1.0
+        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, gamma=gamma, amplitude=test_amplitude)
+
+        # Get height at center
+        center_height = model.eval(params, x=np.array([0]))[0]
+
+        # Get area of this test peak
+        x_wide = np.linspace(-20 * sigma, 20 * sigma + 40 * sigma * skew, 2000)
+        y_test = model.eval(params, x=x_wide)
+        test_area = np.trapz(y_test, x_wide)
+
+        # Scale factor: area per unit height
+        area_per_unit_height = test_area / center_height
+
+        # Calculate required height for desired area
+        height = float(area) / float(area_per_unit_height) if area_per_unit_height != 0 else 0
+
+        return height
+
+    @staticmethod
+    def doniach_sunjic_area_to_height(area, sigma, gamma, skew):
+        """Convert area to height for a Doniach-Sunjic profile using a two-step approach."""
+        if sigma <= 0 or area <= 0:
+            return 0
+
+        model = lmfit.models.DoniachModel()
+
+        # Step 1: Calculate amplitude that gives desired area
+        # Use wider x-range that adapts to skew parameter
+        x_range = max(20 * sigma, 5 * sigma * (1 + 5 * abs(skew)))
+        x_wide = np.linspace(-x_range, x_range + 2 * x_range * skew, 2000)
+
+        # Get area for a unit amplitude peak
+        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, gamma=gamma, amplitude=1.0)
+        y_unit = model.eval(params, x=x_wide)
+        unit_area = np.trapz(y_unit, x_wide)
+
+        # Calculate required amplitude
+        if abs(unit_area) < 1e-10:
+            return 0
+        amplitude = area / unit_area
+
+        # Step 2: Calculate height at center with this amplitude
+        height = model.eval(params, x=np.array([0]))[0] * amplitude
+
+        return height
 
     @staticmethod
     def calculate_actual_fwhm(x_values, position, height, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model):

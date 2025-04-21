@@ -282,12 +282,11 @@ class PlotManager:
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
         elif fitting_model == "DS (A, \u03c3, \u03b3)":
             peak_model = lmfit.models.DoniachModel()
-            amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
-            # sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
+            height = float(window.peak_params_grid.GetCellValue(row, 3))
             sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 1
-            # gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
-            gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 1
+            gamma = float(window.peak_params_grid.GetCellValue(row, 8))
             skew = float(window.peak_params_grid.GetCellValue(row, 9))
+            amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, asymmetry=skew)
         elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
             peak_model = lmfit.models.ExponentialGaussianModel()
@@ -1212,12 +1211,11 @@ class PlotManager:
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
             elif fitting_model == "DS (A, \u03c3, \u03b3)":
                 peak_model = lmfit.models.DoniachModel()
-                amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
-                # sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 2.355
-                sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 1
-                # gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
-                gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 1
+                height = float(window.peak_params_grid.GetCellValue(row, 3))
+                sigma = float(window.peak_params_grid.GetCellValue(row, 7))
+                gamma = float(window.peak_params_grid.GetCellValue(row, 8))
                 skew = float(window.peak_params_grid.GetCellValue(row, 9))
+                amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma,
                                                 asymmetry=skew)
             elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":

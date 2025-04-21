@@ -3086,6 +3086,7 @@ class MyFrame(wx.Frame):
             skew = skew or 0.1
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for DS models")
+            # height_test = PeakFunctions.get_doniach_sunjic_height(area, sigma,gamma,skew)
             area = PeakFunctions.doniach_sunjic_height_to_area(height, sigma / 1, gamma / 1, skew)
         elif model in ["Pseudo-Voigt (Area)"]:#, "SGL (Area)"]:
             sigma = fwhm / 2
