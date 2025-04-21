@@ -283,7 +283,7 @@ class PlotManager:
         elif fitting_model == "DS (A, \u03c3, \u03b3)":
             peak_model = lmfit.models.DoniachModel()
             height = float(window.peak_params_grid.GetCellValue(row, 3))
-            sigma = float(window.peak_params_grid.GetCellValue(row, 7)) / 1
+            sigma = float(window.peak_params_grid.GetCellValue(row, 7))
             gamma = float(window.peak_params_grid.GetCellValue(row, 8))
             skew = float(window.peak_params_grid.GetCellValue(row, 9))
             amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)

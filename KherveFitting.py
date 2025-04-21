@@ -744,16 +744,16 @@ class MyFrame(wx.Frame):
         elif self.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             self.peak_params_grid.SetCellValue(row, 5, "20")
             self.peak_params_grid.SetCellValue(row, 7, "1.2")  # sigma
-            self.peak_params_grid.SetCellValue(row, 8, '0.4')  # gamma
+            self.peak_params_grid.SetCellValue(row, 8, '0.4')  #
             self.peak_params_grid.SetCellValue(row, 9, '0.01')  # skew
         elif self.selected_fitting_method == "DS (A, \u03c3, \u03b3)":
             # Set default values
-            self.peak_params_grid.SetCellValue(row, 7, "1.0")  # sigma
+            self.peak_params_grid.SetCellValue(row, 7, "0.5")  # sigma
             self.peak_params_grid.SetCellValue(row, 8, "0.0")  # gamma
-            self.peak_params_grid.SetCellValue(row, 9, "0.1")  # skew
-            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
+            self.peak_params_grid.SetCellValue(row, 9, "0.0")  # skew
+            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 8, "-0.2:0.2")
-            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:1")
+            self.peak_params_grid.SetCellValue(row + 1, 9, "Fixed")
         elif self.selected_fitting_method in ["D-parameter"]:
             self.peak_params_grid.SetCellValue(row, 5, "2")
             self.peak_params_grid.SetCellValue(row, 7, "1")  # sigma
@@ -801,9 +801,9 @@ class MyFrame(wx.Frame):
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 9, '0.01:0.7')  # skew
         elif self.selected_fitting_method == "DS (A, \u03c3, \u03b3)":
-            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
+            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:1.5")
             self.peak_params_grid.SetCellValue(row + 1, 8, "-0.2:0.2")
-            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:1")
+            self.peak_params_grid.SetCellValue(row + 1, 9, "Fixed")
         else:
             self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
             self.peak_params_grid.SetCellValue(row + 1, 8, "0.3:3")
@@ -970,9 +970,9 @@ class MyFrame(wx.Frame):
                 'FWHM': 1.0,
                 'L/G': 20,
                 'Area': peak_y * 1.0 * 1.064,
-                'Sigma': 1.0,
+                'Sigma': 0.5,
                 'Gamma': 0.0,
-                'Skew': 0.1,
+                'Skew': 0.0,
                 'Fitting Model': self.selected_fitting_method,
                 'Bkg Type': self.background_method,
                 'Bkg Low': self.bg_min_energy,
@@ -985,9 +985,9 @@ class MyFrame(wx.Frame):
                     'FWHM': "0.3:3.5",
                     'L/G': "Fixed",
                     'Area': '1:1e7',
-                    'Sigma': "0.3:3",
-                    'Gamma': "0.1:2",
-                    'Skew': "0.01:1"
+                    'Sigma': "0.3:1.5",
+                    'Gamma': "-0.2:0.2",
+                    'Skew': "Fixed"
                 }
             }
         else:
@@ -3083,7 +3083,7 @@ class MyFrame(wx.Frame):
             # Set default values if parameters are missing
             sigma = sigma or 1.0
             gamma = gamma or 0.0
-            skew = skew or 0.1
+            skew = skew or 0.0
             if sigma is None or gamma is None:
                 raise ValueError("Sigma and gamma are required for DS models")
             # height_test = PeakFunctions.get_doniach_sunjic_height(area, sigma,gamma,skew)
@@ -3542,14 +3542,14 @@ class MyFrame(wx.Frame):
                         elif new_value in ["DS (A, \u03c3, \u03b3)"]:
                             # Doniach-Sunjic model
                             fraction = 0.0  # Not used in DS model
-                            sigma = 1.0
+                            sigma = 0.5
                             gamma = 0.0
-                            skew = 0.1
+                            skew = 0.0
                             # Set constraints
                             self.peak_params_grid.SetCellValue(row + 1, 5, "Fixed")  # L/G constraint (not used)
-                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")  # Sigma constraint
-                            self.peak_params_grid.SetCellValue(row + 1, 8, "0.1:2")  # Gamma constraint
-                            self.peak_params_grid.SetCellValue(row + 1, 9, "0.01:1")  # Skew/asymmetry constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 7, "0.3:1.5")  # Sigma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 8, "-0.2:0.2")  # Gamma constraint
+                            self.peak_params_grid.SetCellValue(row + 1, 9, "Fixed")  # Skew/asymmetry constraint
                         elif new_value == "ExpGauss.(Area, \u03c3, \u03b3)":
                             # Exponential Gaussian
                             fraction = 20.0
