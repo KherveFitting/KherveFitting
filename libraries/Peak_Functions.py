@@ -728,6 +728,62 @@ class PeakFunctions:
 
         return actual_fwhm
 
+    # In Peak_Functions.py, add to PeakFunctions class:
+    @staticmethod
+    def DS_G(x, center, amplitude, gamma, skew, sigma):
+        """
+        Doniach-Sunjic function convoluted with a Gaussian.
+
+        Parameters:
+        x : array - Energy values
+        center : float - Peak position
+        amplitude : float - Area of the peak
+        gamma : float - DS width parameter (Grid 8)
+        skew : float - DS asymmetry parameter (Grid 9, alpha in equation)
+        sigma : float - Width of the Gaussian function (Grid 7)
+        """
+
+        # Define the DS function
+        def ds_func(x):
+            x = -x
+            # Avoid numerical instabilities
+            skew_safe = np.clip(skew, 0.001, 0.999)
+
+            denominator = (gamma ** 2 + x ** 2) ** ((1 - skew_safe) / 2)
+            arctangent = np.arctan2(x, gamma)
+            cosine_term = np.cos(np.pi * skew_safe / 2 + (1 - skew_safe) * arctangent)
+
+            return cosine_term / denominator
+
+        # Define the Gaussian function
+        def gaussian(x, fwhm):
+            return np.exp(-4 * np.log(2) * (x / fwhm) ** 2)
+
+        # Create high-resolution x array centered at 0
+        x_range = max(x.max() - x.min(), 4 * (gamma + sigma))
+        x_high_res = np.linspace(-x_range / 2, x_range / 2, len(x) * 4)
+
+        # Calculate DS and Gaussian
+        ds = ds_func(x_high_res)
+        gauss = gaussian(x_high_res, sigma)
+        gauss = gauss / np.sum(gauss)  # Normalize
+
+        # Perform convolution
+        convolved = convolve(ds, gauss, mode='same')
+
+        # Interpolate to original x grid
+        peak_shape = np.interp(x - center, x_high_res, convolved)
+
+        # Calculate area for normalization
+        sort_idx = np.argsort(x)
+        x_sorted = x[sort_idx]
+        peak_shape_sorted = peak_shape[sort_idx]
+        unit_area = abs(np.trapz(peak_shape_sorted, x_sorted))
+
+        # Scale to achieve the requested amplitude
+        height = amplitude / unit_area if unit_area != 0 else 0
+
+        return height * peak_shape
 
 from scipy.signal import savgol_filter
 

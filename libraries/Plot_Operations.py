@@ -288,6 +288,14 @@ class PlotManager:
             skew = float(window.peak_params_grid.GetCellValue(row, 9))
             amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, asymmetry=skew)
+        elif fitting_model == "DS*G (A, \u03c3, \u03b3)":
+            peak_model = lmfit.Model(PeakFunctions.DS_G)
+            amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
+            sigma = float(window.peak_params_grid.GetCellValue(row, 7))
+            gamma = float(window.peak_params_grid.GetCellValue(row, 8))
+            skew = float(window.peak_params_grid.GetCellValue(row, 9))
+            params = peak_model.make_params(center=x, amplitude=amplitude, gamma=gamma,
+                                            skew=skew, sigma=sigma)
         elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
             peak_model = lmfit.models.ExponentialGaussianModel()
             area = float(window.peak_params_grid.GetCellValue(row, 6))
@@ -1218,6 +1226,14 @@ class PlotManager:
                 amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma,
                                                 asymmetry=skew)
+            elif fitting_model == "DS*G (A, \u03c3, \u03b3)":
+                peak_model = lmfit.Model(PeakFunctions.DS_G)
+                amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
+                sigma = float(window.peak_params_grid.GetCellValue(row, 7))
+                gamma = float(window.peak_params_grid.GetCellValue(row, 8))
+                skew = float(window.peak_params_grid.GetCellValue(row, 9))
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, gamma=gamma,
+                                                skew=skew, sigma=sigma)
             elif fitting_model == "ExpGauss.(Area, \u03c3, \u03b3)":
                 peak_model = lmfit.models.ExponentialGaussianModel()
                 area = float(window.peak_params_grid.GetCellValue(row, 6))

@@ -279,24 +279,24 @@ class FittingWindow(wx.Frame):
         self.model_combobox.SetMaxSize((125, 25))
 
         # Set items and green items
-        items = ["Preferred Models-----",
+        items = ["Best Models---------------",
                  "GL (Area)",
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
-                 "Others---------------",
-                 "Area Based----------",
+                 "Area Based----------------",
                  "Pseudo-Voigt (Area)",
                  "Voigt (Area, L/G, \u03c3, S)",
                  "Voigt (Area, \u03c3, \u03b3)",
                  "LA (Area, \u03c3, \u03b3)",
                  "LA*G (Area, \u03c3/\u03b3, \u03b3)",
                  "ExpGauss.(Area, \u03c3, \u03b3)",
-                 "Height Based---------",
+                 "Height Based-------------",
                  "GL (Height)",
                  "SGL (Height)",
-                 "Under Test -----------",
-                 "DS (A, \u03c3, \u03b3)"
+                 "Under Test ----------------",
+                 "DS (A, \u03c3, \u03b3)",
+                 "DS*G (A, \u03c3, \u03b3)"
                  ]
 
 

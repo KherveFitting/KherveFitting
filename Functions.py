@@ -103,22 +103,12 @@ def remove_peak(window):
         wx.MessageBox("No peaks to remove.", "Information", wx.OK | wx.ICON_INFORMATION)
 
 
-
-
-
-
-
 def clear_plot(window):
     window.ax.clear()
     window.canvas.draw()
 
     # Reinitialize the background to raw data
     window.background = None
-
-
-
-
-
 
 
 def update_sheet_names(window):
@@ -196,26 +186,9 @@ def toggle_plot(window):
 import json
 from libraries.ConfigFile import Init_Measurement_Data, add_core_level_Data
 
-
-
-""""
-def convert_from_serializable(obj):
-    if isinstance(obj, list):
-        return [convert_from_serializable(item) for item in obj]
-    elif isinstance(obj, dict):
-        return {k: convert_from_serializable(v) for k, v in obj.items()}
-    else:
-        return obj
-"""
-
-
 import shutil
 from vamas import Vamas
 from openpyxl import Workbook
-
-
-
-
 
 
 
@@ -265,9 +238,6 @@ def toggle_Col_1(window):
 
     # print(window.Data)
 
-
-
-
 def calculate_r2(y_true, y_pred):
     """Calculate the coefficient of determination (R²)"""
     ss_res = np.sum((y_true - y_pred) ** 2)
@@ -278,7 +248,6 @@ def calculate_r2(y_true, y_pred):
 def calculate_chi_square(y_true, y_pred):
     """Calculate the chi-square value"""
     return np.sum((y_true - y_pred) ** 2 / y_pred)
-
 
 
 from matplotlib.ticker import ScalarFormatter
@@ -554,6 +523,54 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=gamma_vary)
                     # params.add(f'{prefix}asymmetry', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
                     params.add(f'{prefix}asymmetry', value=0, min=-0.001, max=0.001, vary=0)
+
+                elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                    peak_model = lmfit.Model(PeakFunctions.DS_G, prefix=prefix)
+                    try:
+                        amplitude = float(peak_params_grid.GetCellValue(row, 6))
+                        sigma = float(peak_params_grid.GetCellValue(row, 7))
+                        gamma = float(peak_params_grid.GetCellValue(row, 8))
+                        skew = float(peak_params_grid.GetCellValue(row, 9))
+                    except ValueError:
+                        amplitude = area
+                        sigma = 0.3
+                        gamma = 0.15
+                        skew = 0.05
+
+                    # Parse constraints
+                    sigma_min, sigma_max, sigma_vary = parse_constraints(
+                        peak_params_grid.GetCellValue(row + 1, 7), sigma, peak_params_grid, i, "sigma"
+                    )
+                    gamma_min, gamma_max, gamma_vary = parse_constraints(
+                        peak_params_grid.GetCellValue(row + 1, 8), gamma, peak_params_grid, i, "gamma"
+                    )
+                    skew_min, skew_max, skew_vary = parse_constraints(
+                        peak_params_grid.GetCellValue(row + 1, 9), skew, peak_params_grid, i, "skew"
+                    )
+
+                    # Evaluate constraints
+                    sigma_min = evaluate_constraint(sigma_min, peak_params_grid, 'sigma', sigma)
+                    sigma_max = evaluate_constraint(sigma_max, peak_params_grid, 'sigma', sigma)
+                    gamma_min = evaluate_constraint(gamma_min, peak_params_grid, 'gamma', gamma)
+                    gamma_max = evaluate_constraint(gamma_max, peak_params_grid, 'gamma', gamma)
+                    skew_min = evaluate_constraint(skew_min, peak_params_grid, 'skew', skew)
+                    skew_max = evaluate_constraint(skew_max, peak_params_grid, 'skew', skew)
+
+                    # Add a small difference if min and max are equal
+                    if sigma_min == sigma_max:
+                        sigma_max = sigma_min + 1e-6
+
+                    # Ensure skew is within reasonable bounds
+                    skew = max(0.01, min(skew, 0.99))
+                    skew_min = max(0.01, skew_min)
+                    skew_max = min(0.99, skew_max)
+
+                    params.add(f'{prefix}amplitude', value=amplitude, min=area_min, max=area_max, vary=area_vary)
+                    params.add(f'{prefix}center', value=center, min=center_min, max=center_max, vary=center_vary)
+                    params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=gamma_vary)
+                    params.add(f'{prefix}skew', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
+                    params.add(f'{prefix}sigma', value=sigma, min=sigma_min, max=sigma_max,
+                               vary=sigma_vary)
 
                 elif peak_model_choice == "Voigt (Area, \u03c3, \u03b3)":
                     try:
@@ -872,7 +889,31 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         skew = round(float(skew), 2)
                         # area = round(float(amplitude), 2)
                         area = round(float(area_calc), 2)
+                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                        amplitude = result.params[f'{prefix}amplitude'].value
+                        center = result.params[f'{prefix}center'].value
+                        gamma = result.params[f'{prefix}gamma'].value
+                        skew = result.params[f'{prefix}skew'].value
+                        sigma = result.params[f'{prefix}sigma'].value
 
+                        # Calculate height numerically
+                        x_test = np.linspace(center - 10, center + 10, 1000)
+                        y_values = PeakFunctions.DS_G(x_test, center, amplitude, gamma, skew, sigma)
+                        height = np.max(y_values)
+
+                        # Estimate FWHM
+                        half_max = height / 2
+                        indices = np.where(y_values >= half_max)[0]
+                        if len(indices) >= 2:
+                            fwhm = abs(x_test[indices[-1]] - x_test[indices[0]])
+                        else:
+                            fwhm = 2 * gamma
+
+                        fwhm = round(float(fwhm), 3)
+                        gamma = round(float(gamma), 3)
+                        skew = round(float(skew), 3)
+                        sigma = round(float(sigma), 3)
+                        area = round(float(amplitude), 2)
                     elif peak_model_choice == "Pseudo-Voigt (Area)":
                         amplitude = result.params[f'{prefix}area'].value
                         sigma = result.params[f'{prefix}sigma'].value
@@ -994,6 +1035,11 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = round(float(gamma * 1), 3)
                         fraction = round(0.2 * 100, 3)
                         area = round(float(area), 2)
+                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                        sigma = round(float(sigma * 1), 3)
+                        gamma = round(float(gamma * 1), 3)
+                        fraction = round(0.2 * 100, 3)
+                        area = round(float(area), 2)
                     else:
                         sigma = round(float(sigma * 2.355), 2)
                         gamma = round(float(gamma * 2), 2)
@@ -1010,10 +1056,11 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                              "Voigt (Area, L/G, \u03c3, S)",
                                              "ExpGauss.(Area, \u03c3, \u03b3)", "LA (Area, \u03c3, \u03b3)",
                                              "LA (Area, \u03c3/\u03b3, \u03b3)",
-                                             "DS (A, \u03c3, \u03b3)"]:
+                                             "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
                         peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
                         peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
-                        if peak_model_choice in ["Voigt (Area, L/G, \u03c3, S)", "DS (A, \u03c3, \u03b3)"]:
+                        if peak_model_choice in ["Voigt (Area, L/G, \u03c3, S)",
+                                                 "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
                             peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
 
                     elif peak_model_choice in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
@@ -1097,18 +1144,35 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 'background_filtered': background_filtered,
                 'y_values_subtracted': y_values_subtracted
             }
-            # Add before line 1101 in Functions.py
-            if mask.size != window.fit_results['fitted_peak'].size:
-                mask = mask[:window.fit_results['fitted_peak'].size]
 
-            # Before assigning values with the mask
-            if len(result.best_fit) != np.sum(mask):
-                # Resize the arrays to match
-                best_fit_masked = result.best_fit[:np.sum(mask)]
-                background_filtered_masked = background_filtered[:np.sum(mask)]
-                window.fit_results['fitted_peak'][mask] = best_fit_masked + background_filtered_masked
-            else:
-                window.fit_results['fitted_peak'][mask] = result.best_fit + background_filtered
+            # # Check dimensions and handle mismatch before assignment
+            # if mask.size != window.fit_results['fitted_peak'].size:
+            #     mask = mask[:window.fit_results['fitted_peak'].size]
+            #
+            # # Before assigning values with the mask
+            # if len(result.best_fit) != np.sum(mask):
+            #     # Resize the arrays to match
+            #     best_fit_masked = result.best_fit[:np.sum(mask)]
+            #     background_filtered_masked = background_filtered[:np.sum(mask)]
+            #     window.fit_results['fitted_peak'][mask] = best_fit_masked + background_filtered_masked
+            # else:
+            #     window.fit_results['fitted_peak'][mask] = result.best_fit + background_filtered
+
+            # Create a new array with the original data
+            fitted_peak = window.fit_results['fitted_peak'].copy()
+
+            # Find indices where mask is True
+            mask_indices = np.where(mask)[0]
+
+            # Make sure we don't go out of bounds
+            max_index = min(len(mask_indices), len(result.best_fit))
+            for i in range(max_index):
+                idx = mask_indices[i]
+                if idx < len(fitted_peak):
+                    fitted_peak[idx] = result.best_fit[i] + background_filtered[i]
+
+            # Store the result back
+            window.fit_results['fitted_peak'] = fitted_peak
 
 
             # window.fit_results['fitted_peak'][mask] = result.best_fit + background_filtered
