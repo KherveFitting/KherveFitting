@@ -268,104 +268,129 @@ def open_spe_file2(window, file_path):
 
 
 def open_spe_file(window, file_path):
-    try:
-        from yadg.extractors.phi.spe import extract
-        import openpyxl
-        import numpy as np
-        import re
+    import numpy as np
+    import openpyxl
+    import re
+    import os
+    import struct
 
-        # Extract data from SPE file
-        data = extract(fn=file_path)
+    def extract_float_sequences(data, min_length=100):
+        sequences = []
+        positions = []
 
-        # Read header to get transmission coefficients
-        a, b = None, None
-        with open(file_path, 'rb') as f:
-            for line in f:
+        for offset in range(0, 512):
+            values = []
+            i = offset
+            while i + 4 <= len(data):
                 try:
-                    decoded_line = line.decode('utf-8', errors='ignore').strip()
-                    if b'SOFH\n' in line:
-                        continue
-                    if 'IntensityCalCoeff:' in decoded_line:
-                        _, coeffs = decoded_line.split(':', 1)
-                        a, b = map(float, coeffs.strip().split())
-                        break
+                    val = struct.unpack('<f', data[i:i + 4])[0]
+                    if 0 <= val < 1e6:
+                        values.append(val)
+                    else:
+                        if len(values) >= min_length:
+                            sequences.append(values)
+                            positions.append(i)
+                        values = []
+                    i += 4
                 except:
-                    continue
+                    i += 4
+            if len(values) >= min_length:
+                sequences.append(values)
+                positions.append(i)
+        return sequences, positions
 
-        if a is None or b is None:
-            a, b = 31.826, 0.229  # Default values if not found
-
-        # Create new Excel workbook
+    try:
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
 
-        # Process each core level
-        for core_level in data:
-            ws = wb.create_sheet(title=core_level)
+        with open(file_path, 'rb') as f:
+            content = f.read()
 
-            # Get energy values (currently in BE)
-            energy = data[core_level].coords["E"].values
-            intensity = data[core_level].data_vars["y"].values
+        header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
+        if not header_match:
+            raise ValueError("Cannot find header section (SOFH...EOFH) in SPE file")
 
-            # Calculate KE for transmission function
-            ke_values = 1486.6 - energy  # Using Al Ka
-            transmission = a * np.power(ke_values, -b)
+        header_text = header_match.group(1).decode('utf-8', errors='ignore')
+        header_lines = [line.strip() for line in header_text.strip().split('\n')]
 
-            # Calculate corrected intensity
-            corrected_intensity = intensity / transmission
+        a, b = 31.826, 0.229
+        for line in header_lines:
+            if 'IntensityCalCoeff:' in line:
+                _, coeffs = line.split(':', 1)
+                a, b = map(float, coeffs.strip().split())
+                break
 
-            # Set column headers
+        spectral_regions = []
+        region_count = 0
+        active_regions_section = False
+        for line in header_lines:
+            if line.startswith('NoSpectralReg:'):
+                region_count = int(line.split(':')[1].strip())
+            if line.startswith('SpectralRegDef:'):
+                parts = line.split()
+                is_active = int(parts[2])
+                if is_active == 1:
+                    spectral_regions.append({
+                        'index': int(parts[1]),
+                        'name': parts[3],
+                        'start_energy': float(parts[7]),
+                        'end_energy': float(parts[8]),
+                        'step_size': float(parts[5])
+                    })
+
+        data_bytes = content[content.find(b'EOFH') + 4:]
+
+        float_sequences, _ = extract_float_sequences(data_bytes)
+        if float_sequences:
+            intensity_values = max(float_sequences, key=lambda x: max(x))
+        else:
+            raise ValueError("No valid intensity data found in binary section")
+
+        for region in spectral_regions:
+            sheet_name = region['name']
+            ws = wb.create_sheet(title=sheet_name)
             ws["A1"] = "BE"
             ws["B1"] = "Corrected Data"
             ws["C1"] = "Raw Data"
             ws["D1"] = "Transmission"
 
-            # Fill data
-            for i, (e, corr_i, raw_i, trans) in enumerate(zip(energy, corrected_intensity, intensity, transmission),
-                                                          start=2):
-                ws[f"A{i}"] = float(e)
-                ws[f"B{i}"] = float(corr_i)
-                ws[f"C{i}"] = float(raw_i)
-                ws[f"D{i}"] = float(trans)
+            start_energy = region['start_energy']
+            end_energy = region['end_energy']
+            num_points = len(intensity_values)
 
-        # Create Experimental Description sheet
+            if start_energy != end_energy:
+                energy_values = np.linspace(start_energy, end_energy, num_points)
+            else:
+                energy_values = np.linspace(280, 300, num_points)
+
+            ke_values = 1486.6 - energy_values
+            transmission = a * np.power(ke_values, -b)
+            corrected_intensity = np.array(intensity_values) / transmission
+
+            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected_intensity, intensity_values, transmission), start=2):
+                ws[f"A{i}"] = float(e)
+                ws[f"B{i}"] = float(ci)
+                ws[f"C{i}"] = float(ri)
+                ws[f"D{i}"] = float(t)
+
         exp_sheet = wb.create_sheet("Experimental description")
         exp_sheet.column_dimensions['A'].width = 30
         exp_sheet.column_dimensions['B'].width = 50
-
-        # Read header information
-        with open(file_path, 'rb') as f:
-            header_lines = []
-            in_header = False
-            for line in f:
-                try:
-                    decoded_line = line.decode('utf-8', errors='ignore').strip()
-                    if decoded_line == 'SOFH':
-                        in_header = True
-                        continue
-                    if decoded_line == 'EOFH':
-                        break
-                    if in_header and decoded_line:
-                        header_lines.append(decoded_line)
-                except:
-                    continue
-
-        # Write header info to exp sheet
         for i, line in enumerate(header_lines, start=1):
             if ':' in line:
                 key, value = line.split(':', 1)
                 exp_sheet[f"A{i}"] = key.strip()
                 exp_sheet[f"B{i}"] = value.strip()
 
-        # Save Excel file
         excel_path = os.path.splitext(file_path)[0] + ".xlsx"
         wb.save(excel_path)
 
-        # Open the created Excel file
+        from libraries.Open import open_xlsx_file
         open_xlsx_file(window, excel_path)
 
     except Exception as e:
-        # wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        import traceback
+        traceback.print_exc()
         window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
