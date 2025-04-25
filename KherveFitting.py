@@ -1847,8 +1847,8 @@ class MyFrame(wx.Frame):
                     original_gamma = float(self.peak_params_grid.GetCellValue(row, 8))
                     original_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                     linked_gamma = original_gamma
-                    self.peak_params_grid.SetCellValue(linked_peak * 2, 7, f"{original_sigma:.2f}")
-                    self.peak_params_grid.SetCellValue(linked_peak * 2, 8, f"{linked_gamma:.2f}")
+                    self.peak_params_grid.SetCellValue(linked_peak * 2, 7, f"{original_sigma:.3f}")
+                    self.peak_params_grid.SetCellValue(linked_peak * 2, 8, f"{linked_gamma:.3f}")
                     self.update_linked_fwhm_recursive(linked_peak, new_fwhm, visited)
                 elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
                     original_gamma = float(self.peak_params_grid.GetCellValue(row, 8))
@@ -1874,8 +1874,8 @@ class MyFrame(wx.Frame):
                 lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
                 new_sigma = max(current_sigma + delta_x * 1, 0.4)
                 new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
-                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
-                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
+                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
                 new_fwhm = self.initial_fwhm
             elif model in ["DS (A, \u03c3, \u03b3)"]:
                 current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
@@ -1883,7 +1883,7 @@ class MyFrame(wx.Frame):
                 skew = float(self.peak_params_grid.GetCellValue(row, 9))
 
                 new_sigma = max(current_sigma + delta_x * 1, 0.4)
-                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
                 # No change to gamma as it's independent in DS model
                 new_fwhm = self.initial_fwhm
             elif model == "DS*G (A, \u03c3, \u03b3)":
@@ -1894,11 +1894,11 @@ class MyFrame(wx.Frame):
 
                 # For DS*G, adjust the Gaussian width with drag
                 new_sigma = max(current_sigma + delta_x * 0.5, 0.2)
-                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
 
                 # We can also slightly adjust gamma if desired, but keep skew unchanged
                 new_gamma = max(current_gamma + delta_x * 0.3, 0.1)
-                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
 
                 # Keep original FWHM reference
                 new_fwhm = self.initial_fwhm
@@ -1907,12 +1907,12 @@ class MyFrame(wx.Frame):
                 current_gamma = float(self.peak_params_grid.GetCellValue(row, 8))
                 # new_sigma = max(current_sigma + delta_x * 0.5, 0.2)
                 new_gamma = max(current_gamma + delta_x * 0.5, 0.2)
-                self.peak_params_grid.SetCellValue(row, 7, f"{current_sigma:.2f}")
-                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 7, f"{current_sigma:.3f}")
+                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
                 new_fwhm = self.initial_fwhm
             else:
                 new_fwhm = max(self.initial_fwhm + delta_x * 1, 0.3)
-                self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
+                self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.3f}")
 
             # Update FWHM in window.Data
             sheet_name = self.sheet_combobox.GetValue()
@@ -2203,12 +2203,12 @@ class MyFrame(wx.Frame):
                 new_sigma = max(current_sigma + delta, 0.2)  # Ensure minimum sigma
 
                 # Update sigma
-                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
 
                 # Get L/G ratio and recalculate gamma (W_l) based on it
                 lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
                 new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
-                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
 
                 # Update FWHM for consistency (optional)
                 # new_fwhm = 2.355 * new_sigma  # Gaussian FWHM approximation
@@ -2418,8 +2418,8 @@ class MyFrame(wx.Frame):
                     lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
                     new_sigma = max(current_sigma + delta, 0.4)
                     new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
-                    self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
-                    self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                    self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
+                    self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
                     if model == "Voigt (Area, L/G, \u03c3, S)":
                         skew = float(self.peak_params_grid.GetCellValue(row, 9))
                 elif model in ["DS (A, \u03c3, \u03b3)"]:
@@ -2430,7 +2430,7 @@ class MyFrame(wx.Frame):
                     new_sigma = max(current_sigma + delta, 0.4)
                     # gamma is independent in DS model, no need to recalculate
 
-                    self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+                    self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
                 elif model == "DS*G (A, \u03c3, \u03b3)":
                     current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                     current_gamma = float(self.peak_params_grid.GetCellValue(row, 8))
@@ -2438,15 +2438,15 @@ class MyFrame(wx.Frame):
 
                     # Adjust Gaussian width
                     new_sigma = max(current_sigma + delta, 0.2)
-                    self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+                    self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
 
                     # Can also adjust gamma slightly
                     new_gamma = max(current_gamma + delta * 0.5, 0.1)
-                    self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                    self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
                 elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
                     current_gamma = float(self.peak_params_grid.GetCellValue(row, 8))
                     new_gamma = max(current_gamma + delta, 0.2)
-                    self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+                    self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
                 else:
                     new_fwhm = max(current_fwhm + delta, 0.3)
                     self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
@@ -3507,18 +3507,18 @@ class MyFrame(wx.Frame):
                                 self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
                             elif col == 8:  # Gamma changed
                                 sigma = (fraction / 100) * gamma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
+                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
                             elif col == 9:
                                 pass
                         elif model in ["Voigt (Area, L/G, \u03c3)"]:
                             if col == 5: # L/G ratio changed
                                 sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                                 gamma = (fraction / 100) * sigma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                             elif col == 7:  # Sigma changed
                                 fraction = float(self.peak_params_grid.GetCellValue(row, 5))
                                 gamma = (fraction / 100) * sigma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                             elif col == 8:
                                 pass
                         elif model in ["DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
@@ -3536,24 +3536,24 @@ class MyFrame(wx.Frame):
                             elif col == 9:
                                 value = float(self.peak_params_grid.GetCellValue(row, 9))
                                 if value == 0:
-                                    skew = 0.1
-                                    self.peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+                                    skew = 0.0
+                                    self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
                         elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
                             if col == 5: # L/G ratio changed
                                 sigma = float(self.peak_params_grid.GetCellValue(row, 7))
                                 gamma = (fraction / 100) * sigma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                             elif col == 7:  # Sigma changed
                                 fraction = float(self.peak_params_grid.GetCellValue(row, 5))
                                 gamma = (fraction / 100) * sigma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                             elif col == 8:
                                 pass
                             elif col == 9:
                                 value = float(self.peak_params_grid.GetCellValue(row, 9))
                                 if value == 0:
                                     skew = 0.1
-                                    self.peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+                                    self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
                         elif model in ["LA (Area, \u03c3, \u03b3)"]:
                             if col == 5:  # L/G ratio changed
                                 pass
@@ -3562,7 +3562,7 @@ class MyFrame(wx.Frame):
                                 self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
                             elif col == 8:  # Gamma changed
                                 sigma = (fraction / 100) * gamma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
+                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
                             elif col == 9:
                                 pass
                             elif model in ["GL (Area)"]:
@@ -3743,9 +3743,9 @@ class MyFrame(wx.Frame):
 
                         # Update grid values with model-specific defaults
                         self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
-                        self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
-                        self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
-                        self.peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+                        self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
+                        self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
+                        self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
 
                         # Recalculate area with new model parameters
                         area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma, skew)
@@ -3805,11 +3805,11 @@ class MyFrame(wx.Frame):
                         if not self.peak_params_grid.GetCellValue(row, 6):
                             self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
                         if not self.peak_params_grid.GetCellValue(row, 7):
-                            self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
+                            self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
                         if not self.peak_params_grid.GetCellValue(row, 8):
-                            self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                            self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                         if not self.peak_params_grid.GetCellValue(row, 9):
-                            self.peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+                            self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
                         area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma,skew)
 
                         self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
@@ -3952,9 +3952,9 @@ class MyFrame(wx.Frame):
                     self.peak_params_grid.SetCellValue(row, 6, "ER! REFRESH PEAK")
                 # self.peak_params_grid.SetCellValue(row, 6, f"{float(peak_data['Area']):.2f}")
                 # self.peak_params_grid.SetCellValue(row, 6, f"{peak_data['Area']:.2f}")
-                self.peak_params_grid.SetCellValue(row, 7, f"{peak_data['Sigma']:.2f}")
-                self.peak_params_grid.SetCellValue(row, 8, f"{peak_data['Gamma']:.2f}")
-                self.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', 0.1):.2f}")
+                self.peak_params_grid.SetCellValue(row, 7, f"{peak_data['Sigma']:.3f}")
+                self.peak_params_grid.SetCellValue(row, 8, f"{peak_data['Gamma']:.3f}")
+                self.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', 0.1):.3f}")
                 if 'Constraints' in peak_data:
                     self.peak_params_grid.SetCellValue(row + 1, 2, str(peak_data['Constraints'].get('Position', '')))
                     self.peak_params_grid.SetCellValue(row + 1, 3, str(peak_data['Constraints'].get('Height', '')))

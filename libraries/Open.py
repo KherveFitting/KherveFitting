@@ -136,16 +136,7 @@ def update_recent_files(window, file_path):
     window.save_config()  # Call save_config directly on the window object
 
 
-def open_spe_file_dialog(window):
-    with wx.FileDialog(window, "Open SPE file", wildcard="PHI files (*.spe)|*.spe",
-                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
-        if fileDialog.ShowModal() == wx.ID_CANCEL:
-            return
-        file_path = fileDialog.GetPath()
-        open_spe_file(window, file_path)
-
-
-def open_spe_file2(window, file_path):
+def open_spe_file_olderPhi(window, file_path):
     try:
         from yadg.extractors.phi.spe import extract
         import openpyxl
@@ -219,135 +210,7 @@ def open_spe_file2(window, file_path):
         # wx.MessageBox(f"Error processing SPE file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
         window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
-
-def open_spe_file_BEST(window, file_path):
-    import numpy as np
-    import openpyxl
-    import re
-    import os
-    import struct
-
-    def extract_float_sequences(data, min_length=100):
-        sequences = []
-        positions = []
-
-        for offset in range(0, 512):
-            values = []
-            i = offset
-            while i + 4 <= len(data):
-                try:
-                    val = struct.unpack('<f', data[i:i + 4])[0]
-                    if 0 <= val < 1e6:
-                        values.append(val)
-                    else:
-                        if len(values) >= min_length:
-                            sequences.append(values)
-                            positions.append(i)
-                        values = []
-                    i += 4
-                except:
-                    i += 4
-            if len(values) >= min_length:
-                sequences.append(values)
-                positions.append(i)
-        return sequences, positions
-
-    try:
-        wb = openpyxl.Workbook()
-        wb.remove(wb.active)
-
-        with open(file_path, 'rb') as f:
-            content = f.read()
-
-        header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
-        if not header_match:
-            raise ValueError("Cannot find header section (SOFH...EOFH) in SPE file")
-
-        header_text = header_match.group(1).decode('utf-8', errors='ignore')
-        header_lines = [line.strip() for line in header_text.strip().split('\n')]
-
-        a, b = 31.826, 0.229
-        for line in header_lines:
-            if 'IntensityCalCoeff:' in line:
-                _, coeffs = line.split(':', 1)
-                a, b = map(float, coeffs.strip().split())
-                break
-
-        spectral_regions = []
-        region_count = 0
-        active_regions_section = False
-        for line in header_lines:
-            if line.startswith('NoSpectralReg:'):
-                region_count = int(line.split(':')[1].strip())
-            if line.startswith('SpectralRegDef:'):
-                parts = line.split()
-                is_active = int(parts[2])
-                if is_active == 1:
-                    spectral_regions.append({
-                        'index': int(parts[1]),
-                        'name': parts[3],
-                        'start_energy': float(parts[7]),
-                        'end_energy': float(parts[8]),
-                        'step_size': float(parts[5])
-                    })
-
-        data_bytes = content[content.find(b'EOFH') + 4:]
-
-        float_sequences, _ = extract_float_sequences(data_bytes)
-        if float_sequences:
-            intensity_values = max(float_sequences, key=lambda x: max(x))
-        else:
-            raise ValueError("No valid intensity data found in binary section")
-
-        for region in spectral_regions:
-            sheet_name = region['name']
-            ws = wb.create_sheet(title=sheet_name)
-            ws["A1"] = "BE"
-            ws["B1"] = "Corrected Data"
-            ws["C1"] = "Raw Data"
-            ws["D1"] = "Transmission"
-
-            start_energy = region['start_energy']
-            end_energy = region['end_energy']
-            num_points = len(intensity_values)
-
-            if start_energy != end_energy:
-                energy_values = np.linspace(start_energy, end_energy, num_points)
-            else:
-                energy_values = np.linspace(280, 300, num_points)
-
-            ke_values = 1486.6 - energy_values
-            transmission = a * np.power(ke_values, -b)
-            corrected_intensity = np.array(intensity_values) / transmission
-
-            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected_intensity, intensity_values, transmission), start=2):
-                ws[f"A{i}"] = float(e)
-                ws[f"B{i}"] = float(ci)
-                ws[f"C{i}"] = float(ri)
-                ws[f"D{i}"] = float(t)
-
-        exp_sheet = wb.create_sheet("Experimental description")
-        exp_sheet.column_dimensions['A'].width = 30
-        exp_sheet.column_dimensions['B'].width = 50
-        for i, line in enumerate(header_lines, start=1):
-            if ':' in line:
-                key, value = line.split(':', 1)
-                exp_sheet[f"A{i}"] = key.strip()
-                exp_sheet[f"B{i}"] = value.strip()
-
-        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
-        wb.save(excel_path)
-
-        from libraries.Open import open_xlsx_file
-        open_xlsx_file(window, excel_path)
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
-
-
-def open_spe_file(window, file_path):
+def open_spe_file_BEST_SURVEY(window, file_path):
     import numpy as np
     import openpyxl
     import re
@@ -478,6 +341,658 @@ def open_spe_file(window, file_path):
         window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
+def parse_spe_binary_data_B2(data_bytes, min_length=100, start_offset=0):
+    """Extract next valid intensity sequence from SPE binary data"""
+    import struct
+
+    print(f"\n🔍 Looking for sequence of at least {min_length} values from offset {start_offset}")
+
+    for offset in range(start_offset, len(data_bytes) - 4):
+        values = []
+        pos = offset
+
+        while pos + 4 <= len(data_bytes):
+            try:
+                val = struct.unpack('<f', data_bytes[pos:pos + 4])[0]
+                if 0 <= val < 100000 and val > 0.01:
+                    values.append(val)
+                else:
+                    break
+            except Exception as e:
+                print(f"  ❌ Unpacking failed at pos {pos}: {e}")
+                break
+            pos += 4
+
+        if len(values) >= min_length:
+            avg = sum(values) / len(values)
+            max_val = max(values)
+            min_val = min(values)
+            range_val = max_val - min_val
+            score = range_val * len(values)
+
+            if score > 1000:
+                print(f"✅ Found valid sequence at offset {offset}")
+                print(f"  ➤ Length: {len(values)} | Range: {min_val:.1f} – {max_val:.1f} | Avg: {avg:.1f}")
+                print(f"  ➤ First 3 values: {values[:3]}")
+                print(f"  ➤ Last  3 values: {values[-3:]}")
+                print(f"  ➤ Ending byte position: {pos}")
+                return values[:min_length], pos
+
+    print("❌ No valid intensity data found in this section")
+    return [], start_offset
+
+
+def open_spe_file_B2(window, file_path):
+    """Process a PHI SPE file and convert it to Excel format"""
+    import numpy as np
+    import openpyxl
+    import re
+    import os
+    import struct
+
+    try:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        print(f"\n=== Processing SPE file: {file_path} ===")
+        print(f"File size: {len(content)} bytes")
+
+        # Extract header
+        header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
+        if not header_match:
+            raise ValueError("Cannot find header section (SOFH...EOFH) in SPE file")
+
+        header_text = header_match.group(1).decode('utf-8', errors='ignore')
+        header_lines = [line.strip() for line in header_text.strip().split('\n')]
+        print(f"Header found: {len(header_lines)} lines")
+
+        # Extract intensity calibration coefficients
+        a, b = 31.826, 0.229  # Default values
+        for line in header_lines:
+            if 'IntensityCalCoeff:' in line:
+                _, coeffs = line.split(':', 1)
+                a, b = map(float, coeffs.strip().split())
+                print(f"Intensity calibration: a={a}, b={b}")
+                break
+
+        # Parse active regions and their parameters
+        active_regions = []
+        region_info = {}
+
+        for line in header_lines:
+            if line.startswith('SpectralRegDef:'):
+                parts = line.split()
+                if len(parts) >= 12 and int(parts[2]) == 1:  # Active region
+                    idx = int(parts[1])
+                    name = parts[3]
+                    if name == 'Su1s':
+                        name = 'Survey'
+
+                    point_count = int(parts[5])
+                    step_size = float(parts[6])
+                    start_energy = float(parts[7])
+                    end_energy = float(parts[8])
+
+                    region_info[idx] = {
+                        'name': name,
+                        'points': point_count,
+                        'step_size': step_size,
+                        'start_energy': start_energy,
+                        'end_energy': end_energy
+                    }
+                    active_regions.append(idx)
+                    print(f"Region {idx}: {name}, {point_count} points, {start_energy}-{end_energy} eV")
+
+        # Get binary data after EOFH
+        # After the header parsing section:
+        data_start = content.find(b'EOFH') + 4
+        binary_data = content[data_start:]
+        print(f"📊 Binary data section starts at byte {data_start}, size: {len(binary_data)} bytes")
+
+        # For more reliable data extraction, scan the entire binary section
+        for region in active_regions:
+            sheet_name = region['name']
+            points = region['points']
+            start_energy = region['start_energy']
+            end_energy = region['end_energy']
+
+            print(f"\n🎯 Processing region: {sheet_name} ({points} points)")
+
+            # Create sheet
+            ws = wb.create_sheet(title=sheet_name)
+            ws["A1"] = "BE"
+            ws["B1"] = "Corrected Data"
+            ws["C1"] = "Raw Data"
+            ws["D1"] = "Transmission"
+
+            # Find intensity values by scanning all possible offsets and scoring each sequence
+            best_sequence = None
+            best_score = 0
+            best_offset = 0
+
+            # Use a larger step size to speed up the scan, then refine
+            for base_offset in range(0, len(binary_data) - points * 4, 16):
+                try:
+                    values = []
+                    for i in range(points):
+                        if base_offset + i * 4 + 4 > len(binary_data):
+                            break
+                        val = struct.unpack('<f', binary_data[base_offset + i * 4:base_offset + i * 4 + 4])[0]
+                        if 0 <= val < 1e6:  # Reasonable intensity range
+                            values.append(val)
+                        else:
+                            break
+
+                    if len(values) == points:  # Found complete sequence
+                        # Score based on range and statistical properties
+                        max_val = max(values)
+                        range_val = max_val - min(values)
+                        score = range_val * (sum(1 for v in values if v > 1) / len(values))
+
+                        if score > best_score:
+                            best_score = score
+                            best_sequence = values
+                            best_offset = base_offset
+                            print(f"✅ Found candidate data at offset {base_offset} with score {score:.1f}")
+                except:
+                    continue
+
+            if best_sequence:
+                intensity_values = best_sequence
+                print(f"✅ Using data from offset {best_offset} (score: {best_score:.1f})")
+                print(f"   ➤ Range: {min(intensity_values):.1f} – {max(intensity_values):.1f}")
+            else:
+                print(f"❌ No valid data found for {sheet_name}, using placeholder values")
+                intensity_values = [1.0] * points
+
+            # Energy scale and transmission
+            energy_values = np.linspace(start_energy, end_energy, points)
+            ke_values = 1486.6 - energy_values
+            transmission = a * np.power(ke_values, -b)
+            # corrected = np.array(intensity_values) / transmission
+            corrected_intensity = np.array(intensity_values) / transmission
+
+            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected_intensity, intensity_values, transmission),
+                                               start=2):
+                ws[f"A{i}"] = float(e)
+                ws[f"B{i}"] = float(ci)
+                ws[f"C{i}"] = float(ri)
+                ws[f"D{i}"] = float(t)
+
+        # Add experimental description sheet
+        exp_sheet = wb.create_sheet("Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+        for i, line in enumerate(header_lines, start=1):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                exp_sheet[f"A{i}"] = key.strip()
+                exp_sheet[f"B{i}"] = value.strip()
+
+        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+        wb.save(excel_path)
+        print(f"Saved Excel file: {excel_path}")
+
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, excel_path)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
+
+def open_spe_file(window, file_path):
+    import numpy as np
+    import openpyxl
+    import re
+    import os
+    import struct
+
+    def parse_spe_binary_data(data_bytes, min_length=100, start_offset=0):
+        """Extract next valid intensity sequence from SPE binary data"""
+        import struct
+
+        print(f"🔍 Looking for sequence of at least {min_length} values from offset {start_offset}")
+
+        # For first region, do a thorough search for valid data
+        if start_offset <= 2:
+            # Known good starting positions based on observed patterns
+            # Adding offset 114 for survey scans with single regions
+            priority_offsets = [306, 2, 114, 310, 314]
+
+            # Try priority offsets first for the first region
+            for offset in priority_offsets:
+                if offset + 4 * min_length > len(data_bytes):
+                    continue
+
+                values = []
+                pos = offset
+
+                # Try to extract min_length values
+                for i in range(min_length):
+                    if pos + 4 > len(data_bytes):
+                        values = []
+                        break
+
+                    try:
+                        val = struct.unpack('<f', data_bytes[pos:pos + 4])[0]
+                        if 0 <= val < 10000 and (i > 0 or val > 0.01):  # Skip tiny first values
+                            values.append(val)
+                        else:
+                            values = []  # Reset on invalid values
+                            break
+                    except:
+                        values = []
+                        break
+                    pos += 4
+
+                if len(values) == min_length:
+                    print(f"✅ Found valid sequence at offset {offset}")
+                    print(f"  ➤ Length: {len(values)} | Range: {min(values):.1f} – {max(values):.1f}")
+                    print(f"  ➤ First 3 values: {values[:3]}")
+                    print(f"  ➤ Last  3 values: {values[-3:]}")
+                    print(f"  ➤ Ending byte position: {pos}")
+                    return values, pos
+
+        # For subsequent regions, use the next consecutive data
+        else:
+            values = []
+            pos = start_offset
+
+            # Try to extract min_length values from the exact starting position
+            for i in range(min_length):
+                if pos + 4 > len(data_bytes):
+                    break
+
+                try:
+                    val = struct.unpack('<f', data_bytes[pos:pos + 4])[0]
+                    if 0 <= val < 10000:  # Reasonable values
+                        values.append(val)
+                    else:
+                        values = []
+                        break
+                except:
+                    values = []
+                    break
+                pos += 4
+
+            if len(values) == min_length:
+                print(f"✅ Found consecutive sequence at offset {start_offset}")
+                print(f"  ➤ Length: {len(values)} | Range: {min(values):.1f} – {max(values):.1f}")
+                print(f"  ➤ First 3 values: {values[:3]}")
+                print(f"  ➤ Last  3 values: {values[-3:]}")
+                print(f"  ➤ Ending byte position: {pos}")
+                return values, pos
+
+        # Fall back to scanning the entire data block if needed
+        print("🛟 Fallback: scanning entire data block")
+        for offset in range(2, len(data_bytes) - 4 * min_length, 4):
+            values = []
+            pos = offset
+
+            for i in range(min_length):
+                if pos + 4 > len(data_bytes):
+                    break
+
+                try:
+                    val = struct.unpack('<f', data_bytes[pos:pos + 4])[0]
+                    if 0 <= val < 10000:
+                        values.append(val)
+                    else:
+                        values = []
+                        break
+                except:
+                    values = []
+                    break
+                pos += 4
+
+            if len(values) == min_length:
+                print(f"✅ Found sequence at offset {offset} using fallback")
+                print(f"  ➤ Length: {len(values)} | Range: {min(values):.1f} – {max(values):.1f}")
+                print(f"  ➤ First 3 values: {values[:3]}")
+                print(f"  ➤ Last  3 values: {values[-3:]}")
+                print(f"  ➤ Ending byte position: {pos}")
+                return values, pos
+
+        print("❌ No valid intensity data found")
+        return [], start_offset
+
+    try:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        print(f"\n== Processing SPE file: {file_path} ==")
+        print(f"📦 File size: {len(content)} bytes")
+
+        # ————— Parse header —————
+        header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
+        if not header_match:
+            raise ValueError("❗ Cannot find header section (SOFH...EOFH) in SPE file")
+
+        header_text = header_match.group(1).decode('utf-8', errors='ignore')
+        header_lines = [line.strip() for line in header_text.strip().split('\n')]
+        print(f"📄 Header found: {len(header_lines)} lines")
+
+        a, b = 31.826, 0.229  # Default
+        for line in header_lines:
+            if 'IntensityCalCoeff:' in line:
+                _, coeffs = line.split(':', 1)
+                a, b = map(float, coeffs.strip().split())
+                print(f"🔧 Intensity calibration: a={a}, b={b}")
+                break
+
+        region_info = {}
+        active_regions = []
+
+        for line in header_lines:
+            if line.startswith('SpectralRegDef:'):
+                parts = line.split()
+                if len(parts) >= 12 and int(parts[2]) == 1:
+                    idx = int(parts[1])
+                    name = parts[3]
+                    if name == 'Su1s':
+                        name = 'Survey'
+                    region_info[idx] = {
+                        'name': name,
+                        'points': int(parts[5]),
+                        'step_size': float(parts[6]),
+                        'start_energy': float(parts[7]),
+                        'end_energy': float(parts[8])
+                    }
+                    active_regions.append(idx)
+                    print(f"🔬 Region {idx}: {name}, {region_info[idx]['points']} pts, "
+                          f"{region_info[idx]['start_energy']}-{region_info[idx]['end_energy']} eV")
+
+        data_start = content.find(b'EOFH') + 4
+        data_bytes = content[data_start:]
+        print(f"📊 Binary data section starts at byte {data_start}, size: {len(data_bytes)} bytes")
+
+        # ————— Extract intensity data —————
+        intensity_data = {}
+        data_offset = 0
+
+        for idx in active_regions:
+            info = region_info[idx]
+            name, points = info['name'], info['points']
+            print(f"\n🎯 Trying to find data for {name} ({points} points)")
+
+            sequence, new_offset = parse_spe_binary_data(data_bytes, points, start_offset=data_offset)
+
+            if sequence and len(sequence) >= points:
+                intensity_data[idx] = sequence
+                data_offset = new_offset
+                print(f"✅ Assigned {points} points for {name}")
+            else:
+                print(f"🛟 Fallback: scanning entire data block for orphaned {name}")
+                sequence, _ = parse_spe_binary_data(data_bytes, points, start_offset=0)
+                if sequence and len(sequence) >= points:
+                    intensity_data[idx] = sequence
+                    print(f"⚠️  Found orphaned region for {name} using fallback scan")
+                else:
+                    print(f"❌ No valid data found for {name}, using placeholder values")
+                    intensity_data[idx] = [1.0] * points
+
+        # ————— Write to Excel —————
+        for idx in active_regions:
+            info = region_info[idx]
+            sheet_name = info['name']
+            start_energy = info['start_energy']
+            end_energy = info['end_energy']
+            intensity_values = intensity_data[idx]
+
+            print(f"\n📄 Creating sheet for {sheet_name}")
+            ws = wb.create_sheet(title=sheet_name)
+            ws["A1"] = "BE"
+            ws["B1"] = "Corrected Data"
+            ws["C1"] = "Raw Data"
+            ws["D1"] = "Transmission"
+
+            energy_values = np.linspace(start_energy, end_energy, len(intensity_values))
+            ke_values = 1486.6 - energy_values
+            transmission = a * np.power(ke_values, -b)
+            corrected = np.array(intensity_values) / transmission
+
+            print(f"⚙️  Using {len(intensity_values)} data points for {sheet_name}")
+            print(f"   ➤ Energy scale: {start_energy} to {end_energy}")
+            print(f"   ➤ First 5 energies: {energy_values[:5]}")
+            print(f"   ➤ Last 5 energies: {energy_values[-5:]}")
+
+            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected, intensity_values, transmission), start=2):
+                ws[f"A{i}"] = float(e)
+                ws[f"B{i}"] = float(ci)
+                ws[f"C{i}"] = float(ri)
+                ws[f"D{i}"] = float(t)
+
+        # ————— Experimental description sheet —————
+        exp_sheet = wb.create_sheet("Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+        for i, line in enumerate(header_lines, start=1):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                exp_sheet[f"A{i}"] = key.strip()
+                exp_sheet[f"B{i}"] = value.strip()
+
+        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+        wb.save(excel_path)
+        print(f"💾 Saved Excel file: {excel_path}")
+
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, excel_path)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
+
+
+def open_spe_file_NONONON(window, file_path):
+    import numpy as np
+    import openpyxl
+    import re
+    import os
+    import struct
+
+    try:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        print(f"\n== Processing SPE file: {file_path} ==")
+        print(f"📦 File size: {len(content)} bytes")
+
+        # ————— Parse header —————
+        header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
+        if not header_match:
+            raise ValueError("❗ Cannot find header section (SOFH...EOFH) in SPE file")
+
+        header_text = header_match.group(1).decode('utf-8', errors='ignore')
+        header_lines = [line.strip() for line in header_text.strip().split('\n')]
+        print(f"📄 Header found: {len(header_lines)} lines")
+
+        # Extract intensity calibration coefficients
+        a, b = 31.826, 0.229  # Default values
+        for line in header_lines:
+            if 'IntensityCalCoeff:' in line:
+                _, coeffs = line.split(':', 1)
+                a, b = map(float, coeffs.strip().split())
+                print(f"🔧 Intensity calibration: a={a}, b={b}")
+                break
+
+        # Parse active regions
+        active_regions = []
+        for line in header_lines:
+            if line.startswith('SpectralRegDef:'):
+                parts = line.split()
+                if len(parts) >= 12 and int(parts[2]) == 1:  # Active region
+                    region_name = parts[3]
+                    if region_name == 'Su1s':
+                        region_name = 'Survey'
+
+                    active_regions.append({
+                        'index': int(parts[1]),
+                        'name': region_name,
+                        'points': int(parts[5]),
+                        'step': float(parts[6]),
+                        'start_energy': float(parts[7]),
+                        'end_energy': float(parts[8])
+                    })
+                    print(f"🔬 Region {len(active_regions)}: {region_name}, {int(parts[5])} pts, "
+                          f"{float(parts[7])}-{float(parts[8])} eV")
+
+        # ————— Extract binary data —————
+        data_start = content.find(b'EOFH') + 4
+        binary_data = content[data_start:]
+        print(f"📊 Binary data section starts at byte {data_start}, size: {len(binary_data)} bytes")
+
+        # Binary header is usually 24 bytes (6 integers)
+        header_size = 24
+
+        # Process each region in order
+        for region in active_regions:
+            sheet_name = region['name']
+            points = region['points']
+            start_energy = region['start_energy']
+            end_energy = region['end_energy']
+
+            print(f"\n🎯 Processing region: {sheet_name} ({points} points)")
+
+            # Create sheet
+            ws = wb.create_sheet(title=sheet_name)
+            ws["A1"] = "BE"
+            ws["B1"] = "Corrected Data"
+            ws["C1"] = "Raw Data"
+            ws["D1"] = "Transmission"
+
+            # Calculate offset for this region's data
+            # First binary header (24 bytes) followed by floats (4 bytes each)
+            # Each region has its own binary data block
+            region_index = region['index'] - 1  # 0-based index
+
+            # Try different known offsets where data might start
+            offsets_to_try = [
+                header_size,  # Standard offset
+                header_size + region_index * 4,  # Simple sequential
+                header_size + region_index * points * 4  # Full blocks
+            ]
+
+            # For more complex files with multiple regions
+            if region_index > 0:
+                # Add additional potential offsets
+                previous_points_sum = sum(r['points'] for r in active_regions[:region_index])
+                offsets_to_try.extend([
+                    header_size + previous_points_sum * 4,
+                    header_size + (region_index * header_size) + (previous_points_sum * 4)
+                ])
+
+            # Try each offset until we find valid data
+            intensity_values = None
+            used_offset = None
+
+            for offset in offsets_to_try:
+                if offset + (points * 4) > len(binary_data):
+                    continue
+
+                # Try to read data block
+                try:
+                    test_values = []
+                    for i in range(points):
+                        pos = offset + (i * 4)
+                        value = struct.unpack('<f', binary_data[pos:pos + 4])[0]
+                        # Only accept reasonable intensity values
+                        if 0 <= value < 100000:
+                            test_values.append(value)
+                        else:
+                            test_values = []
+                            break
+
+                    # If we got enough valid values, use this offset
+                    if len(test_values) == points:
+                        intensity_values = test_values
+                        used_offset = offset
+                        print(f"✅ Found valid data at offset {offset}")
+                        print(f"   ➤ Range: {min(intensity_values):.1f} – {max(intensity_values):.1f}")
+                        break
+                except Exception as e:
+                    pass
+
+            # If we didn't find valid data at any offset, do a more thorough scan
+            if intensity_values is None:
+                print(f"⚠️ Could not find data at standard offsets, performing full scan")
+                for offset in range(0, len(binary_data) - (points * 4), 4):
+                    try:
+                        test_values = []
+                        for i in range(points):
+                            pos = offset + (i * 4)
+                            value = struct.unpack('<f', binary_data[pos:pos + 4])[0]
+                            if 0 <= value < 100000:
+                                test_values.append(value)
+                            else:
+                                test_values = []
+                                break
+
+                        if len(test_values) == points:
+                            max_val = max(test_values)
+                            if max_val > 10:  # Must have some significant counts
+                                intensity_values = test_values
+                                used_offset = offset
+                                print(f"✅ Found valid data in full scan at offset {offset}")
+                                print(f"   ➤ Range: {min(intensity_values):.1f} – {max(intensity_values):.1f}")
+                                break
+                    except:
+                        pass
+
+            # If we still didn't find data, use placeholder values
+            if intensity_values is None:
+                print(f"❌ No valid data found for {sheet_name}, using placeholder values")
+                intensity_values = [1.0] * points
+
+            # Energy scale and transmission function
+            energy_values = np.linspace(start_energy, end_energy, points)
+            ke_values = 1486.6 - energy_values
+            transmission = a * np.power(ke_values, -b)
+            corrected = np.array(intensity_values) / transmission
+
+            # Add data to sheet
+            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected, intensity_values, transmission), start=2):
+                ws[f"A{i}"] = float(e)
+                ws[f"B{i}"] = float(ci)
+                ws[f"C{i}"] = float(ri)
+                ws[f"D{i}"] = float(t)
+
+            print(f"💾 Added {points} data points to sheet {sheet_name}")
+
+        # ————— Experimental description sheet —————
+        exp_sheet = wb.create_sheet("Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+
+        for i, line in enumerate(header_lines, start=1):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                exp_sheet[f"A{i}"] = key.strip()
+                exp_sheet[f"B{i}"] = value.strip()
+
+        # Save file and open in the application
+        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+        wb.save(excel_path)
+        print(f"💾 Saved Excel file: {excel_path}")
+
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, excel_path)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
 

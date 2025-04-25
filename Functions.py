@@ -895,6 +895,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = result.params[f'{prefix}gamma'].value
                         skew = result.params[f'{prefix}skew'].value
                         sigma = result.params[f'{prefix}sigma'].value
+                        fraction = gamma / (sigma + gamma) * 100
 
                         # Calculate height numerically
                         x_test = np.linspace(center - 10, center + 10, 1000)
@@ -1038,7 +1039,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
                         sigma = round(float(sigma * 1), 3)
                         gamma = round(float(gamma * 1), 3)
-                        fraction = round(0.2 * 100, 3)
+                        fraction = round(float(fraction), 3)
                         area = round(float(area), 2)
                     else:
                         sigma = round(float(sigma * 2.355), 2)
@@ -1057,16 +1058,16 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                              "ExpGauss.(Area, \u03c3, \u03b3)", "LA (Area, \u03c3, \u03b3)",
                                              "LA (Area, \u03c3/\u03b3, \u03b3)",
                                              "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
-                        peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
-                        peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
+                        peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
+                        peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                         if peak_model_choice in ["Voigt (Area, L/G, \u03c3, S)",
                                                  "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
-                            peak_params_grid.SetCellValue(row, 9, f"{skew:.2f}")
+                            peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
 
                     elif peak_model_choice in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
-                        peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
-                        peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")
-                        peak_params_grid.SetCellValue(row, 9, f"{fwhm_g:.2f}")
+                        peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
+                        peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
+                        peak_params_grid.SetCellValue(row, 9, f"{fwhm_g:.3f}")
                     elif peak_model_choice == "D-parameter":
                         sigma = round(float(sigma * 1), 2)
                         gamma = round(float(gamma * 1), 2)
