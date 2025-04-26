@@ -364,7 +364,7 @@ def create_menu(window):
     import_kal_item = import_menu.Append(wx.NewId(), "Import Kratos Data file (.kal)")
     window.Bind(wx.EVT_MENU, lambda event: open_kal_file_dialog(window), import_kal_item)
 
-    import_spe_item = import_menu.Append(wx.NewId(), "Import Phi Data file (.spe)")
+    import_spe_item = import_menu.Append(wx.NewId(), "Import Phi Data file (.spe) -Beta-")
     window.Bind(wx.EVT_MENU, lambda event: open_spe_file_dialog(window), import_spe_item)
 
     import_mrs_item = import_menu.Append(wx.NewId(), "Import MRS Data file (.mrs)")
@@ -466,11 +466,40 @@ def create_menu(window):
     manual_item = help_menu.Append(wx.NewId(), "Open Full Manual\tCtrl+M")
     window.Bind(wx.EVT_MENU, lambda event: open_manual(window), manual_item)
 
-    yt_videos_item = help_menu.Append(wx.NewId(), "KherveFitting Videos")
+
+
+    # Create a submenu for Knowledge links
+    knowledge_menu = wx.Menu()
+
+    yt_videos_item = knowledge_menu.Append(wx.NewId(), "KherveFitting Videos")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
                 yt_videos_item)
 
-    resubmit_form_item = help_menu.Append(wx.NewId(), "Submit Registration Form")
+    # Add items to the Knowledge submenu
+    thermo_item = knowledge_menu.Append(wx.NewId(), "Thermo Knowledge")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.thermofisher.com/uk/en/home/materials-science/learning-center/periodic-table.html"),
+                thermo_item)
+
+    biesinger_item = knowledge_menu.Append(wx.NewId(), "XPSfitting by M. Biesinger")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.xpsfitting.com/"),
+                biesinger_item)
+
+    nist_item = knowledge_menu.Append(wx.NewId(), "NIST XPS")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://srdata.nist.gov/xps"),
+                nist_item)
+
+    harwell_item = knowledge_menu.Append(wx.NewId(), "Harwell XPS Guru")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.harwellxps.guru/"),
+                harwell_item)
+
+    # Add the Knowledge submenu to the Help menu
+    help_menu.AppendSubMenu(knowledge_menu, "Knowledge")
+
+    resubmit_form_item = help_menu.Append(wx.NewId(), "Registration Form")
     window.Bind(wx.EVT_MENU, lambda event: launch_registration_form(window), resubmit_form_item)
 
     report_bug_item = help_menu.Append(wx.NewId(), "Report Bug")

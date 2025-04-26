@@ -27,7 +27,7 @@ def check_first_time_use(frame):
             show_registration_form()
     elif times_opened == 1:
         # Show manual dialog on second run
-        dlg = wx.MessageDialog(frame,  # Use frame as parent instead of None
+        dlg = wx.MessageDialog(frame,
                               "Would you like to open the manual to the Getting Started section?",
                               "Welcome to KherveFitting",
                               wx.YES_NO | wx.ICON_QUESTION)
@@ -54,12 +54,11 @@ def check_first_time_use(frame):
 
         dlg.Destroy()
 
-    # Update times_opened count
-    config['times_opened'] = times_opened + 1
+    # Update times_opened in the frame's attribute
+    frame.times_opened = times_opened + 1
 
     # Save config
-    with open('config.json', 'w') as f:
-        json.dump(config, f, indent=2)
+    frame.save_config()
 
 def _clear_peak_params_grid(window):
     num_rows = window.peak_params_grid.GetNumberRows()

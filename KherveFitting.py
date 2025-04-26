@@ -5072,15 +5072,16 @@ if __name__ == '__main__':
     if splash:
         splash.Destroy()
 
-    check_first_time_use(frame)
-
     # Open and close preference window to ensure consistent styling
     def apply_preferences(window):
         pref_window = PreferenceWindow(window)
         pref_window.OnSave(None)  # Save settings without user interaction
 
-    # Apply preferences right after checking first time use
+    # Apply preferences right before checking first time use
     wx.CallAfter(apply_preferences, frame)
+
+    check_first_time_use(frame)
+
 
     updater = UpdateChecker()
     updater.check_update_delayed(frame)

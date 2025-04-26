@@ -211,7 +211,19 @@ class RegistrationForm(wx.Frame):
 
     def save_registration_state(self):
         """Save registration state to config file"""
-        config_file = 'config.json'
+        # Use the same config file as the main application
+        import os
+        import sys
+
+        # Get the application root directory
+        if getattr(sys, 'frozen', False):
+            # If running as executable
+            app_dir = os.path.dirname(sys.executable)
+        else:
+            # If running as script
+            app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        config_file = os.path.join(app_dir, 'config.json')
         config = {}
 
         if os.path.exists(config_file):
