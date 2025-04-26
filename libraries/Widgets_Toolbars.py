@@ -19,6 +19,7 @@ from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_shee
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, PlotModWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
+from libraries.MarketResearch import check_registration_needed, launch_registration_form
 from libraries.Help import show_libraries_used, show_version_log, report_bug
 from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots, save_results_table, open_avg_file,
                        import_multiple_avg_files, create_plot_script_from_excel, on_save_plot, \
@@ -468,6 +469,9 @@ def create_menu(window):
     yt_videos_item = help_menu.Append(wx.NewId(), "KherveFitting Videos")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
                 yt_videos_item)
+
+    resubmit_form_item = help_menu.Append(wx.NewId(), "Submit Registration Form")
+    window.Bind(wx.EVT_MENU, lambda event: launch_registration_form(window), resubmit_form_item)
 
     report_bug_item = help_menu.Append(wx.NewId(), "Report Bug")
     window.Bind(wx.EVT_MENU, lambda event: report_bug(window), report_bug_item)
