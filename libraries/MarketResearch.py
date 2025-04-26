@@ -50,7 +50,7 @@ USAGES = ["Multiple times in a day", "Daily", "Weekly", "Monthly", "Yearly", "Ra
 
 class RegistrationForm(wx.Frame):
     def __init__(self):
-        super().__init__(parent=None, title="KherveFitting Registration Form", size=(550, 650))
+        super().__init__(parent=None, title="KherveFitting Registration Form", size=(550, 650), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
         panel = wx.Panel(self)
 
         vbox = wx.BoxSizer(wx.VERTICAL)
