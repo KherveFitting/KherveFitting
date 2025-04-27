@@ -1154,37 +1154,48 @@
       "Fitting": {
         "Peaks": {
           "Pt4f7/2 p1": {
-            "Position": 71.15,
-            "Height": 5356.0,
-            "FWHM": 0.8,
-            "L/G": 20.0,
-            "Area": 2590.54,
-            "Sigma": 0.5,
-            "Gamma": -0.06,
-            "Skew": 0.99,
-            "Fitting Model": "DS (A, \u03c3, \u03b3)",
+            "Position": 71.11,
+            "Height": 5382.91,
+            "FWHM": 0.94,
+            "L/G": 32.8,
+            "Area": 8632.0,
+            "Sigma": 0.54,
+            "Gamma": 0.26,
+            "Skew": 0.1,
+            "Fitting Model": "DS*G (A, Wg, Wl, S)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 61.99,
+            "Bkg High": 89.99,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
             "Constraints": {
               "Position": "61.99,89.99",
               "Height": "1:1e7",
               "FWHM": "0.3:3.5",
-              "L/G": "2:80",
+              "L/G": "Fixed",
               "Area": "1:1e7",
-              "Sigma": "0.3:0.6",
-              "Gamma": "-0.2:0.2",
-              "Skew": "0.01:1"
+              "Sigma": "0.3:1.5",
+              "Gamma": "0.1:1.5",
+              "Skew": "0:0.2"
             },
-            "fwhm_g": 0.99
+            "Name": "Pt4f7/2 p1",
+            "fwhm_g": 0.1
           },
           "Pt4f5/2_p2": {
-            "Position": 74.45,
-            "Height": 3777.64,
-            "FWHM": 0.8,
-            "L/G": 20.0,
-            "Area": 1819.95,
-            "Sigma": 0.5,
-            "Gamma": -0.06,
-            "Skew": 0.99,
-            "Fitting Model": "DS (A, \u03c3, \u03b3)",
+            "Position": 74.43,
+            "Height": 3979.18,
+            "FWHM": 0.94,
+            "L/G": 32.8,
+            "Area": 6381.0,
+            "Sigma": 0.54,
+            "Gamma": 0.26,
+            "Skew": 0.1,
+            "Fitting Model": "DS*G (A, Wg, Wl, S)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 61.99,
+            "Bkg High": 89.99,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
             "Constraints": {
               "Position": "A+3.3#0.2",
               "Height": "A*0.75#0.05",
@@ -1195,10 +1206,11 @@
               "Gamma": "A*1",
               "Skew": "A*1"
             },
-            "fwhm_g": 0.99
+            "Name": "Pt4f5/2_p2",
+            "fwhm_g": 0.1
           }
         },
-        "Model": "GL (Area)"
+        "Model": "DS*G (A, Wg, Wl, S)"
       }
     },
     "Pt4f1": {
@@ -2977,9 +2989,6 @@
         "Model": "LA (Area, \u03c3, \u03b3)"
       }
     }
-  },
-  "Results": {
-    "Peak": {}
   },
   "SampleNames": {},
   "BEcorrections": {

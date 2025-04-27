@@ -535,7 +535,7 @@ class PeakFunctions:
         Calculate the height of a Doniach-Sunjic profile.
         """
         model = lmfit.models.DoniachModel()
-        params = model.make_params(amplitude=amplitude, center=0, sigma=sigma, gamma=gamma, asymmetry=skew)
+        params = model.make_params(amplitude=amplitude, center=0, sigma=gamma, gamma=skew, asymmetry=sigma)
         height = model.eval(params, x=0)
         return height
 
@@ -545,8 +545,8 @@ class PeakFunctions:
         Convert height to area for a Doniach-Sunjic profile.
         """
         model = lmfit.models.DoniachModel()
-        x = np.linspace(-10 * sigma, 10 * sigma, 1000)
-        params = model.make_params(center=0, sigma=sigma, gamma=gamma, asymmetry=skew, amplitude=1)
+        x = np.linspace(-10 * gamma, 10 * gamma, 1000)
+        params = model.make_params(center=0, sigma=gamma, gamma=skew, asymmetry=sigma, amplitude=1)
         y = model.eval(params, x=x)
         max_y = np.max(y)
         amplitude = height / max_y
@@ -565,8 +565,8 @@ class PeakFunctions:
         area = float(area)
 
         # Calculate the area of a unit-amplitude peak
-        x_wide = np.linspace(-20 * sigma, 20 * sigma + 40 * sigma * skew, 2000)
-        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, gamma=gamma, amplitude=1.0)
+        x_wide = np.linspace(-20 * gamma, 20 * gamma + 40 * gamma * sigma, 2000)
+        params = model.make_params(center=0, sigma=gamma, asymmetry=sigma, gamma=skew, amplitude=1.0)
         y = model.eval(params, x=x_wide)
 
         # Calculate area of unit-amplitude peak
@@ -583,12 +583,12 @@ class PeakFunctions:
 
         # First, find amplitude that gives desired height
         x_test = np.array([0])  # Just evaluate at center
-        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, amplitude=1)
+        params = model.make_params(center=0, sigma=gamma, asymmetry=sigma, amplitude=1, gamma=skew)
         max_y = model.eval(params, x=x_test)[0]
         amplitude = height / max_y
 
         # Now calculate the area with this amplitude
-        x_wide = np.linspace(-20 * sigma, 20 * sigma + 40 * sigma * skew, 2000)
+        x_wide = np.linspace(-20 * gamma, 20 * gamma + 40 * gamma * sigma, 2000)
         y = model.eval(params, x=x_wide)
         y = y * amplitude  # Scale by our calculated amplitude
 
@@ -597,45 +597,22 @@ class PeakFunctions:
 
         return area  # Return the actual integrated area
 
-    @staticmethod
-    def doniach_sunjic_area_to_height_OLD(area, sigma, gamma, skew):
-        model = lmfit.models.DoniachModel()
-
-        # First, create a peak with known amplitude and get its height at center
-        test_amplitude = 1.0
-        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, gamma=gamma, amplitude=test_amplitude)
-
-        # Get height at center
-        center_height = model.eval(params, x=np.array([0]))[0]
-
-        # Get area of this test peak
-        x_wide = np.linspace(-20 * sigma, 20 * sigma + 40 * sigma * skew, 2000)
-        y_test = model.eval(params, x=x_wide)
-        test_area = np.trapz(y_test, x_wide)
-
-        # Scale factor: area per unit height
-        area_per_unit_height = test_area / center_height
-
-        # Calculate required height for desired area
-        height = float(area) / float(area_per_unit_height) if area_per_unit_height != 0 else 0
-
-        return height
 
     @staticmethod
     def doniach_sunjic_area_to_height(area, sigma, gamma, skew):
         """Convert area to height for a Doniach-Sunjic profile using a two-step approach."""
-        if sigma <= 0 or area <= 0:
+        if gamma <= 0 or area <= 0:
             return 0
 
         model = lmfit.models.DoniachModel()
 
         # Step 1: Calculate amplitude that gives desired area
         # Use wider x-range that adapts to skew parameter
-        x_range = max(20 * sigma, 5 * sigma * (1 + 5 * abs(skew)))
-        x_wide = np.linspace(-x_range, x_range + 2 * x_range * skew, 2000)
+        x_range = max(20 * gamma, 5 * gamma * (1 + 5 * abs(sigma)))
+        x_wide = np.linspace(-x_range, x_range + 2 * x_range * sigma, 2000)
 
         # Get area for a unit amplitude peak
-        params = model.make_params(center=0, sigma=sigma, asymmetry=skew, gamma=gamma, amplitude=1.0)
+        params = model.make_params(center=0, sigma=gamma, asymmetry=sigma, gamma=skew, amplitude=1.0)
         y_unit = model.eval(params, x=x_wide)
         unit_area = np.trapz(y_unit, x_wide)
 
@@ -669,9 +646,9 @@ class PeakFunctions:
             params = peak_model.make_params(center=position, amplitude=area, sigma=sigma / 2.355, gamma=gamma / 2,
                                             skew=skew)
             y_values = peak_model.eval(params, x=x_high_res)
-        elif model == "DS (A, \u03c3, \u03b3)":
+        elif model == "DS (A, Wl, S)":
             peak_model = lmfit.models.DoniachModel()
-            params = peak_model.make_params(center=position, amplitude=area, sigma=sigma, gamma=gamma, asymmetry=skew)
+            params = peak_model.make_params(center=position, amplitude=area, sigma=gamma, gamma=skew, asymmetry=sigma)
             y_values = peak_model.eval(params, x=x_high_res)
         elif model == "ExpGauss.(Area, \u03c3, \u03b3)":
             peak_model = lmfit.models.ExponentialGaussianModel()
@@ -760,7 +737,6 @@ class PeakFunctions:
             return np.exp(-4 * np.log(2) * (x / fwhm) ** 2)
 
         # Create high-resolution x array centered at 0
-        x_range = max(x.max() - x.min(), 4 * (gamma + sigma))
         x_high_res = np.linspace(-x_range / 2, x_range / 2, len(x) * 4)
 
         # Calculate DS and Gaussian

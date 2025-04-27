@@ -280,15 +280,15 @@ class PlotManager:
             gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
             skew =  float(window.peak_params_grid.GetCellValue(row, 9))
             params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
-        elif fitting_model == "DS (A, \u03c3, \u03b3)":
+        elif fitting_model == "DS (A, Wl, S)":
             peak_model = lmfit.models.DoniachModel()
             height = float(window.peak_params_grid.GetCellValue(row, 3))
             sigma = float(window.peak_params_grid.GetCellValue(row, 7))
             gamma = float(window.peak_params_grid.GetCellValue(row, 8))
             skew = float(window.peak_params_grid.GetCellValue(row, 9))
             amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
-            params = peak_model.make_params(center=x, amplitude=amplitude, sigma=sigma, gamma=gamma, asymmetry=skew)
-        elif fitting_model == "DS*G (A, \u03c3, \u03b3)":
+            params = peak_model.make_params(center=x, amplitude=amplitude, sigma=gamma, gamma=skew, asymmetry=sigma)
+        elif fitting_model == "DS*G (A, Wg, Wl, S)":
             peak_model = lmfit.Model(PeakFunctions.DS_G)
             amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
             sigma = float(window.peak_params_grid.GetCellValue(row, 7))
@@ -1217,16 +1217,16 @@ class PlotManager:
                 gamma = float(window.peak_params_grid.GetCellValue(row, 8)) / 2
                 amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
                 params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
-            elif fitting_model == "DS (A, \u03c3, \u03b3)":
+            elif fitting_model == "DS (A, Wl, S)":
                 peak_model = lmfit.models.DoniachModel()
                 height = float(window.peak_params_grid.GetCellValue(row, 3))
                 sigma = float(window.peak_params_grid.GetCellValue(row, 7))
                 gamma = float(window.peak_params_grid.GetCellValue(row, 8))
                 skew = float(window.peak_params_grid.GetCellValue(row, 9))
                 amplitude = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
-                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma,
-                                                asymmetry=skew)
-            elif fitting_model == "DS*G (A, \u03c3, \u03b3)":
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=gamma, gamma=skew,
+                                                asymmetry=sigma)
+            elif fitting_model == "DS*G (A, Wg, Wl, S)":
                 peak_model = lmfit.Model(PeakFunctions.DS_G)
                 amplitude = float(window.peak_params_grid.GetCellValue(row, 6))
                 sigma = float(window.peak_params_grid.GetCellValue(row, 7))

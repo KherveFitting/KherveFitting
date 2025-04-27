@@ -462,7 +462,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     params.add(f'{prefix}skew', value=skew, min=skew_min, max=skew_max, vary=skew_vary)#, brute_step)=skew * 0.001)
                     params.add(f'{prefix}amplitude', expr=f'{prefix}area')
 
-                elif peak_model_choice == "DS (A, \u03c3, \u03b3)":
+                elif peak_model_choice == "DS (A, Wl, S)":
                     try:
                         peak_model = lmfit.models.DoniachModel()
                         height = float(window.peak_params_grid.GetCellValue(row, 3))
@@ -500,14 +500,14 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     # print(f'Area min max vary: {area_min}, {area_max},  {area_vary}')
 
                     # Make sure skew is within reasonable bounds to avoid numerical issues
-                    skew = max(0.01, min(skew, 0.99))
-                    skew_min = max(0.01, skew_min)
+                    skew = max(0.0, min(skew, 0.99))
+                    skew_min = max(0.0, skew_min)
                     skew_max = min(0.99, skew_max)
 
                     # After evaluating constraints for gamma
-                    if gamma_min == gamma_max:
-                        gamma_min = max(0, gamma_min - 0.0001)
-                        gamma_max += 0.0001
+                    if skew_min == skew_max:
+                        skew_min = max(0, skew_min - 0.0001)
+                        skew_max += 0.0001
 
                     # Special case for amplitude as it is not area
                     amplitude_min = PeakFunctions.doniach_sunjic_area_to_amplitude(area_min, sigma, gamma, skew)
@@ -519,12 +519,13 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                     params.add(f'{prefix}amplitude', value=amplitude, min=amplitude_min, max=amplitude_max, vary=amplitude_vary)
                     params.add(f'{prefix}center', value=center, min=center_min, max=center_max, vary=center_vary)
-                    params.add(f'{prefix}sigma', value=sigma, min=sigma_min, max=sigma_max, vary=sigma_vary)
-                    params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=gamma_vary)
+                    # In DS model, sigma is now gamma(Wl) and gamma is skew
+                    params.add(f'{prefix}sigma', value=gamma, min=gamma_min, max=gamma_max, vary=gamma_vary)
+                    params.add(f'{prefix}gamma', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
                     # params.add(f'{prefix}asymmetry', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
                     params.add(f'{prefix}asymmetry', value=0, min=-0.001, max=0.001, vary=0)
 
-                elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                elif peak_model_choice == "DS*G (A, Wg, Wl, S)":
                     peak_model = lmfit.Model(PeakFunctions.DS_G, prefix=prefix)
                     try:
                         amplitude = float(peak_params_grid.GetCellValue(row, 6))
@@ -845,12 +846,13 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         # print(f'Into Voigt (Area, L/G, \u03c3, skew): H {height}  w {fwhm}')
 
 
-                    elif peak_model_choice == "DS (A, \u03c3, \u03b3)":
+                    elif peak_model_choice == "DS (A, Wl, S)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         center = result.params[f'{prefix}center'].value
-                        sigma = result.params[f'{prefix}sigma'].value
-                        gamma = result.params[f'{prefix}gamma'].value
-                        skew = result.params[f'{prefix}asymmetry'].value
+
+                        gamma = result.params[f'{prefix}sigma'].value
+                        skew = result.params[f'{prefix}gamma'].value
+                        sigma = result.params[f'{prefix}asymmetry'].value
 
                         # # Create DS model instance
                         model = lmfit.models.DoniachModel()
@@ -881,15 +883,15 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                             fwhm = abs(x_values_filtered[indices[-1]] - x_values_filtered[indices[0]])
                         else:
                             fwhm = 2 * sigma  # Fallback to Gaussian FWHM
-                        fwhm = round(float(sigma * 2), 3)
+                        fwhm = round(float(gamma * 2), 3)
                         # sigma = round(float(sigma * 2.355), 2)
                         sigma = round(float(sigma * 1), 3)
                         # gamma = round(float(gamma * 2), 2)
                         gamma = round(float(gamma * 1), 3)
-                        skew = round(float(skew), 2)
+                        skew = round(float(skew), 3)
                         # area = round(float(amplitude), 2)
                         area = round(float(area_calc), 2)
-                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                    elif peak_model_choice == "DS*G (A, Wg, Wl, S)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         center = result.params[f'{prefix}center'].value
                         gamma = result.params[f'{prefix}gamma'].value
@@ -1031,12 +1033,12 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = round(float(gamma * 2), 2)
                         fraction = round(float(fraction), 2)
                         area = round(float(area), 2)
-                    elif peak_model_choice == "DS (A, \u03c3, \u03b3)":
+                    elif peak_model_choice == "DS (A, Wl, S)":
                         sigma = round(float(sigma * 1), 3)
                         gamma = round(float(gamma * 1), 3)
                         fraction = round(0.2 * 100, 3)
                         area = round(float(area), 2)
-                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                    elif peak_model_choice == "DS*G (A, Wg, Wl, S)":
                         sigma = round(float(sigma * 1), 3)
                         gamma = round(float(gamma * 1), 3)
                         fraction = round(float(fraction), 3)
@@ -1057,11 +1059,11 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                              "Voigt (Area, L/G, \u03c3, S)",
                                              "ExpGauss.(Area, \u03c3, \u03b3)", "LA (Area, \u03c3, \u03b3)",
                                              "LA (Area, \u03c3/\u03b3, \u03b3)",
-                                             "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
+                                             "DS (A, Wl, S)", "DS*G (A, Wg, Wl, S)"]:
                         peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
                         peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                         if peak_model_choice in ["Voigt (Area, L/G, \u03c3, S)",
-                                                 "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
+                                                 "DS (A, Wl, S)", "DS*G (A, Wg, Wl, S)"]:
                             peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
 
                     elif peak_model_choice in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:

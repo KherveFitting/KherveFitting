@@ -295,8 +295,8 @@ class FittingWindow(wx.Frame):
                  "GL (Height)",
                  "SGL (Height)",
                  "Under Test ----------------",
-                 "DS (A, \u03c3, \u03b3)",
-                 "DS*G (A, \u03c3, \u03b3)"
+                 "DS (A, Wl, S)",
+                 "DS*G (A, Wg, Wl, S)"
                  ]
 
 
