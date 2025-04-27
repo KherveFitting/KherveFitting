@@ -291,12 +291,12 @@ class FittingWindow(wx.Frame):
                  "LA (Area, \u03c3, \u03b3)",
                  "LA*G (Area, \u03c3/\u03b3, \u03b3)",
                  "ExpGauss.(Area, \u03c3, \u03b3)",
-                 "Height Based-------------",
+                 "Height Based-----------------",
                  "GL (Height)",
                  "SGL (Height)",
-                 "Under Test ----------------",
+                 "Under Test ---------------------",
                  "DS (A, \u03c3, \u03b3)",
-                 "DS*G (A, \u03c3, \u03b3)"
+                 "DS*G (A, \u03c3, \u03b3, S)"
                  ]
 
 

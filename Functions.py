@@ -524,7 +524,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     # params.add(f'{prefix}asymmetry', value=skew, min=skew_min, max=skew_max, vary=skew_vary)
                     params.add(f'{prefix}asymmetry', value=0, min=-0.001, max=0.001, vary=0)
 
-                elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                elif peak_model_choice == "DS*G (A, \u03c3, \u03b3, S)":
                     peak_model = lmfit.Model(PeakFunctions.DS_G, prefix=prefix)
                     try:
                         amplitude = float(peak_params_grid.GetCellValue(row, 6))
@@ -889,7 +889,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         skew = round(float(skew), 2)
                         # area = round(float(amplitude), 2)
                         area = round(float(area_calc), 2)
-                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3, S)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         center = result.params[f'{prefix}center'].value
                         gamma = result.params[f'{prefix}gamma'].value
@@ -1036,7 +1036,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = round(float(gamma * 1), 3)
                         fraction = round(0.2 * 100, 3)
                         area = round(float(area), 2)
-                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3)":
+                    elif peak_model_choice == "DS*G (A, \u03c3, \u03b3, S)":
                         sigma = round(float(sigma * 1), 3)
                         gamma = round(float(gamma * 1), 3)
                         fraction = round(float(fraction), 3)
@@ -1057,11 +1057,11 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                              "Voigt (Area, L/G, \u03c3, S)",
                                              "ExpGauss.(Area, \u03c3, \u03b3)", "LA (Area, \u03c3, \u03b3)",
                                              "LA (Area, \u03c3/\u03b3, \u03b3)",
-                                             "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
+                                             "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3, S)"]:
                         peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
                         peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                         if peak_model_choice in ["Voigt (Area, L/G, \u03c3, S)",
-                                                 "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3)"]:
+                                                 "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3, S)"]:
                             peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
 
                     elif peak_model_choice in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
