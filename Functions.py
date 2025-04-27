@@ -859,7 +859,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                         # Get height directly from model
                         height = model.eval(x=np.array([center]), amplitude=amplitude, center=center,
-                                            sigma=sigma, gamma=gamma, asymmetry=skew)[0]
+                                            sigma=gamma, gamma=skew, asymmetry=sigma)[0]
                         # print(f'DS Height: {height}')
                         # print(f'DS Amplitude : {amplitude}')
                         # amplitude_calc = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
@@ -873,7 +873,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                         # Calculate height numerically using the SAME x array
                         y_values = model.eval(x=x_values_filtered, amplitude=amplitude, center=center,
-                                              sigma=sigma, gamma=gamma, asymmetry=skew)
+                                              sigma=gamma, gamma=skew, asymmetry=sigma)
                         # height = np.max(y_values)
 
                         # Estimate FWHM numerically

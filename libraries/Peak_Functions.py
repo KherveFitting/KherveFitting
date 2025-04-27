@@ -737,6 +737,7 @@ class PeakFunctions:
             return np.exp(-4 * np.log(2) * (x / fwhm) ** 2)
 
         # Create high-resolution x array centered at 0
+        x_range = max(x.max() - x.min(), 4 * (gamma + sigma))
         x_high_res = np.linspace(-x_range / 2, x_range / 2, len(x) * 4)
 
         # Calculate DS and Gaussian
