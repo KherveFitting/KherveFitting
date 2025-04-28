@@ -1064,7 +1064,7 @@ class MyFrame(wx.Frame):
                     'Area': '1:1e7',
                     'Sigma': "0.3:3",
                     'Gamma': "0.3:3",
-                    'Skew': "0.01:2"
+                    'Skew': "0.00:2"
                 }
             }
 

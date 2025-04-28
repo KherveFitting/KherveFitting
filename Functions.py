@@ -561,9 +561,13 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         sigma_max = sigma_min + 1e-6
 
                     # Ensure skew is within reasonable bounds
-                    skew = max(0.01, min(skew, 0.99))
+                    skew = max(0.0, min(skew, 0.99))
                     skew_min = max(0.01, skew_min)
                     skew_max = min(0.99, skew_max)
+
+                    # Ensure skew_min and skew_max are different
+                    if skew_min == skew_max:
+                        skew_max += 0.005  # Add a small difference to prevent error
 
                     params.add(f'{prefix}amplitude', value=amplitude, min=area_min, max=area_max, vary=area_vary)
                     params.add(f'{prefix}center', value=center, min=center_min, max=center_max, vary=center_vary)

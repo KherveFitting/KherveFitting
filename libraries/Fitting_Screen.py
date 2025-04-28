@@ -279,24 +279,24 @@ class FittingWindow(wx.Frame):
         self.model_combobox.SetMaxSize((125, 25))
 
         # Set items and green items
-        items = ["Best Models---------------",
+        items = ["Best Models-----------------------",
                  "GL (Area)",
                  "SGL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
-                 "Area Based----------------",
-                 "Pseudo-Voigt (Area)",
-                 "Voigt (Area, L/G, \u03c3, S)",
-                 "Voigt (Area, \u03c3, \u03b3)",
+                 "Asymmetric------------------------",
                  "LA (Area, \u03c3, \u03b3)",
-                 "LA*G (Area, \u03c3/\u03b3, \u03b3)",
+                 "DS*G (A, \u03c3, \u03b3, S)",
+                 "Voigt (Area, L/G, \u03c3, S)",
                  "ExpGauss.(Area, \u03c3, \u03b3)",
-                 "Height Based-----------------",
+                 "Pseudo-Voigt (Area)",
+                 "Others----------------------------",
+                 "LA*G (Area, \u03c3/\u03b3, \u03b3)",
+                 "Voigt (Area, \u03c3, \u03b3)",
                  "GL (Height)",
                  "SGL (Height)",
                  "Under Test ---------------------",
-                 "DS (A, \u03c3, \u03b3)",
-                 "DS*G (A, \u03c3, \u03b3, S)"
+                 "DS (A, \u03c3, \u03b3)"
                  ]
 
 
@@ -727,7 +727,11 @@ class FittingWindow(wx.Frame):
             row2 = second_peak * 2
 
             # L/G ratio constraint
-            lg_constraint = f"{chr(65 + first_peak)}*1"
+            if any(element in element_orbital for element in ['Ti2p', 'V2p']) and any(
+                    x in self.parent.selected_fitting_method for x in ["Voigt (Area, L/G"]):
+                lg_constraint = "2:80"  # Independent L/G for Ti2p and V2p
+            else:
+                lg_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 5, lg_constraint)
 
             # FWHM constraint
@@ -759,15 +763,19 @@ class FittingWindow(wx.Frame):
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 2, position_constraint)
 
             # Sigma constraint
-            if any(element in element_orbital for element in ['Ti2p', 'V2p']) and any(
-                    x in self.parent.selected_fitting_method for x in ["Voigt"]):
-                sigma_constraint = "0.3:3"  # Independent FWHM for Ti2p and V2p
-            else:
-                sigma_constraint = f"{chr(65 + first_peak)}*1"
+            # if any(element in element_orbital for element in ['Ti2p', 'V2p']) and any(
+            #         x in self.parent.selected_fitting_method for x in ["Voigt (Area, L/G"]):
+            #     sigma_constraint = "0.3:3"  # Independent FWHM for Ti2p and V2p
+            # else:
+            sigma_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 7, sigma_constraint)
 
             # Gamma constraint
-            gamma_constraint = f"{chr(65 + first_peak)}*1"
+            if any(element in element_orbital for element in ['Ti2p', 'V2p']) and any(
+                    x in self.parent.selected_fitting_method for x in ["Voigt (Area, \u03c3", "DS*G"]):
+                gamma_constraint = "0.3:3"  # Independent FWHM for Ti2p and V2p. gaussian is fixed but lorentzian vary
+            else:
+                gamma_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 8, gamma_constraint)
 
             # Skew constraint
