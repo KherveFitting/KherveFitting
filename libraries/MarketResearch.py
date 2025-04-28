@@ -63,9 +63,7 @@ class RegistrationForm(wx.Frame):
 
         # Description text
         description = wx.StaticText(panel,
-                                    label="KherveFitting is an open-source software developed for XPS data analysis. "
-                                          "This registration helps us track the distribution and size of the research community "
-                                          "using this tool. The data collected will only be used for statistical purposes and to "
+                                    label="KherveFitting is an open-source software developed for XPS data analysis. This registration helps us track the distribution and size of the research community using this tool. The data collected will only be used for statistical purposes and to "
                                           "support continued development of scientific software for the XPS community. "
                                           "No personal information will be shared with third parties.")
         description.Wrap(530)  # Wrap text to fit the panel
