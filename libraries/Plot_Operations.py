@@ -596,7 +596,7 @@ class PlotManager:
             if "survey" in sheet_name.lower() or "wide" in sheet_name.lower() or is_d_parameter:
                 pass
             else:
-                self.ax.legend(loc='upper left')
+                self.ax.legend(loc='upper left', frameon=True, fancybox=True, framealpha=0.1, edgecolor='gray')
 
             # # Check if a peak is selected and add cross
             # if window.selected_peak_index is not None:
@@ -932,7 +932,7 @@ class PlotManager:
 
         # Update the legend
         if self.legend_visible:
-            self.ax.legend(loc='upper left')
+            self.ax.legend(loc='upper left', frameon=True, fancybox=True, framealpha=0.1, edgecolor='gray')
             self.update_legend(window)
         else:
             self.ax.legend().set_visible(False)
@@ -1524,7 +1524,7 @@ class PlotManager:
         except (ValueError, TypeError):
             return default
 
-    def add_cross_to_peak(self, window, index, skip_fwhm_calc=False):
+    def add_cross_to_peak_OLD(self, window, index, skip_fwhm_calc=False):
         try:
             row = index * 2
             peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
@@ -1575,10 +1575,15 @@ class PlotManager:
 
             max_y = window.ax.get_ylim()[1]
             y_offset = max_y * 0.02
-            self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
-                                              ha='center', va='bottom', fontsize=12)
-            self.peak_info_t = self.ax.text(peak_x - fwhm / 2, peak_y + y_offset, self.peak_info,
-                                            ha='left', va='top', fontsize=8, color='grey')
+            if skip_fwhm_calc:
+                self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
+                                                  ha='center', va='bottom', fontsize=12)
+                self.peak_info_t = None
+            else:
+                self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
+                                                  ha='center', va='bottom', fontsize=12)
+                self.peak_info_t = self.ax.text(peak_x - fwhm / 2, peak_y + y_offset, self.peak_info,
+                                                ha='left', va='top', fontsize=8, color='grey')
 
             self.canvas.mpl_disconnect('motion_notify_event')
             self.canvas.mpl_disconnect('button_release_event')
@@ -1591,6 +1596,79 @@ class PlotManager:
             print(f"Error adding cross to peak: {e}")
         except Exception as e:
             print(f"Unexpected error adding cross to peak: {e}")
+
+    def add_cross_to_peak(self, window, index, skip_fwhm_calc=False):
+        try:
+            row = index * 2
+            peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
+            peak_y = float(window.peak_params_grid.GetCellValue(row, 3))
+
+            # Only get these values if we're not skipping FWHM calculation or they're needed
+            area = float(window.peak_params_grid.GetCellValue(row, 6))
+            model = window.peak_params_grid.GetCellValue(row, 13)
+
+            # Find background value at peak position using vectorized operations
+            closest_index = np.argmin(np.abs(window.x_values - peak_x))
+            bkg_y = window.background[closest_index]
+            peak_y_with_bg = peak_y + bkg_y
+
+            # Handle FWHM determination - use cached value during dragging
+            fwhm = window.actual_fwhms.get(index)
+            if not skip_fwhm_calc and fwhm is None:
+                # Only do expensive calculation when needed and not cached
+                grid_fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
+                lg_ratio = float(window.peak_params_grid.GetCellValue(row, 5))
+                sigma = self.try_float(window.peak_params_grid.GetCellValue(row, 7), 0.0)
+                gamma = self.try_float(window.peak_params_grid.GetCellValue(row, 8), 0.0)
+                skew = self.try_float(window.peak_params_grid.GetCellValue(row, 9), 0.0)
+
+                from libraries.Peak_Functions import PeakFunctions
+                fwhm = PeakFunctions.calculate_actual_fwhm(
+                    window.x_values, peak_x, peak_y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
+                )
+                window.actual_fwhms[index] = fwhm
+
+            # Clean up previous elements
+            for attr in ['cross', 'peak_info_t', 'peak_letter_t']:
+                if hasattr(self, attr) and getattr(self, attr):
+                    getattr(self, attr).remove()
+
+            # Always add the cross marker
+            self.cross, = self.ax.plot(peak_x, peak_y_with_bg, 'bx', markersize=15,
+                                       markerfacecolor='none', picker=5, linewidth=3)
+            self.peak_letter = chr(65 + index)
+
+            # Add letter label
+            max_y = window.ax.get_ylim()[1]
+            y_offset = max_y * 0.02
+            self.peak_letter_t = self.ax.text(peak_x, peak_y_with_bg + y_offset,
+                                              self.peak_letter, ha='center',
+                                              va='bottom', fontsize=12)
+
+            # Only add detailed info if not dragging
+            if not skip_fwhm_calc and fwhm is not None:
+                self.peak_info = (f'Model: {model}\n'
+                                  f'Position: {peak_x} eV\n'
+                                  f'FWHM meas.: {fwhm:.3f} eV\n'
+                                  f'Area: {area} CPS')
+                self.peak_info_t = self.ax.text(peak_x - (fwhm / 2 if fwhm else 0.5),
+                                                peak_y_with_bg + y_offset, self.peak_info,
+                                                ha='left', va='top', fontsize=8, color='grey')
+            else:
+                self.peak_info_t = None
+
+            # Update event connections
+            self.canvas.mpl_disconnect('motion_notify_event')
+            self.canvas.mpl_disconnect('button_release_event')
+            self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
+            self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
+
+            # Only redraw if not dragging to avoid frequent redraws
+            if not skip_fwhm_calc:
+                self.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Error adding cross to peak: {e}")
 
     def toggle_residuals(self, window):
         if not hasattr(self, 'residuals_state'):
@@ -1659,7 +1737,8 @@ class PlotManager:
                         if len(split_label) > 1 and split_label[1].strip():
                             filtered_handles.append(h)
                             filtered_labels.append(l)
-                self.ax.legend(filtered_handles, filtered_labels, loc='upper left')
+                self.ax.legend(filtered_handles, filtered_labels, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
         self.canvas.draw_idle()
 
 
@@ -1688,7 +1767,8 @@ class PlotManager:
                         ordered_handles.append(handles[index])
                         break
             if ordered_handles and filtered_peak_labels:
-                self.ax.legend(ordered_handles, filtered_peak_labels, loc='upper left')
+                self.ax.legend(ordered_handles, filtered_peak_labels, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
             else:
                 self.ax.legend().set_visible(False)
         else:
@@ -1717,7 +1797,8 @@ class PlotManager:
                         if label == l:
                             ordered_handles.append(handles[index])
                             break
-                self.ax.legend(ordered_handles, legend_order2, loc='upper left')
+                self.ax.legend(ordered_handles, legend_order2, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
             else:
                 self.ax.legend().remove()
                 self.ax.legend().set_visible(False)
@@ -1863,7 +1944,7 @@ class PlotManager:
                 window.clear_and_replot()
                 self.update_legend(window)
 
-            self.ax.legend(loc='upper left')
+            self.ax.legend(loc='upper left', frameon=True, fancybox=True, framealpha=0.1, edgecolor='gray')
             self.canvas.draw()
 
         except Exception as e:
@@ -2042,7 +2123,7 @@ class PlotManager:
             self.ax.set_xlim([max(window.x_values), min(window.x_values)])
             self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
             self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-            self.ax.legend(loc='upper left')
+            self.ax.legend(loc='upper left', frameon=True, fancybox=True, framealpha=0.1, edgecolor='gray')
 
             # Hide the peak selection cross if it exists
             if hasattr(window, 'cross') and window.cross:

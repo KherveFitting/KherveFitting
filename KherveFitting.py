@@ -1461,6 +1461,7 @@ class MyFrame(wx.Frame):
             # Now highlight the peak with the full FWHM calculation
             self.highlight_selected_peak()
 
+
         self.refresh_peak_params_grid_release()
 
     def get_linked_peaks(self, peak_index):
@@ -1508,8 +1509,8 @@ class MyFrame(wx.Frame):
             if peak_label in peaks:
                 peaks[peak_label]['Position'] = new_position
 
-        if ("LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in
-            fitting_model) or "DS" in fitting_model and area_constraint.startswith(
+        if (("LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in
+            fitting_model) or "DS" in fitting_model) and area_constraint.startswith(
                 original_peak_letter):
             current_area = float(self.peak_params_grid.GetCellValue(original_peak_index * 2, 6))
             if '*' in area_constraint:
@@ -2514,7 +2515,7 @@ class MyFrame(wx.Frame):
 
                 # Refresh display
                 self.clear_and_replot()
-                self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
+                self.plot_manager.add_cross_to_peak(self, self.selected_peak_index, skip_fwhm_calc=False)
                 return
             elif keycode in [wx.WXK_UP, wx.WXK_DOWN]:
                 save_state(self)
@@ -2534,7 +2535,7 @@ class MyFrame(wx.Frame):
                                                    float(self.peak_params_grid.GetCellValue(row, 2)), new_height)
 
                 self.clear_and_replot()
-                self.plot_manager.add_cross_to_peak(self, self.selected_peak_index)
+                self.plot_manager.add_cross_to_peak(self, self.selected_peak_index, skip_fwhm_calc=False)
 
                 return
         elif event.ControlDown():
