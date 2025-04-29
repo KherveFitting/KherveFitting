@@ -427,6 +427,9 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, window.on_preferences, preferences_item)
 
     # View menu items
+    sample_manager_item = view_menu.Append(wx.NewId(), "Sample Manager")
+    window.Bind(wx.EVT_MENU, window.on_open_file_manager, sample_manager_item)
+
     ToggleFitting_item = view_menu.Append(wx.NewId(), "Toggle Peak Fitting")
     window.Bind(wx.EVT_MENU, lambda event: toggle_plot(window), ToggleFitting_item)
 
@@ -462,6 +465,9 @@ def create_menu(window):
     # Help menu items
     # mini_help_item = help_menu.Append(wx.NewId(), "Help")
     # window.Bind(wx.EVT_MENU, window.on_mini_help, mini_help_item)
+
+    shortcuts_item = help_menu.Append(wx.NewId(), "List of Shortcuts\tCtrl+K")
+    window.Bind(wx.EVT_MENU, lambda event: show_shortcuts(window), shortcuts_item)
 
     manual_item = help_menu.Append(wx.NewId(), "Open Full Manual\tCtrl+M")
     window.Bind(wx.EVT_MENU, lambda event: open_manual(window), manual_item)
@@ -507,9 +513,6 @@ def create_menu(window):
 
     # version_log_item = help_menu.Append(wx.NewId(), "Version Log")
     # window.Bind(wx.EVT_MENU, lambda event: show_version_log(window), version_log_item)
-
-    shortcuts_item = help_menu.Append(wx.NewId(), "List of Shortcuts\tCtrl+K")
-    window.Bind(wx.EVT_MENU, lambda event: show_shortcuts(window), shortcuts_item)
 
     mini_game_item = help_menu.Append(wx.NewId(), "Mini Game")
     window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), mini_game_item)

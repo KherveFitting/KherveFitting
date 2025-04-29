@@ -405,45 +405,6 @@ class PeakFunctions:
     def is_valid_scalar(value):
         return value is not None and np.isfinite(value) and value > 0
 
-    # @staticmethod
-    # def LA_NEW(x, center, amplitude, fwhm, sigma, gamma):
-    #     true_fwhm = min(fwhm, 20)
-    #     # print(f"LA input: center={center}, amplitude={amplitude}, true_fwhm={true_fwhm}, sigma={sigma}, gamma={gamma}")
-    #     if not PeakFunctions.is_valid_scalar(true_fwhm):
-    #         raise ValueError(f"Invalid true_fwhm value: {true_fwhm}")
-    #     if not PeakFunctions.is_valid_scalar(center):
-    #         raise ValueError(f"Invalid center value: {center}")
-    #     if not PeakFunctions.is_valid_scalar(amplitude):
-    #         raise ValueError(f"Invalid amplitude value: {amplitude}")
-    #     if not PeakFunctions.is_valid_scalar(sigma):
-    #         raise ValueError(f"Invalid sigma value: {sigma}")
-    #     if not PeakFunctions.is_valid_scalar(gamma):
-    #         raise ValueError(f"Invalid gamma value: {gamma}")
-    #
-    #     try:
-    #         lorentzian_fwhm = PeakFunctions.find_lorentzian_fwhm(true_fwhm, center, amplitude, sigma, gamma)
-    #     except ValueError as e:
-    #         print(f"Error in find_lorentzian_fwhm: {e}")
-    #         print(f"Using true_fwhm as fallback: {true_fwhm}")
-    #         # lorentzian_fwhm = true_fwhm
-    #         lorentzian_fwhm = 1.4
-    #
-    #     return amplitude * np.where(
-    #         x <= center,
-    #         1 / (1 + 4 * ((x - center) / lorentzian_fwhm) ** 2) ** sigma,
-    #         1 / (1 + 4 * ((x - center) / lorentzian_fwhm) ** 2) ** gamma
-    #     )
-
-    @staticmethod
-    def LA_OLD(x, center, amplitude, fwhm, sigma, gamma):
-        # Calculate F from the input FWHM
-        F = 2 * fwhm / (np.sqrt(2 ** (1 / sigma) - 1) + np.sqrt(2 ** (1 / gamma) - 1))
-
-        return amplitude * np.where(
-            x <= center,
-            1 / (1 + 4 * ((x - center) / F) ** 2) ** gamma,
-            1 / (1 + 4 * ((x - center) / F) ** 2) ** sigma
-        )
 
     @staticmethod
     # @jit(nopython=True, parallel=True)
