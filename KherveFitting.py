@@ -1396,7 +1396,7 @@ class MyFrame(wx.Frame):
                 except Exception as e:
                     print(f"Error during cross drag: {e}")
 
-    def on_cross_release(self, event):
+    def on_cross_release_OLD(self, event):
         save_state(self)
         if event.inaxes and self.selected_peak_index is not None:
             row = self.selected_peak_index * 2
@@ -1461,6 +1461,51 @@ class MyFrame(wx.Frame):
             # Now highlight the peak with the full FWHM calculation
             self.highlight_selected_peak()
 
+        self.refresh_peak_params_grid_release()
+
+    def on_cross_release(self, event):
+        save_state(self)
+        if event.inaxes and self.selected_peak_index is not None:
+            row = self.selected_peak_index * 2
+            fitting_model = self.peak_params_grid.GetCellValue(row, 13)
+            peak_label = self.peak_params_grid.GetCellValue(row, 1)
+            sheet_name = self.sheet_combobox.GetValue()
+
+            x = event.xdata
+            y = event.ydata
+            bkg_y = self.background[np.argmin(np.abs(self.x_values - x))]
+
+            if event.button == 1:
+                if event.key == 'shift':
+                    new_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+                    self.update_linked_fwhm_recursive(self.selected_peak_index, new_fwhm)
+                else:
+                    y = max(y - bkg_y, 0)
+
+                    if "LA" in fitting_model:
+                        current_area = float(self.peak_params_grid.GetCellValue(row, 6))
+                        self.update_peak(self.selected_peak_index, x, y, current_area)
+                        self.update_linked_peaks_recursive(self.selected_peak_index, x, y, current_area)
+                    else:
+                        self.update_peak(self.selected_peak_index, x, y)
+                        self.update_linked_peaks_recursive(self.selected_peak_index, x, y)
+
+            # Disconnect motion and release handlers
+            if hasattr(self, 'motion_cid'):
+                self.canvas.mpl_disconnect(self.motion_cid)
+                delattr(self, 'motion_cid')
+            if hasattr(self, 'release_cid'):
+                self.canvas.mpl_disconnect(self.release_cid)
+                delattr(self, 'release_cid')
+
+            # Clean up existing plot elements
+            self.remove_cross_from_peak()
+
+            # Update the plot first (important to do this before adding new annotations)
+            self.clear_and_replot()
+
+            # Now add the peak information
+            self.highlight_selected_peak()
 
         self.refresh_peak_params_grid_release()
 
