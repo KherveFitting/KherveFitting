@@ -1971,7 +1971,7 @@ class PlotManager:
         background_filtered = BackgroundCalculations.calculate_adaptive_smart_background(
             x_values, y_values, adaptive_range, current_background, offset_h, offset_l
         )
-        return background_filtered, 'Background (Multi-Regions Smart)'
+        return background_filtered, 'Background'
 
     def _calculate_other_background(self, window, x_values, y_values, method, offset_h, offset_l):
         """Helper method to calculate background for non-Multi-Regions Smart methods."""
