@@ -289,13 +289,19 @@ class FittingWindow(wx.Frame):
                  "DS*G (A, \u03c3, \u03b3, S)",
                  "Voigt (Area, L/G, \u03c3, S)",
                  "ExpGauss.(Area, \u03c3, \u03b3)",
-                 "Others----------------------------",
-                 "LA*G (Area, \u03c3/\u03b3, \u03b3)",
+                 "Voigt-----------------------------",
+                 "Voigt (Area, L/G, \u03c3)",
                  "Voigt (Area, \u03c3, \u03b3)",
+                 "Voigt (Area, L/G, \u03c3, S)",
+                 "LA--------------------------------",
+                 "LA (Area, \u03c3/\u03b3, \u03b3)",
+                 "LA (Area, \u03c3, \u03b3)",
+                 "LA*G (Area, \u03c3/\u03b3, \u03b3)",
+                 "Others----------------------------",
                  "Pseudo-Voigt (Area)",
                  "GL (Height)",
                  "SGL (Height)",
-                 "Under Test ---------------------",
+                 "Beta------------------------------",
                  "DS (A, \u03c3, \u03b3)"
                  ]
 
@@ -617,6 +623,10 @@ class FittingWindow(wx.Frame):
 
 
     def on_add_peak(self, event):
+        current_model = self.model_combobox.GetValue()
+        if "----" in current_model:
+            self.parent.show_popup_message("Please select a valid peak model.")
+            return
         self.parent.add_peak_params()
 
     def on_remove_peak(self, event):
@@ -686,6 +696,10 @@ class FittingWindow(wx.Frame):
 
 
     def on_add_doublet(self, event):
+        current_model = self.model_combobox.GetValue()
+        if "----" in current_model:
+            self.parent.show_popup_message("Please select a valid peak model.")
+            return
         save_state(self.parent)
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             # wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)

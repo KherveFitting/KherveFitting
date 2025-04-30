@@ -487,6 +487,12 @@ def create_menu(window):
         "https://www.thermofisher.com/uk/en/home/materials-science/learning-center/periodic-table.html"),
                 thermo_item)
 
+    # Add Guide to XPS link
+    guide_xps_item = knowledge_menu.Append(wx.NewId(), "Guide to XPS")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://pubs.aip.org/jva/collection/1440/Special-Topic-Collection-Reproducibility"),
+                guide_xps_item)
+
     biesinger_item = knowledge_menu.Append(wx.NewId(), "XPSfitting by M. Biesinger")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://www.xpsfitting.com/"),
