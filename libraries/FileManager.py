@@ -696,70 +696,6 @@ class FileManagerWindow(wx.Frame):
                     print(f"Error loading BE corrections: {e}")
 
 
-    def save_be_corrections_OLD(self):
-        """Save BE correction values from grid to parent data"""
-        be_corrections = {}
-
-        # Get BE correction values from grid
-        be_col_index = len(self.core_levels) + 1
-
-        # Check if BE column exists
-        if be_col_index < self.grid.GetNumberCols():
-            for row in range(self.grid.GetNumberRows()):
-                value = self.grid.GetCellValue(row, be_col_index)
-                if value.strip():
-                    try:
-                        be_corrections[str(row)] = float(value)
-                    except ValueError:
-                        be_corrections[str(row)] = 0.0
-
-        # Get BE correction values from grid
-        for row in range(self.grid.GetNumberRows()):
-            value = self.grid.GetCellValue(row, len(self.core_levels) + 1)
-            if value.strip():
-                try:
-                    be_corrections[str(row)] = float(value)
-                except ValueError:
-                    be_corrections[str(row)] = 0.0
-
-        # Save to parent.Data
-        self.parent.Data['BEcorrections'] = be_corrections
-
-        # Update current BE correction based on selected sheet
-        current_sheet = self.parent.sheet_combobox.GetValue()
-        sheet_found = False
-        for row in range(self.grid.GetNumberRows()):
-            for col in range(1, len(self.core_levels) + 1):
-                if self.grid.GetCellValue(row, col) == current_sheet:
-                    sheet_found = True
-                    correction = be_corrections.get(str(row), 0.0)
-                    self.parent.be_correction = correction
-                    self.parent.Data['BEcorrection'] = correction  # For backward compatibility
-                    self.parent.be_correction_spinbox.SetValue(correction)
-                    # self.parent.apply_be_correction(correction)
-                    break
-            if sheet_found:
-                break
-
-        # Save to JSON file
-        import json
-        file_path = self.parent.Data.get('FilePath', '')
-        if file_path:
-            json_path = os.path.splitext(file_path)[0] + '.json'
-            try:
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        json_data = json.load(f)
-                else:
-                    json_data = {}
-
-                json_data['BEcorrections'] = be_corrections
-
-                with open(json_path, 'w') as f:
-                    json.dump(json_data, f, indent=4)
-            except Exception as e:
-                print(f"Error saving BE corrections: {e}")
-
     def save_be_corrections(self):
         """Save BE correction values from grid to parent data only"""
         be_corrections = {}
@@ -812,36 +748,6 @@ class FileManagerWindow(wx.Frame):
                 print(f"Error loading sample names: {e}")
 
     # Add a method to save sample names:
-    def save_sample_names_OLD(self):
-        # Update sample_names from grid
-        for row in range(self.grid.GetNumberRows()):
-            name = self.grid.GetCellValue(row, 0)
-            if name:
-                self.sample_names[str(row)] = name
-            elif str(row) in self.sample_names:
-                del self.sample_names[str(row)]
-
-        # Save to parent.Data
-        self.parent.Data['SampleNames'] = self.sample_names
-
-        # Save to JSON
-        import json
-        file_path = self.parent.Data.get('FilePath', '')
-        if file_path:
-            json_path = os.path.splitext(file_path)[0] + '.json'
-            try:
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        json_data = json.load(f)
-                else:
-                    json_data = {}
-
-                json_data['SampleNames'] = self.sample_names
-
-                with open(json_path, 'w') as f:
-                    json.dump(json_data, f, indent=4)
-            except Exception as e:
-                print(f"Error saving sample names: {e}")
 
     def save_sample_names(self):
         # Update sample_names from grid
@@ -1161,136 +1067,6 @@ class FileManagerWindow(wx.Frame):
         # # Highlight this cell in the grid
         # self.highlight_current_sheet(sheet_name)
 
-    def plot_multiple_sheets_OLD(self, sheet_names):
-        """Plot multiple core levels together on the same graph"""
-        if not sheet_names:
-            return
-
-        # Store the original residuals state
-        original_residuals_state = self.parent.plot_manager.residuals_state
-
-        # Set the first sheet as the active one in the parent window
-        self.parent.sheet_combobox.SetValue(sheet_names[0])
-        from libraries.Sheet_Operations import on_sheet_selected
-        on_sheet_selected(self.parent, sheet_names[0])
-
-        # Clear the plot
-        self.parent.ax.clear()
-
-        # Remove any residual subplot temporarily
-        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
-            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
-            self.parent.plot_manager.residuals_subplot = None
-            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
-            self.parent.ax.get_xaxis().set_visible(True)
-
-        # Track min/max x values
-        x_min = float('inf')
-        x_max = float('-inf')
-
-        # Determine if normalization is needed
-        normalize = self.norm_check.GetValue()
-        auto_norm = self.auto_check.GetValue()
-
-        # For auto normalization, we need to calculate global min/max
-        global_min = float('inf')
-        global_max = float('-inf')
-
-        # Check if all sheets are from the same column (core level)
-        base_names = set(self.extract_base_name(name) for name in sheet_names)
-        same_column = len(base_names) == 1
-        column_name = list(base_names)[0] if same_column else None
-
-        if normalize and auto_norm:
-            # Get global min/max across all selected datasets
-            for sheet_name in sheet_names:
-                if sheet_name in self.parent.Data['Core levels']:
-                    y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
-                    global_min = min(global_min, min(y_values))
-                    global_max = max(global_max, max(y_values))
-
-        # Plot each selected sheet
-        for i, sheet_name in enumerate(sheet_names):
-            if sheet_name in self.parent.Data['Core levels']:
-                core_level = self.parent.Data['Core levels'][sheet_name]
-                x_values = core_level['B.E.']
-                y_values = np.array(core_level['Raw Data'])
-
-                # Update min/max x values
-                x_min = min(x_min, min(x_values))
-                x_max = max(x_max, max(x_values))
-
-                # Apply normalization if enabled
-                if normalize:
-                    if auto_norm:
-                        norm_min = min(y_values)
-                        norm_max = max(y_values)
-                    else:
-                        norm_min = global_min
-                        norm_max = global_max
-
-                    # Avoid division by zero
-                    if norm_max != norm_min:
-                        y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
-
-                # Use a different color for each plot
-                color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
-
-                # Plot the data
-                if self.parent.energy_scale == 'KE':
-                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=sheet_name, color=color,
-                                        linewidth=self.parent.line_width)
-                else:
-                    self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color,
-                                        linewidth=self.parent.line_width)
-
-        # Set labels and formatting
-        self.parent.ax.set_xlabel("Binding Energy (eV)")
-        self.parent.ax.set_ylabel("Intensity (CPS)")
-
-        # Apply scientific format to Y-axis
-        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-
-        # Set legend on the left
-        self.parent.ax.legend(loc='upper left')
-
-        # Set labels and formatting
-        self.parent.ax.set_xlabel("Binding Energy (eV)")
-        if normalize:
-            self.parent.ax.set_ylabel("Normalized Intensity")
-        else:
-            self.parent.ax.set_ylabel("Intensity (CPS)")
-
-        # Set x-axis limits to min/max values from all datasets
-        self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
-
-        # If all sheets are from the same column, add core level text in top right
-        if same_column:
-            formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
-            sheet_name_text = self.parent.ax.text(
-                0.98, 0.98,  # Position (top-right corner)
-                formatted_name,
-                transform=self.parent.ax.transAxes,
-                fontsize=self.parent.core_level_text_size,
-                fontfamily=[self.parent.plot_font],
-                fontweight='bold',
-                verticalalignment='top',
-                horizontalalignment='right',
-                bbox=dict(facecolor='none', edgecolor='none', alpha=1),
-            )
-            sheet_name_text.sheet_name_text = True  # Mark this text object
-
-        # Apply text settings from preferences
-        self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
-        self.parent.ax.xaxis.label.set_size(self.parent.axis_title_size)
-        self.parent.ax.yaxis.label.set_size(self.parent.axis_title_size)
-
-        # Update the plot
-        self.parent.canvas.draw_idle()
-
-        # Restore the original residuals state
-        self.parent.plot_manager.residuals_state = original_residuals_state
 
     def plot_multiple_sheets(self, sheet_names):
         """Plot multiple core levels together on the same graph"""
@@ -1608,180 +1384,53 @@ class FileManagerWindow(wx.Frame):
                 except ValueError:
                     pass  # Ignore invalid correction values
 
-    def on_copy(self, event):
-        """Copy the selected core levels"""
-        sheet_names = self.get_selected_sheet_names()
 
+    def on_copy(self, event):
+        """Copy the selected core levels with columns C and D preserved exactly"""
+        import os
+        import json
+        import tempfile
+        from copy import deepcopy
+
+        sheet_names = self.get_selected_sheet_names()
         if not sheet_names:
             return
 
-        # Create a dictionary to store multiple core level data
         clipboard_data = {}
 
         for sheet_name in sheet_names:
-            # Store the core level data in our clipboard dictionary
             if sheet_name in self.parent.Data['Core levels']:
                 clipboard_data[sheet_name] = deepcopy(self.parent.Data['Core levels'][sheet_name])
 
-        # Save to temporary clipboard file
-        import json
-        import tempfile
-        import os
+                file_path = self.parent.Data.get('FilePath', '')
+                if file_path and os.path.exists(file_path):
+                    try:
+                        # Read all data including columns C and D
+                        import pandas as pd
+                        df = pd.read_excel(file_path, sheet_name=sheet_name)
 
+                        # Store column names
+                        column_names = df.columns.tolist()
+                        clipboard_data[sheet_name]['column_names'] = column_names
+
+                        # Store exact data from columns C and D (indices 2 and 3)
+                        if df.shape[1] > 3:
+                            clipboard_data[sheet_name]['column_C_data'] = df.iloc[:, 2].tolist()
+                            clipboard_data[sheet_name]['column_D_data'] = df.iloc[:, 3].tolist()
+
+                    except Exception as e:
+                        print(f"Error reading Excel data for {sheet_name}: {e}")
+
+        # Save to clipboard file
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
         with open(clipboard_file, 'w') as f:
             json.dump(clipboard_data, f)
 
-        # wx.MessageBox(f"{len(clipboard_data)} core level(s) copied. Beware that core level retain their BE correction values", "Copy Successful", wx.OK | wx.ICON_INFORMATION)
         self.parent.show_popup_message2("Copy Successful",
-                                        f"{len(clipboard_data)} core level(s) copied. Beware that core level retain their BE correction values")
-
-    def on_paste_OLD(self, event):
-        """Paste the core levels to the selected cells"""
-        import json
-        import tempfile
-        import os
-        import re
-
-        # Get the clipboard file
-        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
-
-        if not os.path.exists(clipboard_file):
-            # wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
-            self.parent.show_popup_message2("Paste Failed", "No data in clipboard")
-            return
-
-        # Load the clipboard data
-        with open(clipboard_file, 'r') as f:
-            clipboard_data = json.load(f)
-
-        if not clipboard_data:
-            # wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
-            self.parent.show_popup_message2("Paste Failed", "Clipboard is empty")
-            return
-
-        # Determine target row based on cursor position
-        target_row = self.grid.GetGridCursorRow()
-
-        # Get BE corrections for target row
-        target_correction = self.parent.Data.get('BEcorrections', {}).get(str(target_row), 0.0)
-
-        # Group core levels by base name (e.g., "C1s" without the number)
-        core_level_groups = {}
-        for sheet_name in clipboard_data.keys():
-            # Extract the true base name (e.g., "C1s" from "C1s2")
-            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
-            if match:
-                base_name = match.group(1)
-                if base_name not in core_level_groups:
-                    core_level_groups[base_name] = []
-                core_level_groups[base_name].append(sheet_name)
-
-        # For each base name, determine the starting row
-        base_name_row_map = {}
-        current_row = target_row
-
-        for base_name, sheets in core_level_groups.items():
-            base_name_row_map[base_name] = current_row
-
-            # If there are multiple sheets with the same base name,
-            # increment the current row for the next base name
-            if len(sheets) > 1:
-                current_row += len(sheets)
-            # If it's just one sheet, keep the same row for the next base name
-
-        # Process each core level
-        for sheet_name, core_level_data in clipboard_data.items():
-            # Extract source row from original sheet name
-            match_row = re.search(r'(\d+)$', sheet_name)
-            source_row = match_row.group(1) if match_row else "0"
-            source_correction = self.parent.Data.get('BEcorrections', {}).get(source_row, 0.0)
-
-            # Calculate the BE adjustment needed
-            be_adjustment = source_correction - target_correction
-
-            # Extract base name and determine which group it belongs to
-            match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
-            if match_base:
-                base_name = match_base.group(1)
-
-                # Find position in the group to determine row offset
-                group = core_level_groups[base_name]
-                position = group.index(sheet_name)
-
-                # Calculate the actual row for this sheet
-                actual_row = base_name_row_map[base_name] + position
-
-                # Create new sheet name
-                new_sheet_name = f"{base_name}{actual_row}"
-
-                # Check if new name already exists
-                counter = 0
-                while new_sheet_name in self.parent.Data['Core levels']:
-                    counter += 1
-                    new_sheet_name = f"{base_name}{actual_row}_{counter}"
-
-                # Adjust BE values to remove previous correction and apply new row's correction
-                adjusted_be_values = [be - be_adjustment for be in core_level_data['B.E.']]
-
-                # Create new core level data with adjusted BE values
-                new_core_level_data = deepcopy(core_level_data)
-                new_core_level_data['B.E.'] = adjusted_be_values
-                new_core_level_data['Name'] = new_sheet_name
-
-                # Adjust background limits if present
-                if 'Background' in new_core_level_data:
-                    if 'Bkg Low' in new_core_level_data['Background'] and new_core_level_data['Background'][
-                        'Bkg Low'] != '':
-                        new_core_level_data['Background']['Bkg Low'] -= be_adjustment
-                    if 'Bkg High' in new_core_level_data['Background'] and new_core_level_data['Background'][
-                        'Bkg High'] != '':
-                        new_core_level_data['Background']['Bkg High'] -= be_adjustment
-
-                # Adjust peak positions if present
-                if 'Fitting' in new_core_level_data and 'Peaks' in new_core_level_data['Fitting']:
-                    for peak in new_core_level_data['Fitting']['Peaks'].values():
-                        peak['Position'] -= be_adjustment
-                        if 'Constraints' in peak:
-                            pos_constraint = peak['Constraints'].get('Position', '')
-                            if pos_constraint and ',' in pos_constraint and not any(
-                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
-                                min_val, max_val = map(float, pos_constraint.split(','))
-                                peak['Constraints'][
-                                    'Position'] = f"{min_val - be_adjustment:.2f},{max_val - be_adjustment:.2f}"
-
-                # Add to parent data
-                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
-
-                # Update Excel file
-                import pandas as pd
-                # Use the specific length for this core level
-                data_length = len(adjusted_be_values)
-                df = pd.DataFrame({
-                    'BE': adjusted_be_values,
-                    'Raw Data': core_level_data['Raw Data'][:data_length],
-                    'Background': core_level_data.get('Background', {}).get('Bkg Y', core_level_data['Raw Data'])[
-                                  :data_length],
-                    'Transmission': [1.0] * data_length
-                })
-
-                with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
-                                    if_sheet_exists='replace') as writer:
-                    df.to_excel(writer, sheet_name=new_sheet_name, index=False)
-
-                # Update combobox in parent
-                self.parent.sheet_combobox.Append(new_sheet_name)
-
-        # Refresh the grid
-        self.populate_grid()
-
-        # wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted."
-        #               f"\n Beware that core level retain their BE correction values ", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
-        self.parent.show_popup_message2("Paste Successful", f"{len(clipboard_data)} core level(s) pasted."
-                                                            f"\n Beware that core level retain their BE correction values ")
+                                        f"{len(clipboard_data)} core level(s) copied with exact C and D columns")
 
     def on_paste(self, event):
-        """Paste the core levels to the selected cells, supporting paste between different instances"""
+        """Paste the core levels with original column names and experimental description"""
         import json
         import tempfile
         import os
@@ -1936,7 +1585,6 @@ class FileManagerWindow(wx.Frame):
                                     peak['Constraints'][
                                         'Position'] = f"{min_val - be_adjustment:.2f},{max_val - be_adjustment:.2f}"
                                 except ValueError:
-                                    # Skip if constraint has invalid format
                                     pass
 
                 # Add to parent data
@@ -1950,7 +1598,7 @@ class FileManagerWindow(wx.Frame):
 
                 # Update Excel file
                 try:
-                    # Use the specific length for this core level
+                    # Get data length for this core level
                     data_length = len(adjusted_be_values)
 
                     # Ensure arrays have the correct length
@@ -1969,21 +1617,74 @@ class FileManagerWindow(wx.Frame):
                         # Pad with zeros if too short
                         bkg_data = bkg_data + [0] * (data_length - len(bkg_data))
 
-                    # Create DataFrame for Excel
-                    df = pd.DataFrame({
-                        'BE': adjusted_be_values,
-                        'Raw Data': raw_data,
-                        'Background': bkg_data,
-                        'Transmission': [1.0] * data_length
-                    })
+                    # Use original column names if available, otherwise use defaults
+                    column_names = core_level_data.get('column_names', ['BE', 'Raw Data', 'Background', 'Transmission'])
 
-                    # Write to Excel
+                    # Make sure we have enough column names
+                    while len(column_names) < 4:
+                        column_names.append(f"Column{len(column_names) + 1}")
+
+                    # Create DataFrame with original column names
+                    data_dict = {
+                        column_names[0]: adjusted_be_values,
+                        column_names[1]: raw_data
+                    }
+
+                    # Use the exact C and D data from clipboard if available
+                    if 'column_C_data' in core_level_data and len(column_names) > 2:
+                        col_c_data = core_level_data['column_C_data']
+                        # Adjust length if needed
+                        if len(col_c_data) != data_length:
+                            if len(col_c_data) > data_length:
+                                col_c_data = col_c_data[:data_length]
+                            else:
+                                col_c_data = col_c_data + [None] * (data_length - len(col_c_data))
+                        data_dict[column_names[2]] = col_c_data
+                    elif len(column_names) > 2:
+                        data_dict[column_names[2]] = bkg_data
+
+                    if 'column_D_data' in core_level_data and len(column_names) > 3:
+                        col_d_data = core_level_data['column_D_data']
+                        # Adjust length if needed
+                        if len(col_d_data) != data_length:
+                            if len(col_d_data) > data_length:
+                                col_d_data = col_d_data[:data_length]
+                            else:
+                                col_d_data = col_d_data + [None] * (data_length - len(col_d_data))
+                        data_dict[column_names[3]] = col_d_data
+                    elif len(column_names) > 3:
+                        data_dict[column_names[3]] = [1.0] * data_length
+
+                    df = pd.DataFrame(data_dict)
+
+                    # Write to Excel with original column names
                     with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
                                         if_sheet_exists='replace') as writer:
                         df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+                        # Add experimental description data if available
+                        if 'experimental_description' in core_level_data and core_level_data[
+                            'experimental_description']:
+                            # Calculate column 'AX' index (typically 49)
+                            exp_col = 49
+
+                            # Get the workbook and sheet
+                            workbook = writer.book
+                            worksheet = workbook[new_sheet_name]
+
+                            # Add experimental description header
+                            worksheet.cell(row=1, column=exp_col + 1, value="Experimental Description")
+                            worksheet.cell(row=1, column=exp_col + 2, value="Value")
+
+                            # Add all experimental description data
+                            for i, item in enumerate(core_level_data['experimental_description']):
+                                if len(item) >= 2:
+                                    worksheet.cell(row=i + 2, column=exp_col + 1, value=item[0])
+                                    worksheet.cell(row=i + 2, column=exp_col + 2, value=item[1])
+
                 except Exception as e:
                     wx.MessageBox(f"Error writing to Excel: {str(e)}", "Warning", wx.OK | wx.ICON_WARNING)
-                    # Continue with the paste operation even if Excel write fails
+                    # Continue even if Excel write fails
 
                 # Update combobox in parent
                 if hasattr(self.parent, 'sheet_combobox'):
@@ -1992,38 +1693,18 @@ class FileManagerWindow(wx.Frame):
         # Refresh the grid
         self.populate_grid()
 
-        # Update the JSON file
+        # Update JSON file
         try:
             self.save_be_corrections()
             self.save_sample_names()
-
-            # Save to JSON file
-            if hasattr(self.parent, 'Data') and 'FilePath' in self.parent.Data:
-                import json
-                json_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-
-                # Try to ensure the file exists first
-                if not os.path.exists(json_path):
-                    with open(json_path, 'w') as f:
-                        json.dump({}, f)
-
-                try:
-                    with open(json_path, 'r') as f:
-                        json_data = json.load(f)
-
-                    # Update BE corrections and sample names
-                    json_data['BEcorrections'] = self.parent.Data.get('BEcorrections', {})
-                    json_data['SampleNames'] = self.parent.Data.get('SampleNames', {})
-
-                    with open(json_path, 'w') as f:
-                        json.dump(json_data, f, indent=4)
-                except Exception as e:
-                    print(f"Error updating JSON file: {e}")
         except Exception as e:
             print(f"Error in final update steps: {e}")
 
-        # wx.MessageBox(f"{len(clipboard_data)} core level(s) pasted. "
-        #               f"\n Beware that core level retain their BE correction values", "Paste Successful", wx.OK | wx.ICON_INFORMATION)
+        # Close and reopen the file manager to refresh all columns
+        self.parent.file_manager = None  # Clear the reference
+        self.Destroy()  # Close current file manager
+        wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
+
         self.parent.show_popup_message2("Paste Successful",
                                         f"{len(clipboard_data)} core level(s) pasted.\nBeware that core level retain their BE correction values")
 
@@ -2051,26 +1732,6 @@ class FileManagerWindow(wx.Frame):
                     self.populate_grid()
             dlg.Destroy()
 
-    def on_delete_OLD(self, event):
-        """Delete the selected core level"""
-        save_state(self.parent)
-        sheet_names = self.get_selected_sheet_names()
-
-        if sheet_names:
-            sheet_name = sheet_names[0]  # Use the first selected sheet
-
-            # Set the sheet in parent before deleting
-            self.parent.sheet_combobox.SetValue(sheet_name)
-            from libraries.Sheet_Operations import on_sheet_selected
-            on_sheet_selected(self.parent, sheet_name)
-
-            if wx.MessageBox(f"Are you sure you want to delete {sheet_name}?", "Confirm Delete",
-                             wx.YES_NO | wx.ICON_QUESTION) == wx.YES:
-                from libraries.Utilities import on_delete_sheet
-                on_delete_sheet(self.parent, None)
-
-                # Reload the grid after deleting
-                self.populate_grid()
 
     def on_delete(self, event):
         """Delete selected core level(s)."""
@@ -2146,8 +1807,11 @@ class FileManagerWindow(wx.Frame):
                 from libraries.Sheet_Operations import on_sheet_selected
                 on_sheet_selected(self.parent, new_sheet)
 
-        # Refresh the grid
-        self.populate_grid()
+
+        # Close and reopen the file manager to refresh all columns
+        self.parent.file_manager = None  # Clear the reference
+        self.Destroy()  # Close current file manager
+        wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
 
         # wx.MessageBox(f"Deleted {len(sheet_names)} core level(s).", "Success", wx.OK | wx.ICON_INFORMATION)
         self.parent.show_popup_message2("Success", f"Deleted {len(sheet_names)} core level(s).")
