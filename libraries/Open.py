@@ -1107,59 +1107,93 @@ def import_mrs_file(window):
 
 def import_avantage_file_direct(window, file_path):
     import re
+    import openpyxl
+
     wb = openpyxl.load_workbook(file_path)
     new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
+    new_wb = openpyxl.Workbook()
+    new_wb.remove(new_wb.active)
 
-    sheets_to_remove = []
+    sheets_to_process = []
     for sheet_name in wb.sheetnames:
-        sheet = wb[sheet_name]
         if "Survey" in sheet_name or "Scan" in sheet_name:
-            # Handle Survey sheets
-            if "Survey" in sheet_name or "survey" in sheet_name:
-                # Extract number if present in "Survey Scan (2)" format
-                number_match = re.search(r'\((\d+)\)', sheet_name)
-                if number_match:
-                    number = number_match.group(1)
-                    new_name = f"Survey{number}"
-                else:
-                    new_name = "Survey"
-            else:
-                # Extract element name and number for patterns like "C1s Scan (1)"
-                parts = sheet_name.split()
-                element = parts[0]
-                # Check if there's a number in parentheses
-                number_match = re.search(r'\((\d+)\)', sheet_name)
-                if number_match:
-                    number = number_match.group(1)
-                    new_name = f"{element}{number}"
-                else:
-                    new_name = element
+            sheets_to_process.append(sheet_name)
 
-            wb.create_sheet(new_name)
-            new_sheet = wb[new_name]
+    for sheet_name in sheets_to_process:
+        sheet = wb[sheet_name]
+
+        # Extract element name (e.g., C1s, O1s)
+        if "Survey" in sheet_name or "survey" in sheet_name:
+            base_name = "Survey"
+        else:
+            parts = sheet_name.split()
+            base_name = parts[0]  # Get element (C1s, O1s, etc.)
+
+        # Check if multi-sample (D8 cell not empty and > 1)
+        multi_sample = False
+        num_samples = 1
+        if sheet.cell(row=8, column=4).value is not None:
+            try:
+                num_samples = int(sheet.cell(row=8, column=4).value)
+                if num_samples > 1:
+                    multi_sample = True
+            except (ValueError, TypeError):
+                pass
+
+        # Find data start row (default to 19 for Thermo files)
+        start_row = 19
+        for row_idx in range(1, sheet.max_row + 1):
+            if sheet.cell(row=row_idx, column=1).value == "eV":
+                start_row = row_idx + 1
+                break
+
+        if multi_sample:
+            # Process each sample into its own sheet
+            for sample_idx in range(num_samples):
+                sample_name = f"{base_name}{sample_idx if sample_idx > 0 else ''}"
+                new_sheet = new_wb.create_sheet(sample_name)
+                new_sheet['A1'] = "Binding Energy"
+                new_sheet['B1'] = "Raw Data"
+
+                # A column is binding energy (col 1), data is in col C+sample_idx (col 3+sample_idx)
+                data_col = 3 + sample_idx  # C is 3, D is 4, etc.
+
+                # Copy data
+                row_new = 2
+                for row in range(start_row, sheet.max_row + 1):
+                    be_value = sheet.cell(row=row, column=1).value
+                    intensity_value = sheet.cell(row=row, column=data_col).value
+
+                    if be_value is None or intensity_value is None:
+                        continue
+
+                    new_sheet.cell(row=row_new, column=1, value=be_value)
+                    new_sheet.cell(row=row_new, column=2, value=intensity_value)
+                    row_new += 1
+        else:
+            # Single sample - process as before
+            new_name = base_name
+            # Extract number if present in format like "C1s Scan (2)"
+            number_match = re.search(r'\((\d+)\)', sheet_name)
+            if number_match:
+                number = number_match.group(1)
+                new_name = f"{base_name}{number}"
+
+            new_sheet = new_wb.create_sheet(new_name)
             new_sheet['A1'] = "Binding Energy"
             new_sheet['B1'] = "Raw Data"
 
-            start_row = 17
-            for row_idx in range(1, sheet.max_row + 1):
-                if sheet.cell(row=row_idx, column=1).value == "eV":
-                    start_row = row_idx + 1
-                    break
+            for row in range(start_row, sheet.max_row + 1):
+                be_value = sheet.cell(row=row, column=1).value
+                intensity_value = sheet.cell(row=row, column=3).value  # Column C
 
-            for row in sheet.iter_rows(min_row=start_row, values_only=True):
-                new_sheet.append([row[0]] + list(row[2:]))
-            sheets_to_remove.append(sheet_name)
+                if be_value is None or intensity_value is None:
+                    continue
 
-            for col in new_sheet.iter_cols(min_col=3, max_col=24):
-                for cell in col:
-                    cell.value = None
-        else:
-            sheets_to_remove.append(sheet_name)
+                new_sheet['A{}'.format(row - start_row + 2)] = be_value
+                new_sheet['B{}'.format(row - start_row + 2)] = intensity_value
 
-    for sheet_name in sheets_to_remove:
-        del wb[sheet_name]
-
-    wb.save(new_file_path)
+    new_wb.save(new_file_path)
     open_xlsx_file(window, new_file_path)
 
 def import_avantage_file_direct_xls(window, file_path):
