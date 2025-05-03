@@ -56,15 +56,19 @@ class PlotConfig:
 
             # Get current sheet name
             sheet_name = window.sheet_combobox.GetValue()
+            is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
 
             # Update plot limits based on the selected range
             self.update_plot_limits(window, sheet_name, x_min, x_max, y_min, y_max)
 
-            # Set x-axis limits based on energy scale
+            # Set x-axis limits based on energy scale and data type
             if window.energy_scale == 'KE':
                 window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
             else:
-                window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for BE
+                if is_raman:
+                    window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
+                else:
+                    window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
 
             # Set y-axis limits
             window.ax.set_ylim(y_min, y_max)
@@ -235,14 +239,20 @@ class PlotConfig:
     # This def is also in PLotManager
     def resize_plot(self, window):
         sheet_name = window.sheet_combobox.GetValue()
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
+
         if sheet_name not in self.plot_limits:
             self.update_plot_limits(window, sheet_name)
 
         limits = self.plot_limits[sheet_name]
         if window.energy_scale == 'KE':
-            window.ax.set_xlim(window.photons -limits['Xmax'], window.photons - limits['Xmin'])
+            window.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
         else:
-            window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+            if is_raman:
+                window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
+            else:
+                window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
+
         window.ax.set_ylim(limits['Ymin'], limits['Ymax'])
         window.canvas.draw_idle()
 
@@ -290,6 +300,9 @@ class PlotConfig:
         # Ensure x_min is always less than x_max (because of reversed x-axis)
         x_min, x_max = min(x_min, x_max), max(x_min, x_max)
 
+
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
+
         if sheet_name not in self.plot_limits:
             self.plot_limits[sheet_name] = {}
 
@@ -299,11 +312,14 @@ class PlotConfig:
         limits['Ymin'] = y_min
         limits['Ymax'] = y_max
 
-        # Update the actual plot limits
+        # Set x-axis limits based on energy scale and data type
         if window.energy_scale == 'KE':
-            window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))  # Reverse X-axis
+            window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
         else:
-            window.ax.set_xlim(x_max, x_min)  # Reverse X-axis
+            if is_raman:
+                window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
+            else:
+                window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
         window.ax.set_ylim(y_min, y_max)
 
         print(f"Updated limits after drag: Xmin={x_min:.2f}, Xmax={x_max:.2f}, Ymin={y_min:.2f}, Ymax={y_max:.2f}")

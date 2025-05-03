@@ -333,7 +333,7 @@ def create_menu(window):
     # File menu items
 
     # Add "New Instance" option to File menu
-    new_instance_item = file_menu.Append(wx.NewId(), "New Instance\tCtrl+N")
+    new_instance_item = file_menu.Append(wx.NewId(), "New Window\tCtrl+N")
     window.Bind(wx.EVT_MENU, lambda event: launch_new_instance(), new_instance_item)
 
     open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")

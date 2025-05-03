@@ -452,6 +452,14 @@ class FileManagerWindow(wx.Frame):
 
     def extract_base_name(self, sheet_name):
         """Extract base core level name without any trailing numbers"""
+        # Add support for Raman files with underscores
+        if "Raman_" in sheet_name or "Ra_" in sheet_name:
+            # Special handling for Raman files with underscores
+            base_parts = sheet_name.split('_')
+            if len(base_parts) > 1:
+                return '_'.join(base_parts[:-1]) if base_parts[-1].isdigit() else sheet_name
+
+        # Original pattern for typical core levels
         match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet_name)
         if match:
             return match.group(1)
@@ -494,16 +502,29 @@ class FileManagerWindow(wx.Frame):
         self.grid.SetColSize(0, 70)  # Reset wider width for sample name column
 
         # First, categorize all core levels
+        # First, categorize all core levels
         for sheet_name in self.parent.Data['Core levels'].keys():
-            match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet_name)
-            if match:
-                base_name = match.group(1)
-                index_str = match.group(2)
+            if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                # Handle Raman files with underscore
+                base_parts = sheet_name.split('_')
+                base_name = base_parts[0] + "_" + base_parts[1]  # Keep format as "Raman_bSiO4"
+                index_str = ""
+                if len(base_parts) > 2 and base_parts[2].isdigit():
+                    index_str = base_parts[2]
                 index = int(index_str) if index_str else 0
+            else:
+                # Original pattern for typical core levels
+                match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                    index_str = match.group(2)
+                    index = int(index_str) if index_str else 0
+                else:
+                    continue  # Skip if no match found
 
-                if base_name not in core_level_map:
-                    core_level_map[base_name] = {}
-                core_level_map[base_name][index] = sheet_name
+            if base_name not in core_level_map:
+                core_level_map[base_name] = {}
+            core_level_map[base_name][index] = sheet_name
 
         # Make sure grid has enough rows
         max_index = 0
@@ -1015,23 +1036,35 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
+        # Check if it's a Raman file
+        is_raman = "Raman_" in sheet_name or "Ra_" in sheet_name
+
         # Plot simple black line
         if self.parent.energy_scale == 'KE':
             self.parent.ax.plot(self.parent.photons - x_values, y_values, 'k-', linewidth=1)
         else:
             self.parent.ax.plot(x_values, y_values, 'k-', linewidth=1)
 
-        # Add core level text
-        base_name = self.extract_base_name(sheet_name)
-        formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
-        self.parent.ax.text(0.98, 0.98, formatted_name, transform=self.parent.ax.transAxes,
-                            fontsize=self.parent.core_level_text_size, fontweight='bold',
-                            va='top', ha='right')
+        # Add core level text - skip for Raman files
+        if not is_raman:
+            base_name = self.extract_base_name(sheet_name)
+            formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
+            self.parent.ax.text(0.98, 0.98, formatted_name, transform=self.parent.ax.transAxes,
+                                fontsize=self.parent.core_level_text_size, fontweight='bold',
+                                va='top', ha='right')
 
-        # Set axes
-        self.parent.ax.set_xlabel("Binding Energy (eV)")
-        self.parent.ax.set_ylabel("Intensity (CPS)")
-        self.parent.ax.set_xlim(max(x_values), min(x_values))  # Reversed for XPS
+
+
+        # Set x-axis direction based on data type
+        if is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm$^{-1}$)")
+            self.parent.ax.set_ylabel("Intensity (CPS)")
+            self.parent.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for Raman
+        else:
+            # Set axes
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            self.parent.ax.set_ylabel("Intensity (CPS)")
+            self.parent.ax.set_xlim(max(x_values), min(x_values))  # Reversed for XPS
 
         # Remove any residual subplot temporarily
         if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
@@ -1049,23 +1082,6 @@ class FileManagerWindow(wx.Frame):
         # Restore the original residuals state in the manager
         self.parent.plot_manager.residuals_state = original_residuals_state
 
-    def quick_plot_sheet_SLOW(self, sheet_name):
-        """Plot the sheet using the standard plotting method"""
-        if sheet_name not in self.parent.Data['Core levels']:
-            return
-
-        # # Update parent's combobox
-        # self.parent.sheet_combobox.SetValue(sheet_name)
-        #
-        # # Use the standard sheet selection function
-        # from libraries.Sheet_Operations import on_sheet_selected
-        # on_sheet_selected(self.parent, sheet_name)
-
-        self.on_plot_selected(None)
-        return  # Don't skip the event
-
-        # # Highlight this cell in the grid
-        # self.highlight_current_sheet(sheet_name)
 
 
     def plot_multiple_sheets(self, sheet_names):
