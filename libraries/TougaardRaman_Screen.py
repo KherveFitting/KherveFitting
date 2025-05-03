@@ -547,6 +547,13 @@ class TougaardRamanFitWindow(wx.Frame):
                 # Update main window background
                 self.parent.parent.background = self.background
 
+                # Set the background min/max energy variables so peak fitting knows a background exists
+                self.parent.parent.bg_min_energy = min(self.x_values)
+                self.parent.parent.bg_max_energy = max(self.x_values)
+
+                # Make sure the background is set in the parent fitting window
+                self.parent.background = self.background
+
                 # Update the main window plot
                 self.parent.parent.clear_and_replot()
 
