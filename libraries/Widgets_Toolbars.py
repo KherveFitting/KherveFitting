@@ -17,6 +17,7 @@ from libraries.Save import save_peaks_library, load_peaks_library
 from libraries.Save import on_save_as
 from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
+from libraries.Open import import_raman_txt_file, import_multiple_raman_files
 from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, PlotModWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
 from libraries.MarketResearch import check_registration_needed, launch_registration_form
@@ -376,6 +377,12 @@ def create_menu(window):
     import_multiple_avg_item = import_menu.Append(wx.NewId(), "Import Multiple AVG files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_avg_files(window), import_multiple_avg_item)
 
+    import_raman_item = import_menu.Append(wx.NewId(), "Import Raman .txt file")
+    window.Bind(wx.EVT_MENU, lambda event: import_raman_txt_file(window), import_raman_item)
+
+    import_multiple_raman_item = import_menu.Append(wx.NewId(), "Import Multiple Raman .txt files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_raman_files(window), import_multiple_raman_item)
+
     # Export submenu items
     export_python_plot_item = export_menu.Append(wx.NewId(), "Python Plot")
     window.Bind(wx.EVT_MENU, lambda event: create_plot_script_from_excel(window), export_python_plot_item)
@@ -674,12 +681,6 @@ def create_horizontal_toolbar(parent, window):
                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
                                                                                                   "Model \tCtrl+P")
 
-    # raman_tool = toolbar.AddTool(wx.ID_ANY, 'Raman Analysis',
-    #                              wx.Bitmap(os.path.join(icon_path, "C1s-25.png"), wx.BITMAP_TYPE_PNG),
-    #                              shortHelp="Open Raman Analysis Window")
-    #
-    # # Add in the binding section below with other tool bindings
-    # window.Bind(wx.EVT_TOOL, lambda event: window.on_open_raman_window(), raman_tool)
 
     diff_tool = toolbar.AddTool(wx.ID_ANY, 'Differentiate',
                                 wx.Bitmap(os.path.join(icon_path, "Dpara-25.png"), wx.BITMAP_TYPE_PNG),

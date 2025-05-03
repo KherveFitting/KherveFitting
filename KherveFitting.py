@@ -4273,6 +4273,8 @@ class MyFrame(wx.Frame):
                             # Check if the collection label matches any peak label
                             for peak_label in peak_labels:
                                 if collection.get_label() == peak_label:
+                                    print(f"Found collection for peak: {peak_label} "
+                                          f"max height: {max(collection.get_paths()[0].vertices[:, 1])}")
                                     data['individual_peak_fits'].append(collection.get_paths()[0].vertices[:, 1])
                                     break
 

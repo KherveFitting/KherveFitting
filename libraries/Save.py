@@ -379,53 +379,18 @@ def save_to_excel(window, data, file_path, sheet_name):
         new_columns['Background'] = data['background'] if data['background'] is not None else np.nan
         new_columns['Calculated Fit'] = data['calculated_fit'] if data['calculated_fit'] is not None else np.nan
 
-        # Add peak fits
         if data['individual_peak_fits']:
-            print('Adding individual peak fits')
+            num_rows = len(x_values)
             num_peaks = data['peak_params_grid'].GetNumberRows() // 2
             for i in range(num_peaks):
                 row = i * 2
                 peak_label = data['peak_params_grid'].GetCellValue(row, 1)
                 if i < len(data['individual_peak_fits']):
-                    peak_data = data['individual_peak_fits'][i]
-                    # Make sure peak data length matches
-                    if len(peak_data) > len(x_values):
-                        peak_data = peak_data[:len(x_values)]
-                    elif len(peak_data) < len(x_values):
-                        # Pad with zeros if needed
-                        peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
-                    # Add background to peak data before saving
-                    peak_with_background = peak_data + data['background']
-                    new_columns[peak_label] = peak_with_background
+                    reversed_peak = np.array(data['individual_peak_fits'][i])[::-1]
+                    trimmed_peak = np.roll(reversed_peak, -1)[:num_rows]
+                    new_columns[peak_label] = trimmed_peak
 
-        # if data['individual_peak_fits']:
-        #     print('Adding individual peak fits')
-        #     num_peaks = window.peak_params_grid.GetNumberRows() // 2
-        #     for i in range(num_peaks):
-        #         row = i * 2
-        #         try:
-        #             peak_label = window.peak_params_grid.GetCellValue(row, 1)
-        #             if i < len(data['individual_peak_fits']):
-        #                 try:
-        #                     peak_data = data['individual_peak_fits'][i]
-        #                     # Type checking before operations
-        #                     if not isinstance(peak_data, (list, np.ndarray)):
-        #                         print(f"Warning: Expected list/array for peak {i}, got {type(peak_data)}")
-        #                         continue
-        #
-        #                     # Make sure peak data length matches
-        #                     if len(peak_data) > len(x_values):
-        #                         peak_data = peak_data[:len(x_values)]
-        #                     elif len(peak_data) < len(x_values):
-        #                         # Pad with zeros if needed
-        #                         peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
-        #                     new_columns[peak_label] = peak_data
-        #                 except Exception as e:
-        #                     print(f"Error processing peak {i} ({peak_label}): {str(e)}")
-        #                     continue
-        #         except Exception as e:
-        #             print(f"Error accessing peak {i} data: {str(e)}")
-        #             continue
+
 
         # Now insert all columns at position 5
         col_pos = 5
@@ -519,11 +484,14 @@ def save_to_excel(window, data, file_path, sheet_name):
                 num_peak_rows = window.peak_params_grid.GetNumberRows()
                 end_row = start_row + num_peak_rows - 1
                 start_col = 24  # Column X (24th column)
-                end_col = min(start_col + window.peak_params_grid.GetNumberCols() - 1, worksheet.max_column)
+                end_col = min(start_col + window.peak_params_grid.GetNumberCols(), worksheet.max_column+1)
+                #print(f"start_col: {start_col}, end_col: {start_col + window.peak_params_grid.GetNumberCols() - 1}
+                # OR {worksheet.max_column}")
 
                 for row in range(start_row - 1, end_row + 1):  # Start from header row
-                    for col in range(start_col, end_col + 1):
-                        if col >= worksheet.max_column:
+                    for col in range(start_col, end_col):
+                        if col >= worksheet.max_column+1:
+                            print(f"Skipping column {col} as it exceeds max_column {worksheet.max_column}")
                             continue
 
                         cell = worksheet.cell(row=row, column=col)
