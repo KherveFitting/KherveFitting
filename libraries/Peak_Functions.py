@@ -1088,6 +1088,160 @@ class BackgroundCalculations:
 
         return background
 
+    @staticmethod
+    def calculate_als_background_lmfit(x, y, lambda_val=1e5, p=0.001, niter=30):
+        """
+        Calculate Asymmetric Least Squares background using lmfit.
+        """
+        from scipy import sparse
+        from scipy.sparse.linalg import spsolve
+        import lmfit
+
+        y = np.array(y, dtype=float)
+        m = len(y)
+
+        # Define the baseline model function
+        def als_baseline(params, x, y):
+            lam = params['lam'].value
+            p_val = params['p_val'].value
+
+            # Create second-derivative matrix
+            D = sparse.diags([1, -2, 1], [-1, 0, 1], shape=(m - 2, m))
+
+            # Initial estimate
+            z = y.copy()
+
+            # ALS algorithm
+            for i in range(niter):
+                w = p_val * (y > z) + (1 - p_val) * (y <= z)
+                W = sparse.spdiags(w, 0, m, m)
+
+                DtD = D.transpose() @ D
+                A = W + lam * DtD
+                B = W @ y
+                z = spsolve(A, B)
+
+            # Return residuals for fitting
+            return z - y
+
+        # Create parameter set
+        params = lmfit.Parameters()
+        params.add('lam', value=lambda_val, min=-1e1, max=-1e7, vary=True)
+        params.add('p_val', value=p, min=0.0001, max=0.5, vary=True)
+
+        # Perform the fit
+        result = lmfit.minimize(als_baseline, params, args=(x, y), method='least_squares')
+
+        # Get final parameters
+        final_lambda = result.params['lam'].value
+        final_p = result.params['p_val'].value
+
+        print(f"Final lambda: {final_lambda}, Final p: {final_p}")
+
+        # Calculate final background with optimized parameters
+        D = sparse.diags([1, -2, 1], [-1, 0, 1], shape=(m - 2, m))
+        z = y.copy()
+
+        for i in range(niter):
+            w = final_p * (y > z) + (1 - final_p) * (y <= z)
+            W = sparse.spdiags(w, 0, m, m)
+
+            DtD = D.transpose() @ D
+            A = W + final_lambda * DtD
+            B = W @ y
+            z = spsolve(A, B)
+
+        return z
+
+    @staticmethod
+    def calculate_als_background(x, y, lambda_val=1e5, p=0.001, niter=10):
+        """
+        Calculate Asymmetric Least Squares background correction.
+        """
+        from scipy import sparse
+        from scipy.sparse.linalg import spsolve
+
+        y = np.array(y, dtype=float)
+        m = len(y)
+
+        # Create second-derivative matrix
+        D = sparse.diags([1, -2, 1], [-1, 0, 1], shape=(m - 2, m))
+
+        # Initial estimate
+        z = y.copy()
+
+        # Iterative process
+        for i in range(niter):
+            # Weights based on residuals
+            w = p * (y > z) + (1 - p) * (y <= z)
+            W = sparse.spdiags(w, 0, m, m)
+
+            # Solve the regularized least squares problem
+            DtD = D.transpose() @ D
+            A = W + lambda_val * DtD
+            B = W @ y
+            z = spsolve(A, B)
+
+        return z
+
+    @staticmethod
+    def calculate_als_background_spectral(x, y, lambda_val=1e6, p=0.0001, niter=20):
+        """
+        Calculate Asymmetric Least Squares background optimized for spectroscopic data.
+        """
+        from scipy import sparse
+        from scipy.sparse.linalg import spsolve
+        import numpy as np
+
+        y = np.array(y, dtype=float)
+        m = len(y)
+
+        # Initial peak identification (rough approach)
+        # First do a very rough ALS fit with high lambda to get approximate baseline
+        D = sparse.diags([1, -2, 1], [-1, 0, 1], shape=(m - 2, m))
+        w = np.ones(m)
+
+        # Rough baseline
+        for i in range(5):
+            W = sparse.spdiags(w, 0, m, m)
+            DtD = D.transpose() @ D
+            A = W + 1e8 * DtD  # Very high lambda for initial rough estimate
+            B = W @ y
+            z_rough = spsolve(A, B)
+            w = 0.0001 * (y > z_rough) + 0.9999 * (y <= z_rough)
+
+        # Identify potential peaks as points significantly above rough baseline
+        threshold = 1.5 * np.median(y - z_rough)
+        peak_mask = (y - z_rough) > threshold
+
+        # Refined ALS with peak awareness
+        # Set very low weights for peak regions
+        z = z_rough.copy()
+        w = np.ones(m)
+        w[peak_mask] = 0.0001  # Very low weight for peak regions
+
+        # Main ALS iterations with refined settings
+        for i in range(niter):
+            # Update weights based on being above/below current baseline
+            # But preserve the peak masking
+            non_peak_mask = ~peak_mask
+            w[non_peak_mask] = p * (y[non_peak_mask] > z[non_peak_mask]) + (1 - p) * (
+                        y[non_peak_mask] <= z[non_peak_mask])
+
+            # Solve weighted penalized least squares
+            W = sparse.spdiags(w, 0, m, m)
+            DtD = D.transpose() @ D
+            A = W + lambda_val * DtD
+            B = W @ y
+            z = spsolve(A, B)
+
+        # Final cleanup - ensure baseline is below data points where appropriate
+        # For Raman, baseline should never exceed original signal
+        # (uncomment if needed)
+        # z = np.minimum(z, y)
+
+        return z
+
 
 class AtomicConcentrations:
     @staticmethod

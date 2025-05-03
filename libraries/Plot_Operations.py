@@ -1977,14 +1977,6 @@ class PlotManager:
         """Helper method to calculate background for non-Multi-Regions Smart methods."""
         sheet_name = window.sheet_combobox.GetValue()
 
-        # bg_min_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg Low')
-        # bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
-        #
-        # if bg_min_energy is None or bg_max_energy is None or bg_min_energy > bg_max_energy:
-        #     # wx.MessageBox("Invalid energy range selected.", "Warning", wx.OK | wx.ICON_INFORMATION)
-        #     self.parent.show_popup_message2("Warning", "Invalid energy range selected.")
-        #     return None, None
-
         # Get the proper energy range from vlines or from stored values
         if window.vline1 is not None and window.vline2 is not None:
             bg_min_energy = min(window.vline1.get_xdata()[0], window.vline2.get_xdata()[0])
@@ -2044,6 +2036,37 @@ class PlotManager:
                                                                                        sheet_name,
                                                                                        window)
             label = 'Background (Tougaard)'
+        # elif method == "ALS-Raman":
+        #     # Get ALS parameters if available
+        #     lambda_val = 1000
+        #     p_val = 0.01
+        #
+        #     if hasattr(window, 'fitting_window'):
+        #         if hasattr(window.fitting_window, 'als_lambda'):
+        #             lambda_val = float(window.fitting_window.als_lambda.GetValue())
+        #         if hasattr(window.fitting_window, 'als_p'):
+        #             p_val = float(window.fitting_window.als_p.GetValue())
+        #
+        #     background_filtered = BackgroundCalculations.calculate_als_background(
+        #         x_values_filtered, y_values_filtered, lambda_val=lambda_val, p=p_val
+        #     )
+        #     label = 'Background (ALS)'
+        elif method == "ALS-Raman":
+            # Get ALS parameters if available
+            lambda_val = 1e5
+            p_val = 0.001
+
+            if hasattr(window, 'raman_window'):
+                if hasattr(window.raman_window, 'als_lambda'):
+                    lambda_val = float(window.raman_window.als_lambda.GetValue())
+                if hasattr(window.raman_window, 'als_p'):
+                    p_val = float(window.raman_window.als_p.GetValue())
+
+            # Use lmfit-based ALS
+            background_filtered = BackgroundCalculations.calculate_als_background_spectral(
+                x_values_filtered, y_values_filtered, lambda_val=lambda_val, p=p_val
+            )
+            label = 'Background (ALS-Raman)'
         else:
             background_filtered = BackgroundCalculations.calculate_smart_background(x_values_filtered,
                                                                                     y_values_filtered, offset_h,

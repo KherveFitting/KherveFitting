@@ -5132,6 +5132,24 @@ class MyFrame(wx.Frame):
         except ValueError:
             return default
 
+    def on_open_raman_window(self):
+        from libraries.Raman_Screen import RamanWindow
+        if not hasattr(self, 'raman_window') or not self.raman_window:
+            self.raman_window = RamanWindow(self)
+
+            # Set position relative to main window
+            main_pos = self.GetPosition()
+            main_size = self.GetSize()
+            raman_size = self.raman_window.GetSize()
+
+            x = main_pos.x + (main_size.width - raman_size.width) // 2
+            y = main_pos.y + (main_size.height - raman_size.height) // 2
+
+            self.raman_window.SetPosition((x, y))
+
+        self.raman_window.Show()
+        self.raman_window.Raise()
+
 
 def set_high_priority():
     try:

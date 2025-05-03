@@ -11,6 +11,7 @@ from libraries.Peak_Functions import BackgroundCalculations
 from libraries.Save import save_state
 from libraries.Plot_Operations import PlotManager
 from libraries.Open import load_library_data
+from libraries.TougaardRaman_Screen import TougaardRamanFitWindow
 
 class FittingWindow(wx.Frame):
     def __init__(self, parent, *args, **kw):
@@ -94,7 +95,8 @@ class FittingWindow(wx.Frame):
 
         method_label = wx.StaticText(self.background_panel, label="Method:")
         self.method_combobox = wx.ComboBox(self.background_panel, choices=["Multi-Regions Smart", "Smart", "Shirley",
-                                            "Linear", '1x U4-Tougaard', "2x U4-Tougaard", "3x U4-Tougaard"],
+                                            "Linear", '1x U4-Tougaard', "2x U4-Tougaard", "3x U4-Tougaard",
+                                                                           "ALS-Raman"],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetMaxSize((125,25))
 
@@ -202,12 +204,12 @@ class FittingWindow(wx.Frame):
             clear_background_only_button.SetMinSize((125, 35))
         clear_background_only_button.Bind(wx.EVT_BUTTON, self.on_clear_background_only)
 
-        self.tougaard_fit_btn = wx.Button(self.background_panel, label="Create Tougaard\n Model")
+        self.tougaard_fit_btn = wx.Button(self.background_panel, label="Tougaard / Raman\n Model")
         if 'wxMac' in wx.PlatformInfo:
             self.tougaard_fit_btn.SetMinSize((125, 30))
         else:
             self.tougaard_fit_btn.SetMinSize((125, 35))
-        self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, lambda evt: TougaardFitWindow(self).Show())
+        self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, self.on_tougaard_raman_model)
 
         if 'wxMac' in wx.PlatformInfo:
         # Layout Background Tab
@@ -570,7 +572,20 @@ class FittingWindow(wx.Frame):
         self.update_background_info_button()
         self.update_tougaard_controls_visibility(new_method)
 
-    def update_tougaard_controls_visibility(self,new_method):
+    def on_tougaard_raman_model(self, event):
+        bg_method = self.method_combobox.GetValue()
+        if bg_method.startswith("1x U4-Tougaard") or bg_method.startswith("2x U4-Tougaard") or \
+                bg_method.startswith("3x U4-Tougaard"):
+            tougaard_window = TougaardFitWindow(self)
+            tougaard_window.Show()
+        elif bg_method == "ALS-Raman":
+            raman_window = TougaardRamanFitWindow(self)
+            raman_window.Show()
+        else:
+            self.parent.show_popup_message2("Error",
+                                            "Tougaard/Raman Model is only available for Tougaard and ALS-Raman background methods.")
+
+    def update_tougaard_controls_visibility(self, new_method):
         if new_method.startswith("1x U4-Tougaard"):
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
@@ -595,6 +610,14 @@ class FittingWindow(wx.Frame):
             self.cross_section2_label.Enable(True)
             self.cross_section3.Enable(True)
             self.cross_section3_label.Enable(True)
+        elif new_method == "ALS-Raman":
+            self.cross_section.Enable(False)
+            self.cross_section_label.Enable(False)
+            self.tougaard_fit_btn.Enable(True)
+            self.cross_section2.Enable(False)
+            self.cross_section2_label.Enable(False)
+            self.cross_section3.Enable(False)
+            self.cross_section3_label.Enable(False)
         else:
             self.cross_section.Enable(False)
             self.cross_section_label.Enable(False)
@@ -895,7 +918,6 @@ class FittingWindow(wx.Frame):
         offset_l_value = self.offset_l_text.GetValue()
         self.parent.set_offset_l(offset_l_value)
 
-
     def get_background_description(self, method):
         descriptions = {
             "Multi-Regions Smart": "Same as the Smart background but not restricted to a single region",
@@ -904,9 +926,13 @@ class FittingWindow(wx.Frame):
                      "going down. If the calculated background is above the data then the "
                      "background is set equal to the data.",
             "Shirley": "Iterative background calculation. Reliable for increasing background when "
-            "the data contains symmetrical peak. the number of iteration is set to 100",
-            "Linear": "Simple linear background. Usually used on negative background"
-            "Tougaard: U4 Tougaard background for Advanced users. B, C, D and T0 can be varied. "
+                       "the data contains symmetrical peak. the number of iteration is set to 100",
+            "Linear": "Simple linear background. Usually used on negative background",
+            "1x U4-Tougaard": "U4 Tougaard background for Advanced users. B, C, D and T0 can be varied.",
+            "2x U4-Tougaard": "Double U4 Tougaard background for Advanced users. Two sets of B, C, D and T0 can be varied.",
+            "3x U4-Tougaard": "Triple U4 Tougaard background for Advanced users. Three sets of B, C, D and T0 can be varied.",
+            "ALS-Raman": "Asymmetric Least Squares background estimation. Good for uneven backgrounds "
+                         "with broad features. Lambda controls smoothness and p controls asymmetry."
         }
         return descriptions.get(method, "No description available")
 
@@ -1105,6 +1131,12 @@ class TougaardFitWindow(wx.Frame):
         self.num_tougaard = wx.SpinCtrl(control_panel, min=1, max=10, initial=1)
         num_sizer.Add(self.num_tougaard, 1, wx.ALL, 5)
 
+        # Background start control
+        bg_box = wx.StaticBox(control_panel, label="Background Start")
+        bg_sizer = wx.StaticBoxSizer(bg_box, wx.HORIZONTAL)
+        self.bg_start = wx.SpinCtrlDouble(control_panel, min=0, max=2000, inc=0.1, value=str(min_x + 1))
+        bg_sizer.Add(self.bg_start, 1, wx.ALL, 5)
+
         # Range controls
         range_box = wx.StaticBox(control_panel, label="Fit Range")
         range_sizer = wx.StaticBoxSizer(range_box, wx.VERTICAL)
@@ -1119,11 +1151,6 @@ class TougaardFitWindow(wx.Frame):
         range_grid.Add(self.max_range, 0)
         range_sizer.Add(range_grid, 0, wx.ALL | wx.EXPAND, 5)
 
-        # Background start control
-        bg_box = wx.StaticBox(control_panel, label="Background Start")
-        bg_sizer = wx.StaticBoxSizer(bg_box, wx.HORIZONTAL)
-        self.bg_start = wx.SpinCtrlDouble(control_panel, min=0, max=2000, inc=0.1, value=str(min_x + 1))
-        bg_sizer.Add(self.bg_start, 1, wx.ALL, 5)
 
         # Scrolled window for Tougaard parameters
         self.param_scroll = wx.ScrolledWindow(control_panel)
@@ -1175,8 +1202,8 @@ class TougaardFitWindow(wx.Frame):
 
         # Layout
         control_sizer.Add(num_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        control_sizer.Add(range_sizer, 0, wx.EXPAND | wx.ALL, 5)
         control_sizer.Add(bg_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        control_sizer.Add(range_sizer, 0, wx.EXPAND | wx.ALL, 5)
         control_sizer.Add(self.param_scroll, 1, wx.EXPAND | wx.ALL, 5)
         control_sizer.Add(button_sizer, 0, wx.EXPAND|wx.ALL, 5)
         control_panel.SetSizer(control_sizer)

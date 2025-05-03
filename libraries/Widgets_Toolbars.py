@@ -674,6 +674,13 @@ def create_horizontal_toolbar(parent, window):
                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
                                                                                                   "Model \tCtrl+P")
 
+    # raman_tool = toolbar.AddTool(wx.ID_ANY, 'Raman Analysis',
+    #                              wx.Bitmap(os.path.join(icon_path, "C1s-25.png"), wx.BITMAP_TYPE_PNG),
+    #                              shortHelp="Open Raman Analysis Window")
+    #
+    # # Add in the binding section below with other tool bindings
+    # window.Bind(wx.EVT_TOOL, lambda event: window.on_open_raman_window(), raman_tool)
+
     diff_tool = toolbar.AddTool(wx.ID_ANY, 'Differentiate',
                                 wx.Bitmap(os.path.join(icon_path, "Dpara-25.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="D-parameter Calculation")
