@@ -57,7 +57,7 @@ def save_all_sheets_with_plots(window):
 
     except Exception as e:
         wx.MessageBox(f"Error saving sheets with plots: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-def save_data(window, data):
+def save_data_OLD(window, data):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
         return
@@ -98,6 +98,69 @@ def save_data(window, data):
     except Exception as e:
         wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+def save_data(window, data):
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    file_path = window.Data['FilePath']
+    sheet_name = window.sheet_combobox.GetValue()
+
+    try:
+        # Save JSON file with entire window.Data
+        json_file_path = os.path.splitext(file_path)[0] + '.json'
+
+        # Create a copy of window.Data to modify
+        json_data = window.Data.copy()
+        print('Created copy of json Data')
+
+        # Convert numpy arrays and other non-serializable types to lists, and round floats
+        try:
+            json_data = convert_to_serializable_and_round(json_data)
+            print('Converted json data to serializable and rounded')
+        except Exception as e:
+            print(f"Error converting data: {str(e)}")
+            # Try to identify problematic section
+            for key in window.Data:
+                try:
+                    convert_to_serializable_and_round(window.Data[key])
+                except Exception as sub_e:
+                    print(f"Problem in section '{key}': {str(sub_e)}")
+            raise
+
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+        print('Saved json file')
+
+        # Save to Excel
+        try:
+            save_to_excel(window, data, file_path, sheet_name)
+            print('Saved to Excel')
+        except Exception as e:
+            print(f"Error in save_to_excel: {str(e)}")
+            raise
+
+        try:
+            save_plot_to_excel(window)
+            print('Saved plot to Excel')
+        except Exception as e:
+            print(f"Error in save_plot_to_excel: {str(e)}")
+            raise
+
+        # Save results table
+        try:
+            save_results_table(window)
+            print('Saved results table')
+        except Exception as e:
+            print(f"Error in save_results_table: {str(e)}")
+            raise
+
+        print("Data Saved")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
 
 def convert_to_serializable_and_round2(obj, decimal_places=2):
     try:
@@ -126,7 +189,7 @@ def convert_to_serializable_and_round2(obj, decimal_places=2):
     except Exception as e:
         return str(obj)  # Return a string representation as a fallback
 
-def convert_to_serializable_and_round(obj, window=None, decimal_places=2):
+def convert_to_serializable_and_round_OLD(obj, window=None, decimal_places=2):
     try:
         if isinstance(obj, (float, np.float32, np.float64)):
             return round(float(obj), decimal_places)
@@ -189,6 +252,51 @@ def convert_to_serializable_and_round(obj, window=None, decimal_places=2):
     except Exception as e:
         return str(obj)
 
+def convert_to_serializable_and_round(obj, window=None, decimal_places=2):
+    try:
+        if isinstance(obj, (float, np.float32, np.float64)):
+            return round(float(obj), decimal_places)
+        elif isinstance(obj, (int, np.int32, np.int64)):
+            return int(obj)
+        elif isinstance(obj, np.ndarray):
+            # Check if array is empty
+            if obj.size == 0:
+                return []
+            return [convert_to_serializable_and_round(item, window, decimal_places) for item in obj.tolist()]
+        elif isinstance(obj, list):
+            return [convert_to_serializable_and_round(item, window, decimal_places) for item in obj]
+        elif isinstance(obj, dict):
+            return {k: convert_to_serializable_and_round(v, window, decimal_places) for k, v in obj.items()}
+        elif isinstance(obj, wx.grid.Grid):
+            if window and obj == window.results_grid:
+                # Your existing results_grid handling code
+                return {
+                    "rows": obj.GetNumberRows(),
+                    "cols": obj.GetNumberCols(),
+                    "data": [{
+                        # Rest of your code
+                    } for row in range(obj.GetNumberRows())]
+                }
+            else:
+                return {
+                    "rows": obj.GetNumberRows(),
+                    "cols": obj.GetNumberCols(),
+                    "data": [[convert_to_serializable_and_round(obj.GetCellValue(row, col), window, decimal_places)
+                              for col in range(obj.GetNumberCols())]
+                             for row in range(obj.GetNumberRows())]
+                }
+        elif hasattr(obj, 'tolist'):
+            try:
+                return convert_to_serializable_and_round(obj.tolist(), window, decimal_places)
+            except Exception as e:
+                print(f"Error converting with tolist: {e}")
+                return str(obj)
+        else:
+            return obj
+    except Exception as e:
+        print(f"Error in convert_to_serializable_and_round: {e}, type: {type(obj)}")
+        return str(obj)
+
 def convert_to_serializable(obj):
     if isinstance(obj, np.ndarray):
         return obj.tolist()
@@ -208,8 +316,24 @@ def convert_to_serializable(obj):
     else:
         return obj
 
+def ensure_sliceable(data, length):
+    """Ensure data is sliceable or convert it to a list of the required length."""
+    if isinstance(data, (list, np.ndarray)):
+        return data[:length]
+    else:
+        # If data is a scalar (like a float), repeat it to create a list
+        return [data] * length
 
 def save_to_excel(window, data, file_path, sheet_name):
+    # Add this function near the beginning of Save.py file
+    def safe_get(obj, key, default=None):
+        """Safely access dictionary keys or list indices without causing errors."""
+        if isinstance(obj, dict) and key in obj:
+            return obj[key]
+        elif isinstance(obj, (list, tuple, np.ndarray)) and isinstance(key, int) and 0 <= key < len(obj):
+            return obj[key]
+        return default
+
     existing_df = pd.read_excel(file_path, sheet_name=sheet_name)
 
     # Determine the column containing experimental data (if present)
@@ -255,22 +379,51 @@ def save_to_excel(window, data, file_path, sheet_name):
         new_columns['Background'] = data['background'] if data['background'] is not None else np.nan
         new_columns['Calculated Fit'] = data['calculated_fit'] if data['calculated_fit'] is not None else np.nan
 
-        # Add peak fits
+        # # Add peak fits
+        # if data['individual_peak_fits']:
+        #     print('Adding individual peak fits')
+        #     num_peaks = data['peak_params_grid'].GetNumberRows() // 2
+        #     for i in range(num_peaks):
+        #         row = i * 2
+        #         peak_label = data['peak_params_grid'].GetCellValue(row, 1)
+        #         if i < len(data['individual_peak_fits']):
+        #             peak_data = data['individual_peak_fits'][i]
+        #             # Make sure peak data length matches
+        #             if len(peak_data) > len(x_values):
+        #                 peak_data = peak_data[:len(x_values)]
+        #             elif len(peak_data) < len(x_values):
+        #                 # Pad with zeros if needed
+        #                 peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
+        #             new_columns[peak_label] = peak_data
+
         if data['individual_peak_fits']:
             print('Adding individual peak fits')
-            num_peaks = data['peak_params_grid'].GetNumberRows() // 2
+            num_peaks = window.peak_params_grid.GetNumberRows() // 2
             for i in range(num_peaks):
                 row = i * 2
-                peak_label = data['peak_params_grid'].GetCellValue(row, 1)
-                if i < len(data['individual_peak_fits']):
-                    peak_data = data['individual_peak_fits'][i]
-                    # Make sure peak data length matches
-                    if len(peak_data) > len(x_values):
-                        peak_data = peak_data[:len(x_values)]
-                    elif len(peak_data) < len(x_values):
-                        # Pad with zeros if needed
-                        peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
-                    new_columns[peak_label] = peak_data
+                try:
+                    peak_label = window.peak_params_grid.GetCellValue(row, 1)
+                    if i < len(data['individual_peak_fits']):
+                        try:
+                            peak_data = data['individual_peak_fits'][i]
+                            # Type checking before operations
+                            if not isinstance(peak_data, (list, np.ndarray)):
+                                print(f"Warning: Expected list/array for peak {i}, got {type(peak_data)}")
+                                continue
+
+                            # Make sure peak data length matches
+                            if len(peak_data) > len(x_values):
+                                peak_data = peak_data[:len(x_values)]
+                            elif len(peak_data) < len(x_values):
+                                # Pad with zeros if needed
+                                peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
+                            new_columns[peak_label] = peak_data
+                        except Exception as e:
+                            print(f"Error processing peak {i} ({peak_label}): {str(e)}")
+                            continue
+                except Exception as e:
+                    print(f"Error accessing peak {i} data: {str(e)}")
+                    continue
 
         # Now insert all columns at position 5
         col_pos = 5
@@ -283,7 +436,8 @@ def save_to_excel(window, data, file_path, sheet_name):
                 counter += 1
 
             # Insert column ensuring lengths match
-            existing_df.insert(col_pos, unique_name, col_data[:len(existing_df)])
+            # existing_df.insert(col_pos, unique_name, col_data[:len(existing_df)])
+            existing_df.insert(col_pos, unique_name, ensure_sliceable(col_data, len(existing_df)))
             col_pos += 1
 
         # Ensure there are at least 23 columns (A to W)

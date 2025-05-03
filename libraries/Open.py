@@ -1725,15 +1725,25 @@ def open_xlsx_file(window, file_path=None):
             return
 
         # Check first row values in each sheet
+        # Modify the column header check to accept both XPS and Raman formats
         for sheet_name in sheet_names:
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
             col1_value = str(df.iloc[0, 0]).strip().upper()
             col2_value = str(df.iloc[0, 1]).strip().upper()
-            if (isinstance(df.iloc[0, 0], (int, float)) or isinstance(df.iloc[0, 1], (int, float)) or
-                    not ('BE' in col1_value or 'BINDING' in col1_value) or
-                    not ('RAW DATA' in col2_value or 'CORRECTED DATA' in col2_value or 'INTENSITY' in col2_value)):
+
+            # Check if it's XPS data
+            xps_valid = ('BE' in col1_value or 'BINDING' in col1_value) and \
+                        ('RAW DATA' in col2_value or 'CORRECTED DATA' in col2_value or 'INTENSITY' in col2_value)
+
+            # Check if it's Raman data
+            raman_valid = ('WAVENUMBER' in col1_value or 'CM-1' in col1_value) and \
+                          ('RAW DATA' in col2_value or 'INTENSITY' in col2_value)
+
+            if not (xps_valid or raman_valid):
                 wx.MessageBox(
-                    f"Sheet '{sheet_name}' has invalid column labels in row 1.\nColumn A should contain 'BE' or 'Binding Energy'\nColumn B should contain 'Raw Data', 'Corrected Data' or 'Intensity'",
+                    f"Sheet '{sheet_name}' has invalid column labels in row 1.\n"
+                    f"Column A should contain 'BE'/'Binding Energy' (for XPS) or 'Wavenumber'/'Wavenumber (cm-1)' (for Raman)\n"
+                    f"Column B should contain 'Raw Data', 'Corrected Data' or 'Intensity'",
                     "Invalid Column Labels", wx.OK | wx.ICON_WARNING)
                 return
 

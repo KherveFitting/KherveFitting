@@ -467,6 +467,8 @@ class PlotManager:
             return
 
         sheet_name = window.sheet_combobox.GetValue()
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
         is_d_parameter = False
         limits = window.plot_config.get_plot_limits(window, sheet_name)
         if sheet_name not in window.Data['Core levels']:
@@ -607,19 +609,35 @@ class PlotManager:
                 if getattr(txt, 'sheet_name_text', False):
                     txt.remove()
 
-            # Format and add sheet name text
-            formatted_sheet_name = self.format_sheet_name(sheet_name)
-            sheet_name_text = self.ax.text(
-                0.98, 0.98,  # Position (top-right corner)
-                formatted_sheet_name,
-                transform=self.ax.transAxes,
-                fontsize=15,
-                fontweight='bold',
-                verticalalignment='top',
-                horizontalalignment='right',
-                bbox=dict(facecolor='none', edgecolor='none', alpha=0.7),
-            )
-            sheet_name_text.sheet_name_text = True  # Mark this text object
+            # Set appropriate axis labels and direction based on data type
+            if is_raman:
+                self.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for Raman
+                self.ax.set_ylabel("Intensity (a.u.)")
+                self.ax.set_xlabel("Wavenumber (cm⁻¹)")
+
+                # Clear existing sheet name text for Raman data
+                for txt in self.ax.texts:
+                    if getattr(txt, 'sheet_name_text', False):
+                        txt.remove()
+            else:
+                # Existing XPS plotting code with reverse x-axis
+                self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
+                self.ax.set_ylabel("Intensity (CPS)")
+                self.ax.set_xlabel("Binding Energy (eV)")
+
+                # Format and add sheet name text for XPS
+                formatted_sheet_name = self.format_sheet_name(sheet_name)
+                sheet_name_text = self.ax.text(
+                    0.98, 0.98,  # Position (top-right corner)
+                    formatted_sheet_name,
+                    transform=self.ax.transAxes,
+                    fontsize=15,
+                    fontweight='bold',
+                    verticalalignment='top',
+                    horizontalalignment='right',
+                    bbox=dict(facecolor='none', edgecolor='none', alpha=0.7),
+                )
+                sheet_name_text.sheet_name_text = True  # Mark this text object
 
             self.apply_text_settings(window)
 
@@ -687,6 +705,8 @@ class PlotManager:
         """
 
         sheet_name = window.sheet_combobox.GetValue()
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
         if not sheet_name or 'Core levels' not in window.Data or sheet_name not in window.Data['Core levels']:
             return
         limits = window.plot_config.get_plot_limits(window, sheet_name)
@@ -698,12 +718,14 @@ class PlotManager:
 
         core_level_data = window.Data['Core levels'][sheet_name]
 
-        if window.energy_scale == 'KE':
-            self.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])  # Reverse X-axis
+        # Handle x-axis direction based on data type
+        if is_raman:
+            self.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
+        elif window.energy_scale == 'KE':
+            self.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
         else:
-            self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+            self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
 
-        # self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
         self.ax.set_ylim(limits['Ymin'], limits['Ymax'])
 
         # Store existing sheet name text
@@ -734,11 +756,17 @@ class PlotManager:
             self.ax.set_position([0.1, 0.125, 0.85, 0.85])
             self.ax.get_xaxis().set_visible(True)
 
+        # Set appropriate axis labels based on data type
+        if is_raman:
+            self.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            self.ax.set_ylabel("Intensity (a.u.)")
+        elif window.energy_scale == 'KE':
+            self.ax.set_xlabel("Kinetic Energy (eV)")
+            self.ax.set_ylabel("Intensity (CPS)")
+        else:
+            self.ax.set_xlabel(window.x_axis_label)
+            self.ax.set_ylabel("Intensity (CPS)")
 
-        x_label = "Kinetic Energy (eV)" if window.energy_scale == 'KE' else window.x_axis_label
-        self.ax.set_xlabel(x_label)
-        # self.ax.set_xlabel("Binding Energy (eV)")
-        self.ax.set_ylabel("Intensity (CPS)")
         self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
@@ -751,15 +779,15 @@ class PlotManager:
             window.plot_config.update_plot_limits(window, sheet_name)
         limits = window.plot_config.plot_limits[sheet_name]
 
-        # Set plot limits
-
-        self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
-
-        if window.energy_scale == 'KE':
+        # Set plot limits based on data type
+        if is_raman:
+            self.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
+        elif window.energy_scale == 'KE':
             X_MIN = window.photons - limits['Xmax']
             X_MAX = window.photons - limits['Xmin']
-            self.ax.set_xlim(min(X_MIN, X_MAX), max(X_MIN, X_MAX))  # Reverse X-axis
-            # self.ax.set_xlim(window.photons - limits['Xmax'],window.photons - limits['Xmin'])  # Reverse X-axis
+            self.ax.set_xlim(min(X_MIN, X_MAX), max(X_MIN, X_MAX))
+        else:
+            self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
 
         self.ax.set_ylim(limits['Ymin'], limits['Ymax'])
 
@@ -937,25 +965,25 @@ class PlotManager:
         else:
             self.ax.legend().set_visible(False)
 
+        # Only add sheet name text for non-Raman data
+        if not is_raman:
+            if sheet_name_text is None:
+                formatted_sheet_name = self.format_sheet_name(sheet_name)
+                sheet_name_text = self.ax.text(
+                    0.98, 0.98,  # Position (top-right corner)
+                    formatted_sheet_name,
+                    transform=self.ax.transAxes,
+                    fontsize=15,
+                    fontweight='bold',
+                    verticalalignment='top',
+                    horizontalalignment='right',
+                    bbox=dict(facecolor='none', edgecolor='none', alpha=0.7),
+                )
+                sheet_name_text.sheet_name_text = True  # Mark this text object
+            else:
+                self.ax.add_artist(sheet_name_text)
 
-        # Restore sheet name text or create new one if it doesn't exist
-        if sheet_name_text is None:
-            formatted_sheet_name = self.format_sheet_name(sheet_name)
-            sheet_name_text = self.ax.text(
-                0.98, 0.98,  # Position (top-right corner)
-                formatted_sheet_name,
-                transform=self.ax.transAxes,
-                fontsize=15,
-                fontweight='bold',
-                verticalalignment='top',
-                horizontalalignment='right',
-                bbox=dict(facecolor='none', edgecolor='none', alpha=0.7),
-            )
-            sheet_name_text.sheet_name_text = True  # Mark this text object
-        else:
-            self.ax.add_artist(sheet_name_text)
-
-        # Add this line before canvas.draw_idle()
+        # Apply text settings and continue with existing functionality
         self.apply_text_settings(window)
 
         # Apply y-axis state
@@ -1453,10 +1481,19 @@ class PlotManager:
         # Configure main plot
         self.ax.get_xaxis().set_visible(False)
 
+        sheet_name = window.sheet_combobox.GetValue()
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
         # Configure subplot
         self.residuals_subplot.set_ylabel('Res.')
-        x_label = "Kinetic Energy (eV)" if window.energy_scale == 'KE' else "Binding Energy (eV)"
-        self.residuals_subplot.set_xlabel(x_label)
+        if is_raman:
+            self.residuals_subplot.set_xlabel('Wavenumber (cm$^{-1}$)')
+        elif window.energy_scale == 'KE':
+            self.residuals_subplot.set_xlabel('Kinetic Energy (eV)')
+        else:
+            self.residuals_subplot.set_xlabel('Binding Energy (eV)')
+        # x_label = "Kinetic Energy (eV)" if window.energy_scale == 'KE' else "Binding Energy (eV)"
+        # self.residuals_subplot.set_xlabel(x_label)
         # self.residuals_subplot.set_xlabel('Binding Energy (eV)')
         self.residuals_subplot.tick_params(axis='x', bottom=True, labelbottom=True,
                                            labelsize=window.axis_number_size, pad=8)
