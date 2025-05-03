@@ -379,51 +379,53 @@ def save_to_excel(window, data, file_path, sheet_name):
         new_columns['Background'] = data['background'] if data['background'] is not None else np.nan
         new_columns['Calculated Fit'] = data['calculated_fit'] if data['calculated_fit'] is not None else np.nan
 
-        # # Add peak fits
-        # if data['individual_peak_fits']:
-        #     print('Adding individual peak fits')
-        #     num_peaks = data['peak_params_grid'].GetNumberRows() // 2
-        #     for i in range(num_peaks):
-        #         row = i * 2
-        #         peak_label = data['peak_params_grid'].GetCellValue(row, 1)
-        #         if i < len(data['individual_peak_fits']):
-        #             peak_data = data['individual_peak_fits'][i]
-        #             # Make sure peak data length matches
-        #             if len(peak_data) > len(x_values):
-        #                 peak_data = peak_data[:len(x_values)]
-        #             elif len(peak_data) < len(x_values):
-        #                 # Pad with zeros if needed
-        #                 peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
-        #             new_columns[peak_label] = peak_data
-
+        # Add peak fits
         if data['individual_peak_fits']:
             print('Adding individual peak fits')
-            num_peaks = window.peak_params_grid.GetNumberRows() // 2
+            num_peaks = data['peak_params_grid'].GetNumberRows() // 2
             for i in range(num_peaks):
                 row = i * 2
-                try:
-                    peak_label = window.peak_params_grid.GetCellValue(row, 1)
-                    if i < len(data['individual_peak_fits']):
-                        try:
-                            peak_data = data['individual_peak_fits'][i]
-                            # Type checking before operations
-                            if not isinstance(peak_data, (list, np.ndarray)):
-                                print(f"Warning: Expected list/array for peak {i}, got {type(peak_data)}")
-                                continue
+                peak_label = data['peak_params_grid'].GetCellValue(row, 1)
+                if i < len(data['individual_peak_fits']):
+                    peak_data = data['individual_peak_fits'][i]
+                    # Make sure peak data length matches
+                    if len(peak_data) > len(x_values):
+                        peak_data = peak_data[:len(x_values)]
+                    elif len(peak_data) < len(x_values):
+                        # Pad with zeros if needed
+                        peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
+                    # Add background to peak data before saving
+                    peak_with_background = peak_data + data['background']
+                    new_columns[peak_label] = peak_with_background
 
-                            # Make sure peak data length matches
-                            if len(peak_data) > len(x_values):
-                                peak_data = peak_data[:len(x_values)]
-                            elif len(peak_data) < len(x_values):
-                                # Pad with zeros if needed
-                                peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
-                            new_columns[peak_label] = peak_data
-                        except Exception as e:
-                            print(f"Error processing peak {i} ({peak_label}): {str(e)}")
-                            continue
-                except Exception as e:
-                    print(f"Error accessing peak {i} data: {str(e)}")
-                    continue
+        # if data['individual_peak_fits']:
+        #     print('Adding individual peak fits')
+        #     num_peaks = window.peak_params_grid.GetNumberRows() // 2
+        #     for i in range(num_peaks):
+        #         row = i * 2
+        #         try:
+        #             peak_label = window.peak_params_grid.GetCellValue(row, 1)
+        #             if i < len(data['individual_peak_fits']):
+        #                 try:
+        #                     peak_data = data['individual_peak_fits'][i]
+        #                     # Type checking before operations
+        #                     if not isinstance(peak_data, (list, np.ndarray)):
+        #                         print(f"Warning: Expected list/array for peak {i}, got {type(peak_data)}")
+        #                         continue
+        #
+        #                     # Make sure peak data length matches
+        #                     if len(peak_data) > len(x_values):
+        #                         peak_data = peak_data[:len(x_values)]
+        #                     elif len(peak_data) < len(x_values):
+        #                         # Pad with zeros if needed
+        #                         peak_data = np.pad(peak_data, (0, len(x_values) - len(peak_data)))
+        #                     new_columns[peak_label] = peak_data
+        #                 except Exception as e:
+        #                     print(f"Error processing peak {i} ({peak_label}): {str(e)}")
+        #                     continue
+        #         except Exception as e:
+        #             print(f"Error accessing peak {i} data: {str(e)}")
+        #             continue
 
         # Now insert all columns at position 5
         col_pos = 5
