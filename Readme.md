@@ -9,9 +9,9 @@ and openpyxl for manipulating Excel file.
 When using KherveFitting in academic or research contexts, appropriate citation is requested  to acknowledge the 
 software's contribution to your work.
 
-To download .exe,  go to https://sourceforge.net/projects/khervefitting/
+To download Windows or Mac installer please  go to https://sourceforge.net/projects/khervefitting/
 
-No Mac installation available yet. 
+
 
 For python source, make sure to use:  pip install -r requirements.txt
 
