@@ -12,9 +12,9 @@ class PreferenceWindow(wx.Frame):
         self.parent = parent
 
         self.SetTitle("Preferences")
-        self.SetSize((495, 620))
-        self.SetMinSize((495, 620))
-        self.SetMaxSize((495, 620))
+        self.SetSize((495, 630))
+        self.SetMinSize((495, 630))
+        self.SetMaxSize((495, 630))
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -282,6 +282,11 @@ class PreferenceWindow(wx.Frame):
                              flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
         self.backup_interval = wx.SpinCtrl(self.save_tab, value='30', min=1, max=240)
         auto_backup_grid.Add(self.backup_interval, pos=(1, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
+
+        clear_backup_btn = wx.Button(self.save_tab, label="Clear Backup Folder")
+        clear_backup_btn.Bind(wx.EVT_BUTTON, self.on_clear_backup)
+        auto_backup_grid.Add(clear_backup_btn, pos=(0, 4), span=(1, 1),
+                             flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
 
         auto_backup_sizer.Add(auto_backup_grid, 0, wx.ALL, 5)
         save_sizer.Add(auto_backup_sizer, 0, wx.EXPAND | wx.ALL, 5)
@@ -1208,6 +1213,44 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(grid, 1, wx.EXPAND | wx.ALL, 5)
         dlg.SetSizer(sizer)
         dlg.ShowModal()
+        dlg.Destroy()
+
+    def on_clear_backup(self, event):
+        import sys
+        """Handle clearing all files from the backup folder"""
+        # Get backup folder path
+        executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+        # For development environment, fall back to current script directory
+        if not "KherveFitting" in executable_dir:
+            executable_dir = os.path.dirname(os.path.abspath(__file__))
+            # Go up one level if in libraries folder
+            if os.path.basename(executable_dir) == "libraries":
+                executable_dir = os.path.dirname(executable_dir)
+
+        backup_folder = os.path.join(executable_dir, "Backup")
+
+        # Show confirmation dialog
+        dlg = wx.MessageDialog(self,
+                               "Are you sure you want to delete all files in the backup folder?",
+                               "Confirm Delete",
+                               wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING)
+
+        if dlg.ShowModal() == wx.ID_YES:
+            try:
+                # Count files before deletion
+                file_count = 0
+                for filename in os.listdir(backup_folder):
+                    file_path = os.path.join(backup_folder, filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        file_count += 1
+
+                # Show success message
+                self.parent.show_popup_message2("Backup Folder Cleared",
+                                                f"{file_count} files have been deleted from the backup folder.")
+            except Exception as e:
+                wx.MessageBox(f"Error clearing backup folder: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
         dlg.Destroy()
 
 

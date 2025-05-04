@@ -505,15 +505,26 @@ def create_menu(window):
         "https://www.xpsfitting.com/"),
                 biesinger_item)
 
+    yt_videos_item2 = knowledge_menu.Append(wx.NewId(), "M. Biesinger Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@markbiesinger/videos"),
+                yt_videos_item2)
+
     nist_item = knowledge_menu.Append(wx.NewId(), "NIST XPS")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
-        "https://srdata.nist.gov/xps"),
-                nist_item)
+        "https://srdata.nist.gov/xps"), nist_item)
 
-    harwell_item = knowledge_menu.Append(wx.NewId(), "Harwell XPS Guru")
+    harwell_item = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://www.harwellxps.guru/"),
                 harwell_item)
+
+    yt_videos_item3 = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@HarwellXPS"),
+                yt_videos_item3)
+
+    yt_videos_item4 = knowledge_menu.Append(wx.NewId(), "Casa XPS Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@casaxpscasasoftware4605/videos"),
+                yt_videos_item4)
 
     # Add the Knowledge submenu to the Help menu
     help_menu.AppendSubMenu(knowledge_menu, "Knowledge")

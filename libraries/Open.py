@@ -1836,6 +1836,10 @@ def open_xlsx_file(window, file_path=None):
                 # Now populate the grid with new data
                 top_window.populate_grid()
 
+        # Create backup before opening file
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(window)
+
         # Refresh Sheet
         from libraries.Save import refresh_sheets
         refresh_sheets(window, on_sheet_selected)
