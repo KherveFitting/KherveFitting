@@ -2090,6 +2090,10 @@ def paste_core_level(window):
     import openpyxl
     from copy import deepcopy
 
+    # Perform backup before pasting
+    from libraries.Utilities import perform_auto_backup
+    perform_auto_backup(window)
+
     clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
 
     if not os.path.exists(clipboard_file):
@@ -2240,7 +2244,6 @@ def paste_core_level(window):
 
         # Update the plot
         window.clear_and_replot()
-
 
         window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'"
                                                         f"\n Beware that core level retain their BE correction values")

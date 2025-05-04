@@ -1455,6 +1455,10 @@ class FileManagerWindow(wx.Frame):
         import pandas as pd
         from copy import deepcopy
 
+        # Perform backup before pasting
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
         # Get the clipboard file
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
 
@@ -1711,6 +1715,11 @@ class FileManagerWindow(wx.Frame):
 
         # Update JSON file
         try:
+            json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
             self.save_be_corrections()
             self.save_sample_names()
         except Exception as e:
@@ -1748,7 +1757,6 @@ class FileManagerWindow(wx.Frame):
                     self.populate_grid()
             dlg.Destroy()
 
-
     def on_delete(self, event):
         """Delete selected core level(s)."""
         # Gather all sheet names to delete
@@ -1777,7 +1785,6 @@ class FileManagerWindow(wx.Frame):
         sheet_names = list(set(sheet_names))
 
         if not sheet_names:
-            # wx.MessageBox("No core levels selected.", "Information", wx.OK | wx.ICON_INFORMATION)
             self.parent.show_popup_message2("Information", "No core levels selected.")
             return
 
@@ -1785,6 +1792,10 @@ class FileManagerWindow(wx.Frame):
         if wx.MessageBox(f"Are you sure you want to delete {len(sheet_names)} core level(s)?",
                          "Confirm Delete", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
             return
+
+        # Backup before deletion
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
 
         # Delete the sheets
         for sheet_name in sheet_names:
@@ -1807,6 +1818,13 @@ class FileManagerWindow(wx.Frame):
                 except Exception as e:
                     print(f"Error removing sheet from Excel: {e}")
 
+        # Save JSON file
+        json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+        from libraries.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(self.parent.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
         # Update the parent's combobox
         if hasattr(self.parent, 'sheet_combobox'):
             current_sheet = self.parent.sheet_combobox.GetValue()
@@ -1823,13 +1841,11 @@ class FileManagerWindow(wx.Frame):
                 from libraries.Sheet_Operations import on_sheet_selected
                 on_sheet_selected(self.parent, new_sheet)
 
-
         # Close and reopen the file manager to refresh all columns
         self.parent.file_manager = None  # Clear the reference
         self.Destroy()  # Close current file manager
         wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
 
-        # wx.MessageBox(f"Deleted {len(sheet_names)} core level(s).", "Success", wx.OK | wx.ICON_INFORMATION)
         self.parent.show_popup_message2("Success", f"Deleted {len(sheet_names)} core level(s).")
 
     def on_preferences(self, event):

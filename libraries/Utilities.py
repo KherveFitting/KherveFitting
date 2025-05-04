@@ -255,6 +255,10 @@ def on_delete_sheet(window, event):
                            "Confirm Delete", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
 
     if dlg.ShowModal() == wx.ID_YES:
+        # Backup before deletion
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(window)
+
         # Remove from Excel file
         wb = openpyxl.load_workbook(window.Data['FilePath'])
         if sheet_name in wb.sheetnames:
@@ -265,6 +269,13 @@ def on_delete_sheet(window, event):
         if sheet_name in window.Data['Core levels']:
             del window.Data['Core levels'][sheet_name]
             window.Data['Number of Core levels'] -= 1
+
+        # Save JSON file
+        json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
+        from libraries.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
 
         # Update combobox
         window.sheet_combobox.Delete(window.sheet_combobox.FindString(sheet_name))
