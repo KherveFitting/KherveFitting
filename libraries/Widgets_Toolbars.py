@@ -17,7 +17,7 @@ from libraries.Save import save_peaks_library, load_peaks_library
 from libraries.Save import on_save_as
 from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
-from libraries.Open import import_raman_txt_file, import_multiple_raman_files
+from libraries.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
 from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, PlotModWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
 from libraries.MarketResearch import check_registration_needed, launch_registration_form
@@ -376,6 +376,13 @@ def create_menu(window):
 
     import_multiple_avg_item = import_menu.Append(wx.NewId(), "Import Multiple AVG files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_avg_files(window), import_multiple_avg_item)
+
+    # Import ASC files
+    import_xps_asc_item = import_menu.Append(wx.NewId(), "Import XPS .asc file")
+    window.Bind(wx.EVT_MENU, lambda event: import_xps_asc_file(window), import_xps_asc_item)
+
+    import_multiple_xps_asc_item = import_menu.Append(wx.NewId(), "Import Multiple XPS .asc files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_xps_asc_files(window), import_multiple_xps_asc_item)
 
     import_raman_item = import_menu.Append(wx.NewId(), "Import Raman .txt file")
     window.Bind(wx.EVT_MENU, lambda event: import_raman_txt_file(window), import_raman_item)

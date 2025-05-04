@@ -13,6 +13,27 @@ from libraries.Save import save_state
 
 class FileManagerWindow(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
+        # Check for maximum row index before initializing the window
+        if hasattr(parent, 'Data') and 'Core levels' in parent.Data:
+            max_index = 0
+            for sheet_name in parent.Data['Core levels'].keys():
+                match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+                if match:
+                    index_str = match.group(1)
+                    index = int(index_str) if index_str else 0
+                    max_index = max(max_index, index)
+
+            if max_index > 500:
+                wx.MessageBox(
+                    f"Cannot open Sample Manager: Sheet number {max_index} exceeds the maximum limit of 500.\n"
+                    f"Please rename your sheets to use lower numbers.",
+                    "Row Limit Exceeded", wx.OK | wx.ICON_ERROR)
+                # Tell the parent that file_manager is None to enable reopening later
+                parent.file_manager = None
+                # Prevent the window from being created at all
+                return
+
+        # Only initialize the window if we didn't exceed the limit
         super().__init__(parent, title="Sample/Experiment Manager", size=(580, 350),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
@@ -358,6 +379,14 @@ class FileManagerWindow(wx.Frame):
 
         # Determine number of rows based on existing data
         max_row_index = self.get_max_core_level_row_index()
+
+        # Check if max_row_index exceeds the limit
+        if max_row_index > 500:
+            wx.MessageBox(
+                f"Cannot open Sample Manager: Sheet number {max_row_index} exceeds the maximum limit of 500.\n"
+                f"Please rename your sheets to use lower numbers.",
+                "Row Limit Exceeded", wx.OK | wx.ICON_ERROR)
+
         num_rows = max(10, max_row_index + 1)  # Ensure at least 10 rows
 
         # Create grid
@@ -483,6 +512,23 @@ class FileManagerWindow(wx.Frame):
     def populate_grid(self):
         """Populate the grid with core levels from the data"""
         if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
+            return
+
+        # Find maximum index across all sheets
+        max_index = 0
+        for sheet_name in self.parent.Data['Core levels'].keys():
+            match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+            if match:
+                index_str = match.group(1)
+                index = int(index_str) if index_str else 0
+                max_index = max(max_index, index)
+
+        # Check if max_index exceeds the limit
+        if max_index > 500:
+            wx.MessageBox(f"Cannot open Sample Manager: Sheet number {max_index} exceeds the maximum limit of 500.\n"
+                          f"Please rename your sheets to use lower numbers.",
+                          "Row Limit Exceeded", wx.OK | wx.ICON_ERROR)
+            self.Close()
             return
 
         # Clear grid first

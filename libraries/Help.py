@@ -409,6 +409,8 @@ def show_version_log(window):
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added a propagation of the peak fitting parameters (menu and =) just like casa
 - Added the Doniach Sunjic model
+- Added import Raman data .txt files
+- Added import XPS data .txt files
 - Added information in the Manual for installation instruction
 - Added a mini-game in the help menu
 - Added Backups of the excel file and json file in the preference window
@@ -424,7 +426,7 @@ def show_version_log(window):
 - Added File > Optimise File menu
 - Added Save Table in the main Save Sheet and remove it from the toolbar
 - Improve the refresh function to exclude the Results Table sheet
-- Remove the Noise Analysis from the toolbar. Only available in Tools
+- Remove the Noise Analysis from the toolbar. Only available in Tools menu
 - Move the Skewed Voigt in the non default as it was confusing for new users
 - Fix bugs that stop Fitting to continue
 - Fix bugs that shows the background equal to the data
