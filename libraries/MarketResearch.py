@@ -15,7 +15,7 @@ FORM_FIELDS = {
     'University': 'entry.1822967727',
     'Country': 'entry.1299197141',
     'Usage': 'entry.431362163',
-    'Purpose': 'entry.745225078',
+    'Supplier Name': 'entry.745225078',
     'Discovery': 'entry.968199044'  # Replace with actual field ID
 }
 
@@ -127,13 +127,13 @@ class RegistrationForm(wx.Frame):
 
         # purpose field - multiline
         purpose_hbox = wx.BoxSizer(wx.VERTICAL)
-        purpose_label = wx.StaticText(panel, label="For what purpose will you use KherveFitting?")
+        purpose_label = wx.StaticText(panel, label="Please provide the name of the supplier and the model of your XPS system")
         purpose_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(field_width, 80))
 
         purpose_hbox.Add(purpose_label, flag=wx.ALL, border=5)
         purpose_hbox.Add(purpose_text, flag=wx.ALL | wx.EXPAND, border=5)
         vbox.Add(purpose_hbox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=10)
-        self.fields["Purpose"] = purpose_text
+        self.fields["Supplier Name"] = purpose_text
 
         # Discovery field - multiline
         discovery_hbox = wx.BoxSizer(wx.VERTICAL)

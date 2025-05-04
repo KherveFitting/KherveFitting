@@ -1792,6 +1792,10 @@ def open_xlsx_file(window, file_path=None):
         # Update recent files list
         update_recent_files(window, file_path)
 
+        if hasattr(window, 'setup_backup_timer'):
+            window.setup_backup_timer()
+            print("Auto backup timer checked/updated after file loaded")
+
         # Refresh any open FileManager windows
         for top_window in wx.GetTopLevelWindows():
             if hasattr(top_window, '__class__') and top_window.__class__.__name__ == 'FileManagerWindow':
