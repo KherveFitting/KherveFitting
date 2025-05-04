@@ -402,8 +402,10 @@ def show_version_log(window):
 
     version_log = """Version 1.41-1.5 (March-Apr 2025)
 - Release of the Mac Version
+- Added analysis of Raman Data
 - Added Samples/Experiment Manager for easy view of multiple files
 - Added Sum, copy, paste, normalise to the Samples/Experiment Manager
+- Added G*DS Doniach Sunjic model
 - Added Copy and paste menu for core levels and peak fitting grid
 - Added a propagation of the peak fitting parameters (menu and =) just like casa
 - Added the Doniach Sunjic model

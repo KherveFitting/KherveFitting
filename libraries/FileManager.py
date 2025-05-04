@@ -1726,6 +1726,14 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             print(f"Error in final update steps: {e}")
 
+        # Refresh sheets after pasting
+        try:
+            from libraries.Sheet_Operations import on_sheet_selected
+            from libraries.Save import refresh_sheets
+            refresh_sheets(self.parent, on_sheet_selected)
+        except Exception as refresh_err:
+            print(f"Error refreshing sheets: {refresh_err}")
+
         # Close and reopen the file manager to refresh all columns
         self.parent.file_manager = None  # Clear the reference
         self.Destroy()  # Close current file manager
@@ -1749,7 +1757,7 @@ class FileManagerWindow(wx.Frame):
             from libraries.Sheet_Operations import on_sheet_selected
             on_sheet_selected(self.parent, sheet_name)
 
-            dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name}:", "Rename Core Level")
+            dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name}:", "Rename Core Level", sheet_name)
             if dlg.ShowModal() == wx.ID_OK:
                 new_name = dlg.GetValue()
                 if new_name and new_name != sheet_name:

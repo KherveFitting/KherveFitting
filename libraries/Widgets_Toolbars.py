@@ -653,10 +653,26 @@ def create_horizontal_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda evt: _show_rename_dialog(window), rename_sheet_tool)
 
     def _show_rename_dialog(window):
-        dlg = wx.TextEntryDialog(window, 'Enter new sheet name:', 'Rename Sheet')
+        # Get the current sheet name
+        current_sheet_name = window.sheet_combobox.GetValue()
+
+        if hasattr(window, 'file_manager') and window.file_manager is not None:
+            try:
+                # Close existing file manager
+                window.file_manager.Close()
+                window.file_manager.Destroy()
+                window.file_manager = None
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
+                pass
+
+        # Show dialog with current sheet name pre-populated
+        dlg = wx.TextEntryDialog(window, 'Enter new sheet name:', 'Rename Sheet', current_sheet_name)
         if dlg.ShowModal() == wx.ID_OK:
-            from libraries.Utilities import rename_sheet
-            rename_sheet(window, dlg.GetValue())
+            new_name = dlg.GetValue()
+            if new_name and new_name != current_sheet_name:
+                from libraries.Utilities import rename_sheet
+                rename_sheet(window, new_name)
         dlg.Destroy()
 
     toolbar.AddSeparator()

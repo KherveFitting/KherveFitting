@@ -1836,6 +1836,10 @@ def open_xlsx_file(window, file_path=None):
                 # Now populate the grid with new data
                 top_window.populate_grid()
 
+        # Refresh Sheet
+        from libraries.Save import refresh_sheets
+        refresh_sheets(window, on_sheet_selected)
+
         # Reopen file manager if it was open
         if file_manager_was_open:
             from libraries.FileManager import FileManagerWindow

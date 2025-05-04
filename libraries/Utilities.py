@@ -319,6 +319,10 @@ def rename_sheet(window, new_sheet_name):
     if not new_sheet_name:
         return
 
+    # Create backup before renaming
+    from libraries.Utilities import perform_auto_backup
+    perform_auto_backup(window)
+
     old_sheet_name = window.sheet_combobox.GetValue()
     file_path = window.Data['FilePath']
 
@@ -342,13 +346,17 @@ def rename_sheet(window, new_sheet_name):
     from libraries.Sheet_Operations import on_sheet_selected
     on_sheet_selected(window, new_sheet_name)
 
+    # Save JSON file
+    json_file_path = os.path.splitext(file_path)[0] + '.json'
+    from libraries.Save import convert_to_serializable_and_round
+    json_data = convert_to_serializable_and_round(window.Data)
+    with open(json_file_path, 'w') as json_file:
+        json.dump(json_data, json_file, indent=2)
+
     # Refresh sheets after renaming
-    try:
-        from libraries.Save import refresh_sheets
-        from libraries.Sheet_Operations import on_sheet_selected
-        refresh_sheets(window, on_sheet_selected)
-    except Exception as refresh_err:
-        print(f"Error refreshing sheets: {refresh_err}")
+    from libraries.Sheet_Operations import on_sheet_selected
+    from libraries.Save import refresh_sheets
+    refresh_sheets(window, on_sheet_selected)
 
     # Close and reopen the file manager if it exists
     if hasattr(window, 'file_manager') and window.file_manager is not None:
