@@ -3,6 +3,7 @@ import wx.grid
 import os
 import re
 import numpy as np
+import json
 from matplotlib.ticker import ScalarFormatter
 from copy import deepcopy
 import shutil
@@ -1731,7 +1732,9 @@ class FileManagerWindow(wx.Frame):
         wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
 
         self.parent.show_popup_message2("Paste Successful",
-                                        f"{len(clipboard_data)} core level(s) pasted.\nBeware that core level retain their BE correction values")
+                                        f"{len(clipboard_data)} core level(s) pasted."
+                                        f"\nCreated backup of the original data in Backup folder"
+                                        f"\nBeware that core level retain their BE correction values")
 
     def on_rename(self, event):
         """Rename the selected core level"""

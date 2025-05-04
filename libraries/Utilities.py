@@ -289,6 +289,14 @@ def on_delete_sheet(window, event):
             window.ax.clear()
             window.canvas.draw()
 
+        # Refresh sheets after deletion
+        try:
+            from libraries.Save import refresh_sheets
+            from libraries.Sheet_Operations import on_sheet_selected
+            refresh_sheets(window, on_sheet_selected)
+        except Exception as refresh_err:
+            print(f"Error refreshing sheets: {refresh_err}")
+
         # Close and reopen the file manager if it exists
         if hasattr(window, 'file_manager') and window.file_manager is not None:
             try:
@@ -333,6 +341,14 @@ def rename_sheet(window, new_sheet_name):
     # Update plot
     from libraries.Sheet_Operations import on_sheet_selected
     on_sheet_selected(window, new_sheet_name)
+
+    # Refresh sheets after renaming
+    try:
+        from libraries.Save import refresh_sheets
+        from libraries.Sheet_Operations import on_sheet_selected
+        refresh_sheets(window, on_sheet_selected)
+    except Exception as refresh_err:
+        print(f"Error refreshing sheets: {refresh_err}")
 
     # Close and reopen the file manager if it exists
     if hasattr(window, 'file_manager') and window.file_manager is not None:

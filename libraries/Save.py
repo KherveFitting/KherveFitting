@@ -2072,12 +2072,51 @@ def copy_core_level(window):
             'original_sheet_name': sheet_name
         }
 
-        # Save to a temporary file that any instance can access
-        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+        # Add Excel column data preservation
+        file_path = window.Data.get('FilePath', '')
+        if file_path and os.path.exists(file_path):
+            try:
+                # Read all data including columns C and D
+                import pandas as pd
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+                # Store column names
+                column_names = df.columns.tolist()
+                clipboard_data['column_names'] = column_names
+
+                # Store exact data from columns C and D (indices 2 and 3)
+                if df.shape[1] > 3:
+                    clipboard_data['column_C_data'] = df.iloc[:, 2].tolist()
+                    clipboard_data['column_D_data'] = df.iloc[:, 3].tolist()
+
+                # Store experimental description if available
+                exp_data_col = None
+                for col_idx, col_name in enumerate(df.columns):
+                    if col_name == "Experimental Description":
+                        exp_data_col = col_idx
+                        break
+
+                if exp_data_col is not None:
+                    exp_description = []
+                    for i in range(min(30, len(df))):  # Limit to reasonable number of rows
+                        if i < len(df) and col_idx < df.shape[1] and col_idx + 1 < df.shape[1]:
+                            key = df.iloc[i, exp_data_col] if not pd.isna(df.iloc[i, exp_data_col]) else ""
+                            value = df.iloc[i, exp_data_col + 1] if not pd.isna(df.iloc[i, exp_data_col + 1]) else ""
+                            if key or value:
+                                exp_description.append([key, value])
+
+                    clipboard_data['experimental_description'] = exp_description
+
+            except Exception as e:
+                print(f"Error reading Excel data for {sheet_name}: {e}")
+
+        # Save to clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
         with open(clipboard_file, 'w') as f:
             json.dump(convert_to_serializable_and_round(clipboard_data), f)
 
-        window.show_popup_message2("Core Level Copied. Beware that core level retain their BE correction values", f"Core level '{sheet_name}' copied to clipboard")
+
+        window.show_popup_message2("Core Level Copied", f"Core level '{sheet_name}' copied to clipboard")
     else:
         window.show_popup_message2("Copy Failed", "No core level data to copy")
 
@@ -2094,7 +2133,7 @@ def paste_core_level(window):
     from libraries.Utilities import perform_auto_backup
     perform_auto_backup(window)
 
-    clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+    clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
 
     if not os.path.exists(clipboard_file):
         window.show_popup_message2("Paste Failed", "No data in clipboard")
@@ -2141,7 +2180,9 @@ def paste_core_level(window):
         save_state(window)
 
         # Create a new sheet name based on the original
-        original_name = clipboard_data['original_sheet_name']
+        original_name = clipboard_data.get('original_sheet_name', 'Sheet1')  # Provide default if missing
+        if not original_name or original_name.strip() == '':
+            original_name = 'Sheet1'  # Fallback if original name is empty
 
         if is_new_file:
             # For new files, just use the original name since there are no sheets yet
@@ -2154,7 +2195,10 @@ def paste_core_level(window):
             all_sheets = list(window.Data['Core levels'].keys())
             # Only try to get current_index if all_sheets is not empty
             if all_sheets and current_sheet:
-                current_index = all_sheets.index(current_sheet)
+                try:
+                    current_index = all_sheets.index(current_sheet)
+                except ValueError:
+                    current_index = -1  # Default to end of list if current sheet not found
             else:
                 current_index = -1  # Default to end of list
 
@@ -2172,81 +2216,138 @@ def paste_core_level(window):
 
         # Create a new Excel sheet with the data
         core_level_data = window.Data['Core levels'][new_sheet_name]
-        df = pd.DataFrame({
-            'BE': core_level_data['B.E.'],
-            'Raw Data': core_level_data['Raw Data'],
-            'Background': core_level_data['Background']['Bkg Y'] if 'Bkg Y' in core_level_data['Background'] else [],
-            'Transmission': [1.0] * len(core_level_data['B.E.'])
-        })
 
-        # Load the workbook and get sheet indexes if not a new file
-        wb = openpyxl.load_workbook(window.Data['FilePath'])
+        # Get data length for this core level
+        data_length = len(core_level_data['B.E.'])
 
-        if not is_new_file and current_sheet in wb.sheetnames:
-            current_sheet_index = wb.sheetnames.index(current_sheet)
+        # Use original column names if available, otherwise use defaults
+        column_names = clipboard_data.get('column_names',
+                                          ['Binding Energy', 'Corrected Data', 'Raw Data', 'Transmission'])
+
+        # Make sure we have enough column names
+        while len(column_names) < 4:
+            column_names.append(f"Column{len(column_names) + 1}")
+
+        # Create DataFrame with original column names
+        data_dict = {
+            column_names[0]: core_level_data['B.E.'],
+            column_names[1]: core_level_data['Raw Data']
+        }
+
+        # Use the exact C and D data from clipboard if available
+        if 'column_C_data' in clipboard_data and len(column_names) > 2:
+            col_c_data = clipboard_data['column_C_data']
+            # Adjust length if needed
+            if len(col_c_data) != data_length:
+                if len(col_c_data) > data_length:
+                    col_c_data = col_c_data[:data_length]
+                else:
+                    col_c_data = col_c_data + [None] * (data_length - len(col_c_data))
+            data_dict[column_names[2]] = col_c_data
+        elif 'Background' in core_level_data and 'Bkg Y' in core_level_data['Background']:
+            data_dict[column_names[2]] = core_level_data['Background']['Bkg Y']
         else:
-            current_sheet_index = -1  # Default to end if current sheet not found
+            data_dict[column_names[2]] = [0.0] * data_length  # Default to zeros
 
-        # Insert the new sheet after the current sheet
+        if 'column_D_data' in clipboard_data and len(column_names) > 3:
+            col_d_data = clipboard_data['column_D_data']
+            # Adjust length if needed
+            if len(col_d_data) != data_length:
+                if len(col_d_data) > data_length:
+                    col_d_data = col_d_data[:data_length]
+                else:
+                    col_d_data = col_d_data + [None] * (data_length - len(col_d_data))
+            data_dict[column_names[3]] = col_d_data
+        else:
+            data_dict[column_names[3]] = [1.0] * data_length
+
+        df = pd.DataFrame(data_dict)
+
+        # Write to Excel
         with pd.ExcelWriter(window.Data['FilePath'], engine='openpyxl', mode='a',
                             if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=new_sheet_name, index=False)
 
-        # Reorder sheets in Excel file if needed
-        wb = openpyxl.load_workbook(window.Data['FilePath'])
-        sheets = wb.sheetnames
-        if new_sheet_name in sheets and current_sheet_index >= 0:
-            # Only try to reorder if we have a valid current_sheet_index
-            sheet_index = sheets.index(new_sheet_name)
-            wb.move_sheet(wb[new_sheet_name], offset=current_sheet_index + 1 - sheet_index)
-            wb.save(window.Data['FilePath'])
+            # Add experimental description data if available
+            if 'experimental_description' in clipboard_data and clipboard_data['experimental_description']:
+                # Calculate column 'AX' index (typically 49)
+                exp_col = 49
+
+                # Get the workbook and sheet
+                workbook = writer.book
+                worksheet = workbook[new_sheet_name]
+
+                # Add experimental description header
+                worksheet.cell(row=1, column=exp_col + 1, value="Experimental Description")
+                worksheet.cell(row=1, column=exp_col + 2, value="Value")
+
+                # Add all experimental description data
+                for i, item in enumerate(clipboard_data.get('experimental_description', [])):
+                    if isinstance(item, list) and len(item) >= 2:
+                        worksheet.cell(row=i + 2, column=exp_col + 1, value=item[0])
+                        worksheet.cell(row=i + 2, column=exp_col + 2, value=item[1])
 
         # Update the JSON file
         json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
-        if os.path.exists(json_file_path):
-            # Reorder the core levels in Data to match the Excel sheet order
-            reordered_core_levels = {}
-            for sheet in wb.sheetnames:
-                if sheet in window.Data['Core levels']:
-                    reordered_core_levels[sheet] = window.Data['Core levels'][sheet]
-            window.Data['Core levels'] = reordered_core_levels
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
 
-            json_data = convert_to_serializable_and_round(window.Data)
-            with open(json_file_path, 'w') as json_file:
-                json.dump(json_data, json_file, indent=2)
+        # Load the updated workbook
+        wb = openpyxl.load_workbook(window.Data['FilePath'])
+
+        # Remove "Sheet" if it exists and not the only sheet
+        if "Sheet" in wb.sheetnames and len(wb.sheetnames) > 1:
+            wb.remove(wb["Sheet"])
+            wb.save(window.Data['FilePath'])
 
         # Update sheet list in UI
         window.sheet_combobox.Clear()
         window.sheet_combobox.AppendItems(wb.sheetnames)
-        window.sheet_combobox.SetValue(new_sheet_name)
 
-        # Switch to the new sheet
-        from libraries.Sheet_Operations import on_sheet_selected
-        on_sheet_selected(window, new_sheet_name)
-
-        # Set the peak parameters
-        if 'peak_params_grid' in clipboard_data:
-            window.peak_params_grid.ClearGrid()
-            set_grid_data(window.peak_params_grid, clipboard_data['peak_params_grid'])
-            window.peak_count = clipboard_data['peak_count']
-
-        # After the entire paste operation succeeds:
-        wb = openpyxl.load_workbook(window.Data['FilePath'])
-        if "Sheet" in wb.sheetnames and len(wb.sheetnames) > 1:
-            # Only remove Sheet if it's not the only sheet
-            wb.remove(wb["Sheet"])
-            wb.save(window.Data['FilePath'])
-
-            # Update sheet list in UI again
-            window.sheet_combobox.Clear()
-            window.sheet_combobox.AppendItems(wb.sheetnames)
+        # Make sure the new sheet name is valid
+        if new_sheet_name in wb.sheetnames:
             window.sheet_combobox.SetValue(new_sheet_name)
 
+            # Initialize plot limits for the new sheet before switching to it
+            if hasattr(window, 'plot_config') and not window.plot_config.plot_limits.get(new_sheet_name):
+                window.plot_config.update_plot_limits(window, new_sheet_name)
+
+            # Switch to the new sheet
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(window, new_sheet_name)
+
+            # Set the peak parameters
+            if 'peak_params_grid' in clipboard_data:
+                try:
+                    window.peak_params_grid.ClearGrid()
+                    set_grid_data(window.peak_params_grid, clipboard_data['peak_params_grid'])
+                    window.peak_count = clipboard_data.get('peak_count', 0)
+                except Exception as grid_err:
+                    print(f"Error setting peak parameters: {grid_err}")
+        else:
+            # Fallback if new sheet wasn't created properly
+            if wb.sheetnames:
+                window.sheet_combobox.SetValue(wb.sheetnames[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(window, wb.sheetnames[0])
+
+        # Refresh sheets after pasting
+        try:
+            from libraries.Sheet_Operations import on_sheet_selected
+            refresh_sheets(window, on_sheet_selected)
+        except Exception as refresh_err:
+            print(f"Error refreshing sheets: {refresh_err}")
+
         # Update the plot
-        window.clear_and_replot()
+        try:
+            window.clear_and_replot()
+        except Exception as plot_err:
+            print(f"Error updating plot: {plot_err}")
 
         window.show_popup_message2("Core Level Pasted", f"Core level data pasted as new sheet '{new_sheet_name}'"
-                                                        f"\n Beware that core level retain their BE correction values")
+                                                        f"\nCreated backup of the original data in Backup folder"
+                                                        f"\nBeware that core level retain their BE correction values")
 
     except Exception as e:
         import traceback
