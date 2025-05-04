@@ -1396,72 +1396,6 @@ class MyFrame(wx.Frame):
                 except Exception as e:
                     print(f"Error during cross drag: {e}")
 
-    def on_cross_release_OLD(self, event):
-        save_state(self)
-        if event.inaxes and self.selected_peak_index is not None:
-            row = self.selected_peak_index * 2
-            fitting_model = self.peak_params_grid.GetCellValue(row, 13)
-            peak_label = self.peak_params_grid.GetCellValue(row, 1)
-            sheet_name = self.sheet_combobox.GetValue()
-
-            x = event.xdata
-            y = event.ydata
-            bkg_y = self.background[np.argmin(np.abs(self.x_values - x))]
-
-            if event.button == 1:
-                if event.key == 'shift':
-                    new_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
-                    self.update_linked_fwhm_recursive(self.selected_peak_index, new_fwhm)
-                else:
-                    y = max(y - bkg_y, 0)
-
-                    if "LA" in fitting_model:
-                        current_area = float(self.peak_params_grid.GetCellValue(row, 6))
-                        self.update_peak(self.selected_peak_index, x, y, current_area)
-                        self.update_linked_peaks_recursive(self.selected_peak_index, x, y, current_area)
-                    else:
-                        self.update_peak(self.selected_peak_index, x, y)
-                        self.update_linked_peaks_recursive(self.selected_peak_index, x, y)
-
-            # Disconnect motion and release handlers
-            if hasattr(self, 'motion_cid'):
-                self.canvas.mpl_disconnect(self.motion_cid)
-                delattr(self, 'motion_cid')
-            if hasattr(self, 'release_cid'):
-                self.canvas.mpl_disconnect(self.release_cid)
-                delattr(self, 'release_cid')
-
-            # First thoroughly remove any existing cross
-            if hasattr(self, 'cross'):
-                if self.cross in self.ax.lines:
-                    self.cross.remove()
-                self.cross = None
-
-            if hasattr(self.plot_manager, 'cross'):
-                if self.plot_manager.cross in self.ax.lines:
-                    self.plot_manager.cross.remove()
-                self.plot_manager.cross = None
-
-            if hasattr(self, 'peak_letter_t') and self.peak_letter_t:
-                self.peak_letter_t.remove()
-                self.peak_letter_t = None
-
-            if hasattr(self, 'peak_info_t') and self.peak_info_t:
-                self.peak_info_t.remove()
-                self.peak_info_t = None
-
-            if hasattr(self.plot_manager, 'peak_letter_t') and self.plot_manager.peak_letter_t:
-                self.plot_manager.peak_letter_t.remove()
-                self.plot_manager.peak_letter_t = None
-
-            if hasattr(self.plot_manager, 'peak_info_t') and self.plot_manager.peak_info_t:
-                self.plot_manager.peak_info_t.remove()
-                self.plot_manager.peak_info_t = None
-
-            # Now highlight the peak with the full FWHM calculation
-            self.highlight_selected_peak()
-
-        self.refresh_peak_params_grid_release()
 
     def on_cross_release(self, event):
         save_state(self)
@@ -1505,7 +1439,7 @@ class MyFrame(wx.Frame):
             self.clear_and_replot()
 
             # Now add the peak information
-            self.highlight_selected_peak()
+            wx.CallAfter(self.highlight_selected_peak)
 
         self.refresh_peak_params_grid_release()
 
