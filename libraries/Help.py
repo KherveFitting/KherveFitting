@@ -52,6 +52,7 @@ License: HPND"""
     dlg.ShowModal()
     dlg.Destroy()
 
+
 def on_about(self, event):
     about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 470))
     panel = wx.Panel(about_dialog)
@@ -59,7 +60,7 @@ def on_about(self, event):
 
     name = wx.StaticText(panel, label="KherveFitting")
     name.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-    version = wx.StaticText(panel, label="Version 1.42 March 25")
+    version = wx.StaticText(panel, label="Version 1.5 May 25")
 
     button_grid = wx.GridBagSizer(2, 2)
     libraries_button = wx.Button(panel, label="Libraries Used")
@@ -71,14 +72,28 @@ def on_about(self, event):
     button_grid.Add(version_log_button, pos=(0, 1), flag=wx.ALL, border=5)
 
     description = wx.StaticText(panel,
-                                label="An open-source XPS peak fitting software\ndeveloped by Dr. Gwilherm Kerherve\nat Imperial College London")
+                                label="An Open-Source peak fitting software written\n"
+                                      "for XPS and Raman data analysis")
+
+    # Create a horizontal box sizer for the websites
+    website_sizer = wx.BoxSizer(wx.HORIZONTAL)
     website = wx.adv.HyperlinkCtrl(panel, -1, "Imperial College Profile",
                                    "https://www.imperial.ac.uk/people/g.kerherve")
+    website2 = wx.adv.HyperlinkCtrl(panel, -1, "LinkedIn Profile",
+                                    "https://www.linkedin.com/in/gkerherve/")
+
+    # Add the websites to the horizontal sizer with some spacing
+    website_sizer.Add(website, 0, wx.RIGHT, 10)
+    website_sizer.Add(website2, 0)
+
     developers = wx.StaticText(panel,
-                               label="Developers:\nDr. Gwilherm Kerherve / g.kerherve@imperial.ac.uk\nWilliam Skinner")
-    copyright = wx.StaticText(panel, label="(C) 2024 Gwilherm Kerherve")
+                               label="Developed by:\nG. Kerherve / g.kerherve@imperial.ac.uk")
+    Testers = wx.StaticText(panel, label="Tested by:\nWilliam Skinner, Arthur Graf,\nDavid Morgan, Mark A. Isaacs, "
+                                         "Benjamin Reed, David J. Payne")
+    copyright = wx.StaticText(panel, label="(C) 2025 Gwilherm Kerherve")
 
-
+    for text_item in [description, developers, Testers, copyright]:
+        text_item.SetWindowStyle(wx.ALIGN_CENTER_HORIZONTAL)
 
     for item in [name, version]:
         sizer.Add(item, 0, wx.ALIGN_CENTER | wx.ALL, 5)
@@ -86,30 +101,22 @@ def on_about(self, event):
     sizer.Add(button_grid, 0, wx.ALIGN_CENTER | wx.ALL, 5)
     panel.SetSizer(sizer)
 
-    for item in [description, website, developers, copyright]:
-        sizer.Add(item, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+    # Add the vertical elements
+    sizer.Add(description, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+    sizer.Add(developers, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+
+    # Add the website_sizer instead of individual websites
+    sizer.Add(website_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+
+    sizer.Add(Testers, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+    sizer.Add(copyright, 0, wx.ALIGN_CENTER | wx.ALL, 5)
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     image_path = os.path.join(current_dir, "Images")
     qr_path = os.path.join(image_path, "buymeacoffee_qr.png")
     if os.path.exists(qr_path):
         qr_image = wx.Image(qr_path, wx.BITMAP_TYPE_PNG)
-        qr_image = qr_image.Scale(150, 150, wx.IMAGE_QUALITY_HIGH)
-        qr_bitmap = wx.StaticBitmap(panel, -1, wx.Bitmap(qr_image))
-        sizer.Add(qr_bitmap, 0, wx.ALIGN_CENTER | wx.ALL, 5)
-    about_dialog.ShowModal()
-    about_dialog.Destroy()
-
-
-
-    # Load and display QR code
-    # qr_path = os.path.join("libraries", "Images", "buymeacoffee_qr.png")
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    image_path = os.path.join(current_dir, "Images")
-    qr_path = os.path.join(image_path, "buymeacoffee_qr.png")
-    if os.path.exists(qr_path):
-        qr_image = wx.Image(qr_path, wx.BITMAP_TYPE_PNG)
-        qr_image = qr_image.Scale(150, 150, wx.IMAGE_QUALITY_HIGH)
+        qr_image = qr_image.Scale(130, 130, wx.IMAGE_QUALITY_HIGH)
         qr_bitmap = wx.StaticBitmap(panel, -1, wx.Bitmap(qr_image))
         sizer.Add(qr_bitmap, 0, wx.ALIGN_CENTER | wx.ALL, 5)
     about_dialog.ShowModal()
