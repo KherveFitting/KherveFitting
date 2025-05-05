@@ -2211,6 +2211,7 @@ class MyFrame(wx.Frame):
 
         # Handle SHIFT + wheel for peak width adjustment
         if self.shift_key_pressed and self.selected_peak_index is not None and self.peak_fitting_tab_selected:
+            save_state(self)
             delta = 0.05 if event.step > 0 else -0.05
             row = self.selected_peak_index * 2
             fitting_model = self.peak_params_grid.GetCellValue(row, 13)
@@ -2251,8 +2252,25 @@ class MyFrame(wx.Frame):
             self.clear_and_replot()
             self.highlight_selected_peak()
 
-            save_state(self)
-            return
+        elif not self.shift_key_pressed:
+            # Get current sheet index
+            current_index = self.sheet_combobox.GetSelection()
+            num_sheets = self.sheet_combobox.GetCount()
+
+            # Calculate new index based on scroll direction
+            if event.step > 0:  # Scroll up
+                new_index = (current_index - 1) % num_sheets
+            else:  # Scroll down
+                new_index = (current_index + 1) % num_sheets
+
+            # Set new selection and update
+            if num_sheets > 0:
+                self.sheet_combobox.SetSelection(new_index)
+                new_sheet = self.sheet_combobox.GetString(new_index)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self, new_sheet)
+        return
+
 
 
     def highlight_selected_peak(self):
@@ -5125,15 +5143,18 @@ if __name__ == '__main__':
     def apply_preferences(window):
         pref_window = PreferenceWindow(window)
         pref_window.OnSave(None)  # Save settings without user interaction
+        print("Preferences applied")
 
-    # Apply preferences right before checking first time use
-    wx.CallAfter(apply_preferences, frame)
+
 
     check_first_time_use(frame)
 
 
     updater = UpdateChecker()
     updater.check_update_delayed(frame)
+
+    # Apply preferences right before checking first time use
+    wx.CallAfter(apply_preferences, frame)
 
     app.MainLoop()
     sys.exit(0)
