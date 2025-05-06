@@ -641,16 +641,17 @@ class PlotManager:
 
             self.apply_text_settings(window)
 
-            # Plot background only if it's different from raw data
+            # Plot background only if it meets the criteria
             if 'Background' in window.Data['Core levels'][sheet_name] and 'Bkg Y' in \
                     window.Data['Core levels'][sheet_name]['Background']:
+                background_data = window.Data['Core levels'][sheet_name]['Background']
                 raw_data = np.array(window.Data['Core levels'][sheet_name]['Raw Data'])
-                background = np.array(window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+                background = np.array(background_data['Bkg Y'])
 
-                if not np.array_equal(raw_data, background):
-                    # if "survey" in sheet_name.lower() or "wide" in sheet_name.lower():
-                    #     pass
-                    # else:
+                # Use the same conditions as in clear_and_replot
+                if (background_data.get('Bkg Type', '') != "" and
+                        background_data.get('Bkg Low', '') != "" and
+                        background_data.get('Bkg High', '') != ""):
                     if window.energy_scale == 'KE':
                         self.ax.plot(window.photons - x_values, window.background,
                                      color=self.background_color,

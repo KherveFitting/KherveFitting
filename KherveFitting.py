@@ -3310,6 +3310,36 @@ class MyFrame(wx.Frame):
             8: '0.3:3',  # Gamma
             9: '0.01:2' # Skew
         }
+        # Check each constraint cell
+        for col_idx in range(2, 10):
+            if not self.peak_params_grid.GetCellValue(row, col_idx).strip():
+                # If empty, set default constraint
+                self.peak_params_grid.SetCellValue(row, col_idx, default_constraints[col_idx])
+
+        # Also update constraints in Data structure
+        peak_index = row // 2
+        sheet_name = self.sheet_combobox.GetValue()
+        if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][sheet_name]:
+            peaks = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+            if peaks and peak_index < len(list(peaks.keys())):
+                peak_label = list(peaks.keys())[peak_index]
+                if 'Constraints' not in peaks[peak_label]:
+                    peaks[peak_label]['Constraints'] = {}
+
+                # Map column indices to constraint names
+                constraint_names = {
+                    2: 'Position', 3: 'Height', 4: 'FWHM', 5: 'L/G',
+                    6: 'Area', 7: 'Sigma', 8: 'Gamma', 9: 'Skew'
+                }
+
+                # Update any empty constraints
+                for col_idx in range(2, 10):
+                    constraint_name = constraint_names[col_idx]
+                    if not peaks[peak_label]['Constraints'].get(constraint_name, ''):
+                        peaks[peak_label]['Constraints'][constraint_name] = default_constraints[col_idx]
+
+
+
         # Check if this is a constraint row and the value contains "="
         if row % 2 == 1 and col in [2, 3, 4, 5, 6, 7, 8, 9] and "=" in new_value:
             # Remove the "=" from the cell
@@ -3915,6 +3945,34 @@ class MyFrame(wx.Frame):
             constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
             for col_idx, key in enumerate(constraint_keys, start=2):
                 value = self.peak_params_grid.GetCellValue(row_constraint, col_idx)
+
+                # If value is empty, use defaults
+                if not value:
+                    # Use appropriate default based on column
+                    if key == 'Position':
+                        # Get min/max from current sheet's data
+                        x_values = self.Data['Core levels'][sheet_name]['B.E.']
+                        min_pos = min(x_values)
+                        max_pos = max(x_values)
+                        value = f"{min_pos:.2f}:{max_pos:.2f}"
+                    elif key == 'Height':
+                        value = '1:1e7'
+                    elif key == 'FWHM':
+                        value = '0.3:3.5'
+                    elif key == 'L/G':
+                        value = '5:80'
+                    elif key == 'Area':
+                        value = '1:1e7'
+                    elif key == 'Sigma':
+                        value = '0.3:3'
+                    elif key == 'Gamma':
+                        value = '0.3:3'
+                    elif key == 'Skew':
+                        value = '0.01:2'
+
+                    # Update grid with default
+                    self.peak_params_grid.SetCellValue(row_constraint, col_idx, value)
+
                 peaks[peak_label]['Constraints'][key] = value
 
         # Refresh the grid to ensure it reflects the current state of self.Data
@@ -3992,15 +4050,62 @@ class MyFrame(wx.Frame):
                 self.peak_params_grid.SetCellValue(row, 7, f"{peak_data['Sigma']:.3f}")
                 self.peak_params_grid.SetCellValue(row, 8, f"{peak_data['Gamma']:.3f}")
                 self.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', 0.1):.3f}")
+                # if 'Constraints' in peak_data:
+                #     self.peak_params_grid.SetCellValue(row + 1, 2, str(peak_data['Constraints'].get('Position', '')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 3, str(peak_data['Constraints'].get('Height', '')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 4, str(peak_data['Constraints'].get('FWHM', '')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 5, str(peak_data['Constraints'].get('L/G', '')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 6, str(peak_data['Constraints'].get('Area', '')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 7, str(peak_data['Constraints'].get('Sigma', '0.3:4')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 8, str(peak_data['Constraints'].get('Gamma', '0.3:4')))
+                #     self.peak_params_grid.SetCellValue(row + 1, 9, str(peak_data['Constraints'].get('Skew', '0.1:1')))
                 if 'Constraints' in peak_data:
-                    self.peak_params_grid.SetCellValue(row + 1, 2, str(peak_data['Constraints'].get('Position', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 3, str(peak_data['Constraints'].get('Height', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 4, str(peak_data['Constraints'].get('FWHM', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 5, str(peak_data['Constraints'].get('L/G', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 6, str(peak_data['Constraints'].get('Area', '')))
-                    self.peak_params_grid.SetCellValue(row + 1, 7, str(peak_data['Constraints'].get('Sigma', '0.3:4')))
-                    self.peak_params_grid.SetCellValue(row + 1, 8, str(peak_data['Constraints'].get('Gamma', '0.3:4')))
-                    self.peak_params_grid.SetCellValue(row + 1, 9, str(peak_data['Constraints'].get('Skew', '0.1:1')))
+                    # Get min/max from current sheet's data
+                    sheet_name = self.sheet_combobox.GetValue()
+                    x_values = self.Data['Core levels'][sheet_name]['B.E.']
+                    min_pos = min(x_values)
+                    max_pos = max(x_values)
+                    position_constraint = f"{min_pos:.2f}:{max_pos:.2f}"
+
+                    default_constraints = {
+                        'Position': position_constraint,
+                        'Height': '1:1e7',
+                        'FWHM': '0.3:3.5',
+                        'L/G': '5:80',
+                        'Area': '1:1e7',
+                        'Sigma': '0.3:3',
+                        'Gamma': '0.3:3',
+                        'Skew': '0.01:2'
+                    }
+
+                    for col_idx, key in enumerate(
+                            ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew'], 2):
+                        constraint_value = peak_data['Constraints'].get(key, '')
+                        if not constraint_value:
+                            constraint_value = default_constraints[key]
+                            peak_data['Constraints'][key] = constraint_value
+                        self.peak_params_grid.SetCellValue(row + 1, col_idx, str(constraint_value))
+                else:
+                    # Create default constraints
+                    sheet_name = self.sheet_combobox.GetValue()
+                    x_values = self.Data['Core levels'][sheet_name]['B.E.']
+                    min_pos = min(x_values)
+                    max_pos = max(x_values)
+                    position_constraint = f"{min_pos:.2f}:{max_pos:.2f}"
+
+                    default_constraints = {
+                        'Position': position_constraint,
+                        'Height': '1:1e7',
+                        'FWHM': '0.3:3.5',
+                        'L/G': '5:80',
+                        'Area': '1:1e7',
+                        'Sigma': '0.3:3',
+                        'Gamma': '0.3:3',
+                        'Skew': '0.01:2'
+                    }
+                    peak_data['Constraints'] = default_constraints.copy()
+                    for col_idx, (key, value) in enumerate(default_constraints.items(), 2):
+                        self.peak_params_grid.SetCellValue(row + 1, col_idx, str(value))
         self.peak_params_grid.ForceRefresh()
 
     def refresh_peak_params_grid_release(self):
