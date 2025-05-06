@@ -8,7 +8,7 @@ import re
 import platform
 
 class UpdateChecker:
-    def __init__(self, current_version=1.59):
+    def __init__(self, current_version=1.49):
         self.current_version = float(current_version)
         self.url = "https://sourceforge.net/projects/khervefitting/files/"
         self.download_url = "https://sourceforge.net/projects/khervefitting/files/latest/download"
@@ -20,7 +20,7 @@ class UpdateChecker:
             system = platform.system()
             if system == "Darwin":  # Mac OS
                 print("Check for Mac update")
-                file_pattern = r"KherveFitting_.*\.(dmg|pkg)"
+                file_pattern = r"KherveFitting_.*\.dmg"
             elif system == "Windows":
                 print("Check for Windows update")
                 file_pattern = r"KherveFitting_.*\.exe"
