@@ -5255,11 +5255,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.50 25e04")
+        frame = MyFrame(None, "KherveFitting-v1.505 25e07")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.50 25e04")
+        frame = MyFrame(None, "KherveFitting-v1.505 25e07")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.50 25e04")
+        frame = MyFrame(None, "KherveFitting-v1.505 25e07")
     frame.Show(True)
 
     if splash:
