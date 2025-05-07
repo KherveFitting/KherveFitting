@@ -308,8 +308,13 @@ class MyFrame(wx.Frame):
         self.enable_auto_backup = False
         self.backup_interval = 30  # Default to 30 minutes
 
-        # Load config if exists
+        # Initialize registered flag
+        self.registered = False
+
         self.load_config()
+        # If you stored the config as an attribute:
+        if not hasattr(self, 'registered') or not self.registered:
+            self.times_opened = 0
 
         create_widgets(self)
         create_menu(self)
@@ -4408,10 +4413,22 @@ class MyFrame(wx.Frame):
                 self.y_axis_state = config.get('y_axis_state', 0)
                 self.residuals_state = config.get('residuals_state', 2)
 
+                # Set registered flag
+                self.registered = config.get('registered', False)
+
+                # Only increment times_opened if registered
+                if self.registered:
+                    self.times_opened = config.get('times_opened', 0) + 1
+                else:
+                    self.times_opened = 0
+
         else:
             config = {}
             print("No config file found, using default values.")
             self.recent_files = []
+
+            self.registered = False
+            self.times_opened = 0
 
         return config
 
@@ -4496,6 +4513,7 @@ class MyFrame(wx.Frame):
 
             #Tines opened
             'times_opened': getattr(self, 'times_opened', 0),
+            'registered': self.registered,
         }
 
         with open('config.json', 'w') as f:
@@ -4982,7 +5000,10 @@ class MyFrame(wx.Frame):
         redo(self)
 
     def on_close(self, event):
-        # Add this to the existing on_close method
+        # Close all matplotlib figures first
+        import matplotlib.pyplot as plt
+        plt.close('all')
+
         if self.backup_timer:
             self.backup_timer.Stop()
 

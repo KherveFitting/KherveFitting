@@ -49,10 +49,11 @@ USAGES = ["Multiple times in a day", "Daily", "Weekly", "Monthly", "Yearly", "Ra
 
 
 class RegistrationForm(wx.Frame):
-    def __init__(self):
-        super().__init__(parent=None, title="KherveFitting Registration Form", size=(550, 650), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+    def __init__(self, parent):
+        super().__init__(parent=parent, title="KherveFitting Registration Form", size=(550, 650),
+                         style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+        self.parent = parent
         panel = wx.Panel(self)
-
         vbox = wx.BoxSizer(wx.VERTICAL)
 
         # # Title
@@ -179,6 +180,39 @@ class RegistrationForm(wx.Frame):
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(pattern, email) is not None
 
+    def on_submit_OLD(self, event):
+        data = {}
+        for label, control in self.fields.items():
+            value = control.GetValue()
+            if not value:
+                wx.MessageBox(f"Please enter your {label}.", "Missing Information", wx.OK | wx.ICON_WARNING)
+                return
+
+            # Validate email
+            if label == "Email" and not self.validate_email(value):
+                wx.MessageBox("Please enter a valid email address.", "Invalid Email", wx.OK | wx.ICON_WARNING)
+                return
+
+            data[FORM_FIELDS[label]] = value
+
+        try:
+            response = requests.post(GOOGLE_FORM_URL, data=data)
+            if response.status_code == 200:
+                # Save registration state to config file
+                self.save_registration_state()
+
+                # Important: Also update the parent window's registered flag
+                if hasattr(self, 'parent') and self.parent:
+                    self.parent.registered = True
+
+                wx.MessageBox("Thank you for registering!", "Completed", wx.OK | wx.ICON_INFORMATION)
+                self.Close()
+            else:
+                wx.MessageBox(f"Failed to submit form. Status code: {response.status_code}", "Error",
+                              wx.OK | wx.ICON_ERROR)
+        except Exception as e:
+            wx.MessageBox(f"An error occurred:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
+
     def on_submit(self, event):
         data = {}
         for label, control in self.fields.items():
@@ -199,6 +233,11 @@ class RegistrationForm(wx.Frame):
             if response.status_code == 200:
                 # Save registration state to config file
                 self.save_registration_state()
+
+                # Important: Only update the parent's registered flag if parent exists
+                if hasattr(self, 'parent') and self.parent is not None:
+                    self.parent.registered = True
+
                 wx.MessageBox("Thank you for registering!", "Completed", wx.OK | wx.ICON_INFORMATION)
                 self.Close()
             else:
@@ -207,7 +246,7 @@ class RegistrationForm(wx.Frame):
         except Exception as e:
             wx.MessageBox(f"An error occurred:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
 
-    def save_registration_state(self):
+    def save_registration_state_OLD(self):
         """Save registration state to config file"""
         # Use the same config file as the main application
         import os
@@ -221,7 +260,37 @@ class RegistrationForm(wx.Frame):
             # If running as script
             app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        config_file = os.path.join(app_dir, 'config.json')
+        # config_file = os.path.join(app_dir, 'config.json')
+        """Save registration state to config file"""
+        config_file = 'config.json'
+        config = {}
+
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+            except:
+                config = {}
+
+        # Set registered flag
+        config['registered'] = True
+        self.parent.registered = True
+
+        # Only update parent if it exists
+        if hasattr(self, 'parent') and self.parent is not None:
+            self.parent.registered = True
+            # Also call parent's save_config if available
+            if hasattr(self.parent, 'save_config'):
+                self.parent.save_config()
+
+        # Save config
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    def save_registration_state(self):
+        """Save registration state to config file"""
+        # Use the same config file as the main application
+        config_file = 'config.json'
         config = {}
 
         if os.path.exists(config_file):
@@ -234,9 +303,17 @@ class RegistrationForm(wx.Frame):
         # Set registered flag
         config['registered'] = True
 
+        # Only try to update parent if it exists and is not None
+        if hasattr(self, 'parent') and self.parent is not None:
+            self.parent.registered = True
+            # Also call parent's save_config if available
+            if hasattr(self.parent, 'save_config'):
+                self.parent.save_config()
+
         # Save config
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=2)
+
 
 
 def check_registration_needed():
@@ -260,7 +337,7 @@ def check_registration_needed():
 def show_registration_form():
     """Show the registration form"""
     app = wx.App(False)
-    frame = RegistrationForm()
+    frame = RegistrationForm(None)
     app.MainLoop()
     return True  # Registration complete
 

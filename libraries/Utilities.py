@@ -20,6 +20,16 @@ def check_first_time_use(frame):
     config = frame.load_config()
     times_opened = config.get('times_opened', 0)
 
+
+    # Check if registration is needed - use frame instead of window
+    if not hasattr(frame, 'registered') or not frame.registered:
+        from libraries.MarketResearch import check_registration_needed, show_registration_form
+        if check_registration_needed():
+            show_registration_form()
+            # Re-load config to get updated registration status
+            config = frame.load_config()
+            frame.registered = config.get('registered', False)
+
     if times_opened == 0:
         # Show registration form on first run
         from libraries.MarketResearch import check_registration_needed, show_registration_form
