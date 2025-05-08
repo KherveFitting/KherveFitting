@@ -5255,11 +5255,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.505 25e07")
+        frame = MyFrame(None, "KherveFitting-v1.505 25e08")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.505 25e07")
+        frame = MyFrame(None, "KherveFitting-v1.505 25e08")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.505 25e07")
+        frame = MyFrame(None, "KherveFitting-v1.505 25e08")
 
     frame.Show(True)
 
@@ -5281,7 +5281,7 @@ if __name__ == '__main__':
     updater.check_update_delayed(frame)
 
     # Apply preferences right before checking first time use
-    if frame.times_opened > 4:
+    if frame.times_opened > 0:
             wx.CallAfter(apply_preferences, frame)
 
     app.MainLoop()
