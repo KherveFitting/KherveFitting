@@ -25,17 +25,22 @@ def check_first_time_use(frame):
     if not hasattr(frame, 'registered') or not frame.registered:
         from libraries.MarketResearch import check_registration_needed, show_registration_form
         if check_registration_needed():
-            show_registration_form()
-            # Re-load config to get updated registration status
-            config = frame.load_config()
-            frame.registered = config.get('registered', False)
+            registered = show_registration_form()
+            if registered:
+                # Update frame's registered status
+                frame.registered = True
+                print("User registered successfully.")
+                # Reload config
+                config = frame.load_config()
+                # Make sure config is also updated
+                frame.save_config()
 
-    if times_opened == 0:
-        # Show registration form on first run
-        from libraries.MarketResearch import check_registration_needed, show_registration_form
-        if check_registration_needed():
-            show_registration_form()
-    elif times_opened == 1:
+    # if times_opened == 0:
+    #     # Show registration form on first run
+    #     from libraries.MarketResearch import check_registration_needed, show_registration_form
+    #     if check_registration_needed():
+    #         show_registration_form()
+    elif times_opened == 2:
         # Show manual dialog on second run
         dlg = wx.MessageDialog(frame,
                               "Would you like to open the manual to the Getting Started section?",

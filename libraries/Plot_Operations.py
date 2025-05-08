@@ -40,7 +40,7 @@ class PlotManager:
 
         # init for preference window
         self.plot_style = "scatter"
-        self.scatter_size = 20
+        self.scatter_size = 4
         self.line_width = 1
         self.line_alpha = 0.7
         self.scatter_color = "#000000"

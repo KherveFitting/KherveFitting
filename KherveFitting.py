@@ -254,7 +254,7 @@ class MyFrame(wx.Frame):
 
         # Initialize plot preference attributes with default values
         self.plot_style = "scatter"
-        self.scatter_size = 20
+        self.scatter_size = 4
         self.line_width = 1
         self.line_alpha = 0.7
         self.scatter_color = "#000000"
@@ -5260,6 +5260,7 @@ if __name__ == '__main__':
         frame = MyFrame(None, "KherveFitting-v1.505 25e07")
     else:
         frame = MyFrame(None, "KherveFitting-v1.505 25e07")
+
     frame.Show(True)
 
     if splash:
@@ -5280,7 +5281,8 @@ if __name__ == '__main__':
     updater.check_update_delayed(frame)
 
     # Apply preferences right before checking first time use
-    wx.CallAfter(apply_preferences, frame)
+    if frame.times_opened > 4:
+            wx.CallAfter(apply_preferences, frame)
 
     app.MainLoop()
     sys.exit(0)
