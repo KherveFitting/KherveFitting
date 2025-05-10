@@ -103,6 +103,8 @@ def load_library_data():
     return data
 
 
+
+
 def load_library_data_NEWBUTNO():
     wb = openpyxl.load_workbook('KherveFitting_library.xlsx')
     sheet = wb['Library']
@@ -211,6 +213,136 @@ def open_spe_file_olderPhi(window, file_path):
         window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 def open_spe_file_BEST_SURVEY(window, file_path):
+    import numpy as np
+    import openpyxl
+    import re
+    import os
+    import struct
+
+    def extract_float_sequences(data, min_length=100):
+        sequences = []
+        positions = []
+
+        for offset in range(0, 512):
+            values = []
+            i = offset
+            while i + 4 <= len(data):
+                try:
+                    val = struct.unpack('<f', data[i:i + 4])[0]
+                    if 0 <= val < 1e6:
+                        values.append(val)
+                    else:
+                        if len(values) >= min_length:
+                            sequences.append(values)
+                            positions.append(i)
+                        values = []
+                    i += 4
+                except:
+                    i += 4
+            if len(values) >= min_length:
+                sequences.append(values)
+                positions.append(i)
+        return sequences, positions
+
+    try:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
+        if not header_match:
+            raise ValueError("Cannot find header section (SOFH...EOFH) in SPE file")
+
+        header_text = header_match.group(1).decode('utf-8', errors='ignore')
+        header_lines = [line.strip() for line in header_text.strip().split('\n')]
+
+        a, b = 31.826, 0.229
+        for line in header_lines:
+            if 'IntensityCalCoeff:' in line:
+                _, coeffs = line.split(':', 1)
+                a, b = map(float, coeffs.strip().split())
+                break
+
+        spectral_regions = []
+        region_count = 0
+        for line in header_lines:
+            if line.startswith('NoSpectralReg:'):
+                region_count = int(line.split(':')[1].strip())
+            if line.startswith('SpectralRegDef:'):
+                parts = line.split()
+                is_active = int(parts[2])
+                if is_active == 1:
+                    # Get the name and CHANGE 1: Replace 'Su1s' with 'Survey'
+                    name = parts[3]
+                    if name == 'Su1s':
+                        name = 'Survey'
+
+                    spectral_regions.append({
+                        'index': int(parts[1]),
+                        'name': name,
+                        'start_energy': float(parts[7]),
+                        'end_energy': float(parts[8]),
+                        'step_size': float(parts[5])
+                    })
+
+        data_bytes = content[content.find(b'EOFH') + 4:]
+
+        float_sequences, _ = extract_float_sequences(data_bytes)
+        if float_sequences:
+            intensity_values = max(float_sequences, key=lambda x: max(x))
+        else:
+            raise ValueError("No valid intensity data found in binary section")
+
+        for region in spectral_regions:
+            sheet_name = region['name']
+            ws = wb.create_sheet(title=sheet_name)
+            ws["A1"] = "BE"
+            ws["B1"] = "Corrected Data"
+            ws["C1"] = "Raw Data"
+            ws["D1"] = "Transmission"
+
+            start_energy = region['start_energy']
+            end_energy = region['end_energy']
+            num_points = len(intensity_values)
+
+            # CHANGE 2: Swap start and end energies to correct BE scale orientation
+            # Note: We're using end_energy first, then start_energy to flip the BE scale
+            energy_values = np.linspace(start_energy, end_energy, num_points)
+
+            ke_values = 1486.6 - energy_values
+            transmission = a * np.power(ke_values, -b)
+            corrected_intensity = np.array(intensity_values) / transmission
+
+            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected_intensity, intensity_values, transmission),
+                                               start=2):
+                ws[f"A{i}"] = float(e)
+                ws[f"B{i}"] = float(ci)
+                ws[f"C{i}"] = float(ri)
+                ws[f"D{i}"] = float(t)
+
+        exp_sheet = wb.create_sheet("Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+        for i, line in enumerate(header_lines, start=1):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                exp_sheet[f"A{i}"] = key.strip()
+                exp_sheet[f"B{i}"] = value.strip()
+
+        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+        wb.save(excel_path)
+
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, excel_path)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
+
+def open_spe_file(window, file_path):
     import numpy as np
     import openpyxl
     import re
@@ -544,7 +676,7 @@ def open_spe_file_B2(window, file_path):
         traceback.print_exc()
         window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
-def open_spe_file(window, file_path):
+def open_spe_file_OTHER(window, file_path):
     import numpy as np
     import openpyxl
     import re
@@ -792,200 +924,276 @@ def open_spe_file(window, file_path):
         window.show_popup_message2("Error", f"Error processing SPE file: {str(e)}")
 
 
-def open_spe_file_NONONON(window, file_path):
+def open_spe_file_NEW(window, file_path):
+    """Process a PHI SPE file using the documented structure and convert it to Excel format"""
     import numpy as np
     import openpyxl
     import re
     import os
     import struct
+    from pathlib import Path
 
     try:
+        # Create a new workbook for the Excel output
         wb = openpyxl.Workbook()
-        wb.remove(wb.active)
+        wb.remove(wb.active)  # Remove default sheet
 
         with open(file_path, 'rb') as f:
             content = f.read()
 
-        print(f"\n== Processing SPE file: {file_path} ==")
-        print(f"📦 File size: {len(content)} bytes")
+        print(f"\n== Processing PHI SPE file: {file_path} ==")
+        print(f"File size: {len(content)} bytes")
 
-        # ————— Parse header —————
+        # ---- Parse header section ----
         header_match = re.search(rb'SOFH(.*?)EOFH', content, re.DOTALL)
         if not header_match:
-            raise ValueError("❗ Cannot find header section (SOFH...EOFH) in SPE file")
+            raise ValueError("Cannot find header section (SOFH...EOFH) in SPE file")
 
         header_text = header_match.group(1).decode('utf-8', errors='ignore')
         header_lines = [line.strip() for line in header_text.strip().split('\n')]
-        print(f"📄 Header found: {len(header_lines)} lines")
+        print(f"Header found: {len(header_lines)} lines")
 
-        # Extract intensity calibration coefficients
-        a, b = 31.826, 0.229  # Default values
+        # Extract intensity calibration coefficients (defaults if not found)
+        a, b = 31.826, 0.229
         for line in header_lines:
             if 'IntensityCalCoeff:' in line:
                 _, coeffs = line.split(':', 1)
                 a, b = map(float, coeffs.strip().split())
-                print(f"🔧 Intensity calibration: a={a}, b={b}")
+                print(f"Intensity calibration: a={a}, b={b}")
                 break
 
-        # Parse active regions
-        active_regions = []
+        # Parse spectral regions from header
+        regions = []
         for line in header_lines:
             if line.startswith('SpectralRegDef:'):
                 parts = line.split()
-                if len(parts) >= 12 and int(parts[2]) == 1:  # Active region
-                    region_name = parts[3]
-                    if region_name == 'Su1s':
-                        region_name = 'Survey'
-
-                    active_regions.append({
-                        'index': int(parts[1]),
-                        'name': region_name,
-                        'points': int(parts[5]),
+                if len(parts) >= 13 and int(parts[2]) == 1:  # Active region
+                    # Parse according to documented format:
+                    # SpectralRegDef: [trace_number] [trace_number] [name] [atomic_number] [num_datapoints] [step] [start] [stop] ...
+                    region = {
+                        'number': int(parts[1]),
+                        'name': parts[3],
+                        'atomic_number': int(parts[4]),
+                        'num_points': int(parts[5]),
                         'step': float(parts[6]),
                         'start_energy': float(parts[7]),
-                        'end_energy': float(parts[8])
-                    })
-                    print(f"🔬 Region {len(active_regions)}: {region_name}, {int(parts[5])} pts, "
-                          f"{float(parts[7])}-{float(parts[8])} eV")
+                        'end_energy': float(parts[8]),
+                        'dwell_time': float(parts[11])
+                    }
 
-        # ————— Extract binary data —————
+                    # Normalize region name
+                    if region['name'] == 'Su1s':
+                        region['name'] = 'Survey'
+
+                    regions.append(region)
+                    print(f"Region {region['number']}: {region['name']}, {region['num_points']} points, "
+                          f"{region['start_energy']}-{region['end_energy']} eV")
+
+        # ---- Find data section start ----
         data_start = content.find(b'EOFH') + 4
         binary_data = content[data_start:]
-        print(f"📊 Binary data section starts at byte {data_start}, size: {len(binary_data)} bytes")
+        print(f"Binary data section starts at byte {data_start}, size: {len(binary_data)} bytes")
 
-        # Binary header is usually 24 bytes (6 integers)
-        header_size = 24
+        # ---- Process data header ----
+        # According to docs: 0x0000: group, 0x0004: num_traces, 0x0008: trace_header_size, 0x000c: data_header_size
+        try:
+            data_header = binary_data[:16]  # First 16 bytes
+            group = struct.unpack('<i', data_header[0:4])[0]
+            num_traces = struct.unpack('<i', data_header[4:8])[0]
+            trace_header_size = struct.unpack('<i', data_header[8:12])[0]
+            data_header_size = struct.unpack('<i', data_header[12:16])[0]
 
-        # Process each region in order
-        for region in active_regions:
+            print(f"Data header: group={group}, num_traces={num_traces}, "
+                  f"trace_header_size={trace_header_size}, data_header_size={data_header_size}")
+
+            if num_traces != len(regions):
+                print(
+                    f"Warning: Number of traces in header ({num_traces}) doesn't match regions found ({len(regions)})")
+        except Exception as e:
+            print(f"Error reading data header: {e}")
+            # Fall back to processing without data header info
+            num_traces = len(regions)
+            data_header_size = 16
+            trace_header_size = 96 * num_traces  # Estimate based on documentation
+
+        # ---- Process each trace (region) ----
+        current_offset = data_header_size
+
+        for region in regions:
             sheet_name = region['name']
-            points = region['points']
-            start_energy = region['start_energy']
-            end_energy = region['end_energy']
 
-            print(f"\n🎯 Processing region: {sheet_name} ({points} points)")
+            # Ensure unique sheet name
+            suffix = 1
+            original_name = sheet_name
+            while sheet_name in wb.sheetnames:
+                sheet_name = f"{original_name}{suffix}"
+                suffix += 1
+
+            print(f"\n🎯 Processing region: {sheet_name} ({region['num_points']} points)")
 
             # Create sheet
             ws = wb.create_sheet(title=sheet_name)
+
+            # Add headers
             ws["A1"] = "BE"
             ws["B1"] = "Corrected Data"
             ws["C1"] = "Raw Data"
             ws["D1"] = "Transmission"
 
-            # Calculate offset for this region's data
-            # First binary header (24 bytes) followed by floats (4 bytes each)
-            # Each region has its own binary data block
-            region_index = region['index'] - 1  # 0-based index
+            # Try to read trace header
+            try:
+                # Read 96 bytes of trace header (based on documentation)
+                trace_header = binary_data[current_offset:current_offset + 96]
+                trace_number = struct.unpack('<i', trace_header[0:4])[0]
+                num_datapoints = struct.unpack('<i', trace_header[0x14:0x18])[0]
+                data_dtype = struct.unpack('<i', trace_header[0x48:0x4C])[0]
 
-            # Try different known offsets where data might start
-            offsets_to_try = [
-                header_size,  # Standard offset
-                header_size + region_index * 4,  # Simple sequential
-                header_size + region_index * points * 4  # Full blocks
-            ]
+                print(
+                    f"Trace header: trace_number={trace_number}, num_datapoints={num_datapoints}, data_dtype={data_dtype}")
 
-            # For more complex files with multiple regions
-            if region_index > 0:
-                # Add additional potential offsets
-                previous_points_sum = sum(r['points'] for r in active_regions[:region_index])
-                offsets_to_try.extend([
-                    header_size + previous_points_sum * 4,
-                    header_size + (region_index * header_size) + (previous_points_sum * 4)
-                ])
+                # Check if data_dtype indicates f4 (float32) or f8 (float64)
+                bytes_per_point = 4  # Default to float32
+                if data_dtype == 8:
+                    bytes_per_point = 8
 
-            # Try each offset until we find valid data
-            intensity_values = None
-            used_offset = None
+                # Move to data section
+                data_offset = current_offset + 96
 
-            for offset in offsets_to_try:
-                if offset + (points * 4) > len(binary_data):
-                    continue
-
-                # Try to read data block
-                try:
-                    test_values = []
-                    for i in range(points):
-                        pos = offset + (i * 4)
-                        value = struct.unpack('<f', binary_data[pos:pos + 4])[0]
-                        # Only accept reasonable intensity values
-                        if 0 <= value < 100000:
-                            test_values.append(value)
+                # Read intensity values
+                intensity_values = []
+                for i in range(region['num_points']):
+                    value_offset = data_offset + (i * bytes_per_point)
+                    if value_offset + bytes_per_point <= len(binary_data):
+                        if bytes_per_point == 4:
+                            value = struct.unpack('<f', binary_data[value_offset:value_offset + 4])[0]
                         else:
-                            test_values = []
-                            break
+                            value = struct.unpack('<d', binary_data[value_offset:value_offset + 8])[0]
+                        intensity_values.append(value)
 
-                    # If we got enough valid values, use this offset
-                    if len(test_values) == points:
-                        intensity_values = test_values
-                        used_offset = offset
-                        print(f"✅ Found valid data at offset {offset}")
-                        print(f"   ➤ Range: {min(intensity_values):.1f} – {max(intensity_values):.1f}")
-                        break
-                except Exception as e:
+                # Check if we got expected number of points
+                if len(intensity_values) != region['num_points']:
+                    print(f"Warning: Expected {region['num_points']} points but got {len(intensity_values)}")
+
+                # Update current offset for next trace
+                next_data_offset = data_offset + (region['num_points'] * bytes_per_point)
+
+                # After data points, there should be one more float with dwell time
+                try:
+                    dwell_time = struct.unpack('<f', binary_data[next_data_offset:next_data_offset + 4])[0]
+                    print(f"Read dwell time: {dwell_time}")
+                    next_data_offset += 4
+                except:
                     pass
 
-            # If we didn't find valid data at any offset, do a more thorough scan
-            if intensity_values is None:
-                print(f"⚠️ Could not find data at standard offsets, performing full scan")
-                for offset in range(0, len(binary_data) - (points * 4), 4):
+                current_offset = next_data_offset
+
+            except Exception as e:
+                print(f"Error reading trace header/data: {e}")
+                print("Falling back to scanning for data...")
+
+                # Fall back to scanning method
+                intensity_values = []
+                scan_offset = current_offset
+                valid_data_found = False
+
+                # Try standard offsets first
+                for test_offset in [current_offset, current_offset + 96, current_offset + 192]:
                     try:
-                        test_values = []
-                        for i in range(points):
-                            pos = offset + (i * 4)
-                            value = struct.unpack('<f', binary_data[pos:pos + 4])[0]
-                            if 0 <= value < 100000:
-                                test_values.append(value)
+                        # Try to read the expected number of consecutive float values
+                        values = []
+                        for i in range(region['num_points']):
+                            offset = test_offset + (i * 4)
+                            if offset + 4 <= len(binary_data):
+                                val = struct.unpack('<f', binary_data[offset:offset + 4])[0]
+                                if 0 <= val < 1e6:  # Reasonable value check
+                                    values.append(val)
+                                else:
+                                    values = []
+                                    break
                             else:
-                                test_values = []
+                                values = []
                                 break
 
-                        if len(test_values) == points:
-                            max_val = max(test_values)
-                            if max_val > 10:  # Must have some significant counts
-                                intensity_values = test_values
-                                used_offset = offset
-                                print(f"✅ Found valid data in full scan at offset {offset}")
-                                print(f"   ➤ Range: {min(intensity_values):.1f} – {max(intensity_values):.1f}")
-                                break
+                        if len(values) == region['num_points']:
+                            intensity_values = values
+                            valid_data_found = True
+                            print(f"Found data at offset {test_offset} from current position")
+                            current_offset = test_offset + (region['num_points'] * 4) + 4  # +4 for dwell time
+                            break
                     except:
-                        pass
+                        continue
 
-            # If we still didn't find data, use placeholder values
-            if intensity_values is None:
-                print(f"❌ No valid data found for {sheet_name}, using placeholder values")
-                intensity_values = [1.0] * points
+                # If still no valid data, scan entire binary section
+                if not valid_data_found:
+                    print("Scanning entire binary section...")
+                    for scan_offset in range(0, len(binary_data) - (region['num_points'] * 4), 4):
+                        try:
+                            values = []
+                            for i in range(region['num_points']):
+                                offset = scan_offset + (i * 4)
+                                if offset + 4 <= len(binary_data):
+                                    val = struct.unpack('<f', binary_data[offset:offset + 4])[0]
+                                    if 0 <= val < 1e6:
+                                        values.append(val)
+                                    else:
+                                        values = []
+                                        break
+                                else:
+                                    values = []
+                                    break
 
-            # Energy scale and transmission function
-            energy_values = np.linspace(start_energy, end_energy, points)
-            ke_values = 1486.6 - energy_values
+                            if len(values) == region['num_points']:
+                                # Check if values look reasonable (not all zeros or too small)
+                                if max(values) > 10 and sum(values) > 0:
+                                    intensity_values = values
+                                    valid_data_found = True
+                                    print(f"Found data at global offset {scan_offset}")
+                                    current_offset = scan_offset + (region['num_points'] * 4) + 4
+                                    break
+                        except:
+                            continue
+
+            # If no valid data found, use placeholder
+            if not intensity_values:
+                print(f"❌ No valid intensity data found for {sheet_name}. Using placeholder values.")
+                intensity_values = [1.0] * region['num_points']
+
+            # Calculate energy scale
+            energy_values = np.linspace(region['start_energy'], region['end_energy'], len(intensity_values))
+
+            # Calculate kinetic energy and transmission function
+            ke_values = 1486.6 - energy_values  # Al K-alpha energy
             transmission = a * np.power(ke_values, -b)
-            corrected = np.array(intensity_values) / transmission
+            corrected_intensity = np.array(intensity_values) / transmission
 
-            # Add data to sheet
-            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected, intensity_values, transmission), start=2):
+            # Write data to Excel
+            for i, (e, ci, ri, t) in enumerate(zip(energy_values, corrected_intensity, intensity_values, transmission),
+                                               start=2):
                 ws[f"A{i}"] = float(e)
                 ws[f"B{i}"] = float(ci)
                 ws[f"C{i}"] = float(ri)
                 ws[f"D{i}"] = float(t)
 
-            print(f"💾 Added {points} data points to sheet {sheet_name}")
+            print(f"✅ Added {len(intensity_values)} data points to sheet {sheet_name}")
 
-        # ————— Experimental description sheet —————
+        # Create Experimental description sheet
         exp_sheet = wb.create_sheet("Experimental description")
         exp_sheet.column_dimensions['A'].width = 30
         exp_sheet.column_dimensions['B'].width = 50
 
+        # Add header data to experimental description
         for i, line in enumerate(header_lines, start=1):
             if ':' in line:
                 key, value = line.split(':', 1)
                 exp_sheet[f"A{i}"] = key.strip()
                 exp_sheet[f"B{i}"] = value.strip()
 
-        # Save file and open in the application
+        # Save Excel file
         excel_path = os.path.splitext(file_path)[0] + ".xlsx"
         wb.save(excel_path)
         print(f"💾 Saved Excel file: {excel_path}")
 
+        # Open the Excel file
         from libraries.Open import open_xlsx_file
         open_xlsx_file(window, excel_path)
 
@@ -1102,7 +1310,7 @@ def import_mrs_file(window):
 
     except Exception as e:
         # wx.MessageBox(f"Error processing MRS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-        self.parent.show_popup_message2("Error", f"Error processing MRS file: {str(e)}")
+        window.show_popup_message2("Error", f"Error processing MRS file: {str(e)}")
 
 
 def import_avantage_file_direct(window, file_path):
@@ -1226,8 +1434,8 @@ def import_avantage_file_direct_xls(window, file_path):
                 else:
                     new_name = element
 
-            wb.create_sheet(new_name)
-            new_sheet = wb[new_name]
+            wb_new.create_sheet(new_name)
+            new_sheet = wb_new[new_name]
             new_sheet['A1'] = "Binding Energy"
             new_sheet['B1'] = "Raw Data"
 
@@ -1326,7 +1534,7 @@ def import_avantage_file(window):
 
         # Call appropriate function based on extension
         if file_path.lower().endswith('.xlsx'):
-            import_avantage_file_direct_xlsx(window, file_path)
+            import_avantage_file_direct(window, file_path)
         elif file_path.lower().endswith('.xls'):
             import_avantage_file_direct_xls(window, file_path)
 
