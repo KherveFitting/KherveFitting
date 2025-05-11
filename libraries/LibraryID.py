@@ -14,8 +14,8 @@ from tkinter import messagebox
 class PeriodicTableXPS(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("My Dream NIST Library")
-        self.geometry("740x900")
+        self.title("My KherveNIST Library: How I wish NIST looked like")
+        self.geometry("740x800")
         # Fix the width but allow height to vary
         self.minsize(740, 500)  # Minimum width set to 740, minimum height can be 0
         self.maxsize(740, 10000)  # Maximum width fixed at 740, height can be very large

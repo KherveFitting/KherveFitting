@@ -498,7 +498,7 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
                 yt_videos_item)
 
-    dream_nist_item = help_menu.Append(wx.NewId(), "Dream NIST")
+    dream_nist_item = help_menu.Append(wx.NewId(), "KherveNIST")
     window.Bind(wx.EVT_MENU, lambda event: window.open_dream_nist(), dream_nist_item)
 
 
