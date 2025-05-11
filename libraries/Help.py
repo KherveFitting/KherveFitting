@@ -407,7 +407,11 @@ def show_version_log(window):
     dlg = wx.Dialog(window, title="Version Log", size=(600, 400))
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
-    version_log = """Version 1.41-1.5 (March-Apr 2025)
+    version_log = """Version 1.505-1.59
+- Added import of .txt files for XPS and Raman data
+- Added import of CSV
+- Added My dream NIST library
+Version 1.41-1.5 (March-Apr 2025)
 - Release of the Mac Version
 - Added analysis of Raman Data
 - Added Samples/Experiment Manager for easy view of multiple files
