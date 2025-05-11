@@ -28,7 +28,7 @@ from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots
     on_save_plot_pdf, on_save_plot_svg, on_exit, undo, redo, toggle_plot, show_shortcuts, show_mini_game, on_about)
 from libraries.Utilities import add_draggable_text
 from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1, undo, redo
-
+from libraries.LibraryID import PeriodicTableXPS
 
 
 def create_widgets(window):
@@ -494,14 +494,46 @@ def create_menu(window):
     manual_item = help_menu.Append(wx.NewId(), "Open Full Manual\tCtrl+M")
     window.Bind(wx.EVT_MENU, lambda event: open_manual(window), manual_item)
 
+    yt_videos_item = help_menu.Append(wx.NewId(), "KherveFitting Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
+                yt_videos_item)
+
+    dream_nist_item = help_menu.Append(wx.NewId(), "Dream NIST")
+    window.Bind(wx.EVT_MENU, lambda event: window.open_dream_nist(), dream_nist_item)
+
 
 
     # Create a submenu for Knowledge links
     knowledge_menu = wx.Menu()
 
-    yt_videos_item = knowledge_menu.Append(wx.NewId(), "KherveFitting Videos")
-    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
-                yt_videos_item)
+    paper_menu = wx.Menu()
+
+
+    multiplet_item = paper_menu.Append(wx.NewId(), "Multiplet splitting")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7383"),
+                multiplet_item)
+
+    d_parameter_item = paper_menu.Append(wx.NewId(), "Carbon sp2")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.mdpi.com/2311-5629/7/3/51"),
+                d_parameter_item)
+
+    Fepeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Transition Metal")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1Kxx_j2kCpj8Hrd3XwbmEcJ16qHpgDmuN/view"),
+                Fepeaktable_item)
+
+    Carbonpeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Carbon")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1fyXNfX46cN7q2sYRqwBM-jaj7C2cNSPA/view"),
+                Carbonpeaktable_item)
+
+
+
+    knowledge_menu.AppendSubMenu(paper_menu, "Useful papers")
+
+
 
     # Add items to the Knowledge submenu
     thermo_item = knowledge_menu.Append(wx.NewId(), "Thermo Knowledge")
@@ -540,6 +572,7 @@ def create_menu(window):
     yt_videos_item4 = knowledge_menu.Append(wx.NewId(), "Casa XPS Videos")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@casaxpscasasoftware4605/videos"),
                 yt_videos_item4)
+
 
     # Add the Knowledge submenu to the Help menu
     help_menu.AppendSubMenu(knowledge_menu, "Knowledge")

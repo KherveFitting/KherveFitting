@@ -5230,6 +5230,12 @@ class MyFrame(wx.Frame):
         self.raman_window.Show()
         self.raman_window.Raise()
 
+    def open_dream_nist(self):
+        """Open the Dream NIST periodic table window"""
+        from libraries.LibraryID import PeriodicTableXPS
+        nist_window = PeriodicTableXPS()
+        nist_window.mainloop()
+
 
 def set_high_priority():
     try:

@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple
 import os
 import sys
 import pyperclip  # For clipboard functionality
+from tkinter import messagebox
 
 
 class PeriodicTableXPS(tk.Tk):
@@ -52,17 +53,31 @@ class PeriodicTableXPS(tk.Tk):
             base_path = os.path.dirname(sys.executable)
         else:
             # Running as script
-            base_path = os.path.dirname(os.path.abspath(__file__))
+            # First check if we're in the libraries directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            base_path = os.path.dirname(current_dir)  # Go up one level to the root
 
-        data_path = os.path.join(base_path, "NIST_BE.xlsx")
+        # Try both locations - root directory and libraries directory
+        possible_paths = [
+            os.path.join(base_path, "NIST_BE.xlsx"),
+            os.path.join(base_path, "libraries", "NIST_BE.xlsx")
+        ]
 
-        try:
-            self.df = pd.read_excel(data_path)
-            # Get unique elements and lines
-            self.elements = sorted(self.df['Element'].unique())
-            self.lines = sorted(self.df['Line'].unique())
-        except Exception as e:
-            tk.messagebox.showerror("Error", f"Failed to load data: {e}")
+        data_found = False
+        for data_path in possible_paths:
+            if os.path.exists(data_path):
+                try:
+                    self.df = pd.read_excel(data_path)
+                    # Get unique elements and lines
+                    self.elements = sorted(self.df['Element'].unique())
+                    self.lines = sorted(self.df['Line'].unique())
+                    data_found = True
+                    break
+                except Exception as e:
+                    continue
+
+        if not data_found:
+            tk.messagebox.showerror("Error", f"Failed to load data: NIST_BE.xlsx not found in expected locations")
             self.quit()
 
     def create_frames(self):
