@@ -2738,13 +2738,45 @@ class MyFrame(wx.Frame):
             return  # Prevent event from propagating
         event.Skip()  # Let other key events propagate normally
 
+    # def show_popup_message(self, message):
+    #     popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
+    #     popup.ShowFor(self)
+    #
+    # def show_popup_message2(self, message1, message2):
+    #     popup = wx.adv.RichToolTip(message1, message2)
+    #     popup.ShowFor(self)
+
     def show_popup_message(self, message):
-        popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
-        popup.ShowFor(self)
+        import platform
+        import time
+
+        # Check if platform is macOS
+        if platform.system() == 'Darwin':  # 'Darwin' is the system name for macOS
+            current_time = time.time()
+            # Only show popup if 5+ seconds have passed since last one (you can adjust the time)
+            if not hasattr(self, 'last_popup_time') or (current_time - self.last_popup_time > 5):
+                popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
+                popup.ShowFor(self)
+                self.last_popup_time = current_time
+        else:
+            # For non-Mac platforms, just show the popup
+            popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
+            popup.ShowFor(self)
 
     def show_popup_message2(self, message1, message2):
-        popup = wx.adv.RichToolTip(message1, message2)
-        popup.ShowFor(self)
+        import platform
+        import time
+
+        # Check if platform is macOS
+        if platform.system() == 'Darwin':
+            current_time = time.time()
+            if not hasattr(self, 'last_popup_time') or (current_time - self.last_popup_time > 5):
+                popup = wx.adv.RichToolTip(message1, message2)
+                popup.ShowFor(self)
+                self.last_popup_time = current_time
+        else:
+            popup = wx.adv.RichToolTip(message1, message2)
+            popup.ShowFor(self)
 
     def change_selected_peak(self, direction):
 
@@ -5212,23 +5244,23 @@ class MyFrame(wx.Frame):
         except ValueError:
             return default
 
-    def on_open_raman_window(self):
-        from libraries.Raman_Screen import RamanWindow
-        if not hasattr(self, 'raman_window') or not self.raman_window:
-            self.raman_window = RamanWindow(self)
-
-            # Set position relative to main window
-            main_pos = self.GetPosition()
-            main_size = self.GetSize()
-            raman_size = self.raman_window.GetSize()
-
-            x = main_pos.x + (main_size.width - raman_size.width) // 2
-            y = main_pos.y + (main_size.height - raman_size.height) // 2
-
-            self.raman_window.SetPosition((x, y))
-
-        self.raman_window.Show()
-        self.raman_window.Raise()
+    # def on_open_raman_window(self):
+    #     from libraries.Raman_Screen import RamanWindow
+    #     if not hasattr(self, 'raman_window') or not self.raman_window:
+    #         self.raman_window = RamanWindow(self)
+    #
+    #         # Set position relative to main window
+    #         main_pos = self.GetPosition()
+    #         main_size = self.GetSize()
+    #         raman_size = self.raman_window.GetSize()
+    #
+    #         x = main_pos.x + (main_size.width - raman_size.width) // 2
+    #         y = main_pos.y + (main_size.height - raman_size.height) // 2
+    #
+    #         self.raman_window.SetPosition((x, y))
+    #
+    #     self.raman_window.Show()
+    #     self.raman_window.Raise()
 
     def open_dream_nist(self):
         """Open the Dream NIST periodic table window"""
