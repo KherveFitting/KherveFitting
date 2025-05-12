@@ -376,7 +376,7 @@ class PeriodicTableXPS(tk.Tk):
         self.plot_btn.grid(row=1, column=3, padx=10, pady=2, sticky='w')
 
     def plot_results(self):
-        """Create a matplotlib plot of binding energies from filtered data"""
+        """Create a matplotlib plot of binding energies from filtered data with fixed 0.1 eV resolution"""
         # Get the currently filtered data
         filtered_df = self.get_filtered_data()
 
@@ -397,33 +397,32 @@ class PeriodicTableXPS(tk.Tk):
         plot_window.title("Binding Energy Distribution")
         plot_window.geometry("800x600")
 
-        # Calculate optimal bin width for the histogram
-        # Use Freedman-Diaconis rule to determine bin width
-        q75, q25 = np.percentile(binding_energies, [75, 25])
-        iqr = q75 - q25
-        bin_width = 2 * iqr * (len(binding_energies) ** (-1 / 3))
+        # Use fixed bin width of 0.1 eV
+        bin_width = 0.1
 
-        # Ensure we have a reasonable bin width
-        bin_width = max(bin_width, 0.1)  # Minimum bin width of 0.1 eV
+        # Calculate the bin edges
+        # Round the min and max values to create nice-looking bin boundaries
+        min_energy = np.floor(np.min(binding_energies) * 10) / 10  # Round down to nearest 0.1
+        max_energy = np.ceil(np.max(binding_energies) * 10) / 10  # Round up to nearest 0.1
 
-        # Calculate the number of bins
-        data_range = np.max(binding_energies) - np.min(binding_energies)
-        num_bins = int(np.ceil(data_range / bin_width))
+        # Create the bins with 0.1 eV steps
+        bins = np.arange(min_energy, max_energy + bin_width, bin_width)
 
         # Create the figure and axis
         fig = Figure(figsize=(10, 6), dpi=100)
         ax = fig.add_subplot(111)
 
-        # Create histogram and get the bins and counts
-        counts, bins, patches = ax.hist(binding_energies, bins=num_bins, alpha=0.7, color='skyblue', edgecolor='black')
+        # Create histogram and get the counts
+        counts, bins, patches = ax.hist(binding_energies, bins=bins, alpha=0.7,
+                                        color='skyblue', edgecolor='black')
 
         # Calculate bin centers for the line plot
         bin_centers = (bins[:-1] + bins[1:]) / 2
 
         # Add a smooth curve (kernel density estimation)
         from scipy.stats import gaussian_kde
-        kde = gaussian_kde(binding_energies)
-        x = np.linspace(min(binding_energies), max(binding_energies), 1000)
+        kde = gaussian_kde(binding_energies, bw_method='silverman')  # Using Silverman's rule for bandwidth
+        x = np.linspace(min_energy, max_energy, 1000)
         y = kde(x) * len(binding_energies) * bin_width  # Scale to match histogram height
         ax.plot(x, y, 'r-', linewidth=2)
 
@@ -440,6 +439,11 @@ class PeriodicTableXPS(tk.Tk):
 
         # Show the total number of references
         ax.text(0.98, 0.95, f'Total References: {len(binding_energies)}',
+                transform=ax.transAxes, ha='right', va='top',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+        # Show the resolution in the plot
+        ax.text(0.98, 0.90, f'Resolution: 0.1 eV',
                 transform=ax.transAxes, ha='right', va='top',
                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
