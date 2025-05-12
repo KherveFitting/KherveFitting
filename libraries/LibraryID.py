@@ -18,10 +18,10 @@ class PeriodicTableXPS(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("My KherveNIST Library: How I wish NIST looked like")
-        self.geometry("740x800")
+        self.geometry("620x660")
         # Fix the width but allow height to vary
-        self.minsize(740, 500)  # Minimum width set to 740, minimum height can be 0
-        self.maxsize(740, 10000)  # Maximum width fixed at 740, height can be very large
+        self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
+        self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
 
         # self.SetMinSize((262, 380))
         # self.SetMaxSize((262, 380))
@@ -32,6 +32,9 @@ class PeriodicTableXPS(tk.Tk):
         self.default_font = tkfont.nametofont("TkDefaultFont")
         self.default_font.configure(size=9)
         self.heading_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
+
+        # Create main menu
+        self.create_menu()
 
         # Load data
         self.load_data()
@@ -47,6 +50,75 @@ class PeriodicTableXPS(tk.Tk):
         # Initialize variables
         self.selected_element = None
         self.selected_line = None
+
+    def create_menu(self):
+        """Create the application menu bar"""
+        menubar = Menu(self)
+        self.config(menu=menubar)
+
+        # File menu
+        file_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Exit", command=self.quit)
+
+        # Help menu
+        help_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="About", command=self.show_about)
+
+    def show_about(self):
+        """Display information about the application and database"""
+        about_window = tk.Toplevel(self)
+        about_window.title("About My KherveNIST Library")
+        about_window.geometry("500x300")
+        about_window.resizable(False, False)
+
+        # Center the window on screen
+        about_window.update_idletasks()
+        width = about_window.winfo_width()
+        height = about_window.winfo_height()
+        x = (about_window.winfo_screenwidth() // 2) - (width // 2)
+        y = (about_window.winfo_screenheight() // 2) - (height // 2)
+        about_window.geometry('{}x{}+{}+{}'.format(width, height, x, y))
+
+        # Make the dialog modal
+        about_window.transient(self)
+        about_window.grab_set()
+
+        # Create a frame with some padding
+        frame = tk.Frame(about_window, padx=20, pady=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        # Title label
+        title_label = tk.Label(frame, text="My KherveNIST Library",
+                               font=("Helvetica", 14, "bold"))
+        title_label.pack(pady=(0, 10))
+
+        # Information text
+        info_text = tk.Text(frame, wrap=tk.WORD, height=10, width=50,
+                            font=("Helvetica", 10))
+        info_text.pack(fill=tk.BOTH, expand=True)
+
+        # Insert the about text
+        about_str = """This application provides access to the NIST X-ray Photoelectron Spectroscopy (XPS) binding energy database recorded in 2019, before it was shut down during the Trump administration.
+
+    The original NIST database is an invaluable resource for scientists and researchers in materials science, 
+    chemistry, and physics fields, providing standard reference data for XPS analysis.
+
+    This application aims to preserve and provide easy access to this important scientific resource.
+
+    Developer: Gwilherm Kerherve
+    Version: 1.0
+    """
+        info_text.insert(tk.END, about_str)
+        info_text.config(state=tk.DISABLED)  # Make text read-only
+
+        # Close button
+        close_button = tk.Button(frame, text="Close", command=about_window.destroy)
+        close_button.pack(pady=(10, 0))
+
+        # Wait for the window to be closed
+        self.wait_window(about_window)
 
     def load_data(self):
         """Load XPS data from CSV file"""
@@ -175,7 +247,7 @@ class PeriodicTableXPS(tk.Tk):
             color = colors.get(category, colors['unknown'])
 
             # Create button
-            btn = tk.Button(pt_grid, text=element, width=4, height=2,
+            btn = tk.Button(pt_grid, text=element, width=3, height=1,
                             bg=color, activebackground=self.darken_color(color),
                             command=lambda e=element: self.select_element(e))
 
@@ -188,38 +260,10 @@ class PeriodicTableXPS(tk.Tk):
             btn.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
 
         # Add labels for lanthanides and actinides
-        tk.Label(pt_grid, text="*", font=("Helvetica", 14)).grid(row=6, column=2)
-        tk.Label(pt_grid, text="**", font=("Helvetica", 14)).grid(row=7, column=2)
+        tk.Label(pt_grid, text="*", font=("Helvetica", 11)).grid(row=6, column=2)
+        tk.Label(pt_grid, text="**", font=("Helvetica", 11)).grid(row=7, column=2)
 
-        # # Create a legend frame
-        # legend_frame = tk.Frame(self.periodic_frame, bg="#f0f0f0", pady=5)
-        # legend_frame.pack(fill=tk.X)
-        #
-        # # Add color legend
-        # legend_categories = [
-        #     ('Alkali Metals', colors['alkali_metal']),
-        #     ('Alkaline Earth Metals', colors['alkaline_earth']),
-        #     ('Transition Metals', colors['transition_metal']),
-        #     ('Post-Transition Metals', colors['post_transition']),
-        #     ('Metalloids', colors['metalloid']),
-        #     ('Nonmetals', colors['nonmetal']),
-        #     ('Halogens', colors['halogen']),
-        #     ('Noble Gases', colors['noble_gas']),
-        #     ('Lanthanides*', colors['lanthanide']),
-        #     ('Actinides**', colors['actinide'])
-        # ]
-        #
-        # # Create legend items
-        # for i, (name, color) in enumerate(legend_categories):
-        #     row = i // 5
-        #     col = i % 5
-        #     frame = tk.Frame(legend_frame, padx=5)
-        #     frame.grid(row=row, column=col, padx=10, pady=2)
-        #
-        #     color_box = tk.Label(frame, bg=color, width=2, height=1)
-        #     color_box.pack(side=tk.LEFT, padx=(0, 5))
-        #
-        #     tk.Label(frame, text=name, bg="#f0f0f0", font=("Helvetica", 8)).pack(side=tk.LEFT)
+
 
     def get_element_positions(self) -> Dict[str, Tuple[int, int]]:
         """Define positions for elements in the periodic table grid"""
@@ -376,7 +420,7 @@ class PeriodicTableXPS(tk.Tk):
         self.plot_btn.grid(row=1, column=3, padx=10, pady=2, sticky='w')
 
     def plot_results(self):
-        """Create a matplotlib plot of binding energies from filtered data with fixed 0.1 eV resolution"""
+        """Create a matplotlib plot of binding energies with a combobox for resolution control"""
         # Get the currently filtered data
         filtered_df = self.get_filtered_data()
 
@@ -395,72 +439,114 @@ class PeriodicTableXPS(tk.Tk):
         # Create a new window for the plot
         plot_window = tk.Toplevel(self)
         plot_window.title("Binding Energy Distribution")
-        plot_window.geometry("800x600")
+        plot_window.geometry("800x700")
 
-        # Use fixed bin width of 0.1 eV
-        bin_width = 0.1
+        # Create a top frame for resolution control
+        control_frame = tk.Frame(plot_window, bg="#e0e0e0", pady=10, padx=10)
+        control_frame.pack(fill=tk.X, expand=False)
 
-        # Calculate the bin edges
+        # Create a clearer label for the resolution control
+        tk.Label(control_frame, text="Histogram Resolution:",
+                 bg="#e0e0e0", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT, padx=(0, 10))
+
+        # Create a StringVar for the resolution value
+        resolution_var = tk.StringVar(value="0.1")
+
+        # Define available resolutions
+        resolutions = ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0"]
+
+        # Create combobox for resolution selection
+        resolution_combo = ttk.Combobox(control_frame, textvariable=resolution_var,
+                                        values=resolutions, width=5, state="readonly")
+        resolution_combo.pack(side=tk.LEFT, padx=5)
+
+        # Add "eV" label after combobox
+        tk.Label(control_frame, text="eV",
+                 bg="#e0e0e0").pack(side=tk.LEFT, padx=(0, 20))
+
         # Round the min and max values to create nice-looking bin boundaries
-        min_energy = np.floor(np.min(binding_energies) * 10) / 10  # Round down to nearest 0.1
-        max_energy = np.ceil(np.max(binding_energies) * 10) / 10  # Round up to nearest 0.1
+        min_energy = np.floor(np.min(binding_energies) * 10) / 10
+        max_energy = np.ceil(np.max(binding_energies) * 10) / 10
 
-        # Create the bins with 0.1 eV steps
-        bins = np.arange(min_energy, max_energy + bin_width, bin_width)
+        # Create a frame for the plot
+        plot_frame = tk.Frame(plot_window)
+        plot_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # Create the figure and axis
+        # Create the figure and canvas
         fig = Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
-
-        # Create histogram and get the counts
-        counts, bins, patches = ax.hist(binding_energies, bins=bins, alpha=0.7,
-                                        color='skyblue', edgecolor='black')
-
-        # Calculate bin centers for the line plot
-        bin_centers = (bins[:-1] + bins[1:]) / 2
-
-        # Add a smooth curve (kernel density estimation)
-        from scipy.stats import gaussian_kde
-        kde = gaussian_kde(binding_energies, bw_method='silverman')  # Using Silverman's rule for bandwidth
-        x = np.linspace(min_energy, max_energy, 1000)
-        y = kde(x) * len(binding_energies) * bin_width  # Scale to match histogram height
-        ax.plot(x, y, 'r-', linewidth=2)
-
-        # Add labels and title
-        element_str = f" for {self.selected_element}" if self.selected_element else ""
-        line_str = f" ({self.line_var.get()})" if self.line_var.get() != "All Lines" else ""
-
-        ax.set_xlabel('Binding Energy (eV)')
-        ax.set_ylabel('Number of References')
-        ax.set_title(f'Binding Energy Distribution{element_str}{line_str}')
-
-        # Add grid
-        ax.grid(True, linestyle='--', alpha=0.7)
-
-        # Show the total number of references
-        ax.text(0.98, 0.95, f'Total References: {len(binding_energies)}',
-                transform=ax.transAxes, ha='right', va='top',
-                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
-        # Show the resolution in the plot
-        ax.text(0.98, 0.90, f'Resolution: 0.1 eV',
-                transform=ax.transAxes, ha='right', va='top',
-                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
-        # Create a canvas to display the plot
-        canvas = FigureCanvasTkAgg(fig, master=plot_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        # Add navigation toolbar
-        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
-        toolbar = NavigationToolbar2Tk(canvas, plot_window)
-        toolbar.update()
+        canvas = FigureCanvasTkAgg(fig, master=plot_frame)
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+        # Add navigation toolbar at the bottom with all standard matplotlib settings
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+        toolbar_frame = tk.Frame(plot_window)
+        toolbar_frame.pack(fill=tk.X, padx=10, pady=0)
+        toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
+        toolbar.update()
+
+        # je n sais pas si c'
+
+        # Function to update the plot based on resolution
+        def update_plot(event=None):
+            # Clear the previous plot
+            fig.clear()
+            ax = fig.add_subplot(111)
+
+            # Get the selected resolution
+            bin_width = float(resolution_var.get())
+
+            # Create the bins with the specified resolution
+            bins = np.arange(min_energy, max_energy + bin_width, bin_width)
+
+            # Create histogram
+            counts, bins, patches = ax.hist(binding_energies, bins=bins, alpha=0.7,
+                                            color='skyblue', edgecolor='black')
+
+            # Add a smooth curve (kernel density estimation)
+            from scipy.stats import gaussian_kde
+            kde = gaussian_kde(binding_energies, bw_method='silverman')
+            x = np.linspace(min_energy, max_energy, 1000)
+            y = kde(x) * len(binding_energies) * bin_width  # Scale to match histogram height
+            ax.plot(x, y, 'r-', linewidth=2)
+
+            # Add labels and title
+            element_str = f" for {self.selected_element}" if self.selected_element else ""
+            line_str = f" ({self.line_var.get()})" if self.line_var.get() != "All Lines" else ""
+
+            ax.set_xlabel('Binding Energy (eV)')
+            ax.set_ylabel('Number of References')
+            ax.set_title(f'Binding Energy Distribution{element_str}{line_str}')
+
+            # Add grid
+            ax.grid(True, linestyle='--', alpha=0.7)
+
+            # Show the total number of references
+            ax.text(0.98, 0.95, f'Total References: {len(binding_energies)}',
+                    transform=ax.transAxes, ha='right', va='top',
+                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+            # Show the current resolution in the plot
+            ax.text(0.98, 0.90, f'Resolution: {bin_width} eV',
+                    transform=ax.transAxes, ha='right', va='top',
+                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+            # Refresh the canvas
+            canvas.draw()
+
+        # Bind the update function to the combobox selection
+        resolution_combo.bind("<<ComboboxSelected>>", update_plot)
+
+        # Add a button frame at the bottom
+        button_frame = tk.Frame(plot_window)
+        button_frame.pack(fill=tk.X, padx=10, pady=10)
+
         # Add a close button
-        close_button = tk.Button(plot_window, text="Close", command=plot_window.destroy)
-        close_button.pack(pady=10)
+        close_button = tk.Button(button_frame, text="Close", command=plot_window.destroy,
+                                 width=10, height=1)
+        close_button.pack(side=tk.RIGHT)
+
+        # Initial plot with default resolution of 0.1 eV
+        update_plot()
 
     def create_results_table(self):
         """Create the results table to display XPS data"""
@@ -474,14 +560,14 @@ class PeriodicTableXPS(tk.Tk):
         style.configure("Treeview.Heading", font=('Helvetica', 10))  # Smaller heading font
 
         # Create treeview widget
-        columns = ("Element", "Line", "BE (eV)", "Formula", "Name", "Journal")
+        columns = ("", "Line", "BE (eV)", "Formula", "Name", "Journal")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Treeview")
 
         # Define column widths and headings
-        widths = {"Element": 10, "Line": 10, "BE (eV)": 10, "Formula": 10, "Name": 10, "Journal": 200}
+        widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 150, "Journal": 220}
         for col in columns:
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_column(c))
-            self.tree.column(col, width=widths[col])
+            self.tree.column(col, width=widths[col], stretch=False)
 
         # Add scrollbars
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
