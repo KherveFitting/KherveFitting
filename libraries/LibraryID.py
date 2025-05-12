@@ -9,7 +9,10 @@ import os
 import sys
 import pyperclip  # For clipboard functionality
 from tkinter import messagebox
-
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import numpy as np
 
 class PeriodicTableXPS(tk.Tk):
     def __init__(self):
@@ -368,6 +371,93 @@ class PeriodicTableXPS(tk.Tk):
         self.reset_btn = tk.Button(search_frame, text="Reset All", command=self.reset_all)
         self.reset_btn.grid(row=0, column=3, padx=10, pady=2, sticky='w')
 
+        # Plot button - ADD THIS NEW BUTTON
+        self.plot_btn = tk.Button(search_frame, text="Plot Results", command=self.plot_results)
+        self.plot_btn.grid(row=1, column=3, padx=10, pady=2, sticky='w')
+
+    def plot_results(self):
+        """Create a matplotlib plot of binding energies from filtered data"""
+        # Get the currently filtered data
+        filtered_df = self.get_filtered_data()
+
+        # Check if there's any data to plot
+        if filtered_df.empty:
+            messagebox.showinfo("No Data", "There is no data to plot.")
+            return
+
+        # Extract binding energies
+        binding_energies = filtered_df['BE (eV)'].dropna().values
+
+        if len(binding_energies) == 0:
+            messagebox.showinfo("No Data", "No binding energy values to plot.")
+            return
+
+        # Create a new window for the plot
+        plot_window = tk.Toplevel(self)
+        plot_window.title("Binding Energy Distribution")
+        plot_window.geometry("800x600")
+
+        # Calculate optimal bin width for the histogram
+        # Use Freedman-Diaconis rule to determine bin width
+        q75, q25 = np.percentile(binding_energies, [75, 25])
+        iqr = q75 - q25
+        bin_width = 2 * iqr * (len(binding_energies) ** (-1 / 3))
+
+        # Ensure we have a reasonable bin width
+        bin_width = max(bin_width, 0.1)  # Minimum bin width of 0.1 eV
+
+        # Calculate the number of bins
+        data_range = np.max(binding_energies) - np.min(binding_energies)
+        num_bins = int(np.ceil(data_range / bin_width))
+
+        # Create the figure and axis
+        fig = Figure(figsize=(10, 6), dpi=100)
+        ax = fig.add_subplot(111)
+
+        # Create histogram and get the bins and counts
+        counts, bins, patches = ax.hist(binding_energies, bins=num_bins, alpha=0.7, color='skyblue', edgecolor='black')
+
+        # Calculate bin centers for the line plot
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+
+        # Add a smooth curve (kernel density estimation)
+        from scipy.stats import gaussian_kde
+        kde = gaussian_kde(binding_energies)
+        x = np.linspace(min(binding_energies), max(binding_energies), 1000)
+        y = kde(x) * len(binding_energies) * bin_width  # Scale to match histogram height
+        ax.plot(x, y, 'r-', linewidth=2)
+
+        # Add labels and title
+        element_str = f" for {self.selected_element}" if self.selected_element else ""
+        line_str = f" ({self.line_var.get()})" if self.line_var.get() != "All Lines" else ""
+
+        ax.set_xlabel('Binding Energy (eV)')
+        ax.set_ylabel('Number of References')
+        ax.set_title(f'Binding Energy Distribution{element_str}{line_str}')
+
+        # Add grid
+        ax.grid(True, linestyle='--', alpha=0.7)
+
+        # Show the total number of references
+        ax.text(0.98, 0.95, f'Total References: {len(binding_energies)}',
+                transform=ax.transAxes, ha='right', va='top',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+        # Create a canvas to display the plot
+        canvas = FigureCanvasTkAgg(fig, master=plot_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Add navigation toolbar
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+        toolbar = NavigationToolbar2Tk(canvas, plot_window)
+        toolbar.update()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        # Add a close button
+        close_button = tk.Button(plot_window, text="Close", command=plot_window.destroy)
+        close_button.pack(pady=10)
+
     def create_results_table(self):
         """Create the results table to display XPS data"""
         # Create a frame for the table
@@ -477,7 +567,7 @@ class PeriodicTableXPS(tk.Tk):
         except:
             self.status_bar.config(text="Failed to copy journal")
 
-    def get_filtered_data(self):
+    def get_filtered_data_OLD(self):
         """Get the filtered dataframe based on current selections"""
         filtered_df = self.df.copy()
 
@@ -498,6 +588,37 @@ class PeriodicTableXPS(tk.Tk):
         # Filter by Name search text
         name_search = self.name_search_var.get().strip().lower()
         if name_search:
+            filtered_df = filtered_df[filtered_df['Name'].str.lower().str.contains(name_search, na=False)]
+
+        return filtered_df
+
+    def get_filtered_data(self):
+        """Get the filtered dataframe based on current selections"""
+        import re  # Add this import at the top of your file if not already there
+
+        filtered_df = self.df.copy()
+
+        # Filter by element if selected
+        if self.selected_element:
+            filtered_df = filtered_df[filtered_df['Element'] == self.selected_element]
+
+        # Filter by line if not 'All Lines'
+        selected_line = self.line_var.get()
+        if selected_line != 'All Lines':
+            filtered_df = filtered_df[filtered_df['Line'] == selected_line]
+
+        # Filter by Formula search text
+        formula_search = self.search_var.get().strip().lower()
+        if formula_search:
+            # Escape special regex characters
+            formula_search = re.escape(formula_search)
+            filtered_df = filtered_df[filtered_df['Formula'].str.lower().str.contains(formula_search, na=False)]
+
+        # Filter by Name search text
+        name_search = self.name_search_var.get().strip().lower()
+        if name_search:
+            # Escape special regex characters
+            name_search = re.escape(name_search)
             filtered_df = filtered_df[filtered_df['Name'].str.lower().str.contains(name_search, na=False)]
 
         return filtered_df
