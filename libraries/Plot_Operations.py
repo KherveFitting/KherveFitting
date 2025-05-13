@@ -1844,8 +1844,26 @@ class PlotManager:
         self.canvas.draw_idle()
 
     @staticmethod
+    def format_sheet_name_OLD(sheet_name):
+        import re
+        match = re.match(r'([A-Z][a-z]*)(\d+[spdfg])', sheet_name)
+        if match:
+            element, shell = match.groups()
+            return f"{element} {shell}"
+        else:
+            return sheet_name
+
+    @staticmethod
     def format_sheet_name(sheet_name):
         import re
+        # First check if it's a survey or wide scan
+        survey_match = re.match(r'(Survey|SURVEY|survey|Wide|WIDE|wide)(\d+)', sheet_name)
+        if survey_match:
+            scan_type = survey_match.group(1)
+            # Capitalize first letter, lowercase the rest
+            return scan_type.capitalize()
+
+        # Original code for element detection
         match = re.match(r'([A-Z][a-z]*)(\d+[spdfg])', sheet_name)
         if match:
             element, shell = match.groups()

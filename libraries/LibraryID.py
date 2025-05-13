@@ -17,7 +17,7 @@ import numpy as np
 class PeriodicTableXPS(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("My KherveNIST Library: How I wish NIST looked like")
+        self.title("My KherveNIST Library: How I wish NIST would look like")
         self.geometry("620x660")
         # Fix the width but allow height to vary
         self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
