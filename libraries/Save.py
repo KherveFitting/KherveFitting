@@ -747,7 +747,19 @@ def refresh_sheets(window, on_sheet_selected_func):
         traceback.print_exc()
         wx.MessageBox(f"Error refreshing sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+def save_plot_only_to_excel(window):
+    """Save only the plot to Excel without saving any other data"""
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
 
+    try:
+        save_plot_to_excel(window)
+        window.show_popup_message2("Success", "Plot saved to Excel file")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error saving plot to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
 def save_to_json(window, file_path):

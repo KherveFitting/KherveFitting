@@ -5293,11 +5293,17 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.508 25e12")
+        frame = MyFrame(None, "KherveFitting-v1.509 25e13")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.508 25e12")
+        frame = MyFrame(None, "KherveFitting-v1.509 25e13")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.508 25e12")
+        frame = MyFrame(None, "KherveFitting-v1.509 25e13")
+
+    # Apply preferences before showing the frame
+    if hasattr(frame, 'times_opened') and frame.times_opened > 1:
+        pref_window = PreferenceWindow(frame)
+        pref_window.OnSave(None)  # Save settings without user interaction
+        print("Preferences applied")
 
     frame.Show(True)
 
@@ -5318,9 +5324,10 @@ if __name__ == '__main__':
     updater = UpdateChecker()
     updater.check_update_delayed(frame)
 
-    # Apply preferences right before checking first time use
-    if frame.times_opened > 0:
-            wx.CallAfter(apply_preferences, frame)
+    # # Apply preferences right before checking first time use
+    # if frame.times_opened > 0:
+    #         # wx.CallAfter(apply_preferences, frame)
+    #         apply_preferences(frame)
 
     app.MainLoop()
     sys.exit(0)

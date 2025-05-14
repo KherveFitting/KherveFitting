@@ -14,7 +14,7 @@ from Functions import toggle_Col_1
 from libraries.Save import update_undo_redo_state
 from libraries.Save import save_state, undo, redo
 from libraries.Save import save_peaks_library, load_peaks_library
-from libraries.Save import on_save_as
+from libraries.Save import on_save_as, save_plot_only_to_excel
 from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
@@ -351,6 +351,9 @@ def create_menu(window):
     save_all_item = save_menu.Append(wx.NewId(), "Save All")
     window.Bind(wx.EVT_MENU, lambda event: save_all_sheets_with_plots(window), save_all_item)
 
+    save_plot_only_item = save_menu.Append(wx.NewId(), "Save Plot Only in Excel")
+    window.Bind(wx.EVT_MENU, lambda event: save_plot_only_to_excel(window), save_plot_only_item)
+
     file_menu.AppendSubMenu(save_menu, "Save")
 
     save_as_item = file_menu.Append(wx.ID_SAVEAS, "Save As...\tCtrl+Shift+S")
@@ -498,10 +501,6 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
                 yt_videos_item)
 
-    dream_nist_item = help_menu.Append(wx.NewId(), "KherveNIST")
-    window.Bind(wx.EVT_MENU, lambda event: window.open_dream_nist(), dream_nist_item)
-
-
 
     # Create a submenu for Knowledge links
     knowledge_menu = wx.Menu()
@@ -559,6 +558,9 @@ def create_menu(window):
     nist_item = knowledge_menu.Append(wx.NewId(), "NIST XPS")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://srdata.nist.gov/xps"), nist_item)
+
+    dream_nist_item = knowledge_menu.Append(wx.NewId(), "KherveNIST")
+    window.Bind(wx.EVT_MENU, lambda event: window.open_dream_nist(), dream_nist_item)
 
     harwell_item = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
@@ -734,6 +736,11 @@ def create_horizontal_toolbar(parent, window):
                 rename_sheet(window, new_name)
         dlg.Destroy()
 
+    crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',
+                                wx.Bitmap(os.path.join(icon_path, "Crop-25.png"), wx.BITMAP_TYPE_PNG),
+                                shortHelp="Crop data to new sheet")
+    window.Bind(wx.EVT_TOOL, lambda event: CropWindow(window).Show(), crop_tool)
+
     toolbar.AddSeparator()
 
     # BE correction
@@ -768,25 +775,24 @@ def create_horizontal_toolbar(parent, window):
     id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-25.png"), wx.BITMAP_TYPE_PNG),
                               shortHelp="Element identifications (ID)")
 
-    toolbar.AddSeparator()
+    # toolbar.AddSeparator()
 
     # noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
     #                                       wx.Bitmap(os.path.join(icon_path, "Noise-25.png"), wx.BITMAP_TYPE_PNG),
     #                                       shortHelp="Open Noise Analysis Window")
 
-    crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',
-                                wx.Bitmap(os.path.join(icon_path, "Crop-25.png"), wx.BITMAP_TYPE_PNG),
-                                shortHelp="Crop data to new sheet")
-    window.Bind(wx.EVT_TOOL, lambda event: CropWindow(window).Show(), crop_tool)
+
 
     plot_mod_tool = toolbar.AddTool(wx.ID_ANY, 'Plot Modifications',
                                     wx.Bitmap(os.path.join(icon_path, "Mod-25.png"), wx.BITMAP_TYPE_PNG),
                                     shortHelp="Plot modifications window")
     window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
-
-
-
     window.Bind(wx.EVT_TOOL, window.on_differentiate, diff_tool)
+
+    nist_tool = toolbar.AddTool(wx.ID_ANY, 'NIST Database',
+                                wx.Bitmap(os.path.join(icon_path, "NIST.png"), wx.BITMAP_TYPE_PNG),
+                                shortHelp="Open KherveNIST database")
+    window.Bind(wx.EVT_TOOL, lambda event: window.open_dream_nist(), nist_tool)
 
 
     toolbar.AddStretchableSpace()

@@ -5,7 +5,6 @@ import re
 import os
 import json
 
-
 # Replace with your actual Google Form URL
 GOOGLE_FORM_URL = 'https://docs.google.com/forms/u/0/d/1_PbjsaQGuhN5_K0-x90QIf75gcfCFiiv5snqju8nUBE/formResponse'
 
@@ -63,7 +62,6 @@ class RegistrationForm(wx.Frame):
         panel = wx.Panel(self)
         vbox = wx.BoxSizer(wx.VERTICAL)
 
-
         # Description text
         # description = wx.StaticText(panel,
         #                             label="KherveFitting is an open-source software developed for XPS data analysis. This registration helps us track the distribution and size of the research community using this tool. The data collected will only be used for statistical purposes and to "
@@ -85,7 +83,7 @@ class RegistrationForm(wx.Frame):
             "purposes and to support continued development of KherveFitting. No personal information will be shared "
             "with third parties. If you have any queries, please use the Bug Report function in the Help menu or "
             "contact me directly at  g.kerherve@ic.ac.uk\n\n"
-            
+
             "NOTE: At the end of the submission, the application will have to be restarted. "
         )
 
@@ -159,7 +157,8 @@ class RegistrationForm(wx.Frame):
 
         # purpose field - multiline
         purpose_hbox = wx.BoxSizer(wx.VERTICAL)
-        purpose_label = wx.StaticText(panel, label="Please provide the name of the supplier and the model of your XPS system")
+        purpose_label = wx.StaticText(panel,
+                                      label="Please provide the name of the supplier and the model of your XPS system")
         purpose_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(field_width, 40))
 
         purpose_hbox.Add(purpose_label, flag=wx.ALL, border=5)
@@ -169,7 +168,8 @@ class RegistrationForm(wx.Frame):
 
         # Discovery field - multiline
         discovery_hbox = wx.BoxSizer(wx.VERTICAL)
-        discovery_label = wx.StaticText(panel, label="How did you find out about KherveFitting?\n(LinkedIn / Internet / Colleagues / Friends / Others)")
+        discovery_label = wx.StaticText(panel,
+                                        label="How did you find out about KherveFitting?\n(LinkedIn / Internet / Colleagues / Friends / Others)")
         discovery_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(field_width, 40))
 
         discovery_hbox.Add(discovery_label, flag=wx.ALL, border=5)
@@ -178,17 +178,34 @@ class RegistrationForm(wx.Frame):
         self.fields["Discovery"] = discovery_text
 
         # Submit button - with standard size (110, 40)
-        submit_btn = wx.Button(panel, label="Submit")
+        submit_btn = wx.Button(panel, label="Submit and Restart")
         submit_btn.SetInitialSize(wx.Size(110, 40))
         submit_btn.SetMinSize(wx.Size(110, 40))
         submit_btn.SetMaxSize(wx.Size(110, 40))
-        vbox.Add(submit_btn, flag=wx.ALL | wx.CENTER, border=15)
+
+        # Add close button
+        close_btn = wx.Button(panel, label="Submit Later")
+        close_btn.SetInitialSize(wx.Size(110, 40))
+        close_btn.SetMinSize(wx.Size(110, 40))
+        close_btn.SetMaxSize(wx.Size(110, 40))
+
+        # Create horizontal box for buttons
+        buttons_hbox = wx.BoxSizer(wx.HORIZONTAL)
+        buttons_hbox.Add(close_btn, flag=wx.RIGHT, border=10)
+        buttons_hbox.Add(submit_btn)
+
+        # Add the button box to the main vertical box
+        vbox.Add(buttons_hbox, flag=wx.ALL | wx.CENTER, border=15)
 
         submit_btn.Bind(wx.EVT_BUTTON, self.on_submit)
+        close_btn.Bind(wx.EVT_BUTTON, self.on_close)
 
         panel.SetSizer(vbox)
         self.Centre()
         self.Show()
+
+    def on_close(self, event):
+        self.Close()
 
     def add_text_field(self, panel, sizer, field_name, field_width):
         hbox = wx.BoxSizer(wx.HORIZONTAL)
@@ -210,7 +227,6 @@ class RegistrationForm(wx.Frame):
     def validate_email(self, email):
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(pattern, email) is not None
-
 
     def on_submit(self, event):
         data = {}
@@ -237,7 +253,6 @@ class RegistrationForm(wx.Frame):
                               wx.OK | wx.ICON_ERROR)
         except Exception as e:
             wx.MessageBox(f"An error occurred:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
-
 
     def restart_application(self):
         """Restart the entire application"""
@@ -276,7 +291,8 @@ class RegistrationForm(wx.Frame):
             json.dump(config, f, indent=2)
 
         # Show success message
-        wx.MessageBox("Thank you for registering!\nPlease Restart the application", "Completed",
+        wx.MessageBox("Thank you for registering!\nKherveFitting will now Shutdown\n\nClose all error windows and restart the application",
+                      "Completed",
                       wx.OK | wx.ICON_INFORMATION)
 
         # Now restart the entire application
@@ -307,7 +323,6 @@ def show_registration_form():
     frame = RegistrationForm(None)
     app.MainLoop()
     # return True  # Registration complete
-
 
 
 # Function to be called on first run or from Help menu
