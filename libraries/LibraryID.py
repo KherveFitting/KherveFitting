@@ -411,9 +411,13 @@ class PeriodicTableXPS(tk.Tk):
         self.name_search_entry = tk.Entry(search_frame, textvariable=self.name_search_var, width=20)
         self.name_search_entry.grid(row=1, column=1, padx=5, pady=2, sticky='w')
 
-        # Reset button
-        self.reset_btn = tk.Button(search_frame, text="Reset All", command=self.reset_all)
-        self.reset_btn.grid(row=0, column=3, padx=10, pady=2, sticky='w')
+        # # Reset button
+        # self.reset_btn = tk.Button(search_frame, text="Reset All", command=self.reset_all)
+        # self.reset_btn.grid(row=0, column=3, padx=10, pady=2, sticky='w')
+
+        # Add element properties button
+        self.properties_btn = tk.Button(search_frame, text="Properties", command=self.show_element_properties)
+        self.properties_btn.grid(row=0, column=3, sticky='w', padx=10, pady=2)
 
         # Plot button - ADD THIS NEW BUTTON
         self.plot_btn = tk.Button(search_frame, text="Plot Results", command=self.plot_results)
@@ -536,14 +540,14 @@ class PeriodicTableXPS(tk.Tk):
         # Bind the update function to the combobox selection
         resolution_combo.bind("<<ComboboxSelected>>", update_plot)
 
-        # Add a button frame at the bottom
-        button_frame = tk.Frame(plot_window)
-        button_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        # Add a close button
-        close_button = tk.Button(button_frame, text="Close", command=plot_window.destroy,
-                                 width=10, height=1)
-        close_button.pack(side=tk.RIGHT)
+        # # Add a button frame at the bottom
+        # button_frame = tk.Frame(plot_window)
+        # button_frame.pack(fill=tk.X, padx=10, pady=10)
+        #
+        # # Add a close button
+        # close_button = tk.Button(button_frame, text="Close", command=plot_window.destroy,
+        #                          width=10, height=1)
+        # close_button.pack(side=tk.RIGHT)
 
         # Initial plot with default resolution of 0.1 eV
         update_plot()
@@ -977,6 +981,270 @@ class PeriodicTableXPS(tk.Tk):
         self.search_var.set("")
         self.name_search_var.set("")
         self.update_results()
+
+    def show_element_properties(self):
+        """Show properties for the selected element"""
+        if not self.selected_element:
+            messagebox.showinfo("No Element Selected", "Please select an element from the periodic table first.")
+            return
+
+        # Element properties data
+        element_data = self.get_element_properties(self.selected_element)
+
+        # Create a new window
+        properties_window = tk.Toplevel(self)
+        properties_window.title(f"Properties for {self.selected_element}")
+        properties_window.geometry("550x500")
+        properties_window.resizable(True, True)
+
+        # Add a title
+        title_frame = tk.Frame(properties_window, bg="#f0f0f0", padx=10, pady=10)
+        title_frame.pack(fill=tk.X, expand=False)
+
+        # Element symbol in large font
+        symbol_label = tk.Label(title_frame, text=self.selected_element,
+                                font=("Helvetica", 40, "bold"), bg="#f0f0f0")
+        symbol_label.pack(side=tk.LEFT, padx=20)
+
+        # Element name and basic info
+        info_frame = tk.Frame(title_frame, bg="#f0f0f0")
+        info_frame.pack(side=tk.LEFT, fill=tk.Y, padx=20)
+
+        name_label = tk.Label(info_frame, text=element_data["Name"],
+                              font=("Helvetica", 20), bg="#f0f0f0")
+        name_label.pack(anchor="w")
+
+        atomic_number_label = tk.Label(info_frame, text=f"Atomic Number: {element_data['Atomic Number']}",
+                                       font=("Helvetica", 12), bg="#f0f0f0")
+        atomic_number_label.pack(anchor="w")
+
+        # Main properties grid
+        grid_frame = tk.Frame(properties_window, padx=20, pady=10)
+        grid_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create a canvas with scrollbar for the properties
+        canvas = tk.Canvas(grid_frame)
+        scrollbar = ttk.Scrollbar(grid_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Define property groups and layout
+        property_groups = {
+            "Physical Properties": ["Atomic Mass", "Density", "Melting Point", "Boiling Point", "State at 20°C"],
+            "Atomic Properties": ["Electron Configuration", "Electronegativity", "Atomic Radius", "Ionization Energy"],
+            "General Information": ["Group", "Period", "Category", "Discovered By", "Year of Discovery"],
+            "XPS Information": ["Common Core Levels", "Most Intense Line", "Typical FWHM", "Chemical Shift Range"]
+        }
+
+        # Add property groups to the grid
+        row = 0
+        for group_name, properties in property_groups.items():
+            # Group header
+            group_label = tk.Label(scrollable_frame, text=group_name,
+                                   font=("Helvetica", 12, "bold"), bg="#e0e0e0",
+                                   padx=5, pady=5, relief=tk.RIDGE)
+            group_label.grid(row=row, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
+            row += 1
+
+            # Properties in this group
+            for prop in properties:
+                prop_label = tk.Label(scrollable_frame, text=prop + ":",
+                                      font=("Helvetica", 10), anchor="e", padx=5, pady=3)
+                prop_label.grid(row=row, column=0, sticky="e")
+
+                value = element_data.get(prop, "N/A")
+                value_label = tk.Label(scrollable_frame, text=str(value),
+                                       font=("Helvetica", 10), anchor="w", padx=5, pady=3,
+                                       relief=tk.SUNKEN, bg="white", width=40)
+                value_label.grid(row=row, column=1, sticky="w")
+
+                row += 1
+
+        # XPS Binding Energies Summary
+        xps_label = tk.Label(scrollable_frame, text="XPS Binding Energies",
+                             font=("Helvetica", 12, "bold"), bg="#e0e0e0",
+                             padx=5, pady=5, relief=tk.RIDGE)
+        xps_label.grid(row=row, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
+        row += 1
+
+        # Get XPS data for this element
+        element_xps_data = self.df[self.df['Element'] == self.selected_element]
+        if not element_xps_data.empty:
+            # Group by Line and calculate average BE
+            lines_summary = element_xps_data.groupby('Line')['BE (eV)'].agg(
+                ['mean', 'count', 'min', 'max']).reset_index()
+
+            # Create a single frame to hold the entire table
+            table_frame = tk.Frame(scrollable_frame, bd=1, relief=tk.SOLID)
+            table_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
+            # Define column widths
+            headers = ["Line", "Avg BE (eV)", "Min BE (eV)", "Max BE (eV)", "Count"]
+            column_widths = [8, 10, 10, 10, 7]  # Width in characters for each column
+
+            # Add header row
+            for col, (header, width) in enumerate(zip(headers, column_widths)):
+                header_label = tk.Label(table_frame, text=header,
+                                        font=("Helvetica", 10, "bold"), bg="#e8e8e8",
+                                        padx=5, pady=2, relief=tk.RIDGE, width=width,
+                                        borderwidth=1)
+                header_label.grid(row=0, column=col, sticky="nsew")
+
+            # Add data rows
+            for i, (_, line_data) in enumerate(lines_summary.iterrows()):
+                # Line column
+                tk.Label(table_frame, text=line_data['Line'],
+                         font=("Helvetica", 10), padx=5, pady=2,
+                         relief=tk.RIDGE, width=column_widths[0],
+                         borderwidth=1).grid(row=i + 1, column=0, sticky="nsew")
+
+                # Avg BE column
+                tk.Label(table_frame, text=f"{line_data['mean']:.2f}",
+                         font=("Helvetica", 10), padx=5, pady=2,
+                         relief=tk.RIDGE, width=column_widths[1],
+                         borderwidth=1).grid(row=i + 1, column=1, sticky="nsew")
+
+                # Min BE column
+                tk.Label(table_frame, text=f"{line_data['min']:.2f}",
+                         font=("Helvetica", 10), padx=5, pady=2,
+                         relief=tk.RIDGE, width=column_widths[2],
+                         borderwidth=1).grid(row=i + 1, column=2, sticky="nsew")
+
+                # Max BE column
+                tk.Label(table_frame, text=f"{line_data['max']:.2f}",
+                         font=("Helvetica", 10), padx=5, pady=2,
+                         relief=tk.RIDGE, width=column_widths[3],
+                         borderwidth=1).grid(row=i + 1, column=3, sticky="nsew")
+
+                # Count column
+                tk.Label(table_frame, text=str(line_data['count']),
+                         font=("Helvetica", 10), padx=5, pady=2,
+                         relief=tk.RIDGE, width=column_widths[4],
+                         borderwidth=1).grid(row=i + 1, column=4, sticky="nsew")
+
+            # Configure all columns to expand properly
+            for i in range(len(headers)):
+                table_frame.columnconfigure(i, weight=1)
+
+            row += 1  # Move to the next row after the table
+        else:
+            no_data_label = tk.Label(scrollable_frame, text="No XPS data available for this element",
+                                     font=("Helvetica", 10, "italic"), padx=5, pady=5)
+            no_data_label.grid(row=row, column=0, columnspan=2, sticky="ew")
+            row += 1
+
+
+
+    def get_element_properties(self, element_symbol):
+        """Get properties for a specific element"""
+        # This is a database of element properties
+        # In a real application, this would come from a database or API
+        # For demonstration, I'll include data for a few common elements
+        element_properties = {
+            "H": {
+                "Name": "Hydrogen",
+                "Atomic Number": 1,
+                "Atomic Mass": "1.008 u",
+                "Density": "0.00008988 g/cm³",
+                "Melting Point": "-259.16 °C",
+                "Boiling Point": "-252.87 °C",
+                "State at 20°C": "Gas",
+                "Electron Configuration": "1s¹",
+                "Electronegativity": 2.20,
+                "Atomic Radius": "25 pm",
+                "Ionization Energy": "13.598 eV",
+                "Group": 1,
+                "Period": 1,
+                "Category": "Nonmetal",
+                "Discovered By": "Henry Cavendish",
+                "Year of Discovery": 1766,
+                "Common Core Levels": "1s",
+                "Most Intense Line": "1s",
+                "Typical FWHM": "0.9-1.2 eV",
+                "Chemical Shift Range": "0-3 eV"
+            },
+            "C": {
+                "Name": "Carbon",
+                "Atomic Number": 6,
+                "Atomic Mass": "12.011 u",
+                "Density": "2.267 g/cm³",
+                "Melting Point": "3550 °C",
+                "Boiling Point": "4027 °C",
+                "State at 20°C": "Solid",
+                "Electron Configuration": "1s² 2s² 2p²",
+                "Electronegativity": 2.55,
+                "Atomic Radius": "70 pm",
+                "Ionization Energy": "11.260 eV",
+                "Group": 14,
+                "Period": 2,
+                "Category": "Nonmetal",
+                "Discovered By": "Known since ancient times",
+                "Year of Discovery": "prehistoric",
+                "Common Core Levels": "1s, 2s, 2p",
+                "Most Intense Line": "1s",
+                "Typical FWHM": "0.8-1.2 eV",
+                "Chemical Shift Range": "0-10 eV"
+            },
+            "O": {
+                "Name": "Oxygen",
+                "Atomic Number": 8,
+                "Atomic Mass": "15.999 u",
+                "Density": "0.001429 g/cm³",
+                "Melting Point": "-218.79 °C",
+                "Boiling Point": "-182.95 °C",
+                "State at 20°C": "Gas",
+                "Electron Configuration": "1s² 2s² 2p⁴",
+                "Electronegativity": 3.44,
+                "Atomic Radius": "60 pm",
+                "Ionization Energy": "13.618 eV",
+                "Group": 16,
+                "Period": 2,
+                "Category": "Nonmetal",
+                "Discovered By": "Joseph Priestley, Carl Wilhelm Scheele",
+                "Year of Discovery": 1774,
+                "Common Core Levels": "1s, 2s, 2p",
+                "Most Intense Line": "1s",
+                "Typical FWHM": "0.9-1.3 eV",
+                "Chemical Shift Range": "0-8 eV"
+            }
+        }
+
+        # Default properties for elements not explicitly defined
+        default_properties = {
+            "Name": element_symbol,
+            "Atomic Number": "N/A",
+            "Atomic Mass": "N/A",
+            "Density": "N/A",
+            "Melting Point": "N/A",
+            "Boiling Point": "N/A",
+            "State at 20°C": "N/A",
+            "Electron Configuration": "N/A",
+            "Electronegativity": "N/A",
+            "Atomic Radius": "N/A",
+            "Ionization Energy": "N/A",
+            "Group": "N/A",
+            "Period": "N/A",
+            "Category": "N/A",
+            "Discovered By": "N/A",
+            "Year of Discovery": "N/A",
+            "Common Core Levels": "N/A",
+            "Most Intense Line": "N/A",
+            "Typical FWHM": "N/A",
+            "Chemical Shift Range": "N/A"
+        }
+
+        # Return known properties or default set
+        return element_properties.get(element_symbol, default_properties)
 
 
 

@@ -10,7 +10,7 @@ GOOGLE_FORM_URL = 'https://docs.google.com/forms/u/0/d/1_PbjsaQGuhN5_K0-x90QIf75
 
 # Replace with your actual entry IDs
 FORM_FIELDS = {
-    'Firstname': 'entry.1651471049',
+    'First name': 'entry.1651471049',
     'Surname': 'entry.853870358',
     'Email': 'entry.1419570696',
     'University/Company': 'entry.1822967727',
@@ -649,7 +649,7 @@ class RegistrationForm(wx.Frame):
 
         super().__init__(parent=parent,
                          title="KherveFitting Questionnaire",
-                         size=(550, 650),
+                         size=(550, 600),
                          style=custom_style)
 
         self.parent = parent
@@ -695,7 +695,7 @@ class RegistrationForm(wx.Frame):
         field_width = 250  # Standard width for all input fields
 
         # Name field
-        self.add_text_field(panel, vbox, "Firstname", field_width)
+        self.add_text_field(panel, vbox, "First name", field_width)
 
         # Name field
         self.add_text_field(panel, vbox, "Surname", field_width)
@@ -864,7 +864,7 @@ class RegistrationForm(wx.Frame):
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(pattern, email) is not None
 
-    def on_submit(self, event):
+    def on_submit_OLD(self, event):
         data = {}
         for label, control in self.fields.items():
             value = control.GetValue()
@@ -885,6 +885,34 @@ class RegistrationForm(wx.Frame):
                 # Save registration state and restart application
                 self.save_registration_state()
             else:
+                wx.MessageBox(f"Failed to submit form. Status code: {response.status_code}", "Error",
+                              wx.OK | wx.ICON_ERROR)
+        except Exception as e:
+            wx.MessageBox(f"An error occurred:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_submit(self, event):
+        data = {}
+        for label, control in self.fields.items():
+            value = control.GetValue()
+            if not value:
+                wx.MessageBox(f"Please enter your {label}.", "Missing Information", wx.OK | wx.ICON_WARNING)
+                return
+
+            # Validate email
+            if label == "Email" and not self.validate_email(value):
+                wx.MessageBox("Please enter a valid email address.", "Invalid Email", wx.OK | wx.ICON_WARNING)
+                return
+
+            data[FORM_FIELDS[label]] = value
+
+        try:
+            response = requests.post(GOOGLE_FORM_URL, data=data)
+            # Status 200 means success
+            if response.status_code == 200:
+                # Save registration state and restart application
+                self.save_registration_state()
+            else:
+                # Only show error for non-200 status codes
                 wx.MessageBox(f"Failed to submit form. Status code: {response.status_code}", "Error",
                               wx.OK | wx.ICON_ERROR)
         except Exception as e:
