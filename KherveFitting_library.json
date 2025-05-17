@@ -91597,7 +91597,7 @@
         },
         "C-Al1486": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91606,7 +91606,7 @@
         },
         "C-Kalpha1486": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91615,7 +91615,7 @@
         },
         "C-Mg1253": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91624,7 +91624,7 @@
         },
         "C-SHIMA1486": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91633,7 +91633,7 @@
         },
         "C-Sync": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91642,7 +91642,7 @@
         },
         "C-THS1253": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91651,7 +91651,7 @@
         },
         "C-THS1486": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,
@@ -91660,7 +91660,7 @@
         },
         "C-UL-PHI1486": {
             "auger": 0,
-            "ds": 4,
+            "ds": 20,
             "full_name": "Pr 3d",
             "ke_be": "BE",
             "position": 931,

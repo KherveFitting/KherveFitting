@@ -132,7 +132,7 @@ def on_sheet_selected(window, event):
                         default_constraints = {
                             'Position': position_constraint,
                             'Height': '1:1e7',
-                            'FWHM': '0.3:3.5',
+                            'FWHM': '0.3:3.7',
                             'L/G': '5:80',
                             'Area': '1:1e7',
                             'Sigma': '0.3:3',
@@ -143,10 +143,23 @@ def on_sheet_selected(window, event):
                         constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
                         for col_idx, key in enumerate(constraint_keys, 2):
                             constraint_value = constraints.get(key, '')
-                            if not constraint_value:  # If empty or missing
+                            print(f"Check constraint Key: {key}, Value: {constraint_value}")
+
+                            # Check if constraint is valid (either 'Fixed' or contains one of the special characters)
+                            is_valid = (constraint_value == 'Fixed' or
+                                        ':' in constraint_value or
+                                        ',' in constraint_value or
+                                        '*' in constraint_value or
+                                        '#' in constraint_value or
+                                        '+' in constraint_value or
+                                        '-' in constraint_value)
+
+                            if not constraint_value or not is_valid:
+                                # Use default if empty or invalid format
                                 constraint_value = default_constraints[key]
                                 # Update in Data structure too
                                 constraints[key] = constraint_value
+
                             window.peak_params_grid.SetCellValue(row + 1, col_idx, str(constraint_value))
                     else:
                         # Create default constraints if none exist
@@ -159,7 +172,7 @@ def on_sheet_selected(window, event):
                         default_constraints = {
                             'Position': position_constraint,
                             'Height': '1:1e7',
-                            'FWHM': '0.3:3.5',
+                            'FWHM': '0.3:3.6',
                             'L/G': '5:80',
                             'Area': '1:1e7',
                             'Sigma': '0.3:3',
@@ -211,12 +224,19 @@ def on_sheet_selected(window, event):
                         for col in [5,6,7,8,9]:  # Columns for Height, FWHM, L/G ratio
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
-                    elif window.selected_fitting_method == "DS*G (A, \u03c3, \u03b3, S)":
+                    elif window.selected_fitting_method in ["DS*G (A, \u03c3, \u03b3, S)"]:
                         for col in [3,4]:  # Columns for Height, FWHM
                             # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                         for col in [5,6,7,8,9]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                        for col in [3, 7]:  # Columns for Height and Sigma
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4, 5, 6, 8, 9]:  # Columns for FWHM, L/G, Area, Gamma, Skew
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
                     elif window.selected_fitting_method in ["Voigt (Area, \u03c3, \u03B3)",

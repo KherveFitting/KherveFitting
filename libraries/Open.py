@@ -1234,9 +1234,15 @@ def validate_data(df):
 
 
 def import_mrs_file(window):
+    """
+    Import a Physical Electronics MRS file (XPS data) and convert it to Excel format
+    suitable for KherveFitting.
+    """
     import wx
-    from openpyxl import Workbook
     import os
+    import re
+    import numpy as np
+    from openpyxl import Workbook
 
     with wx.FileDialog(window, "Open MRS file", wildcard="MRS files (*.mrs)|*.mrs",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
@@ -1245,71 +1251,112 @@ def import_mrs_file(window):
         file_path = fileDialog.GetPath()
 
     try:
-        # Create new Excel workbook
+        # Read the MRS file content
+        with open(file_path, 'r', errors='ignore') as f:
+            content = f.read()
+
+        # Create Excel workbook
         wb = Workbook()
         wb.remove(wb.active)
 
-        raw_data = []
-        be_start = None
-        be_end = None
-        step_size = None
+        # Extract sample info
+        sample_name = os.path.splitext(os.path.basename(file_path))[0]
+        desc_match = re.search(r'desc=(.*?)[\r\n]', content)
+        if desc_match:
+            sample_description = desc_match.group(1).strip()
 
-        with open(file_path, 'r') as f:
-            lines = f.readlines()
+        # Determine sheet name from filename
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
 
-        # Extract metadata and data block
-        in_data_section = False
-        delimiter_count = 0  # Track the number of "!" encountered
+        # Look for core level identifier in filename
+        sheet_name = base_name
+        if "_" in base_name:
+            core_level = base_name.split("_")[1]
+            if core_level.lower() in ["c1s", "o1s", "n1s", "s2p", "su", "vb"]:
+                if core_level.lower() == "su":
+                    sheet_name = "Survey"
+                else:
+                    sheet_name = core_level.upper()
 
-        for line in lines:
-            if line.strip() == "!":
-                delimiter_count += 1
-                if delimiter_count == 2:  # Stop processing after the second "!"
-                    break
-                in_data_section = True
-                continue
+        # Create sheet
+        ws = wb.create_sheet(title=sheet_name)
 
-            if in_data_section and line.strip().isdigit():
-                raw_data.append(int(line.strip()))
+        # Find data section
+        data_section_match = re.search(
+            r'array_size=(\d+).*?data=Data Array.*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+            content, re.DOTALL)
 
-            # Parse metadata
-            if 'lo_be=' in line:
-                be_start = float(line.split('=')[1].strip())
-            elif 'up_be=' in line:
-                be_end = float(line.split('=')[1].strip())
+        # If not found, try with Auto Survey
+        if not data_section_match:
+            data_section_match = re.search(
+                r'array_size=(\d+).*?data=Auto Survey.*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+                content, re.DOTALL)
 
-        # Calculate step size if not directly provided
-        if be_start is not None and be_end is not None:
-            step_size = (be_end - be_start) / (len(raw_data) - 1)
+        # If still not found, try a more general pattern
+        if not data_section_match:
+            data_section_match = re.search(r'array_size=(\d+).*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+                                           content, re.DOTALL)
 
-        if be_start is None or (be_end is None and step_size is None):
-            raise ValueError("Missing essential metadata: 'lo_be', 'up_be', or step size.")
+        if data_section_match:
+            array_size = int(data_section_match.group(1))
+            be_start = float(data_section_match.group(2))
+            be_end = float(data_section_match.group(3))
+            data_text = data_section_match.group(4).strip()
 
-        # Compute BE scale
-        be_values = [be_start + i * step_size for i in range(len(raw_data))]
+            # Extract numeric values
+            data_values = []
+            for line in data_text.split('\n'):
+                line = line.strip()
+                if line and line.isdigit():
+                    data_values.append(int(line))
 
-        # Create Excel sheet
-        sheet_name = os.path.splitext(os.path.basename(file_path))[0]
-        ws = wb.create_sheet(sheet_name)
+            if data_values:
+                # Calculate binding energy values
+                num_points = len(data_values)
+                step_size = (be_end - be_start) / (num_points - 1) if num_points > 1 else 0
+                be_values = [be_end - i * step_size for i in range(num_points)]
 
-        # Add headers
-        ws['A1'] = 'BE'
-        ws['B1'] = 'Raw Data'
+                # Add headers
+                ws["A1"] = "Binding Energy (eV)"
+                ws["B1"] = "Raw Data"
 
-        # Add data
-        for i, (be, intensity) in enumerate(zip(be_values, raw_data), start=2):
-            ws[f'A{i}'] = be
-            ws[f'B{i}'] = intensity
+                # Add data
+                for i, (be, intensity) in enumerate(zip(be_values, data_values), start=2):
+                    ws[f"A{i}"] = be
+                    ws[f"B{i}"] = intensity
 
-        # Save Excel file
-        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
-        wb.save(excel_path)
+                # Create experimental description sheet
+                exp_sheet = wb.create_sheet("Experimental description")
+                exp_sheet.column_dimensions['A'].width = 30
+                exp_sheet.column_dimensions['B'].width = 50
 
-        # Open the created Excel file
-        open_xlsx_file(window, excel_path)
+                # Add basic info to experimental sheet
+                exp_sheet["A1"] = "File"
+                exp_sheet["B1"] = os.path.basename(file_path)
+                exp_sheet["A2"] = "Energy Range"
+                exp_sheet["B2"] = f"{be_start} - {be_end} eV"
+                exp_sheet["A3"] = "Number of Points"
+                exp_sheet["B3"] = str(num_points)
+
+                if desc_match:
+                    exp_sheet["A4"] = "Description"
+                    exp_sheet["B4"] = sample_description
+
+                # Save and open Excel file
+                excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+                wb.save(excel_path)
+
+                # Open the created Excel file
+                from libraries.Open import open_xlsx_file
+                open_xlsx_file(window, excel_path)
+            else:
+                window.show_popup_message2("Error", "No valid data found in the MRS file.")
+        else:
+            window.show_popup_message2("Error", "Could not locate data section in MRS file.")
 
     except Exception as e:
-        # wx.MessageBox(f"Error processing MRS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        import traceback
+        traceback.print_exc()
         window.show_popup_message2("Error", f"Error processing MRS file: {str(e)}")
 
 

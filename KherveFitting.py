@@ -1703,9 +1703,9 @@ class MyFrame(wx.Frame):
         grid_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
         lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
         area = float(self.peak_params_grid.GetCellValue(row, 6))
-        sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
-        gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
-        skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.0)
+        sigma = self.try_float(self.peak_params_grid.GetCellValue(row, 7), 2.7)
+        gamma = self.try_float(self.peak_params_grid.GetCellValue(row, 8), 2.7)
+        skew = self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.1)
 
         from libraries.Peak_Functions import PeakFunctions
         actual_fwhm = PeakFunctions.calculate_actual_fwhm(
@@ -2738,45 +2738,49 @@ class MyFrame(wx.Frame):
             return  # Prevent event from propagating
         event.Skip()  # Let other key events propagate normally
 
-    # def show_popup_message(self, message):
-    #     popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
-    #     popup.ShowFor(self)
-    #
-    # def show_popup_message2(self, message1, message2):
-    #     popup = wx.adv.RichToolTip(message1, message2)
-    #     popup.ShowFor(self)
-
     def show_popup_message(self, message):
         import platform
         import time
 
-        # Check if platform is macOS
-        if platform.system() == 'Darwin':  # 'Darwin' is the system name for macOS
-            current_time = time.time()
-            # Only show popup if 5+ seconds have passed since last one (you can adjust the time)
-            if not hasattr(self, 'last_popup_time') or (current_time - self.last_popup_time > 5):
+        try:
+            # Check if platform is macOS
+            if platform.system() == 'Darwin':  # 'Darwin' is the system name for macOS
+                current_time = time.time()
+                # Only show popup if 5+ seconds have passed since last one
+                if not hasattr(self, 'last_popup_time') or (current_time - self.last_popup_time > 5):
+                    popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
+                    popup.ShowFor(self)
+                    self.last_popup_time = current_time
+            else:
+                # For non-Mac platforms, just show the popup
                 popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
                 popup.ShowFor(self)
-                self.last_popup_time = current_time
-        else:
-            # For non-Mac platforms, just show the popup
-            popup = wx.adv.RichToolTip("Are you trying to select a peak?", message)
-            popup.ShowFor(self)
+        except wx.PyDeadObjectError:
+            # Object already destroyed, ignore
+            pass
+        except Exception as e:
+            print(f"Error showing popup message: {e}")
 
     def show_popup_message2(self, message1, message2):
         import platform
         import time
 
-        # Check if platform is macOS
-        if platform.system() == 'Darwin':
-            current_time = time.time()
-            if not hasattr(self, 'last_popup_time') or (current_time - self.last_popup_time > 5):
+        try:
+            # Check if platform is macOS
+            if platform.system() == 'Darwin':
+                current_time = time.time()
+                if not hasattr(self, 'last_popup_time') or (current_time - self.last_popup_time > 5):
+                    popup = wx.adv.RichToolTip(message1, message2)
+                    popup.ShowFor(self)
+                    self.last_popup_time = current_time
+            else:
                 popup = wx.adv.RichToolTip(message1, message2)
                 popup.ShowFor(self)
-                self.last_popup_time = current_time
-        else:
-            popup = wx.adv.RichToolTip(message1, message2)
-            popup.ShowFor(self)
+        except wx.PyDeadObjectError:
+            # Object already destroyed, ignore
+            pass
+        except Exception as e:
+            print(f"Error showing popup message: {e}")
 
     def change_selected_peak(self, direction):
 
@@ -3377,16 +3381,7 @@ class MyFrame(wx.Frame):
 
 
 
-        # Check if this is a constraint row and the value contains "="
-        if row % 2 == 1 and col in [2, 3, 4, 5, 6, 7, 8, 9] and "=" in new_value:
-            # Remove the "=" from the cell
-            self.peak_params_grid.SetCellValue(row, col, new_value.replace("=", ""))
-
-            # Import and call the propagate_constraint function
-            from libraries.Utilities import propagate_constraint
-            propagate_constraint(self, row, col)
-            return  # Skip the rest of the function
-        elif col == 1:  # Peak label column
+        if col == 1:  # Peak label column
             # Check for duplicate names
             existing_names = []
             for i in range(0, self.peak_params_grid.GetNumberRows(), 2):
@@ -3401,14 +3396,60 @@ class MyFrame(wx.Frame):
         elif col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1:  # Constraint rows
             print('It is a constraint row')
 
-            if new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
+            # Check if this is a constraint row and the value contains "="
+            if row % 2 == 1 and col in [2, 3, 4, 5, 6, 7, 8, 9] and "=" in new_value:
+                print('It is a constraint row with "="')
+                # Remove the "=" from the cell
+                self.peak_params_grid.SetCellValue(row, col, new_value.replace("=", ""))
+
+                # Import and call the propagate_constraint function
+                from libraries.Utilities import propagate_constraint
+                propagate_constraint(self, row, col)
+                return  # Skip the rest of the function
+            # elif new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
+            #     new_value = 'Fixed'
+            #     self.peak_params_grid.SetCellValue(row, col, new_value)
+            #     return
+            elif new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
+                print('It is a constraint row with "Fixed"')
                 new_value = 'Fixed'
+                # Make sure the "Fixed" value gets saved right away to the Data structure
+                constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
+                constraint_key = constraint_keys[col - 2]
+
+                # Save to the Data structure immediately
+                if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][sheet_name]:
+                    peaks = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                    correct_peak_key = list(peaks.keys())[peak_index]
+
+                    if 'Constraints' not in peaks[correct_peak_key]:
+                        peaks[correct_peak_key]['Constraints'] = {}
+
+                    # Save the "Fixed" value directly
+                    peaks[correct_peak_key]['Constraints'][constraint_key] = new_value
+
+                # Update the cell value
                 self.peak_params_grid.SetCellValue(row, col, new_value)
+                event.Skip()
                 return
             elif new_value == 'F':
                 new_value = 'F*1'
                 self.peak_params_grid.SetCellValue(row, col, new_value)
                 return
+            # elif new_value.startswith('#'):
+            #     # Check if '#' is not followed by at least one digit
+            #     if len(new_value) == 1 or not new_value[1:].replace('.', '', 1).isdigit():
+            #         wx.MessageBox(f"Wrong Value entered", "Wrong Value",
+            #                       wx.OK | wx.ICON_ERROR)
+            #         event.Veto()  # Veto the event if '#' is on its own or not followed by a valid number
+            #         return
+            #
+            #     # If '#' is followed by a valid number, proceed with the calculation
+            #     peak_value = float(self.peak_params_grid.GetCellValue(row - 1, col))
+            #     new_value = str(round(peak_value - float(new_value[1:]), 2)) + ':' + str(
+            #         round(peak_value + float(new_value[1:]), 2))
+            #     self.peak_params_grid.SetCellValue(row, col, new_value)
+            #     return
             elif new_value.startswith('#'):
                 # Check if '#' is not followed by at least one digit
                 if len(new_value) == 1 or not new_value[1:].replace('.', '', 1).isdigit():
@@ -3422,6 +3463,25 @@ class MyFrame(wx.Frame):
                 new_value = str(round(peak_value - float(new_value[1:]), 2)) + ':' + str(
                     round(peak_value + float(new_value[1:]), 2))
                 self.peak_params_grid.SetCellValue(row, col, new_value)
+
+                # Save to Data structure before returning
+                sheet_name = self.sheet_combobox.GetValue()
+                peak_index = row // 2
+                if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][sheet_name]:
+                    peaks = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                    if peaks and peak_index < len(list(peaks.keys())):
+                        peak_label = list(peaks.keys())[peak_index]
+                        if 'Constraints' not in peaks[peak_label]:
+                            peaks[peak_label]['Constraints'] = {}
+
+                        # Map column indices to constraint names
+                        constraint_names = {
+                            2: 'Position', 3: 'Height', 4: 'FWHM', 5: 'L/G',
+                            6: 'Area', 7: 'Sigma', 8: 'Gamma', 9: 'Skew'
+                        }
+
+                        peaks[peak_label]['Constraints'][constraint_names[col]] = new_value
+
                 return
             elif new_value.startswith(('+', '/', '*')):
                 wx.MessageBox(f"Wrong Value entered", "Wrong Value",
@@ -3440,7 +3500,7 @@ class MyFrame(wx.Frame):
             match = re.match(pattern, new_value)
             print(f'Checking if it is an empty string: {new_value}')
             if not new_value:  # If empty string
-                print('emptry string')
+                print(f'It is an empty string: {new_value}')
                 if col == 2:
                     sheet_name = self.sheet_combobox.GetValue()
                     x_values = self.Data['Core levels'][sheet_name]['B.E.']
@@ -3599,9 +3659,9 @@ class MyFrame(wx.Frame):
                         area = float(self.peak_params_grid.GetCellValue(row, 6))
                         sigma = try_float(self.peak_params_grid.GetCellValue(row, 7), 0.0)
                         gamma = try_float(self.peak_params_grid.GetCellValue(row, 8), 0.0)
-                        skew = float(self.peak_params_grid.GetCellValue(row, 9))
+                        skew = try_float(self.peak_params_grid.GetCellValue(row, 9))
 
-                        if model in ["LA (Area, \u03c3/\u03b3, \u03b3)", "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                        if model in ["LA (Area, \u03c3/\u03b3, \u03b3)"]:
                             if col == 5:  # L/G ratio changed
                                 gamma = float(self.peak_params_grid.GetCellValue(row, 8))
                                 sigma = (fraction / 100) * gamma / (1 - fraction / 100)
@@ -3614,6 +3674,31 @@ class MyFrame(wx.Frame):
                                 self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
                             elif col == 9:
                                 pass
+                        elif model in ["LA (Area, \u03c3, \u03b3)"]:
+                            if col == 5:  # L/G ratio changed
+                                pass
+                            elif col == 7:  # Sigma changed
+                                fraction = 100 * sigma / (sigma + gamma)
+                                self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
+                            elif col == 8:  # Gamma changed
+                                sigma = (fraction / 100) * gamma / (1 - fraction / 100)
+                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
+                            elif col == 9:
+                                pass
+                        elif model in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                            if col == 5:  # L/G ratio changed
+                                gamma = float(self.peak_params_grid.GetCellValue(row, 8))
+                                sigma = (fraction / 100) * gamma / (1 - fraction / 100)
+                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")
+                            elif col == 7:  # Sigma changed
+                                fraction = 100 * sigma / (sigma + gamma)
+                                self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
+                            elif col == 8:  # Gamma changed
+                                sigma = (fraction / 100) * gamma / (1 - fraction / 100)
+                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
+                            elif col == 9:
+                                skew = float(self.peak_params_grid.GetCellValue(row, 9))
+                                peaks[correct_peak_key]['Skew'] = float(new_value)
                         elif model in ["Voigt (Area, L/G, \u03c3)"]:
                             if col == 5: # L/G ratio changed
                                 sigma = float(self.peak_params_grid.GetCellValue(row, 7))
@@ -3625,6 +3710,22 @@ class MyFrame(wx.Frame):
                                 self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
                             elif col == 8:
                                 pass
+                        elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
+                            if col == 5: # L/G ratio changed
+                                sigma = float(self.peak_params_grid.GetCellValue(row, 7))
+                                gamma = (fraction / 100) * sigma / (1 - fraction / 100)
+                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
+                            elif col == 7:  # Sigma changed
+                                fraction = float(self.peak_params_grid.GetCellValue(row, 5))
+                                gamma = (fraction / 100) * sigma / (1 - fraction / 100)
+                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
+                            elif col == 8:
+                                pass
+                            elif col == 9:
+                                value = float(self.peak_params_grid.GetCellValue(row, 9))
+                                if value == 0:
+                                    skew = 0.1
+                                    self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
                         elif model in ["DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, \u03b3, S)"]:
                             # For DS model, sigma and gamma are independent parameters
                             # No need to update other parameters when one changes
@@ -3642,39 +3743,12 @@ class MyFrame(wx.Frame):
                                 if value == 0:
                                     skew = 0.0
                                     self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
-                        elif model in ["Voigt (Area, L/G, \u03c3, S)"]:
-                            if col == 5: # L/G ratio changed
-                                sigma = float(self.peak_params_grid.GetCellValue(row, 7))
-                                gamma = (fraction / 100) * sigma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
-                            elif col == 7:  # Sigma changed
-                                fraction = float(self.peak_params_grid.GetCellValue(row, 5))
-                                gamma = (fraction / 100) * sigma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
-                            elif col == 8:
-                                pass
-                            elif col == 9:
-                                value = float(self.peak_params_grid.GetCellValue(row, 9))
-                                if value == 0:
-                                    skew = 0.1
-                                    self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
-                        elif model in ["LA (Area, \u03c3, \u03b3)"]:
-                            if col == 5:  # L/G ratio changed
-                                pass
-                            elif col == 7:  # Sigma changed
-                                fraction = 100 * sigma / (sigma + gamma)
-                                self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
-                            elif col == 8:  # Gamma changed
-                                sigma = (fraction / 100) * gamma / (1 - fraction / 100)
-                                self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
-                            elif col == 9:
-                                pass
-                            elif model in ["GL (Area)"]:
+                        elif model in ["GL (Area)"]:
                                 # For Gaussian-Lorentzian area-based model
                                 sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
                                 height = area / (sigma * np.sqrt(2 * np.pi))
                                 self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
-                            elif model in ["SGL (Area)"]:
+                        elif model in ["SGL (Area)"]:
                                 # For Sum of Gaussian-Lorentzian area-based model
                                 sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
                                 gamma = fwhm / 2
@@ -3697,7 +3771,7 @@ class MyFrame(wx.Frame):
                             'Area': round(area, 2),
                             'Sigma': round(sigma, 2),
                             'Gamma': round(gamma, 2),
-                            'Skew': round(skew, 2)
+                            'Skew': round(skew, 3)
                         })
                     elif col == 13:  # Fitting Model changed
                         peaks[correct_peak_key]['Fitting Model'] = new_value
@@ -3876,51 +3950,51 @@ class MyFrame(wx.Frame):
 
                         # Refresh the display
                         on_sheet_selected(self, sheet_name)
-                    elif col == 13:  # Fitting Model changed
-                        peaks[correct_peak_key]['Fitting Model'] = new_value
-
-                        # Recalculate area with new model
-                        model = peaks[correct_peak_key]['Fitting Model']
-                        # Default values for empty cells
-                        height = float(
-                            self.peak_params_grid.GetCellValue(row, 3)) if self.peak_params_grid.GetCellValue(row,
-                                                                                                              3) else 1000.0
-                        fwhm = float(self.peak_params_grid.GetCellValue(row, 4)) if self.peak_params_grid.GetCellValue(
-                            row, 4) else 1.6
-                        fraction = float(
-                            self.peak_params_grid.GetCellValue(row, 5)) if self.peak_params_grid.GetCellValue(row,
-                                                                                                              5) else 20.0
-                        area = float(self.peak_params_grid.GetCellValue(row, 6)) if self.peak_params_grid.GetCellValue(
-                            row, 6) else 1000.0
-                        sigma = float(self.peak_params_grid.GetCellValue(row, 7)) if self.peak_params_grid.GetCellValue(
-                            row, 7) else 0.5
-                        gamma = float(self.peak_params_grid.GetCellValue(row, 8)) if self.peak_params_grid.GetCellValue(
-                            row, 8) else 0.5
-                        skew = float(self.peak_params_grid.GetCellValue(row, 9)) if self.peak_params_grid.GetCellValue(
-                            row, 9) else 0.1
-
-                        # Set the values in the grid if they were empty
-                        if not self.peak_params_grid.GetCellValue(row, 3):
-                            self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
-                        if not self.peak_params_grid.GetCellValue(row, 4):
-                            self.peak_params_grid.SetCellValue(row, 4, f"{fwhm:.2f}")
-                        if not self.peak_params_grid.GetCellValue(row, 5):
-                            self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
-                        if not self.peak_params_grid.GetCellValue(row, 6):
-                            self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
-                        if not self.peak_params_grid.GetCellValue(row, 7):
-                            self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
-                        if not self.peak_params_grid.GetCellValue(row, 8):
-                            self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
-                        if not self.peak_params_grid.GetCellValue(row, 9):
-                            self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
-                        area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma,skew)
-
-                        self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
-                        peaks[correct_peak_key]['Area'] = area
-
-                        on_sheet_selected(self, sheet_name)
-                else:  # Constraint row
+                    # elif col == 13:  # Fitting Model changed
+                    #     peaks[correct_peak_key]['Fitting Model'] = new_value
+                    #
+                    #     # Recalculate area with new model
+                    #     model = peaks[correct_peak_key]['Fitting Model']
+                    #     # Default values for empty cells
+                    #     height = float(
+                    #         self.peak_params_grid.GetCellValue(row, 3)) if self.peak_params_grid.GetCellValue(row,
+                    #                                                                                           3) else 1000.0
+                    #     fwhm = float(self.peak_params_grid.GetCellValue(row, 4)) if self.peak_params_grid.GetCellValue(
+                    #         row, 4) else 1.6
+                    #     fraction = float(
+                    #         self.peak_params_grid.GetCellValue(row, 5)) if self.peak_params_grid.GetCellValue(row,
+                    #                                                                                           5) else 20.0
+                    #     area = float(self.peak_params_grid.GetCellValue(row, 6)) if self.peak_params_grid.GetCellValue(
+                    #         row, 6) else 1000.0
+                    #     sigma = float(self.peak_params_grid.GetCellValue(row, 7)) if self.peak_params_grid.GetCellValue(
+                    #         row, 7) else 0.5
+                    #     gamma = float(self.peak_params_grid.GetCellValue(row, 8)) if self.peak_params_grid.GetCellValue(
+                    #         row, 8) else 0.5
+                    #     skew = float(self.peak_params_grid.GetCellValue(row, 9)) if self.peak_params_grid.GetCellValue(
+                    #         row, 9) else 0.1
+                    #
+                    #     # Set the values in the grid if they were empty
+                    #     if not self.peak_params_grid.GetCellValue(row, 3):
+                    #         self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
+                    #     if not self.peak_params_grid.GetCellValue(row, 4):
+                    #         self.peak_params_grid.SetCellValue(row, 4, f"{fwhm:.2f}")
+                    #     if not self.peak_params_grid.GetCellValue(row, 5):
+                    #         self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
+                    #     if not self.peak_params_grid.GetCellValue(row, 6):
+                    #         self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
+                    #     if not self.peak_params_grid.GetCellValue(row, 7):
+                    #         self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
+                    #     if not self.peak_params_grid.GetCellValue(row, 8):
+                    #         self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
+                    #     if not self.peak_params_grid.GetCellValue(row, 9):
+                    #         self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
+                    #     area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma,skew)
+                    #
+                    #     self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
+                    #     peaks[correct_peak_key]['Area'] = area
+                    #
+                    #     on_sheet_selected(self, sheet_name)
+                elif row % 2 == 1:  # Constraint rowelse:  # Constraint row
                     if col in [2, 3, 4, 5, 6, 7, 8, 9]:
                         constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
                         column_to_constraint = {2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9:7}
@@ -3929,22 +4003,25 @@ class MyFrame(wx.Frame):
                         if 'Constraints' not in peaks[correct_peak_key]:
                             peaks[correct_peak_key]['Constraints'] = {}
 
-                        # Set default constraints if cell is empty
-                        if not new_value:
-                            default_constraints = {
-                                'Position': '0:1000',
-                                'Height': '1:1e7',
-                                'FWHM': '0.3:3.5',
-                                'L/G': '5:80',
-                                'Area': '1:1e7',
-                                'Sigma': '0.3:4',
-                                'Gamma': '0.3:4',
-                                'Skew': '0.02:1'
-                            }
-                            new_value = default_constraints[col]
-                            self.peak_params_grid.SetCellValue(row, col, new_value)
-
+                        # Always save the constraint value exactly as entered
                         peaks[correct_peak_key]['Constraints'][constraint_key] = new_value
+
+                        # Set default constraints if cell is empty
+                        # if not new_value:
+                        #     default_constraints = {
+                        #         'Position': '0:1000',
+                        #         'Height': '1:1e7',
+                        #         'FWHM': '0.3:3.5',
+                        #         'L/G': '5:80',
+                        #         'Area': '1:1e7',
+                        #         'Sigma': '0.3:4',
+                        #         'Gamma': '0.3:4',
+                        #         'Skew': '0.02:1'
+                        #     }
+                        #     new_value = default_constraints[col]
+                        #     self.peak_params_grid.SetCellValue(row, col, new_value)
+
+                        # peaks[correct_peak_key]['Constraints'][constraint_key] = new_value
 
             # Ensure numeric values are displayed with 2 decimal places
         if col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 0:  # Only for main parameter rows, not constraint rows
@@ -3985,6 +4062,7 @@ class MyFrame(wx.Frame):
 
                 # If value is empty, use defaults
                 if not value:
+                    print(f'Setting default for {key} in {peak_label}')
                     # Use appropriate default based on column
                     if key == 'Position':
                         # Get min/max from current sheet's data
@@ -5293,11 +5371,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.509 25e13")
+        frame = MyFrame(None, "KherveFitting-v1.510 25e17")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.509 25e13")
+        frame = MyFrame(None, "KherveFitting-v1.510 25e17")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.509 25e13")
+        frame = MyFrame(None, "KherveFitting-v1.510 25e17")
 
     # Apply preferences before showing the frame
     if hasattr(frame, 'times_opened') and frame.times_opened > 1:

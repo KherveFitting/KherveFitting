@@ -986,6 +986,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = result.params[f'{prefix}gamma'].value
                         fraction = result.params[f'{prefix}fraction'].value /100
                         fwhm_g = result.params[f'{prefix}fwhm_g'].value
+                        skew = round(float(fwhm_g), 3)  # Define skew as fwhm_g for this model
 
                         # Calculate height numerically
                         y_values = PeakFunctions.LAxG(x_values, center, area, fwhm, sigma, gamma, fwhm_g)

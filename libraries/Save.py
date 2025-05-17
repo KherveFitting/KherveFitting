@@ -336,6 +336,10 @@ def save_to_excel(window, data, file_path, sheet_name):
 
     existing_df = pd.read_excel(file_path, sheet_name=sheet_name)
 
+    # Rename column if first column is "BE"
+    if existing_df.columns[0] == "BE":
+        existing_df.rename(columns={"BE": "Binding Energy (eV)"}, inplace=True)
+
     # Determine the column containing experimental data (if present)
     exp_data_col = None
     exp_data_columns = []
