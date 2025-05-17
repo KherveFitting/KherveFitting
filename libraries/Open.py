@@ -32,9 +32,10 @@ class ExcelDropTarget(wx.FileDropTarget):
     def OnDropFiles(self, x, y, filenames):
         from libraries.Open import open_xlsx_file, open_vamas_file
         for file in filenames:
-            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe']):
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe', '.mrs']):
                 wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
-                              f".kal (Kratos), .avg (Thermo) and .spe (Phi) files can be dropped.", "Invalid File Type",
+                              f".kal (Kratos), .avg (Thermo), .mrs and .spe (Phi) files can be dropped.", "Invalid File "
+                                                                                                     "Type",
                               wx.OK | wx.ICON_ERROR)
                 return False
             if file.lower().endswith('.xlsx'):
@@ -69,6 +70,9 @@ class ExcelDropTarget(wx.FileDropTarget):
                 return True
             elif file.lower().endswith('.spe'):
                 wx.CallAfter(open_spe_file, self.window, file)
+                return True
+            elif file.lower().endswith('.mrs'):
+                wx.CallAfter(open_mrs_file, self.window, file)
                 return True
         return False
 
@@ -1233,6 +1237,381 @@ def validate_data(df):
     return issues
 
 
+def get_core_level_from_filename(filename):
+    """
+    Extract core level name from MRS filename.
+    Examples:
+    - xxx_C.MRS → C1s
+    - xxx_CL.MRS → Cl2p
+    - xxx_SU.MRS → Survey
+    - xxx_O.MRS → O1s
+    """
+    import re
+
+    # Define mapping of filename suffixes to standard core level names
+    core_level_map = {
+        'C': 'C1s',
+        'N': 'N1s',
+        'O': 'O1s',
+        'F': 'F1s',
+        'S': 'S2p',
+        'CL': 'Cl2p',
+        'BR': 'Br3d',
+        'I': 'I3d',
+        'SI': 'Si2p',
+        'P': 'P2p',
+        'B': 'B1s',
+        'LI': 'Li1s',
+        'NA': 'Na1s',
+        'K': 'K2p',
+        'CA': 'Ca2p',
+        'MG': 'Mg2p',
+        'AL': 'Al2p',
+        'TI': 'Ti2p',
+        'V': 'V2p',
+        'CR': 'Cr2p',
+        'MN': 'Mn2p',
+        'FE': 'Fe2p',
+        'CO': 'Co2p',
+        'NI': 'Ni2p',
+        'CU': 'Cu2p',
+        'ZN': 'Zn2p',
+        'GA': 'Ga3d',
+        'GE': 'Ge3d',
+        'AS': 'As3d',
+        'SE': 'Se3d',
+        'RB': 'Rb3d',
+        'SR': 'Sr3d',
+        'Y': 'Y3d',
+        'ZR': 'Zr3d',
+        'NB': 'Nb3d',
+        'MO': 'Mo3d',
+        'RU': 'Ru3d',
+        'RH': 'Rh3d',
+        'PD': 'Pd3d',
+        'AG': 'Ag3d',
+        'CD': 'Cd3d',
+        'IN': 'In3d',
+        'SN': 'Sn3d',
+        'SB': 'Sb3d',
+        'TE': 'Te3d',
+        'CS': 'Cs3d',
+        'BA': 'Ba3d',
+        'LA': 'La3d',
+        'CE': 'Ce3d',
+        'HF': 'Hf4f',
+        'TA': 'Ta4f',
+        'W': 'W4f',
+        'RE': 'Re4f',
+        'OS': 'Os4f',
+        'IR': 'Ir4f',
+        'PT': 'Pt4f',
+        'AU': 'Au4f',
+        'HG': 'Hg4f',
+        'PB': 'Pb4f',
+        'BI': 'Bi4f',
+        'TH': 'Th4f',
+        'U': 'U4f',
+        'SU': 'Survey',
+        'VB': 'VB'  # Valence Band
+    }
+
+    # Extract the suffix after the last underscore and before the extension
+    base_name = os.path.basename(filename)
+    match = re.search(r'_([A-Z]+)\.mrs$', base_name.upper())
+
+    if match:
+        suffix = match.group(1)
+        return core_level_map.get(suffix, suffix)
+    # If no underscore or no match in mapping, try to use the whole filename
+    # This is a fallback for unusual naming conventions
+    base_name_without_ext = os.path.splitext(base_name)[0]
+    for key, value in core_level_map.items():
+        if key in base_name_without_ext.upper():
+            return value
+
+    # Last resort: just return the base filename without extension
+    return base_name_without_ext
+
+
+def open_mrs_file(window, file_path):
+    """
+    Import a Physical Electronics MRS file (XPS data) and convert it to Excel format
+    suitable for KherveFitting.
+    """
+    try:
+        # Read the MRS file content
+        with open(file_path, 'r', errors='ignore') as f:
+            content = f.read()
+
+        # Create Excel workbook
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        # Extract sample info
+        sample_name = os.path.splitext(os.path.basename(file_path))[0]
+        desc_match = re.search(r'desc=(.*?)[\r\n]', content)
+        sample_description = desc_match.group(1).strip() if desc_match else "Unknown"
+
+        # Determine sheet name from filename using the new function
+        sheet_name = get_core_level_from_filename(file_path)
+
+        # Create sheet
+        ws = wb.create_sheet(title=sheet_name)
+
+        # Find data section
+        data_section_match = re.search(
+            r'array_size=(\d+).*?data=Data Array.*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+            content, re.DOTALL)
+
+        # If not found, try with Auto Survey
+        if not data_section_match:
+            data_section_match = re.search(
+                r'array_size=(\d+).*?data=Auto Survey.*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+                content, re.DOTALL)
+
+        # If still not found, try a more general pattern
+        if not data_section_match:
+            data_section_match = re.search(r'array_size=(\d+).*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+                                           content, re.DOTALL)
+
+        if data_section_match:
+            array_size = int(data_section_match.group(1))
+            be_start = float(data_section_match.group(2))
+            be_end = float(data_section_match.group(3))
+            data_text = data_section_match.group(4).strip()
+
+            # Extract numeric values
+            data_values = []
+            for line in data_text.split('\n'):
+                line = line.strip()
+                if line and line.isdigit():
+                    data_values.append(int(line))
+
+            if data_values:
+                # Calculate binding energy values
+                num_points = len(data_values)
+                step_size = (be_end - be_start) / (num_points - 1) if num_points > 1 else 0
+                be_values = [be_end - i * step_size for i in range(num_points)]
+
+                # Add headers
+                ws["A1"] = "Binding Energy (eV)"
+                ws["B1"] = "Corrected Data"
+                ws["C1"] = "Raw Data"
+                ws["D1"] = "Transmission"
+
+                # Add data
+                for i, (be, intensity) in enumerate(zip(be_values, data_values), start=2):
+                    ws[f"A{i}"] = be
+                    ws[f"B{i}"] = intensity
+                    ws[f"C{i}"] = intensity
+                    ws[f"D{i}"] = 1.0  # Default transmission value
+
+                # Create experimental description sheet
+                exp_sheet = wb.create_sheet("Experimental description")
+                exp_sheet.column_dimensions['A'].width = 30
+                exp_sheet.column_dimensions['B'].width = 50
+
+                # Add basic info to experimental sheet
+                exp_sheet["A1"] = "File"
+                exp_sheet["B1"] = os.path.basename(file_path)
+                exp_sheet["A2"] = "Energy Range"
+                exp_sheet["B2"] = f"{be_start} - {be_end} eV"
+                exp_sheet["A3"] = "Number of Points"
+                exp_sheet["B3"] = str(num_points)
+                exp_sheet["A4"] = "Description"
+                exp_sheet["B4"] = sample_description
+                exp_sheet["A5"] = "Core Level"
+                exp_sheet["B5"] = sheet_name
+
+                # Extract additional metadata if available
+                metadata_matches = {
+                    "Scan Count": re.search(r'scan_total=(\d+)', content),
+                    "Resolution": re.search(r'res=(\d+)', content),
+                    "Spot Size": re.search(r'spot=(\d+)', content),
+                    "Date": re.search(r'time_stamp=(.*?)[\r\n]', content),
+                    "Operator": re.search(r'oper=(.*?)[\r\n]', content)
+                }
+
+                row = 6
+                for key, match in metadata_matches.items():
+                    if match:
+                        exp_sheet[f"A{row}"] = key
+                        exp_sheet[f"B{row}"] = match.group(1).strip()
+                        row += 1
+
+                # Save Excel file
+                excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+                wb.save(excel_path)
+
+                # Open the created Excel file
+                from libraries.Open import open_xlsx_file
+                open_xlsx_file(window, excel_path)
+                return True
+            else:
+                window.show_popup_message2("Error", "No valid data found in the MRS file.")
+                return False
+        else:
+            window.show_popup_message2("Error", "Could not locate data section in MRS file.")
+            return False
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing MRS file: {str(e)}")
+        return False
+
+
+def import_multiple_mrs_files(window):
+    """
+    Import multiple Physical Electronics MRS files from a folder.
+    """
+    with wx.DirDialog(window, "Choose a directory containing MRS files",
+                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
+
+        if dirDialog.ShowModal() == wx.ID_CANCEL:
+            return
+
+        folder_path = dirDialog.GetPath()
+
+    try:
+        # Find all MRS files in the directory
+        mrs_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.mrs')]
+
+        if not mrs_files:
+            window.show_popup_message2("Information", "No MRS files found in the selected folder.")
+            return
+
+        # Ask if user wants individual Excel files or one combined file
+        dlg = wx.MessageDialog(window,
+                               "Do you want to create individual Excel files for each MRS file or combine them into one Excel file?",
+                               "Import Options",
+                               wx.YES_NO | wx.ICON_QUESTION)
+        dlg.SetYesNoLabels("Individual Files", "One Combined File")
+
+        result = dlg.ShowModal()
+        individual_files = (result == wx.ID_YES)
+        dlg.Destroy()
+
+        if individual_files:
+            # Process each MRS file individually
+            processed_count = 0
+            for mrs_file in mrs_files:
+                mrs_path = os.path.join(folder_path, mrs_file)
+                if open_mrs_file(window, mrs_path):
+                    processed_count += 1
+
+            window.show_popup_message2("Success", f"Processed {processed_count} of {len(mrs_files)} MRS files.")
+        else:
+            # Combine all MRS files into one Excel file
+            combined_wb = openpyxl.Workbook()
+            combined_wb.remove(combined_wb.active)
+
+            processed_count = 0
+            for mrs_file in mrs_files:
+                mrs_path = os.path.join(folder_path, mrs_file)
+
+                try:
+                    # Read the MRS file content
+                    with open(mrs_path, 'r', errors='ignore') as f:
+                        content = f.read()
+
+                    # Determine sheet name
+                    sheet_name = get_core_level_from_filename(mrs_file)
+
+                    # Ensure unique sheet name
+                    suffix = 1
+                    original_name = sheet_name
+                    while sheet_name in combined_wb.sheetnames:
+                        sheet_name = f"{original_name}{suffix}"
+                        suffix += 1
+
+                    # Ensure unique sheet name
+                    suffix = 1
+                    original_name = sheet_name
+                    while sheet_name in combined_wb.sheetnames:
+                        sheet_name = f"{original_name}{suffix}"
+                        suffix += 1
+
+                    # Create sheet
+                    ws = combined_wb.create_sheet(title=sheet_name)
+
+                    # Find and extract data
+                    data_section_match = re.search(
+                        r'array_size=(\d+).*?(?:data=Data Array|data=Auto Survey).*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+                        content, re.DOTALL)
+
+                    if not data_section_match:
+                        data_section_match = re.search(
+                            r'array_size=(\d+).*?lo_be=([0-9.-]+).*?up_be=([0-9.-]+).*?!(.*?)!',
+                            content, re.DOTALL)
+
+                    if data_section_match:
+                        array_size = int(data_section_match.group(1))
+                        be_start = float(data_section_match.group(2))
+                        be_end = float(data_section_match.group(3))
+                        data_text = data_section_match.group(4).strip()
+
+                        # Extract numeric values
+                        data_values = []
+                        for line in data_text.split('\n'):
+                            line = line.strip()
+                            if line and line.isdigit():
+                                data_values.append(int(line))
+
+                        if data_values:
+                            # Calculate binding energy values
+                            num_points = len(data_values)
+                            step_size = (be_end - be_start) / (num_points - 1) if num_points > 1 else 0
+                            be_values = [be_end - i * step_size for i in range(num_points)]
+
+                            # Add headers
+                            ws["A1"] = "Binding Energy (eV)"
+                            ws["B1"] = "Corrected Data"
+                            ws["C1"] = "Raw Data"
+                            ws["D1"] = "Transmission"
+
+                            # Add data
+                            for i, (be, intensity) in enumerate(zip(be_values, data_values), start=2):
+                                ws[f"A{i}"] = be
+                                ws[f"B{i}"] = intensity
+                                ws[f"C{i}"] = intensity
+                                ws[f"D{i}"] = 1.0  # Default transmission value
+
+                            processed_count += 1
+                except Exception as e:
+                    print(f"Error processing {mrs_file}: {str(e)}")
+
+            # Create experimental description sheet
+            exp_sheet = combined_wb.create_sheet("Experimental description")
+            exp_sheet.column_dimensions['A'].width = 30
+            exp_sheet.column_dimensions['B'].width = 50
+
+            exp_sheet["A1"] = "Source Folder"
+            exp_sheet["B1"] = folder_path
+            exp_sheet["A2"] = "Processed Files"
+            exp_sheet["B2"] = f"{processed_count} of {len(mrs_files)}"
+
+            # Save combined Excel file
+            folder_name = os.path.basename(folder_path)
+            excel_path = os.path.join(folder_path, f"{folder_name}_combined.xlsx")
+            combined_wb.save(excel_path)
+
+            # Open the combined Excel file
+            if processed_count > 0:
+                from libraries.Open import open_xlsx_file
+                open_xlsx_file(window, excel_path)
+                window.show_popup_message2("Success",
+                                           f"Created combined Excel file with {processed_count} sheets from MRS files.")
+            else:
+                window.show_popup_message2("Error", "No valid data found in any MRS file.")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing MRS files: {str(e)}")
+
+
 def import_mrs_file(window):
     """
     Import a Physical Electronics MRS file (XPS data) and convert it to Excel format
@@ -1266,10 +1645,10 @@ def import_mrs_file(window):
             sample_description = desc_match.group(1).strip()
 
         # Determine sheet name from filename
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        # base_name = os.path.splitext(os.path.basename(file_path))[0]
 
         # Look for core level identifier in filename
-        sheet_name = base_name
+        sheet_name = get_core_level_from_filename(file_path)
         if "_" in base_name:
             core_level = base_name.split("_")[1]
             if core_level.lower() in ["c1s", "o1s", "n1s", "s2p", "su", "vb"]:
@@ -2179,11 +2558,10 @@ def normalize_sheet_name(name):
         new_name = 'Wide'
     elif 'wide scan' in lower_name:
         new_name = 'Wide'
-    elif 'su1s' in lower_name:
+    elif 'su1s' in lower_name or '_su' in lower_name or name.lower().endswith('_su'):
         new_name = 'Survey'
     else:
         # Remove spaces between element and orbital (e.g., "C 1s" → "C1s")
-
         match = re.search(r'([A-Z][a-z]?)\s+(\d+[spdf])', name)
         if match:
             element, orbital = match.groups()
@@ -2200,7 +2578,6 @@ def normalize_sheet_name(name):
         new_name = f"{new_name}{suffix_match.group(1)}"
 
     return new_name
-
 
 def open_vamas_file_dialog(window):
     """

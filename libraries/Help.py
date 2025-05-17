@@ -408,6 +408,9 @@ def show_version_log(window):
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
     version_log = """Version 1.505-1.59
+- Fix Constraint rows rewrittiing the values
+- Improse the conversion of MRS files
+
 - Added import of .txt files for XPS and Raman data
 - Added import of CSV
 - Added My dream NIST library

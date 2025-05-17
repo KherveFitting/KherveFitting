@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
 from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
-from libraries.Open import ExcelDropTarget, open_xlsx_file, open_avg_file
+from libraries.Open import ExcelDropTarget, open_xlsx_file, open_avg_file, import_mrs_file, import_multiple_mrs_files
 from libraries.Plot_Operations import PlotManager
 from Functions import toggle_Col_1
 from libraries.Save import update_undo_redo_state
@@ -372,8 +372,12 @@ def create_menu(window):
     import_spe_item = import_menu.Append(wx.NewId(), "Import Phi Data file (.spe) -Beta-")
     window.Bind(wx.EVT_MENU, lambda event: open_spe_file_dialog(window), import_spe_item)
 
+    # Add MRS file import items
     import_mrs_item = import_menu.Append(wx.NewId(), "Import MRS Data file (.mrs)")
     window.Bind(wx.EVT_MENU, lambda event: import_mrs_file(window), import_mrs_item)
+
+    import_multiple_mrs_item = import_menu.Append(wx.NewId(), "Import Multiple MRS files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_mrs_files(window), import_multiple_mrs_item)
 
     import_avg_item = import_menu.Append(wx.NewId(), "Import AVG file (.avg)")
     window.Bind(wx.EVT_MENU, lambda event: open_avg_file(window), import_avg_item)
