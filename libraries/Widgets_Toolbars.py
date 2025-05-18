@@ -776,15 +776,6 @@ def create_horizontal_toolbar(parent, window):
 
 
 
-    id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-25.png"), wx.BITMAP_TYPE_PNG),
-                              shortHelp="Element identifications (ID)")
-
-    # toolbar.AddSeparator()
-
-    # noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
-    #                                       wx.Bitmap(os.path.join(icon_path, "Noise-25.png"), wx.BITMAP_TYPE_PNG),
-    #                                       shortHelp="Open Noise Analysis Window")
-
 
 
     plot_mod_tool = toolbar.AddTool(wx.ID_ANY, 'Plot Modifications',
@@ -792,6 +783,16 @@ def create_horizontal_toolbar(parent, window):
                                     shortHelp="Plot modifications window")
     window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
     window.Bind(wx.EVT_TOOL, window.on_differentiate, diff_tool)
+
+    toolbar.AddSeparator()
+
+    # noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
+    #                                       wx.Bitmap(os.path.join(icon_path, "Noise-25.png"), wx.BITMAP_TYPE_PNG),
+    #                                       shortHelp="Open Noise Analysis Window")
+
+
+    id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-25.png"), wx.BITMAP_TYPE_PNG),
+                              shortHelp="Element identifications (ID)")
 
     nist_tool = toolbar.AddTool(wx.ID_ANY, 'NIST Database',
                                 wx.Bitmap(os.path.join(icon_path, "NIST.png"), wx.BITMAP_TYPE_PNG),
