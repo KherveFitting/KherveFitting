@@ -511,7 +511,7 @@ def open_spe_file(window, file_path):
             ws = wb.create_sheet(title=sheet_name)
 
             # Add headers
-            ws["A1"] = "BE"
+            ws["A1"] = "Binding Energy (eV)"
             ws["B1"] = "Corrected Data"
             ws["C1"] = "Raw Data"
             ws["D1"] = "Transmission"
