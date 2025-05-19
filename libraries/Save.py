@@ -796,50 +796,64 @@ def save_to_json(window, file_path):
 
 
 def save_plot_to_excel(window):
-   if 'FilePath' not in window.Data or not window.Data['FilePath']:
-       wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
-       return
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
 
-   file_path = window.Data['FilePath']
-   sheet_name = window.sheet_combobox.GetValue()
-   is_survey = "survey" in sheet_name.lower() or "wide" in sheet_name.lower()
+    file_path = window.Data['FilePath']
+    sheet_name = window.sheet_combobox.GetValue()
+    is_survey = "survey" in sheet_name.lower() or "wide" in sheet_name.lower()
+    is_raman = "RA" in sheet_name.upper() or "RAMAN" in sheet_name.upper() or "Ra_" in sheet_name
 
-   try:
-       # Get dimensions based on plot type
-       width = window.survey_excel_width if is_survey else window.excel_width
-       height = window.survey_excel_height if is_survey else window.excel_height
-       dpi = window.survey_excel_dpi if is_survey else window.excel_dpi
+    try:
+        # Get dimensions based on plot type
+        width = window.survey_excel_width if is_survey else window.excel_width
+        height = window.survey_excel_height if is_survey else window.excel_height
+        dpi = window.survey_excel_dpi if is_survey else window.excel_dpi
 
-       print("Save plot to Excel")
+        # Save figure to buffer
+        buf = io.BytesIO()
+        original_size = window.figure.get_size_inches()
+        window.figure.set_size_inches(width, height)
 
-       # Save figure to buffer
-       buf = io.BytesIO()
-       original_size = window.figure.get_size_inches()
-       window.figure.set_size_inches(width, height)
-       window.figure.savefig(buf, format='png', dpi=dpi, bbox_inches='tight')
-       window.figure.set_size_inches(original_size)
-       buf.seek(0)
+        # Store original axis limits
+        original_xlim = window.ax.get_xlim()
 
-       # Save to Excel
-       wb = openpyxl.load_workbook(file_path)
-       ws = wb.create_sheet(sheet_name) if sheet_name not in wb.sheetnames else wb[sheet_name]
+        # Set correct x-axis orientation for Raman data before saving
+        if is_raman:
+            # Get current limits from plot_config
+            limits = window.plot_config.get_plot_limits(window, sheet_name)
+            # Set non-inverted x-axis for Raman (normal direction)
+            window.ax.set_xlim(limits['Xmin'], limits['Xmax'])
 
-       # Clear existing images
-       for img in ws._images:
-           ws._images.remove(img)
+        # Save the figure with correct orientation
+        window.figure.savefig(buf, format='png', dpi=dpi, bbox_inches='tight')
 
-       # Add new image
-       img = Image(buf)
-       ws.add_image(img, 'D6')
-       wb.save(file_path)
+        # Restore original axis limits and figure size
+        window.ax.set_xlim(original_xlim)
+        window.figure.set_size_inches(original_size)
+        buf.seek(0)
 
-       print(f"Plot saved to Excel file: {file_path}, Sheet: {sheet_name}")
-       window.show_popup_message2("Plot saved into Excel file", f"Under sheet: {sheet_name}")
+        # Save to Excel
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.create_sheet(sheet_name) if sheet_name not in wb.sheetnames else wb[sheet_name]
 
-   except Exception as e:
-       import traceback
-       traceback.print_exc()
-       wx.MessageBox(f"Error saving plot to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        # Clear existing images
+        for img in ws._images:
+            ws._images.remove(img)
+
+        # Add new image
+        img = Image(buf)
+        ws.add_image(img, 'D6')
+        wb.save(file_path)
+
+        print(f"Plot saved to Excel file: {file_path}, Sheet: {sheet_name}")
+        window.show_popup_message2("Plot saved into Excel file", f"Under sheet: {sheet_name}")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error saving plot to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
 def save_plot_as_png(window):
