@@ -1,7 +1,32 @@
 import wx
 import numpy as np
 from libraries.Sheet_Operations import on_sheet_selected
+from libraries.LibraryID import PeriodicTableXPS
+import os
+import sys
 
+
+def get_libraryid_path():
+    """Get the path to the LibraryID.py file"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # Running as script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        base_path = os.path.dirname(current_dir)  # Go up one level to the root
+
+    # Try both locations - root directory and libraries directory
+    possible_paths = [
+        os.path.join(base_path, "LibraryID.py"),
+        os.path.join(base_path, "libraries", "LibraryID.py")
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+
+    return None
 
 class PeriodicTableWindow(wx.Frame):
     def __init__(self, parent):
@@ -10,8 +35,8 @@ class PeriodicTableWindow(wx.Frame):
         self.parent_window = parent  # Store the parent window
         # self.SetBackgroundColour(wx.WHITE)
 
-        self.library_data = self.parent_window.library_data
 
+        self.library_data = self.parent_window.library_data
         self.button_states = {}
         self.element_lines = {}
         self.InitUI()
@@ -21,7 +46,6 @@ class PeriodicTableWindow(wx.Frame):
 
     def InitUI(self):
         panel = wx.Panel(self)
-        # panel.SetBackgroundColour(wx.WHITE)
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -49,22 +73,87 @@ class PeriodicTableWindow(wx.Frame):
             "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "I", "Xe",
             "Cs", "Ba", "", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "", "At", "Rn",
             "", "Ra", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-            # "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
             "", "", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "",
             "", "", "", "Th", "", "U", "Np", "Pu", "Am", "Cm", "", "", "", "", "", "", "", ""
         ]
 
+        # Define color schemes based on element categories
+        colors = {
+            'alkali_metal': "#FF6666",  # Light red
+            'alkaline_earth': "#FFDEAD",  # Navajo white
+            'transition_metal': "#FFC0CB",  # Pink
+            'post_transition': "#CCCCCC",  # Light gray
+            'metalloid': "#97FFFF",  # Light cyan
+            'nonmetal': "#A0FFA0",  # Light green
+            'halogen': "#FFFF99",  # Light yellow
+            'noble_gas': "#C8A2C8",  # Lilac
+            'lanthanide': "#FFBFFF",  # Light magenta
+            'actinide': "#FF99CC",  # Light pink
+            'unknown': "#E8E8E8"  # Very light gray
+        }
+
+        # Define element categories
+        element_categories = {
+            'H': 'nonmetal',
+            'He': 'noble_gas',
+            'Li': 'alkali_metal', 'Na': 'alkali_metal', 'K': 'alkali_metal',
+            'Rb': 'alkali_metal', 'Cs': 'alkali_metal', 'Fr': 'alkali_metal',
+            'Be': 'alkaline_earth', 'Mg': 'alkaline_earth', 'Ca': 'alkaline_earth',
+            'Sr': 'alkaline_earth', 'Ba': 'alkaline_earth', 'Ra': 'alkaline_earth',
+            'Sc': 'transition_metal', 'Ti': 'transition_metal', 'V': 'transition_metal',
+            'Cr': 'transition_metal', 'Mn': 'transition_metal', 'Fe': 'transition_metal',
+            'Co': 'transition_metal', 'Ni': 'transition_metal', 'Cu': 'transition_metal',
+            'Zn': 'transition_metal', 'Y': 'transition_metal', 'Zr': 'transition_metal',
+            'Nb': 'transition_metal', 'Mo': 'transition_metal', 'Tc': 'transition_metal',
+            'Ru': 'transition_metal', 'Rh': 'transition_metal', 'Pd': 'transition_metal',
+            'Ag': 'transition_metal', 'Cd': 'transition_metal', 'Hf': 'transition_metal',
+            'Ta': 'transition_metal', 'W': 'transition_metal', 'Re': 'transition_metal',
+            'Os': 'transition_metal', 'Ir': 'transition_metal', 'Pt': 'transition_metal',
+            'Au': 'transition_metal', 'Hg': 'transition_metal',
+            'B': 'metalloid', 'Si': 'metalloid', 'Ge': 'metalloid',
+            'As': 'metalloid', 'Sb': 'metalloid', 'Te': 'metalloid', 'Po': 'metalloid',
+            'C': 'nonmetal', 'N': 'nonmetal', 'O': 'nonmetal', 'P': 'nonmetal',
+            'S': 'nonmetal', 'Se': 'nonmetal',
+            'F': 'halogen', 'Cl': 'halogen', 'Br': 'halogen', 'I': 'halogen', 'At': 'halogen',
+            'Ne': 'noble_gas', 'Ar': 'noble_gas', 'Kr': 'noble_gas',
+            'Xe': 'noble_gas', 'Rn': 'noble_gas',
+            'Al': 'post_transition', 'Ga': 'post_transition', 'In': 'post_transition',
+            'Sn': 'post_transition', 'Tl': 'post_transition', 'Pb': 'post_transition',
+            'Bi': 'post_transition',
+        }
+
+        # Add lanthanides and actinides
+        lanthanides = ['La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+        actinides = ['Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr']
+
+        for element in lanthanides:
+            element_categories[element] = 'lanthanide'
+        for element in actinides:
+            element_categories[element] = 'actinide'
+
         button_size = (30, 30)
         font = wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
 
+        # Store original colors for restoration when buttons are deselected
+        self.original_colors = {}
+
+        # # Create context menu
+        # self.create_context_menu()
+
         for element in elements:
             if element:
+                # Get color based on element category
+                category = element_categories.get(element, 'unknown')
+                color = colors.get(category, colors['unknown'])
+
                 btn = wx.Button(panel, label=element, size=button_size)
                 btn.SetFont(font)
                 btn.Bind(wx.EVT_ENTER_WINDOW, self.OnElementHover)
                 btn.Bind(wx.EVT_LEAVE_WINDOW, self.OnElementLeave)
                 btn.Bind(wx.EVT_BUTTON, self.OnElementClick)
-                # btn.SetBackgroundColour(wx.WHITE)
+                btn.Bind(wx.EVT_RIGHT_DOWN, self.on_element_right_click)
+                btn.SetBackgroundColour(color)  # Set the initial color based on category
+                self.original_colors[element] = color  # Store the original color
                 self.button_states[element] = False
             else:
                 btn = wx.StaticText(panel, label="")
@@ -80,7 +169,7 @@ class PeriodicTableWindow(wx.Frame):
         right_sizer.Add(self.core_level_list, 1, wx.EXPAND | wx.ALL, 5)
 
         # Buttons
-        button_sizer = wx.GridBagSizer(5, 5)
+        button_sizer = wx.GridBagSizer(1, 1)
 
         self.add_labels_btn = wx.Button(panel, label="Add Labels")
         self.add_peak_btn = wx.Button(panel, label="Add to Grid")
@@ -110,6 +199,157 @@ class PeriodicTableWindow(wx.Frame):
         main_sizer.Add(hsizer, 1, wx.EXPAND)
         panel.SetSizer(main_sizer)
         self.SetSize(790, 320)
+
+    def on_element_right_click(self, event):
+        """Handle right-click on an element button"""
+        button = event.GetEventObject()
+        element = button.GetLabel()
+
+        # Create a context menu
+        menu = wx.Menu()
+        item = menu.Append(wx.ID_ANY, f"Show {element} Properties")
+        self.Bind(wx.EVT_MENU, lambda evt: self.show_element_properties(element), item)
+
+        # Show the context menu at the button position
+        button_pos = button.GetPosition()
+        self.PopupMenu(menu, button_pos)
+        menu.Destroy()
+
+    def on_element_right_click(self, event):
+        """Handle right-click on an element button"""
+        button = event.GetEventObject()
+        element = button.GetLabel()
+
+        # Create a context menu
+        menu = wx.Menu()
+        item = menu.Append(wx.ID_ANY, f"Show {element} Properties")
+        self.Bind(wx.EVT_MENU, lambda evt: self.show_element_properties(element), item)
+
+        # Show the context menu at the button position
+        button_pos = button.GetPosition()
+        self.PopupMenu(menu, button_pos)
+        menu.Destroy()
+
+    def show_element_properties(self, element):
+        """Show properties for the given element"""
+        # Create a temporary instance of PeriodicTableXPS to access the element properties
+        xps_helper = PeriodicTableXPS()
+
+        # Get the element properties using the existing method from LibraryID
+        element_data = xps_helper.get_element_properties(element)
+
+        # Create a new window
+        properties_window = wx.Dialog(self, title=f"Properties for {element}", size=(550, 500))
+
+        # Create a panel
+        panel = wx.Panel(properties_window)
+
+        # Main sizer
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Header with element symbol and name
+        header_panel = wx.Panel(panel, style=wx.BORDER_NONE)
+        header_panel.SetBackgroundColour("#f0f0f0")
+
+        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Element symbol in large font
+        symbol_label = wx.StaticText(header_panel, label=element)
+        symbol_label.SetFont(wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        header_sizer.Add(symbol_label, 0, wx.ALL, 20)
+
+        # Element name and atomic number
+        info_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        name_label = wx.StaticText(header_panel, label=element_data["Name"])
+        name_label.SetFont(wx.Font(20, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        info_sizer.Add(name_label, 0, wx.BOTTOM, 5)
+
+        atomic_label = wx.StaticText(header_panel, label=f"Atomic Number: {element_data['Atomic Number']}")
+        atomic_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        info_sizer.Add(atomic_label, 0)
+
+        header_sizer.Add(info_sizer, 0, wx.TOP, 20)
+        header_panel.SetSizer(header_sizer)
+
+        main_sizer.Add(header_panel, 0, wx.EXPAND)
+
+        # Create a scrolled window for properties
+        scroll_win = wx.ScrolledWindow(panel, style=wx.VSCROLL)
+        scroll_win.SetScrollRate(0, 10)
+
+        scroll_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Define property groups
+        property_groups = {
+            "Physical Properties": ["Atomic Mass", "Density", "Melting Point", "Boiling Point", "State at 20°C"],
+            "Atomic Properties": ["Electron Configuration", "Electronegativity", "Atomic Radius", "Ionization Energy"],
+            "General Information": ["Group", "Period", "Category", "Discovered By", "Year of Discovery"],
+            "XPS Information": ["Common Core Levels", "Most Intense Line", "Typical FWHM", "Chemical Shift Range"]
+        }
+
+        # Add each property group
+        for group_name, properties in property_groups.items():
+            # Group header
+            group_label = wx.StaticText(scroll_win, label=group_name)
+            group_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+            group_label.SetBackgroundColour("#e0e0e0")
+            scroll_sizer.Add(group_label, 0, wx.EXPAND | wx.ALL, 5)
+
+            # Properties grid
+            grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
+            grid.AddGrowableCol(1)
+
+            for prop in properties:
+                prop_label = wx.StaticText(scroll_win, label=f"{prop}:")
+                value = element_data.get(prop, "N/A")
+                value_text = wx.StaticText(scroll_win, label=str(value))
+
+                grid.Add(prop_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+                grid.Add(value_text, 0, wx.EXPAND | wx.ALL, 3)
+
+            scroll_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
+
+        # XPS data section
+        xps_label = wx.StaticText(scroll_win, label="XPS Binding Energies")
+        xps_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        xps_label.SetBackgroundColour("#e0e0e0")
+        scroll_sizer.Add(xps_label, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Get transitions from core levels
+        transitions = self.get_element_transitions(element)
+        if transitions:
+            grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
+            grid.AddGrowableCol(1)
+
+            for orbital, be in transitions:
+                orbital_label = wx.StaticText(scroll_win, label=f"{orbital}:")
+                be_text = wx.StaticText(scroll_win, label=f"{be:.2f} eV")
+
+                grid.Add(orbital_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+                grid.Add(be_text, 0, wx.EXPAND | wx.ALL, 3)
+
+            scroll_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
+        else:
+            no_data = wx.StaticText(scroll_win, label="No XPS data available for this element")
+            scroll_sizer.Add(no_data, 0, wx.ALL, 10)
+
+        scroll_win.SetSizer(scroll_sizer)
+        main_sizer.Add(scroll_win, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Close button
+        close_btn = wx.Button(panel, wx.ID_CLOSE, "Close")
+        close_btn.Bind(wx.EVT_BUTTON, lambda evt: properties_window.Close())
+        main_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+
+        panel.SetSizer(main_sizer)
+        properties_window.ShowModal()
+        properties_window.Destroy()
+
+        # Clean up the temporary instance
+        xps_helper.Destroy()
+
+
 
     def OnRemoveLastLabel(self, event):
         sheet_name = self.parent_window.sheet_combobox.GetValue()
@@ -193,7 +433,9 @@ class PeriodicTableWindow(wx.Frame):
                 if item not in existing_items:
                     self.core_level_list.Append(item)
         else:
-            event.GetEventObject().SetBackgroundColour(wx.WHITE)
+            # Restore the original color when deselected
+            original_color = self.original_colors.get(element, wx.WHITE)
+            event.GetEventObject().SetBackgroundColour(original_color)
             self.remove_element_lines(element)
 
         event.GetEventObject().Refresh()
@@ -408,7 +650,9 @@ class PeriodicTableWindow(wx.Frame):
                 self.button_states[element] = False
                 btn = self.FindWindowByLabel(element)
                 if btn:
-                    btn.SetBackgroundColour(wx.WHITE)
+                    # Restore original color
+                    original_color = self.original_colors.get(element, wx.WHITE)
+                    btn.SetBackgroundColour(original_color)
                     btn.Refresh()
 
         for element, lines in self.element_lines.items():
