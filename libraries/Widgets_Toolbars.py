@@ -16,6 +16,7 @@ from libraries.Save import save_state, undo, redo
 from libraries.Save import save_peaks_library, load_peaks_library
 from libraries.Save import on_save_as, save_plot_only_to_excel
 from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
+from libraries.Open import open_vg_microtech_file, import_multiple_vg_microtech_files
 from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
 from libraries.Open import import_xps_csv_file, import_multiple_xps_csv_files
@@ -391,6 +392,14 @@ def create_menu(window):
 
     import_multiple_xps_asc_item = import_menu.Append(wx.NewId(), "Import Multiple XPS .asc files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_xps_asc_files(window), import_multiple_xps_asc_item)
+
+    # Import VG Microtech
+    import_vg_microtech_item = import_menu.Append(wx.NewId(), "Import VG-Microtech file (.1)")
+    window.Bind(wx.EVT_MENU, lambda event: open_vg_microtech_file_dialog(window), import_vg_microtech_item)
+
+    import_multiple_vg_microtech_item = import_menu.Append(wx.NewId(), "Import Multiple VG-Microtech files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_vg_microtech_files(window),
+                import_multiple_vg_microtech_item)
 
     # Import CSV files
     import_xps_csv_item = import_menu.Append(wx.NewId(), "Import XPS .csv file")

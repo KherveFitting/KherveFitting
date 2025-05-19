@@ -32,9 +32,12 @@ class ExcelDropTarget(wx.FileDropTarget):
     def OnDropFiles(self, x, y, filenames):
         from libraries.Open import open_xlsx_file, open_vamas_file
         for file in filenames:
-            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe', '.mrs']):
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe',
+                                                              '.mrs', '.1']):
                 wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
-                              f".kal (Kratos), .avg (Thermo), .mrs and .spe (Phi) files can be dropped.", "Invalid File "
+                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech) and .spe (Phi) files can be "
+                              f"dropped.",
+                              "Invalid File "
                                                                                                      "Type",
                               wx.OK | wx.ICON_ERROR)
                 return False
@@ -73,6 +76,9 @@ class ExcelDropTarget(wx.FileDropTarget):
                 return True
             elif file.lower().endswith('.mrs'):
                 wx.CallAfter(open_mrs_file, self.window, file)
+                return True
+            elif file.lower().endswith('.1'):
+                wx.CallAfter(open_vg_microtech_file, self.window, file)
                 return True
         return False
 
@@ -3149,5 +3155,321 @@ def open_file_location(window):
             else:
                 os.system(f'xdg-open "{folder_path}"')
 
-# ------------------ HISTORRY DEF ---------------------------------------------------
-# -----------------------------------------------------------------------------------
+
+def open_vg_microtech_file(window, file_path):
+    """
+    Process a VG-Microtech .1 file and convert it to Excel format suitable for KherveFitting.
+
+    Args:
+        window: The main application window
+        file_path: Path to the .1 file
+
+    Returns:
+        bool: Success status
+    """
+    import numpy as np
+    import openpyxl
+    import os
+
+    try:
+        # Read the file content
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+
+        # Parse header information
+        header = lines[1].strip().split()
+        print(f'Header: {header}')
+        be_start = float(header[0])
+        be_end = float(header[1])
+        energy_step = float(header[2])
+        unknown_param = float(header[3])
+        dwell_time = float(header[4])
+        num_points = int(header[5])
+        pass_energy = float(header[6])
+        photon_energy = abs(float(header[7]))  # Absolute value for negative photon energies
+
+        # Get measurement type
+        measurement_type = lines[2].strip()
+
+        # Extract intensity values
+        intensity_values = []
+        for i in range(3, len(lines)):
+            if lines[i].strip():
+                try:
+                    intensity_values.append(float(lines[i].strip()))
+                except ValueError:
+                    continue
+
+        # Ensure we have the right number of intensity values
+        if len(intensity_values) < num_points:
+            window.show_popup_message2("Warning",
+                                       f"Expected {num_points} data points but found only {len(intensity_values)}.")
+        elif len(intensity_values) > num_points:
+            intensity_values = intensity_values[:num_points]
+
+        # Calculate binding energy values
+        be_values = np.linspace(be_start, be_end, num_points)
+
+        # Create Excel workbook
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)  # Remove default sheet
+
+        # Create sheet with normalized measurement type as name
+        from libraries.Open import normalize_sheet_name
+        sheet_name = normalize_sheet_name(measurement_type)
+        ws = wb.create_sheet(title=sheet_name)
+
+        # Add column headers
+        ws["A1"] = "Binding Energy (eV)"
+        ws["B1"] = "Corrected Data"
+        ws["C1"] = "Raw Data"
+        ws["D1"] = "Transmission"
+
+        # Add data rows
+        for i, (be, intensity) in enumerate(zip(be_values, intensity_values), start=2):
+            ws[f"A{i}"] = be
+            ws[f"B{i}"] = intensity
+            ws[f"C{i}"] = intensity
+            ws[f"D{i}"] = 1.0  # Default transmission value
+
+        # Create experimental description sheet
+        exp_sheet = wb.create_sheet(title="Experimental description")
+        exp_sheet.column_dimensions['A'].width = 30
+        exp_sheet.column_dimensions['B'].width = 50
+
+        # Add metadata
+        exp_sheet["A1"] = "Sample ID"
+        exp_sheet["B1"] = os.path.basename(file_path)
+        exp_sheet["A2"] = "BE Start"
+        exp_sheet["B2"] = str(be_start)
+        exp_sheet["A3"] = "BE End"
+        exp_sheet["B3"] = str(be_end)
+        exp_sheet["A4"] = "Energy Step"
+        exp_sheet["B4"] = str(energy_step)
+        exp_sheet["A5"] = "Dwell Time"
+        exp_sheet["B5"] = str(dwell_time)
+        exp_sheet["A6"] = "Number of Points"
+        exp_sheet["B6"] = str(num_points)
+        exp_sheet["A7"] = "Pass Energy"
+        exp_sheet["B7"] = str(pass_energy)
+        exp_sheet["A8"] = "Photon Energy"
+        exp_sheet["B8"] = str(photon_energy)
+        exp_sheet["A9"] = "Technique"
+        exp_sheet["B9"] = "XPS"
+        exp_sheet["A10"] = "Species & Transition"
+        exp_sheet["B10"] = measurement_type
+
+        # Save Excel file
+        excel_path = os.path.splitext(file_path)[0] + ".xlsx"
+        wb.save(excel_path)
+
+        # Open the created Excel file
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, excel_path)
+        return True
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing VG-Microtech file: {str(e)}")
+        return False
+
+
+def open_vg_microtech_file_dialog(window):
+    """
+    Open a file dialog for selecting a VG-Microtech .1 file and process it.
+    """
+    import wx
+
+    with wx.FileDialog(window, "Open VG-Microtech file", wildcard="VG-Microtech files (*.1)|*.1",
+                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+        if fileDialog.ShowModal() == wx.ID_CANCEL:
+            return
+        file_path = fileDialog.GetPath()
+        open_vg_microtech_file(window, file_path)
+
+
+def import_multiple_vg_microtech_files(window):
+    """
+    Import multiple VG-Microtech .1 files from a folder.
+    """
+    import wx
+    import os
+    import numpy as np
+    import openpyxl
+    from libraries.Open import normalize_sheet_name, open_xlsx_file
+
+    with wx.DirDialog(window, "Choose a directory containing VG-Microtech .1 files",
+                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
+
+        if dirDialog.ShowModal() == wx.ID_CANCEL:
+            return
+
+        folder_path = dirDialog.GetPath()
+
+    try:
+        # Find all .1 files in the directory
+        vg_files = [f for f in os.listdir(folder_path) if f.endswith('.1')]
+
+        if not vg_files:
+            window.show_popup_message2("Information", "No .1 files found in the selected folder.")
+            return
+
+        # Ask if user wants individual Excel files or one combined file
+        dlg = wx.MessageDialog(window,
+                               "Do you want to create individual Excel files for each .1 file or combine them into one Excel file?",
+                               "Import Options",
+                               wx.YES_NO | wx.ICON_QUESTION)
+        dlg.SetYesNoLabels("Individual Files", "One Combined File")
+
+        result = dlg.ShowModal()
+        individual_files = (result == wx.ID_YES)
+        dlg.Destroy()
+
+        if individual_files:
+            # Process each .1 file individually
+            processed_count = 0
+            for vg_file in vg_files:
+                vg_path = os.path.join(folder_path, vg_file)
+                if open_vg_microtech_file(window, vg_path):
+                    processed_count += 1
+
+            window.show_popup_message2("Success", f"Processed {processed_count} of {len(vg_files)} VG-Microtech files.")
+        else:
+            # Combine all .1 files into one Excel file
+            combined_wb = openpyxl.Workbook()
+            combined_wb.remove(combined_wb.active)
+
+            processed_count = 0
+            exp_sheet = combined_wb.create_sheet(title="Experimental description")
+            exp_sheet.column_dimensions['A'].width = 30
+            exp_sheet.column_dimensions['B'].width = 50
+
+            row = 1
+
+            for vg_file in vg_files:
+                vg_path = os.path.join(folder_path, vg_file)
+
+                try:
+                    # Read the file content
+                    with open(vg_path, 'r') as f:
+                        lines = f.readlines()
+
+                    # Parse header information
+                    header = lines[1].strip().split()
+                    be_start = float(header[0])
+                    be_end = float(header[1])
+                    energy_step = float(header[2])
+                    unknown_param = float(header[3])
+                    dwell_time = float(header[4])
+                    num_points = int(header[5])
+                    pass_energy = float(header[6])
+                    photon_energy = abs(float(header[7]))
+
+                    # Get measurement type
+                    measurement_type = lines[2].strip()
+
+                    # Create a unique sheet name
+                    sheet_name = normalize_sheet_name(measurement_type)
+                    if sheet_name in combined_wb.sheetnames:
+                        # If sheet name already exists, append a number
+                        count = 1
+                        while f"{sheet_name}{count}" in combined_wb.sheetnames:
+                            count += 1
+                        sheet_name = f"{sheet_name}{count}"
+
+                    # Create sheet
+                    ws = combined_wb.create_sheet(title=sheet_name)
+
+                    # Add column headers
+                    ws["A1"] = "Binding Energy (eV)"
+                    ws["B1"] = "Corrected Data"
+                    ws["C1"] = "Raw Data"
+                    ws["D1"] = "Transmission"
+
+                    # Extract intensity values
+                    intensity_values = []
+                    for i in range(3, len(lines)):
+                        if lines[i].strip():
+                            try:
+                                intensity_values.append(float(lines[i].strip()))
+                            except ValueError:
+                                continue
+
+                    # Ensure we have the right number of intensity values
+                    if len(intensity_values) > num_points:
+                        intensity_values = intensity_values[:num_points]
+
+                    # Calculate binding energy values
+                    be_values = np.linspace(be_start, be_end, num_points)
+
+                    # Match be_values and intensity_values lengths
+                    actual_points = min(len(be_values), len(intensity_values))
+                    be_values = be_values[:actual_points]
+                    intensity_values = intensity_values[:actual_points]
+
+                    # Add data rows
+                    for i, (be, intensity) in enumerate(zip(be_values, intensity_values), start=2):
+                        ws[f"A{i}"] = be
+                        ws[f"B{i}"] = intensity
+                        ws[f"C{i}"] = intensity
+                        ws[f"D{i}"] = 1.0  # Default transmission value
+
+                    # Add metadata to experimental description sheet
+                    exp_sheet[f"A{row}"] = f"File: {vg_file}"
+                    exp_sheet[f"B{row}"] = sheet_name
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "BE Start"
+                    exp_sheet[f"B{row}"] = str(be_start)
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "BE End"
+                    exp_sheet[f"B{row}"] = str(be_end)
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "Energy Step"
+                    exp_sheet[f"B{row}"] = str(energy_step)
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "Dwell Time"
+                    exp_sheet[f"B{row}"] = str(dwell_time)
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "Number of Points"
+                    exp_sheet[f"B{row}"] = str(num_points)
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "Pass Energy"
+                    exp_sheet[f"B{row}"] = str(pass_energy)
+                    row += 1
+
+                    exp_sheet[f"A{row}"] = "Photon Energy"
+                    exp_sheet[f"B{row}"] = str(photon_energy)
+                    row += 1
+
+                    # Add a blank row for separation
+                    row += 1
+
+                    processed_count += 1
+
+                except Exception as e:
+                    print(f"Error processing {vg_file}: {str(e)}")
+
+            # Save combined Excel file
+            if processed_count > 0:
+                combined_excel_path = os.path.join(folder_path, "VG_Microtech_combined.xlsx")
+                combined_wb.save(combined_excel_path)
+
+                # Open the combined Excel file
+                open_xlsx_file(window, combined_excel_path)
+
+                window.show_popup_message2("Success",
+                                           f"Created combined Excel file with {processed_count} sheets from VG-Microtech files.")
+            else:
+                window.show_popup_message2("Error", "No valid data found in any VG-Microtech file.")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing VG-Microtech files: {str(e)}")
