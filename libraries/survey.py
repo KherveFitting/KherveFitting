@@ -200,20 +200,8 @@ class PeriodicTableWindow(wx.Frame):
         panel.SetSizer(main_sizer)
         self.SetSize(790, 320)
 
-    def on_element_right_click(self, event):
-        """Handle right-click on an element button"""
-        button = event.GetEventObject()
-        element = button.GetLabel()
-
-        # Create a context menu
-        menu = wx.Menu()
-        item = menu.Append(wx.ID_ANY, f"Show {element} Properties")
-        self.Bind(wx.EVT_MENU, lambda evt: self.show_element_properties(element), item)
-
-        # Show the context menu at the button position
-        button_pos = button.GetPosition()
-        self.PopupMenu(menu, button_pos)
-        menu.Destroy()
+    # Add this import at the top of your file to import just the function
+    from libraries.LibraryID import PeriodicTableXPS
 
     def on_element_right_click(self, event):
         """Handle right-click on an element button"""
@@ -231,123 +219,190 @@ class PeriodicTableWindow(wx.Frame):
         menu.Destroy()
 
     def show_element_properties(self, element):
-        """Show properties for the given element"""
-        # Create a temporary instance of PeriodicTableXPS to access the element properties
-        xps_helper = PeriodicTableXPS()
+        """Show properties for the given element using a wxPython window"""
+        try:
+            # Get element data using the static method from LibraryID
+            element_data = PeriodicTableXPS.get_element_properties(None, element)
 
-        # Get the element properties using the existing method from LibraryID
-        element_data = xps_helper.get_element_properties(element)
+            # Create a wxPython dialog
+            properties_window = wx.Dialog(self, title=f"Properties for {element}", size=(580, 600))
 
-        # Create a new window
-        properties_window = wx.Dialog(self, title=f"Properties for {element}", size=(550, 500))
+            # Create a panel
+            panel = wx.Panel(properties_window)
 
-        # Create a panel
-        panel = wx.Panel(properties_window)
+            # Main sizer
+            main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Main sizer
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
+            # Header with element symbol and name
+            header_panel = wx.Panel(panel, style=wx.BORDER_NONE)
+            header_panel.SetBackgroundColour("#f0f0f0")
 
-        # Header with element symbol and name
-        header_panel = wx.Panel(panel, style=wx.BORDER_NONE)
-        header_panel.SetBackgroundColour("#f0f0f0")
+            header_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+            # Element symbol in large font
+            symbol_label = wx.StaticText(header_panel, label=element)
+            symbol_label.SetFont(wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+            header_sizer.Add(symbol_label, 0, wx.ALL, 20)
 
-        # Element symbol in large font
-        symbol_label = wx.StaticText(header_panel, label=element)
-        symbol_label.SetFont(wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-        header_sizer.Add(symbol_label, 0, wx.ALL, 20)
+            # Element name and atomic number
+            info_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Element name and atomic number
-        info_sizer = wx.BoxSizer(wx.VERTICAL)
+            name_label = wx.StaticText(header_panel, label=element_data["Name"])
+            name_label.SetFont(wx.Font(20, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+            info_sizer.Add(name_label, 0, wx.BOTTOM, 5)
 
-        name_label = wx.StaticText(header_panel, label=element_data["Name"])
-        name_label.SetFont(wx.Font(20, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-        info_sizer.Add(name_label, 0, wx.BOTTOM, 5)
+            atomic_label = wx.StaticText(header_panel, label=f"Atomic Number: {element_data['Atomic Number']}")
+            atomic_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+            info_sizer.Add(atomic_label, 0)
 
-        atomic_label = wx.StaticText(header_panel, label=f"Atomic Number: {element_data['Atomic Number']}")
-        atomic_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-        info_sizer.Add(atomic_label, 0)
+            header_sizer.Add(info_sizer, 0, wx.TOP, 20)
+            header_panel.SetSizer(header_sizer)
 
-        header_sizer.Add(info_sizer, 0, wx.TOP, 20)
-        header_panel.SetSizer(header_sizer)
+            main_sizer.Add(header_panel, 0, wx.EXPAND)
 
-        main_sizer.Add(header_panel, 0, wx.EXPAND)
+            # Create a scrolled window for properties
+            scroll_win = wx.ScrolledWindow(panel, style=wx.VSCROLL)
+            scroll_win.SetScrollRate(0, 10)
 
-        # Create a scrolled window for properties
-        scroll_win = wx.ScrolledWindow(panel, style=wx.VSCROLL)
-        scroll_win.SetScrollRate(0, 10)
+            scroll_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        scroll_sizer = wx.BoxSizer(wx.VERTICAL)
+            # Define property groups
+            property_groups = {
+                "Physical Properties": ["Atomic Mass", "Density", "Melting Point", "Boiling Point", "State at 20°C"],
+                "Atomic Properties": ["Electron Configuration", "Electronegativity", "Atomic Radius",
+                                      "Ionization Energy"],
+                "General Information": ["Group", "Period", "Category", "Discovered By", "Year of Discovery"],
+                "XPS Information": ["Common Core Levels", "Most Intense Line", "Typical FWHM", "Chemical Shift Range"]
+            }
 
-        # Define property groups
-        property_groups = {
-            "Physical Properties": ["Atomic Mass", "Density", "Melting Point", "Boiling Point", "State at 20°C"],
-            "Atomic Properties": ["Electron Configuration", "Electronegativity", "Atomic Radius", "Ionization Energy"],
-            "General Information": ["Group", "Period", "Category", "Discovered By", "Year of Discovery"],
-            "XPS Information": ["Common Core Levels", "Most Intense Line", "Typical FWHM", "Chemical Shift Range"]
-        }
+            # Add each property group
+            for group_name, properties in property_groups.items():
+                # Group header
+                group_label = wx.StaticText(scroll_win, label=group_name)
+                group_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+                group_label.SetBackgroundColour("#e0e0e0")
+                scroll_sizer.Add(group_label, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Add each property group
-        for group_name, properties in property_groups.items():
-            # Group header
-            group_label = wx.StaticText(scroll_win, label=group_name)
-            group_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-            group_label.SetBackgroundColour("#e0e0e0")
-            scroll_sizer.Add(group_label, 0, wx.EXPAND | wx.ALL, 5)
+                # Properties grid
+                grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
+                grid.AddGrowableCol(1)
 
-            # Properties grid
-            grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
-            grid.AddGrowableCol(1)
+                for prop in properties:
+                    prop_label = wx.StaticText(scroll_win, label=f"{prop}:")
+                    value = element_data.get(prop, "N/A")
+                    value_text = wx.StaticText(scroll_win, label=str(value))
 
-            for prop in properties:
-                prop_label = wx.StaticText(scroll_win, label=f"{prop}:")
-                value = element_data.get(prop, "N/A")
-                value_text = wx.StaticText(scroll_win, label=str(value))
+                    grid.Add(prop_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+                    grid.Add(value_text, 0, wx.EXPAND | wx.ALL, 3)
 
-                grid.Add(prop_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
-                grid.Add(value_text, 0, wx.EXPAND | wx.ALL, 3)
+                scroll_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
 
-            scroll_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
+            # XPS Binding Energies Summary Section
+            be_label = wx.StaticText(scroll_win, label="XPS Binding Energies")
+            be_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+            be_label.SetBackgroundColour("#e0e0e0")
+            scroll_sizer.Add(be_label, 0, wx.EXPAND | wx.ALL, 5)
 
-        # XPS data section
-        xps_label = wx.StaticText(scroll_win, label="XPS Binding Energies")
-        xps_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-        xps_label.SetBackgroundColour("#e0e0e0")
-        scroll_sizer.Add(xps_label, 0, wx.EXPAND | wx.ALL, 5)
+            # Get transitions from core levels
+            transitions = self.get_element_transitions(element)
+            if transitions:
+                # Create table header (similar to LibraryID implementation)
+                table_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Get transitions from core levels
-        transitions = self.get_element_transitions(element)
-        if transitions:
-            grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
-            grid.AddGrowableCol(1)
+                # Headers
+                header_grid = wx.FlexGridSizer(rows=1, cols=5, vgap=0, hgap=0)
 
-            for orbital, be in transitions:
-                orbital_label = wx.StaticText(scroll_win, label=f"{orbital}:")
-                be_text = wx.StaticText(scroll_win, label=f"{be:.2f} eV")
+                headers = ["Line", "Avg BE (eV)", "Min BE (eV)", "Max BE (eV)", "Count"]
+                header_widths = [80, 80, 80, 80, 60]
 
-                grid.Add(orbital_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
-                grid.Add(be_text, 0, wx.EXPAND | wx.ALL, 3)
+                for i, header_text in enumerate(headers):
+                    header_panel = wx.Panel(scroll_win, size=(header_widths[i], -1))
+                    header_panel.SetBackgroundColour("#e8e8e8")
+                    header_sizer = wx.BoxSizer(wx.VERTICAL)
+                    header = wx.StaticText(header_panel, label=header_text, style=wx.ALIGN_CENTER)
+                    header.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+                    header_sizer.Add(header, 1, wx.EXPAND | wx.ALL, 2)
+                    header_panel.SetSizer(header_sizer)
+                    header_grid.Add(header_panel, 0, wx.EXPAND | wx.ALL, 1)
 
-            scroll_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
-        else:
-            no_data = wx.StaticText(scroll_win, label="No XPS data available for this element")
-            scroll_sizer.Add(no_data, 0, wx.ALL, 10)
+                table_sizer.Add(header_grid, 0, wx.EXPAND)
 
-        scroll_win.SetSizer(scroll_sizer)
-        main_sizer.Add(scroll_win, 1, wx.EXPAND | wx.ALL, 10)
+                # Group transitions by line
+                lines_data = {}
+                for orbital, be in transitions:
+                    line = orbital
+                    if line not in lines_data:
+                        lines_data[line] = {'values': [], 'count': 0}
+                    lines_data[line]['values'].append(be)
+                    lines_data[line]['count'] += 1
 
-        # Close button
-        close_btn = wx.Button(panel, wx.ID_CLOSE, "Close")
-        close_btn.Bind(wx.EVT_BUTTON, lambda evt: properties_window.Close())
-        main_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+                # Create table rows
+                for line, data in lines_data.items():
+                    values = data['values']
+                    avg_be = sum(values) / len(values) if values else 0
+                    min_be = min(values) if values else 0
+                    max_be = max(values) if values else 0
+                    count = data['count']
 
-        panel.SetSizer(main_sizer)
-        properties_window.ShowModal()
-        properties_window.Destroy()
+                    row_grid = wx.FlexGridSizer(rows=1, cols=5, vgap=0, hgap=0)
 
-        # Clean up the temporary instance
-        xps_helper.Destroy()
+                    # Create each cell in the row
+                    cell_data = [
+                        line,
+                        f"{avg_be:.2f}",
+                        f"{min_be:.2f}",
+                        f"{max_be:.2f}",
+                        str(count)
+                    ]
+
+                    for i, text in enumerate(cell_data):
+                        cell_panel = wx.Panel(scroll_win, size=(header_widths[i], -1))
+                        cell_panel.SetBackgroundColour(wx.WHITE)
+                        cell_sizer = wx.BoxSizer(wx.VERTICAL)
+                        cell = wx.StaticText(cell_panel, label=text)
+                        cell_sizer.Add(cell, 1, wx.EXPAND | wx.ALL, 2)
+                        cell_panel.SetSizer(cell_sizer)
+                        row_grid.Add(cell_panel, 0, wx.EXPAND | wx.ALL, 1)
+
+                    table_sizer.Add(row_grid, 0, wx.EXPAND)
+
+                scroll_sizer.Add(table_sizer, 0, wx.EXPAND | wx.ALL, 5)
+
+                # Now add individual transitions grid
+                grid_label = wx.StaticText(scroll_win, label="Individual Core Level Transitions")
+                grid_label.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+                scroll_sizer.Add(grid_label, 0, wx.EXPAND | wx.ALL, 5)
+
+                transitions_grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
+                transitions_grid.AddGrowableCol(1)
+
+                for orbital, be in transitions:
+                    orbital_label = wx.StaticText(scroll_win, label=f"{orbital}:")
+                    be_text = wx.StaticText(scroll_win, label=f"{be:.2f} eV")
+
+                    transitions_grid.Add(orbital_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+                    transitions_grid.Add(be_text, 0, wx.EXPAND | wx.ALL, 3)
+
+                scroll_sizer.Add(transitions_grid, 0, wx.EXPAND | wx.ALL, 5)
+            else:
+                no_data = wx.StaticText(scroll_win, label="No XPS data available for this element")
+                scroll_sizer.Add(no_data, 0, wx.ALL, 10)
+
+            scroll_win.SetSizer(scroll_sizer)
+            main_sizer.Add(scroll_win, 1, wx.EXPAND | wx.ALL, 10)
+
+            # Close button
+            close_btn = wx.Button(panel, wx.ID_CLOSE, "Close")
+            close_btn.Bind(wx.EVT_BUTTON, lambda evt: properties_window.Close())
+            main_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+
+            panel.SetSizer(main_sizer)
+            properties_window.ShowModal()
+            properties_window.Destroy()
+
+        except Exception as e:
+            wx.MessageBox(f"Error showing element properties: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
 
 
 
