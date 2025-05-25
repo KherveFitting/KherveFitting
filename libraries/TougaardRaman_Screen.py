@@ -212,6 +212,7 @@ class TougaardRamanFitWindow(wx.Frame):
         # Then clear the sizer, which will delete all the windows
         self.zones_panel_sizer.Clear(True)
 
+
         # Create new zones
         for i in range(num_zones):
             if i < len(old_values):
@@ -232,13 +233,13 @@ class TougaardRamanFitWindow(wx.Frame):
 
             min_max_sizer = wx.BoxSizer(wx.HORIZONTAL)
             min_max_sizer.Add(wx.StaticText(self.zones_panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-            min_ctrl = wx.SpinCtrlDouble(self.zones_panel, min=0, max=2000, inc=0.1, value=str(min_val))
+            min_ctrl = wx.SpinCtrlDouble(self.zones_panel, min=0, max=20000, inc=0.1, value=str(min_val))
             min_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_zone_change)
             min_max_sizer.Add(min_ctrl, 1, wx.RIGHT, 5)
 
             min_max_sizer.Add(wx.StaticText(self.zones_panel, label="Max:"), 0,
                               wx.ALIGN_CENTER_VERTICAL | wx.RIGHT | wx.LEFT, 5)
-            max_ctrl = wx.SpinCtrlDouble(self.zones_panel, min=0, max=2000, inc=0.1, value=str(max_val))
+            max_ctrl = wx.SpinCtrlDouble(self.zones_panel, min=0, max=20000, inc=0.1, value=str(max_val))
             max_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_zone_change)
             min_max_sizer.Add(max_ctrl, 1)
 

@@ -30,7 +30,40 @@ from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots
 from libraries.Utilities import add_draggable_text
 from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1, undo, redo
 from libraries.LibraryID import PeriodicTableXPS
+from libraries.Asteroid import main as asteroid_main
+from libraries.Solitaire import SolitaireGame
+from libraries.Flappybird import main as flappybird_main
+from libraries.ChemistryLab import ChemistryLabGame
 
+
+def show_chemistry_lab_game(window):
+    """Launch the Chemistry Lab game"""
+    try:
+        game = ChemistryLabGame()
+        game.run()
+    except Exception as e:
+        print(f"Error launching Chemistry Lab game: {e}")
+
+def show_flappybird_game(window):
+    """Launch the Flappybird game"""
+    try:
+        flappybird_main()
+    except Exception as e:
+        print(f"Error launching Flappybird game: {e}")
+
+def show_asteroid_game(window):
+    """Launch the Asteroid game"""
+    try:
+        asteroid_main()
+    except Exception as e:
+        print(f"Error launching Asteroid game: {e}")
+
+def launch_solitaire(window):
+    try:
+        game = SolitaireGame()
+        game.run()
+    except Exception as e:
+        wx.MessageBox(f"Error launching solitaire: {e}", "Error", wx.OK | wx.ICON_ERROR)
 
 def create_widgets(window):
     # Main sizer
@@ -592,6 +625,26 @@ def create_menu(window):
     # Add the Knowledge submenu to the Help menu
     help_menu.AppendSubMenu(knowledge_menu, "Knowledge")
 
+    # Create Bored submenu
+    bored_menu = wx.Menu()
+
+    atoms_item = bored_menu.Append(wx.NewId(), "Atoms")
+    window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), atoms_item)
+
+    chemistry_lab_item = bored_menu.Append(wx.NewId(), "Material Lab")
+    window.Bind(wx.EVT_MENU, lambda event: show_chemistry_lab_game(window), chemistry_lab_item)
+
+    asteroid_item = bored_menu.Append(wx.NewId(), "Meteos smash")
+    window.Bind(wx.EVT_MENU, lambda event: show_asteroid_game(window), asteroid_item)
+
+    solitaire_item = bored_menu.Append(wx.NewId(), "Kherve solitaire")
+    window.Bind(wx.EVT_MENU, lambda event: launch_solitaire(window), solitaire_item)
+
+    flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the flappy bird")
+    window.Bind(wx.EVT_MENU, lambda event: show_flappybird_game(window), flappybird_item)
+
+    help_menu.AppendSubMenu(bored_menu, "Take a break")
+
     resubmit_form_item = help_menu.Append(wx.NewId(), "Registration Form")
     window.Bind(wx.EVT_MENU, lambda event: launch_registration_form(window), resubmit_form_item)
 
@@ -600,9 +653,6 @@ def create_menu(window):
 
     # version_log_item = help_menu.Append(wx.NewId(), "Version Log")
     # window.Bind(wx.EVT_MENU, lambda event: show_version_log(window), version_log_item)
-
-    mini_game_item = help_menu.Append(wx.NewId(), "Mini Game")
-    window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), mini_game_item)
 
     coffee_item = help_menu.Append(wx.NewId(), "Buy Me a Coffee")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://buymeacoffee.com/gkerherve"), coffee_item)

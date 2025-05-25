@@ -408,6 +408,7 @@ def show_version_log(window):
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
     version_log = """Version 1.505-1.590
+- Added import VG-MicroTech .1 files
 - Fix Constraint rows which were rewriting the user values
 - Improve the conversion of MRS files
 - Fix the conversion of Phi files
