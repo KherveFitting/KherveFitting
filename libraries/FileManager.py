@@ -212,17 +212,17 @@ class FileManagerWindow(wx.Frame):
             add_rows_bmp = wx.Bitmap(add_rows_icon)
         else:
             add_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_PLUS, wx.ART_TOOLBAR)
-        add_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Add 10 Rows", add_rows_bmp, "Add 10 rows to the grid")
-        self.Bind(wx.EVT_TOOL, lambda evt: self.add_more_rows(), add_rows_tool)
+        add_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Add 1 Row", add_rows_bmp, "Add 1 row to the grid")
+        self.Bind(wx.EVT_TOOL, lambda evt: self.add_single_row(), add_rows_tool)
 
         del_rows_icon = os.path.join(icon_path, "delete-rows-25.png")
         if os.path.exists(del_rows_icon):
             del_rows_bmp = wx.Bitmap(del_rows_icon)
         else:
             del_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
-        del_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Last 2 Rows", del_rows_bmp,
+        del_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Last Row", del_rows_bmp,
                                              "Delete the last 2 rows from the grid")
-        self.Bind(wx.EVT_TOOL, lambda evt: self.delete_last_rows(), del_rows_tool)
+        self.Bind(wx.EVT_TOOL, lambda evt: self.delete_single_row(), del_rows_tool)
 
         # Copy button
         copy_icon = os.path.join(icon_path, "copy-25.png")
@@ -2385,19 +2385,24 @@ class FileManagerWindow(wx.Frame):
 
         # Set appropriate background colors for new rows
         for row in range(current_rows, current_rows + 10):
-            # Sample name column
-            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(180, 235, 208))
+            # Sample name column (Experiment)
+            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(230, 230, 230))
 
-            # BE correction column
+            # BE correction column (Xshift)
             be_col_index = len(self.core_levels) + 1
             if be_col_index < self.grid.GetNumberCols():
-                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
                 self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))
 
-            # Norm column
+            # Norm @ BE column
             norm_col_index = len(self.core_levels) + 2
             if norm_col_index < self.grid.GetNumberCols():
-                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+
+            # Norm to A column
+            norm_area_col_index = len(self.core_levels) + 3
+            if norm_area_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
 
         self.grid.ForceRefresh()
 
@@ -2409,6 +2414,47 @@ class FileManagerWindow(wx.Frame):
             self.grid.ForceRefresh()
         else:
             wx.MessageBox("Not enough rows to delete.", "Warning", wx.OK | wx.ICON_WARNING)
+
+    def add_single_row(self):
+        """Add 1 row to the grid."""
+        current_rows = self.grid.GetNumberRows()
+        self.grid.AppendRows(1)
+
+        # Set row label for new row
+        self.grid.SetRowLabelValue(current_rows, str(current_rows))
+
+        # Set appropriate background colors for new row
+        row = current_rows
+        # Sample name column (Experiment)
+        self.grid.SetCellBackgroundColour(row, 0, wx.Colour(230, 230, 230))
+
+        # BE correction column (Xshift)
+        be_col_index = len(self.core_levels) + 1
+        if be_col_index < self.grid.GetNumberCols():
+            self.grid.SetCellValue(row, be_col_index, "0.0")
+            self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
+            self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))
+
+        # Norm @ BE column
+        norm_col_index = len(self.core_levels) + 2
+        if norm_col_index < self.grid.GetNumberCols():
+            self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+
+        # Norm to A column
+        norm_area_col_index = len(self.core_levels) + 3
+        if norm_area_col_index < self.grid.GetNumberCols():
+            self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
+
+        self.grid.ForceRefresh()
+
+    def delete_single_row(self):
+        """Delete the last row from the grid."""
+        current_rows = self.grid.GetNumberRows()
+        if current_rows >= 1:
+            self.grid.DeleteRows(current_rows - 1, 1)
+            self.grid.ForceRefresh()
+        else:
+            wx.MessageBox("No rows to delete.", "Warning", wx.OK | wx.ICON_WARNING)
 
 
     def plot_multiple_sheets_with_offset(self, sheet_names):
