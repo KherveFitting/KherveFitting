@@ -634,16 +634,16 @@ def create_menu(window):
     chemistry_lab_item = bored_menu.Append(wx.NewId(), "Material Lab")
     window.Bind(wx.EVT_MENU, lambda event: show_chemistry_lab_game(window), chemistry_lab_item)
 
-    asteroid_item = bored_menu.Append(wx.NewId(), "Meteos smash")
+    asteroid_item = bored_menu.Append(wx.NewId(), "Meteos Smash")
     window.Bind(wx.EVT_MENU, lambda event: show_asteroid_game(window), asteroid_item)
 
-    solitaire_item = bored_menu.Append(wx.NewId(), "Kherve solitaire")
+    solitaire_item = bored_menu.Append(wx.NewId(), "Kherve Solitaire")
     window.Bind(wx.EVT_MENU, lambda event: launch_solitaire(window), solitaire_item)
 
-    flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the flappy bird")
+    flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the Flappy Bird")
     window.Bind(wx.EVT_MENU, lambda event: show_flappybird_game(window), flappybird_item)
 
-    help_menu.AppendSubMenu(bored_menu, "Take a break")
+    help_menu.AppendSubMenu(bored_menu, "Take a Break")
 
     resubmit_form_item = help_menu.Append(wx.NewId(), "Registration Form")
     window.Bind(wx.EVT_MENU, lambda event: launch_registration_form(window), resubmit_form_item)
