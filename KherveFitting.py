@@ -3406,10 +3406,6 @@ class MyFrame(wx.Frame):
                 from libraries.Utilities import propagate_constraint
                 propagate_constraint(self, row, col)
                 return  # Skip the rest of the function
-            # elif new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
-            #     new_value = 'Fixed'
-            #     self.peak_params_grid.SetCellValue(row, col, new_value)
-            #     return
             elif new_value.lower() in ['fi', 'fix', 'fixe', 'fixed']:
                 print('It is a constraint row with "Fixed"')
                 new_value = 'Fixed'
@@ -3436,20 +3432,6 @@ class MyFrame(wx.Frame):
                 new_value = 'F*1'
                 self.peak_params_grid.SetCellValue(row, col, new_value)
                 return
-            # elif new_value.startswith('#'):
-            #     # Check if '#' is not followed by at least one digit
-            #     if len(new_value) == 1 or not new_value[1:].replace('.', '', 1).isdigit():
-            #         wx.MessageBox(f"Wrong Value entered", "Wrong Value",
-            #                       wx.OK | wx.ICON_ERROR)
-            #         event.Veto()  # Veto the event if '#' is on its own or not followed by a valid number
-            #         return
-            #
-            #     # If '#' is followed by a valid number, proceed with the calculation
-            #     peak_value = float(self.peak_params_grid.GetCellValue(row - 1, col))
-            #     new_value = str(round(peak_value - float(new_value[1:]), 2)) + ':' + str(
-            #         round(peak_value + float(new_value[1:]), 2))
-            #     self.peak_params_grid.SetCellValue(row, col, new_value)
-            #     return
             elif new_value.startswith('#'):
                 # Check if '#' is not followed by at least one digit
                 if len(new_value) == 1 or not new_value[1:].replace('.', '', 1).isdigit():
@@ -3518,7 +3500,7 @@ class MyFrame(wx.Frame):
                 elif col == 9:
                     new_value = "0.1:1"
                 self.peak_params_grid.SetCellValue(row, col, new_value)
-                return
+
 
             if match:
                 referenced_peak = match.group(1)
@@ -3950,50 +3932,6 @@ class MyFrame(wx.Frame):
 
                         # Refresh the display
                         on_sheet_selected(self, sheet_name)
-                    # elif col == 13:  # Fitting Model changed
-                    #     peaks[correct_peak_key]['Fitting Model'] = new_value
-                    #
-                    #     # Recalculate area with new model
-                    #     model = peaks[correct_peak_key]['Fitting Model']
-                    #     # Default values for empty cells
-                    #     height = float(
-                    #         self.peak_params_grid.GetCellValue(row, 3)) if self.peak_params_grid.GetCellValue(row,
-                    #                                                                                           3) else 1000.0
-                    #     fwhm = float(self.peak_params_grid.GetCellValue(row, 4)) if self.peak_params_grid.GetCellValue(
-                    #         row, 4) else 1.6
-                    #     fraction = float(
-                    #         self.peak_params_grid.GetCellValue(row, 5)) if self.peak_params_grid.GetCellValue(row,
-                    #                                                                                           5) else 20.0
-                    #     area = float(self.peak_params_grid.GetCellValue(row, 6)) if self.peak_params_grid.GetCellValue(
-                    #         row, 6) else 1000.0
-                    #     sigma = float(self.peak_params_grid.GetCellValue(row, 7)) if self.peak_params_grid.GetCellValue(
-                    #         row, 7) else 0.5
-                    #     gamma = float(self.peak_params_grid.GetCellValue(row, 8)) if self.peak_params_grid.GetCellValue(
-                    #         row, 8) else 0.5
-                    #     skew = float(self.peak_params_grid.GetCellValue(row, 9)) if self.peak_params_grid.GetCellValue(
-                    #         row, 9) else 0.1
-                    #
-                    #     # Set the values in the grid if they were empty
-                    #     if not self.peak_params_grid.GetCellValue(row, 3):
-                    #         self.peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
-                    #     if not self.peak_params_grid.GetCellValue(row, 4):
-                    #         self.peak_params_grid.SetCellValue(row, 4, f"{fwhm:.2f}")
-                    #     if not self.peak_params_grid.GetCellValue(row, 5):
-                    #         self.peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
-                    #     if not self.peak_params_grid.GetCellValue(row, 6):
-                    #         self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
-                    #     if not self.peak_params_grid.GetCellValue(row, 7):
-                    #         self.peak_params_grid.SetCellValue(row, 7, f"{sigma:.3f}")
-                    #     if not self.peak_params_grid.GetCellValue(row, 8):
-                    #         self.peak_params_grid.SetCellValue(row, 8, f"{gamma:.3f}")
-                    #     if not self.peak_params_grid.GetCellValue(row, 9):
-                    #         self.peak_params_grid.SetCellValue(row, 9, f"{skew:.3f}")
-                    #     area = self.calculate_peak_area(new_value, height, fwhm, fraction, sigma, gamma,skew)
-                    #
-                    #     self.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
-                    #     peaks[correct_peak_key]['Area'] = area
-                    #
-                    #     on_sheet_selected(self, sheet_name)
                 elif row % 2 == 1:  # Constraint rowelse:  # Constraint row
                     if col in [2, 3, 4, 5, 6, 7, 8, 9]:
                         constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
@@ -4005,23 +3943,6 @@ class MyFrame(wx.Frame):
 
                         # Always save the constraint value exactly as entered
                         peaks[correct_peak_key]['Constraints'][constraint_key] = new_value
-
-                        # Set default constraints if cell is empty
-                        # if not new_value:
-                        #     default_constraints = {
-                        #         'Position': '0:1000',
-                        #         'Height': '1:1e7',
-                        #         'FWHM': '0.3:3.5',
-                        #         'L/G': '5:80',
-                        #         'Area': '1:1e7',
-                        #         'Sigma': '0.3:4',
-                        #         'Gamma': '0.3:4',
-                        #         'Skew': '0.02:1'
-                        #     }
-                        #     new_value = default_constraints[col]
-                        #     self.peak_params_grid.SetCellValue(row, col, new_value)
-
-                        # peaks[correct_peak_key]['Constraints'][constraint_key] = new_value
 
             # Ensure numeric values are displayed with 2 decimal places
         if col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 0:  # Only for main parameter rows, not constraint rows
@@ -4165,15 +4086,6 @@ class MyFrame(wx.Frame):
                 self.peak_params_grid.SetCellValue(row, 7, f"{peak_data['Sigma']:.3f}")
                 self.peak_params_grid.SetCellValue(row, 8, f"{peak_data['Gamma']:.3f}")
                 self.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', 0.1):.3f}")
-                # if 'Constraints' in peak_data:
-                #     self.peak_params_grid.SetCellValue(row + 1, 2, str(peak_data['Constraints'].get('Position', '')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 3, str(peak_data['Constraints'].get('Height', '')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 4, str(peak_data['Constraints'].get('FWHM', '')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 5, str(peak_data['Constraints'].get('L/G', '')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 6, str(peak_data['Constraints'].get('Area', '')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 7, str(peak_data['Constraints'].get('Sigma', '0.3:4')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 8, str(peak_data['Constraints'].get('Gamma', '0.3:4')))
-                #     self.peak_params_grid.SetCellValue(row + 1, 9, str(peak_data['Constraints'].get('Skew', '0.1:1')))
                 if 'Constraints' in peak_data:
                     # Get min/max from current sheet's data
                     sheet_name = self.sheet_combobox.GetValue()
