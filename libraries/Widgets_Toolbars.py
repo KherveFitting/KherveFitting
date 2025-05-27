@@ -36,6 +36,15 @@ from libraries.Flappybird import main as flappybird_main
 from libraries.ChemistryLab import ChemistryLabGame
 
 
+def show_tetris_game(window):
+    """Launch the Tetris game"""
+    try:
+        from libraries.TetrisGame import Tetris
+        game = Tetris()
+        game.run()
+    except Exception as e:
+        print(f"Error launching Tetris game: {e}")
+
 def show_chemistry_lab_game(window):
     """Launch the Chemistry Lab game"""
     try:
@@ -639,6 +648,9 @@ def create_menu(window):
 
     solitaire_item = bored_menu.Append(wx.NewId(), "Kherve Solitaire")
     window.Bind(wx.EVT_MENU, lambda event: launch_solitaire(window), solitaire_item)
+
+    tetris_item = bored_menu.Append(wx.NewId(), "Kherve Tetris")
+    window.Bind(wx.EVT_MENU, lambda event: show_tetris_game(window), tetris_item)
 
     flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the Flappy Bird")
     window.Bind(wx.EVT_MENU, lambda event: show_flappybird_game(window), flappybird_item)
