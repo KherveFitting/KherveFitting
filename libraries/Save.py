@@ -1492,6 +1492,7 @@ def load_peaks_library(window):
     import json
     from libraries.Sheet_Operations import on_sheet_selected
     from libraries.Fitting_Screen import FittingWindow
+    import re
 
     with wx.FileDialog(window, "Load peaks library", wildcard="JSON files (*.json)|*.json",
                        defaultDir="Peaks Library", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
@@ -1506,15 +1507,86 @@ def load_peaks_library(window):
     source_sheet = list(peaks_data['Core levels'].keys())[0]
     source_data = peaks_data['Core levels'][source_sheet]
 
-    # Copy only fitting data
-    window.Data['Core levels'][sheet_name]['Fitting'] = source_data['Fitting']
+    # Check if there are existing peaks
+    existing_peaks = {}
+    existing_peak_count = 0
+    if ('Fitting' in window.Data['Core levels'][sheet_name] and
+            'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
+        existing_peaks = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        existing_peak_count = len(existing_peaks)
+
+    # Show choice dialog if there are existing peaks
+    if existing_peak_count > 0:
+        dialog = wx.MessageDialog(window,
+                                  f"Found {existing_peak_count} existing peaks.\n\nChoose action:",
+                                  "Load Peaks Library",
+                                  wx.YES_NO | wx.CANCEL)
+        dialog.SetYesNoLabels("&Overwrite existing peaks", "&Add after existing peaks")
+
+        result = dialog.ShowModal()
+        dialog.Destroy()
+
+        if result == wx.ID_CANCEL:
+            return
+
+        overwrite = (result == wx.ID_YES)
+    else:
+        overwrite = True  # No existing peaks, so just load
+
+    if overwrite:
+        # Original behavior - overwrite
+        window.Data['Core levels'][sheet_name]['Fitting'] = source_data['Fitting']
+    else:
+        # Add after existing peaks
+        if 'Fitting' not in window.Data['Core levels'][sheet_name]:
+            window.Data['Core levels'][sheet_name]['Fitting'] = {}
+        if 'Peaks' not in window.Data['Core levels'][sheet_name]['Fitting']:
+            window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
+
+        # Function to update constraint references
+        def update_constraint_references(constraint_str, offset):
+            if not constraint_str or constraint_str == 'Fixed':
+                return constraint_str
+
+            # Pattern to match peak references (A, B, C, etc.)
+            def replace_peak_ref(match):
+                peak_letter = match.group(1)
+                old_index = ord(peak_letter) - ord('A')
+                new_index = old_index + offset
+                new_letter = chr(ord('A') + new_index)
+                return match.group(0).replace(peak_letter, new_letter)
+
+            # Update references in expressions like "A*1.5", "B+2.3", etc.
+            updated = re.sub(r'\b([A-P])(?=[*+\-/])', replace_peak_ref, constraint_str)
+            # Update standalone references like "A", "B"
+            updated = re.sub(r'^([A-P])$', replace_peak_ref, updated)
+
+            return updated
+
+        # Copy library peaks with updated constraints
+        library_peaks = source_data['Fitting']['Peaks']
+        for peak_key, peak_data in library_peaks.items():
+            new_peak_data = peak_data.copy()
+
+            # Update constraints if they exist
+            if 'Constraints' in new_peak_data:
+                updated_constraints = {}
+                for constraint_key, constraint_value in new_peak_data['Constraints'].items():
+                    updated_constraints[constraint_key] = update_constraint_references(
+                        constraint_value, existing_peak_count)
+                new_peak_data['Constraints'] = updated_constraints
+
+            window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_key] = new_peak_data
+
+        # Update peak count
+        window.peak_count = len(window.Data['Core levels'][sheet_name]['Fitting']['Peaks'])
 
     # Update display
     on_sheet_selected(window, sheet_name)
 
     # Ensure `fitting_window` exists and call `on_background`
     if not hasattr(window, 'fitting_window') or window.fitting_window is None:
-        window.fitting_window = FittingWindow(parent=window)  # Initialize if necessary
+        window.fitting_window = FittingWindow(parent=window)
 
     bg_low = window.peak_params_grid.GetCellValue(0, 15)
     bg_high = window.peak_params_grid.GetCellValue(0, 16)
@@ -1526,10 +1598,6 @@ def load_peaks_library(window):
         x_values = window.Data['Core levels'][sheet_name]['B.E.']
         window.bg_min_energy = min(x_values) + 0.2
         window.bg_max_energy = max(x_values) - 0.2
-
-    # window.fitting_window.on_background(None)
-
-
 
 def save_peaks_to_github(window, filename):
     API_URL = "https://api.github.com/repos/KherveFitting/peaks-library/contents/peaks"

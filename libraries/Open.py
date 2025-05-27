@@ -1725,6 +1725,7 @@ def open_xlsx_file(window, file_path=None):
 
         # Look for corresponding .json file
         json_file = os.path.splitext(file_path)[0] + '.json'
+        json_data_loaded = False
         if os.path.exists(json_file):
             print(f"Found corresponding .json file: {json_file}")
             with open(json_file, 'r') as f:
@@ -1732,7 +1733,7 @@ def open_xlsx_file(window, file_path=None):
 
             # Convert data structure without changing types
             window.Data = convert_from_serializable(loaded_data)
-
+            json_data_loaded = True
             print("Loaded data from .json file")
 
             # Populate the results grid
@@ -1755,11 +1756,9 @@ def open_xlsx_file(window, file_path=None):
                 f"File contains invalid sheet names: {', '.join(invalid_sheets)}\n\nAll sheets must be named after "
                 f"their core level (e.g., C1s, O1s) using one word in proper format without spaces.",
                 "Invalid Sheet Names", wx.OK | wx.ICON_WARNING)
-
             return
 
         # Check first row values in each sheet
-        # Modify the column header check to accept both XPS and Raman formats
         for sheet_name in sheet_names:
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
             col1_value = str(df.iloc[0, 0]).strip().upper()
@@ -1795,40 +1794,92 @@ def open_xlsx_file(window, file_path=None):
         # Update file path
         window.Data['FilePath'] = file_path
 
-        # If we didn't load from json, populate the data from Excel
-        if 'Core levels' not in window.Data or not window.Data['Core levels']:
-            window.Data['Number of Core levels'] = 0
-            for sheet_name in sheet_names:
-                window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
+        # Create progress dialog
+        max_progress = len(sheet_names) + 4  # +4 for initialization, processing, BE correction, final setup
+        progress_dlg = wx.ProgressDialog(
+            "Loading Excel File",
+            "Initializing...",
+            maximum=max_progress,
+            parent=window,
+            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_CAN_ABORT
+        )
 
-        print(f"Final number of core levels: {window.Data['Number of Core levels']}")
+        try:
+            progress_count = 0
 
-        # Load BE correction
-        window.load_be_correction()
+            # Update for initialization
+            if not progress_dlg.Update(progress_count, "Initializing data structure..."):
+                return
+            wx.GetApp().Yield()
+            progress_count += 1
 
-        # Update sheet names in the combobox
-        window.sheet_combobox.Clear()
-        window.sheet_combobox.AppendItems(sheet_names)
+            # If we didn't load from json, populate the data from Excel
+            if not json_data_loaded and ('Core levels' not in window.Data or not window.Data['Core levels']):
+                window.Data['Number of Core levels'] = 0
+                for sheet_name in sheet_names:
+                    # Check if user cancelled
+                    if not progress_dlg.Update(progress_count, f"Loading sheet: {sheet_name}"):
+                        return
+                    wx.GetApp().Yield()
 
-        # Set the first sheet as the selected one
-        first_sheet = sheet_names[0]
-        window.sheet_combobox.SetValue(first_sheet)
+                    window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
+                    progress_count += 1
+            else:
+                # Skip sheet loading but update progress
+                progress_count += len(sheet_names)
+                if not progress_dlg.Update(progress_count, "Data loaded from JSON file..."):
+                    return
+                wx.GetApp().Yield()
 
-        # Use on_sheet_selected to update peak parameter grid and plot
-        event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
-        event.SetString(first_sheet)
-        window.plot_config.plot_limits.clear()
-        on_sheet_selected(window, event)
+            print(f"Final number of core levels: {window.Data['Number of Core levels']}")
 
-        # undo and redo
-        save_state(window)
+            # Update for BE correction
+            if not progress_dlg.Update(progress_count, "Loading BE corrections..."):
+                return
+            wx.GetApp().Yield()
+            window.load_be_correction()
+            progress_count += 1
 
-        # Update recent files list
-        update_recent_files(window, file_path)
+            # Update for UI setup
+            if not progress_dlg.Update(progress_count, "Setting up interface..."):
+                return
+            wx.GetApp().Yield()
 
-        if hasattr(window, 'setup_backup_timer'):
-            window.setup_backup_timer()
-            print("Auto backup timer checked/updated after file loaded")
+            # Update sheet names in the combobox
+            window.sheet_combobox.Clear()
+            window.sheet_combobox.AppendItems(sheet_names)
+
+            # Set the first sheet as the selected one
+            first_sheet = sheet_names[0]
+            window.sheet_combobox.SetValue(first_sheet)
+
+            # Use on_sheet_selected to update peak parameter grid and plot
+            event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
+            event.SetString(first_sheet)
+            window.plot_config.plot_limits.clear()
+            on_sheet_selected(window, event)
+            progress_count += 1
+
+            # Final setup
+            if not progress_dlg.Update(progress_count, "Finalizing..."):
+                return
+            wx.GetApp().Yield()
+
+            # undo and redo
+            save_state(window)
+
+            # Update recent files list
+            update_recent_files(window, file_path)
+
+            if hasattr(window, 'setup_backup_timer'):
+                window.setup_backup_timer()
+                print("Auto backup timer checked/updated after file loaded")
+
+            progress_dlg.Update(max_progress, "Complete!")
+            wx.GetApp().Yield()
+
+        finally:
+            progress_dlg.Destroy()
 
         # Refresh any open FileManager windows
         for top_window in wx.GetTopLevelWindows():
