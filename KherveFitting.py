@@ -66,6 +66,7 @@ from libraries.Update import UpdateChecker
 from libraries.PeakFittingGrid import PeakFittingGrid
 from libraries.PeakManipulation import PeakManipulation
 from libraries.On_Key_Defs import setup_key_handlers
+from libraries.On_Mouse_Defs import setup_mouse_handlers
 
 
 
@@ -345,11 +346,11 @@ class MyFrame(wx.Frame):
         set_consistent_fonts(self)
 
 
-        self.canvas.mpl_connect("button_press_event", self.on_click)
-        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-
-        self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
-        self.canvas.mpl_connect('button_press_event', self.on_right_click)
+        # self.canvas.mpl_connect("button_press_event", self.on_click)
+        # self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+        # self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
+        # self.canvas.mpl_connect('button_press_event', self.on_right_click)
+        self.mouse_handler = setup_mouse_handlers(self)
 
         # self.canvas.mpl_connect('key_press_event', self.on_key_press)
         # self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press_global)
@@ -359,7 +360,7 @@ class MyFrame(wx.Frame):
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.peak_fitting_grid.on_peak_params_cell_changed)
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_peak_params_right_click)
+        # self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_peak_params_right_click)
 
         self.Bind(wx.EVT_SIZE, self.on_window_resize)
 
@@ -676,8 +677,7 @@ class MyFrame(wx.Frame):
     def number_to_letter(n):
         return chr(65 + n)  # 65 is the ASCII value for 'A'
 
-    # --------------------------------------------------------------------------------------------------
-    # OPEN WINDOW --------------------------------------------------------------------------------------
+
     def on_open_background_window(self):
         if not hasattr(self, 'background_window') or not self.background_window:
             self.background_window = BackgroundWindow(self)
@@ -1361,15 +1361,7 @@ class MyFrame(wx.Frame):
 
     def is_mouse_on_peak(self, event):
         if self.selected_peak_index is not None:
-            '''
-            row = self.selected_peak_index * 2
-            x_peak = float(self.peak_params_grid.GetCellValue(row, 2))  # Position
-            y_peak = float(self.peak_params_grid.GetCellValue(row, 3))  # Height
-            bkg_y = self.background[np.argmin(np.abs(self.x_values - x_peak))]
-            y_peak += bkg_y
-            distance = np.sqrt((event.xdata - x_peak) ** 2 + (event.ydata - y_peak) ** 2)            
-            return distance < 3000  # Smaller tolerance for more precise detection
-            '''
+
             return True
         return False
 
@@ -1377,217 +1369,7 @@ class MyFrame(wx.Frame):
 
 
 
-    def on_mouse_move(self, event):
-        if event.inaxes:
-            x, y = event.xdata, event.ydata
-            if self.energy_scale == 'KE':
-                self.SetStatusText(f"KE: {x:.1f} eV, I: {int(y)} CPS", 1)
-                self.current_energy_value = x  # Store current KE value
-            else:
-                self.SetStatusText(f"BE: {x:.1f} eV, I: {int(y)} CPS", 1)
-                self.current_energy_value = x  # Store current BE value
 
-    def on_click(self, event):
-        if event.inaxes:
-            x_click = event.xdata
-            if event.button == 1 and event.key == 'shift' and self.background_tab_selected:
-                # Store current motion handler if it exists
-                self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                self.button_release_id = self.canvas.mpl_connect('button_release_event', self.on_release)
-
-                x_click = event.xdata
-                sheet_name = self.sheet_combobox.GetValue()
-                if self.vline1 is not None and self.vline2 is not None:
-                    vline1_x = self.vline1.get_xdata()[0]
-                    vline2_x = self.vline2.get_xdata()[0]
-
-                    # Determine which vline is at low/high BE
-                    low_be_x = min(vline1_x, vline2_x)
-                    high_be_x = max(vline1_x, vline2_x)
-
-                    dist1 = abs(x_click - vline1_x)
-                    dist2 = abs(x_click - vline2_x)
-
-                    if dist1 < dist2:  # Closer to vline1
-                        raw_y = self.y_values[np.argmin(np.abs(self.x_values - vline1_x))]
-                        if vline1_x == low_be_x:
-                            self.offset_l = event.ydata - raw_y
-                            self.Data['Core levels'][sheet_name]['Background']['Bkg Offset Low'] = self.offset_l
-                            self.fitting_window.offset_l_text.SetValue(f'{self.offset_l:.1f}')
-                        else:
-                            self.offset_h = event.ydata - raw_y
-                            self.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.offset_h
-                            self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
-                    else:  # Closer to vline2
-                        raw_y = self.y_values[np.argmin(np.abs(self.x_values - vline2_x))]
-                        if vline2_x == low_be_x:
-                            self.offset_l = event.ydata - raw_y
-                            self.Data['Core levels'][sheet_name]['Background']['Bkg Offset Low'] = self.offset_l
-                            self.fitting_window.offset_l_text.SetValue(f'{self.offset_l:.1f}')
-                        else:
-                            self.offset_h = event.ydata - raw_y
-                            self.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.offset_h
-                            self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
-                    self.plot_manager.plot_background(self)
-                    return
-            elif event.button == 1:  # Left click
-                if event.key == 'shift':  # SHIFT + left click
-                    if self.peak_fitting_tab_selected and self.selected_peak_index is not None:
-                        row = self.selected_peak_index * 2  # Each peak uses two rows in the grid
-                        self.initial_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))  # FWHM
-                        self.initial_x = event.xdata
-                        self.motion_cid = self.canvas.mpl_connect('motion_notify_event',
-                                                                  self.peak_manipulation.on_cross_drag)
-                        self.release_cid = self.canvas.mpl_connect('button_release_event',
-                                                                   self.peak_manipulation.on_cross_release)
-                elif self.background_tab_selected:  # Left click and background tab selected
-                    self.peak_manipulation.deselect_all_peaks()
-                    sheet_name = self.sheet_combobox.GetValue()
-                    if sheet_name in self.Data['Core levels']:
-                        core_level_data = self.Data['Core levels'][sheet_name]
-                        if self.background_method == "Multi-Regions Smart":
-                            # Check if click is close to vline1 or vline2
-                            if self.vline1 is not None and self.vline2 is not None:
-                                vline1_x = self.vline1.get_xdata()[0]
-                                vline2_x = self.vline2.get_xdata()[0]
-
-                                dist1 = abs(x_click - vline1_x)
-                                dist2 = abs(x_click - vline2_x)
-
-                                if dist1 < dist2 and dist1 < self.some_threshold:
-                                    self.moving_vline = self.vline1
-                                elif dist2 < self.some_threshold:
-                                    self.moving_vline = self.vline2
-                                else:
-                                    self.moving_vline = None
-
-                                if self.moving_vline is not None:
-                                    self.motion_cid = self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                                    self.release_cid = self.canvas.mpl_connect('button_release_event', self.on_release)
-                                    return  # Exit to avoid creating new vlines
-
-                        # Existing vline creation logic
-                        if self.vline1 is None:
-                            self.vline1 = self.ax.axvline(x_click, color='r', linestyle='--')
-                            core_level_data['Background']['Bkg Low'] = float(x_click)
-                        elif self.vline2 is None and abs(
-                                x_click - core_level_data['Background']['Bkg Low']) > self.some_threshold:
-                            self.vline2 = self.ax.axvline(x_click, color='r', linestyle='--')
-                            core_level_data['Background']['Bkg High'] = float(x_click)
-                            core_level_data['Background']['Bkg Low'], core_level_data['Background'][
-                                'Bkg High'] = sorted([
-                                core_level_data['Background']['Bkg Low'],
-                                core_level_data['Background']['Bkg High']
-                            ])
-                        else:
-                            self.moving_vline = self.vline1 if self.vline2 is None or abs(
-                                x_click - core_level_data['Background']['Bkg Low']) < abs(
-                                x_click - core_level_data['Background']['Bkg High']) else self.vline2
-                            self.motion_cid = self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                            self.release_cid = self.canvas.mpl_connect('button_release_event', self.on_release)
-                elif self.noise_tab_selected:
-                    if self.vline3 is None:
-                        self.vline3 = self.ax.axvline(x_click, color='b', linestyle='--')
-                        self.noise_min_energy = float(x_click)
-                    elif self.vline4 is None and abs(x_click - self.noise_min_energy) > self.some_threshold:
-                        self.vline4 = self.ax.axvline(x_click, color='b', linestyle='--')
-                        self.noise_max_energy = float(x_click)
-                        self.noise_min_energy, self.noise_max_energy = sorted(
-                            [self.noise_min_energy, self.noise_max_energy])
-                    else:
-                        self.moving_vline = self.vline3 if self.vline4 is None or abs(
-                            x_click - self.noise_min_energy) < abs(
-                            x_click - self.noise_max_energy) else self.vline4
-                        self.motion_cid = self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                        self.release_cid = self.canvas.mpl_connect('button_release_event', self.on_release)
-                elif self.peak_fitting_tab_selected:  # Only allow peak selection when peak fitting tab is selected
-                    peak_index = self.peak_manipulation.get_peak_index_from_position(event.xdata, event.ydata)
-                    if peak_index is not None:
-                        self.selected_peak_index = peak_index
-                        self.motion_cid = self.canvas.mpl_connect('motion_notify_event',
-                                                                  self.peak_manipulation.on_cross_drag)
-                        self.release_cid = self.canvas.mpl_connect('button_release_event',
-                                                                   self.peak_manipulation.on_cross_release)
-                        self.peak_manipulation.highlight_selected_peak()
-                    else:
-                        self.peak_manipulation.deselect_all_peaks()
-                else:
-                    self.peak_manipulation.deselect_all_peaks()
-
-            self.show_hide_vlines()
-            self.canvas.draw()
-
-    def on_mouse_wheel(self, event):
-        # Check if shift is currently pressed based on event.key
-        shift_currently_pressed = event.key == 'shift'
-
-        # Update the shift_key_pressed flag based on the current event
-        if shift_currently_pressed:
-            self.shift_key_pressed = True
-        else:
-            self.shift_key_pressed = False
-
-        # Handle SHIFT + wheel for peak width adjustment
-        if self.shift_key_pressed and self.selected_peak_index is not None and self.peak_fitting_tab_selected:
-            save_state(self)
-            delta = 0.05 if event.step > 0 else -0.05
-            row = self.selected_peak_index * 2
-            fitting_model = self.peak_params_grid.GetCellValue(row, 13)
-
-            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
-                                 "Voigt (Area, L/G, \u03c3, S)"]:
-                # For Voigt models, adjust sigma (W_g) directly
-                current_sigma = float(self.peak_params_grid.GetCellValue(row, 7))
-                new_sigma = max(current_sigma + delta, 0.2)  # Ensure minimum sigma
-
-                # Update sigma
-                self.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
-
-                # Get L/G ratio and recalculate gamma (W_l) based on it
-                lg_ratio = float(self.peak_params_grid.GetCellValue(row, 5))
-                new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
-                self.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
-
-                # Update FWHM for consistency (optional)
-                # new_fwhm = 2.355 * new_sigma  # Gaussian FWHM approximation
-                # self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
-            else:
-                # Get current FWHM directly from grid
-                current_fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
-                new_fwhm = max(current_fwhm + delta, 0.3)  # Ensure minimum FWHM of 0.3 eV
-
-                # Update peak FWHM
-                self.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
-
-            # Recalculate area
-            self.recalculate_peak_area(self.selected_peak_index)
-
-            # Update linked peaks
-            self.update_linked_fwhm_recursive(self.selected_peak_index,
-                                              new_sigma if fitting_model.startswith("Voigt") else new_fwhm)
-
-            # Redraw everything with updated peak info
-            self.clear_and_replot()
-            self.peak_manipulation.highlight_selected_peak()
-
-        elif not self.shift_key_pressed:
-            # Get current sheet index
-            current_index = self.sheet_combobox.GetSelection()
-            num_sheets = self.sheet_combobox.GetCount()
-
-            # Calculate new index based on scroll direction
-            if event.step > 0:  # Scroll up
-                new_index = (current_index - 1) % num_sheets
-            else:  # Scroll down
-                new_index = (current_index + 1) % num_sheets
-
-            # Set new selection and update
-            if num_sheets > 0:
-                self.sheet_combobox.SetSelection(new_index)
-                new_sheet = self.sheet_combobox.GetString(new_index)
-                from libraries.Sheet_Operations import on_sheet_selected
-                on_sheet_selected(self, new_sheet)
-        return
 
 
 
@@ -1641,141 +1423,7 @@ class MyFrame(wx.Frame):
 
 
 
-    def on_motion(self, event):
-        if event.button == 1 and event.key == 'shift' and self.background_tab_selected:
-            # print('ON MOTION')
-            x_click = event.xdata
-            sheet_name = self.sheet_combobox.GetValue()
-            if self.vline1 is not None and self.vline2 is not None:
-                vline1_x = self.vline1.get_xdata()[0]
-                vline2_x = self.vline2.get_xdata()[0]
 
-                # Determine which vline is at low/high BE
-                low_be_x = min(vline1_x, vline2_x)
-                high_be_x = max(vline1_x, vline2_x)
-
-                dist1 = abs(x_click - vline1_x)
-                dist2 = abs(x_click - vline2_x)
-
-                if dist1 < dist2:  # Closer to vline1
-                    raw_y = self.y_values[np.argmin(np.abs(self.x_values - vline1_x))]
-                    if vline1_x == low_be_x:
-                        self.offset_l = event.ydata - raw_y
-                        self.Data['Core levels'][sheet_name]['Background']['Bkg Offset Low'] = self.offset_l
-                        self.fitting_window.offset_l_text.SetValue(f'{self.offset_l:.1f}')
-                    else:
-                        self.offset_h = event.ydata - raw_y
-                        self.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.offset_h
-                        self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
-                else:  # Closer to vline2
-                    raw_y = self.y_values[np.argmin(np.abs(self.x_values - vline2_x))]
-                    if vline2_x == low_be_x:
-                        self.offset_l = event.ydata - raw_y
-                        self.Data['Core levels'][sheet_name]['Background']['Bkg Offset Low'] = self.offset_l
-                        self.fitting_window.offset_l_text.SetValue(f'{self.offset_l:.1f}')
-                    else:
-                        self.offset_h = event.ydata - raw_y
-                        self.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.offset_h
-                        self.fitting_window.offset_h_text.SetValue(f'{self.offset_h:.1f}')
-
-                self.plot_manager.plot_background(self)
-        elif event.inaxes and self.moving_vline is not None:
-            x_click = event.xdata
-            self.moving_vline.set_xdata([x_click])
-
-            sheet_name = self.sheet_combobox.GetValue()
-            if sheet_name in self.Data['Core levels']:
-                core_level_data = self.Data['Core levels'][sheet_name]
-
-                if self.moving_vline in [self.vline1, self.vline2]:
-                    if self.moving_vline == self.vline1:
-                        core_level_data['Background']['Bkg Low'] = float(x_click)
-                    else:
-                        core_level_data['Background']['Bkg High'] = float(x_click)
-
-                    # Ensure Bkg Low is always less than Bkg High
-                    bkg_low = core_level_data['Background']['Bkg Low']
-                    bkg_high = core_level_data['Background']['Bkg High']
-                    core_level_data['Background']['Bkg Low'] = min(bkg_low, bkg_high)
-                    core_level_data['Background']['Bkg High'] = max(bkg_low, bkg_high)
-
-                    # If in Adaptive Smart mode, update the background in real-time
-                    if self.background_method == "Multi-Regions Smart":
-                        # plot_background(self)
-                        pass
-
-                elif self.moving_vline in [self.vline3, self.vline4]:
-                    if self.moving_vline == self.vline3:
-                        self.noise_min_energy = float(x_click)
-                    else:
-                        self.noise_max_energy = float(x_click)
-
-                    # Ensure noise_min_energy is always less than noise_max_energy
-                    self.noise_min_energy, self.noise_max_energy = sorted(
-                        [self.noise_min_energy, self.noise_max_energy])
-
-            self.canvas.draw_idle()
-
-    def on_release(self, event):
-        if self.moving_vline is not None:
-            # Disconnect motion handler when mouse is released
-            if hasattr(self, 'motion_notify_id'):
-                self.canvas.mpl_disconnect(self.motion_notify_id)
-                delattr(self, 'motion_notify_id')
-            if hasattr(self, 'button_release_id'):
-                self.canvas.mpl_disconnect(self.button_release_id)
-                delattr(self, 'button_release_id')
-
-            # self.canvas.mpl_disconnect(self.motion_cid)
-            # self.canvas.mpl_disconnect(self.release_cid)
-            self.moving_vline = None
-
-            # Ensure the background range is correctly ordered in the data dictionary
-            sheet_name = self.sheet_combobox.GetValue()
-            if sheet_name in self.Data['Core levels']:
-                core_level_data = self.Data['Core levels'][sheet_name]
-                if 'Background' in core_level_data:
-                    bg_low = core_level_data['Background'].get('Bkg Low')
-                    bg_high = core_level_data['Background'].get('Bkg High')
-                    if bg_low is not None and bg_high is not None:
-                        core_level_data['Background']['Bkg Low'] = min(bg_low, bg_high)
-                        core_level_data['Background']['Bkg High'] = max(bg_low, bg_high)
-
-            # If in Adaptive Smart mode, update the background
-            if self.background_method == "Multi-Regions Smart":
-                # plot_background(self)
-                pass
-        # If a peak is being moved, update its position and height
-        if self.selected_peak_index is not None:
-            row = self.selected_peak_index * 2  # Each peak uses two rows in the grid
-            peak_x = float(self.peak_params_grid.GetCellValue(row, 2))  # Position
-            peak_y = float(self.peak_params_grid.GetCellValue(row, 3))  # Height
-            self.update_peak_plot(peak_x, peak_y, remove_old_peaks=False)
-
-            # Update the peak information in the data dictionary
-            sheet_name = self.sheet_combobox.GetValue()
-            if sheet_name in self.Data['Core levels']:
-                core_level_data = self.Data['Core levels'][sheet_name]
-                if 'Fitting' not in core_level_data:
-                    core_level_data['Fitting'] = {}
-                if 'Peaks' not in core_level_data['Fitting']:
-                    core_level_data['Fitting']['Peaks'] = {}
-
-                peak_label = self.peak_params_grid.GetCellValue(row, 1)
-
-                core_level_data['Fitting']['Peaks'][peak_label] = {
-                    'Position': peak_x,
-                    'Height': peak_y,
-                    'FWHM': self.try_float(self.peak_params_grid.GetCellValue(row, 4), 1.6),
-                    'L/G': self.try_float(self.peak_params_grid.GetCellValue(row, 5), 20.0),
-                    'Area': self.try_float(self.peak_params_grid.GetCellValue(row, 6), 0.0),
-                    'Sigma': self.try_float(self.peak_params_grid.GetCellValue(row, 7), 0.5),
-                    'Gamma': self.try_float(self.peak_params_grid.GetCellValue(row, 8), 0.5),
-                    'Skew': self.try_float(self.peak_params_grid.GetCellValue(row, 9), 0.1)
-                }
-
-        self.selected_peak_index = None
-        self.canvas.draw_idle()
 
     def on_vline_drag(self, event):
         if event.inaxes and self.active_vline is not None:
@@ -1792,101 +1440,6 @@ class MyFrame(wx.Frame):
             if self.background_method == "Multi-Regions Smart":
                 self.plot_manager.plot_background(self)
 
-    def on_right_click(self, event):
-        if event.button == 3:  # Right click
-            import os
-            import tempfile
-            from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters, copy_core_level, \
-                paste_core_level
-
-            menu = wx.Menu()
-            zoom_in = menu.Append(-1, "Zoom In")
-            zoom_out = menu.Append(-1, "Zoom Out")
-            drag = menu.Append(-1, "Drag")
-
-            menu.AppendSeparator()
-
-            copy = menu.Append(-1, "Copy Core Level")
-            paste = menu.Append(-1, "Paste Core Level")
-
-            # Check clipboard files
-            clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
-            has_clipboard_data = os.path.exists(clipboard_file)
-
-            menu.AppendSeparator()
-
-            copy_peak_table = menu.Append(-1, "Copy Peak Table")
-            paste_peak_table = menu.Append(-1, "Paste Peak Table")
-            peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
-
-            has_peak_clipboard_data = os.path.exists(peak_clipboard_file)
-            has_rows = self.peak_params_grid.GetNumberRows() > 0
-
-            paste.Enable(has_clipboard_data)
-            paste_peak_table.Enable(has_peak_clipboard_data)
-            copy_peak_table.Enable(has_rows)
-
-            self.Bind(wx.EVT_MENU, self.on_zoom_in_tool, zoom_in)
-            self.Bind(wx.EVT_MENU, self.on_zoom_out, zoom_out)
-            self.Bind(wx.EVT_MENU, self.on_drag_tool, drag)
-            self.Bind(wx.EVT_MENU, lambda evt: copy_core_level(self), copy)
-            self.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self), paste)
-            self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_peak_table)
-            self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_peak_table)
-
-            self.PopupMenu(menu)
-            menu.Destroy()
-
-    # In KherveFitting.py:
-
-    def on_peak_params_right_click(self, event):
-        import tempfile
-        row = event.GetRow()
-        col = event.GetCol()
-
-        menu = wx.Menu()
-        copy_item = menu.Append(wx.ID_ANY, "Copy Peak Table")
-        paste_item = menu.Append(wx.ID_ANY, "Paste Peak Table")
-
-        # Add separator and propagate option
-        menu.AppendSeparator()
-
-        # Create dynamic propagate text
-        propagate_text = "Propagate to column"
-        if col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1:
-            # Get the peak letter from the parameter row
-            param_row = row - 1
-            peak_letter = self.peak_params_grid.GetCellValue(param_row, 0)
-
-            # Map column to parameter name
-            col_names = {
-                2: "Positions", 3: "Heights", 4: "FWHMs", 5: "L/G ratios",
-                6: "Areas", 7: "Sigmas", 8: "Gammas", 9: "Skews"
-            }
-
-            param_name = col_names.get(col, "values")
-            propagate_text = f"Propagate {param_name} to {peak_letter}"
-
-        propagate_item = menu.Append(wx.ID_ANY, propagate_text)
-
-        # Rest of the method remains the same...
-        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
-        has_clipboard_data = os.path.exists(clipboard_file)
-        has_rows = self.peak_params_grid.GetNumberRows() > 0
-
-        copy_item.Enable(has_rows)
-        paste_item.Enable(has_clipboard_data)
-        propagate_item.Enable(col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1)
-
-        from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters
-        from libraries.Utilities import propagate_constraint
-
-        self.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self), copy_item)
-        self.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self), paste_item)
-        self.Bind(wx.EVT_MENU, lambda evt: propagate_constraint(self, row, col), propagate_item)
-
-        self.peak_params_grid.PopupMenu(menu, event.GetPosition())
-        menu.Destroy()
 
     def on_zoom_in_tool(self, event):
         self.plot_config.on_zoom_in_tool(self)
