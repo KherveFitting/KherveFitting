@@ -513,6 +513,41 @@ def save_modified_data(self, x, y, sheet_name, operation_type):
     existing_sheets = wb.sheetnames
     sheet_name = get_unique_sheet_name(sheet_name, existing_sheets)
 
+def propagate_fwhm_difference(window, row, col):
+    """Propagate FWHM differences from reference peak to all other peaks"""
+    # Save state
+    from libraries.Save import save_state
+    save_state(window)
+
+    if col != 4 or row % 2 != 1:  # Only for FWHM constraint rows
+        return
+
+    param_row = row - 1
+    ref_peak_letter = window.peak_params_grid.GetCellValue(param_row, 0)
+    ref_peak_index = ord(ref_peak_letter) - 65
+    ref_fwhm = float(window.peak_params_grid.GetCellValue(ref_peak_index * 2, 4))
+
+    num_peaks = window.peak_params_grid.GetNumberRows() // 2
+
+    for i in range(num_peaks):
+        if i != ref_peak_index:  # Skip the reference peak itself
+            param_row_i = i * 2
+            constraint_row_i = i * 2 + 1
+            current_fwhm = float(window.peak_params_grid.GetCellValue(param_row_i, 4))
+
+            # Calculate difference
+            difference = current_fwhm - ref_fwhm
+
+            # Create constraint string: B+0.4#0.1 or B-0.2#0.1
+            if difference >= 0:
+                constraint_str = f"{ref_peak_letter}+{difference:.2f}#0.1"
+            else:
+                constraint_str = f"{ref_peak_letter}{difference:.2f}#0.1"  # difference is already negative
+
+            window.peak_params_grid.SetCellValue(constraint_row_i, col, constraint_str)
+
+    window.peak_params_grid.ForceRefresh()
+
 def propagate_constraint(window, row, col):
     """Propagate the constraint in the selected cell to all other peaks in the same column"""
     if row % 2 != 1 or col not in [2, 3, 4, 5, 6, 7, 8, 9]:
