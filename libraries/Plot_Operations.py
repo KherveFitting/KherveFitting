@@ -17,13 +17,24 @@ from scipy.ndimage import gaussian_filter
 from libraries.Peak_Functions import PeakFunctions, BackgroundCalculations, OtherCalc
 
 from libraries.Save import save_state
+from libraries.PeakManipulation import PeakManipulation
 
 
 class PlotManager:
-    def __init__(self, ax, canvas):
+    def __init__(self, ax, canvas, window=None):
+
+        self.peak_manipulation = PeakManipulation(window)
+
         self.ax = ax
         self.canvas = canvas
-        self.figure = ax.figure # Add this line
+        self.figure = ax.figure
+        self.window = window
+
+        if window:
+            self.peak_manipulation = PeakManipulation(window)
+        else:
+            self.peak_manipulation = None
+
         self.cross = None
         self.peak_letter = None
         self.peak_info = None
@@ -1551,7 +1562,7 @@ class PlotManager:
             # window.plot_manager.add_cross_to_peak(window, window.selected_peak_index)
 
             # Add this line to update the displayed FWHM
-            self.highlight_selected_peak()
+            self.peak_manipulation.highlight_selected_peak()
 
             # Redraw the canvas
             window.canvas.draw_idle()
@@ -1625,7 +1636,7 @@ class PlotManager:
 
             self.canvas.mpl_disconnect('motion_notify_event')
             self.canvas.mpl_disconnect('button_release_event')
-            self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
+            self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.peak_mon_cross_drag)
             self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
 
             self.canvas.draw_idle()
@@ -1698,8 +1709,8 @@ class PlotManager:
             # Update event connections
             self.canvas.mpl_disconnect('motion_notify_event')
             self.canvas.mpl_disconnect('button_release_event')
-            self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.on_cross_drag)
-            self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
+            self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', self.peak_manipulation.on_cross_drag)
+            self.button_release_id = self.canvas.mpl_connect('button_release_event', self.peak_manipulation.on_cross_release)
 
             # Only redraw if not dragging to avoid frequent redraws
             if not skip_fwhm_calc:

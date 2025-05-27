@@ -4,6 +4,7 @@ import wx
 import wx.grid
 import numpy as np
 from libraries.Peak_Functions import OtherCalc
+from libraries.PeakManipulation import PeakManipulation
 
 from libraries.Utilities import _clear_peak_params_grid
 # from libraries.Sheet_Operations import CheckboxRenderer
@@ -42,7 +43,7 @@ def on_sheet_selected(window, event):
         window.bg_min_energy = None
         window.bg_max_energy = None
 
-        window.remove_cross_from_peak()
+        window.peak_manipulation.remove_cross_from_peak()
 
         # Reset RSD value
         if 'fit_results' in window.__dict__:

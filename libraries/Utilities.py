@@ -632,7 +632,7 @@ def propagate_constraint(window, row, col):
                 peak_data['Constraints'] = {}
             peak_data['Constraints'][constraint_name] = constraint_value
 
-    window.refresh_peak_params_grid()
+    window.peak_params_grid.refresh_peak_params_grid()
     window.clear_and_replot()
 
 class CropWindow(wx.Frame):

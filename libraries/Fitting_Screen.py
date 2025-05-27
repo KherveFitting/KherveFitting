@@ -79,7 +79,7 @@ class FittingWindow(wx.Frame):
         self.parent.background_tab_selected = True
         self.parent.peak_fitting_tab_selected = False
         self.parent.show_hide_vlines()
-        self.parent.deselect_all_peaks()
+        self.parent.peak_manipulation.deselect_all_peaks()
 
 
 
@@ -650,7 +650,7 @@ class FittingWindow(wx.Frame):
         if "----" in current_model:
             self.parent.show_popup_message("Please select a valid peak model.")
             return
-        self.parent.add_peak_params()
+        self.parent.peak_fitting_grid.add_peak_params()
 
     def on_remove_peak(self, event):
         save_state(self.parent)
@@ -750,10 +750,10 @@ class FittingWindow(wx.Frame):
         element = re.match(r'([A-Z][a-z]*)', element_orbital).group(1)
 
         if orbital[-1] == 's':
-            self.parent.add_peak_params()
+            self.parent.peak_fitting_grid.add_peak_params()
         else:
-            first_peak = self.parent.add_peak_params()
-            second_peak = self.parent.add_peak_params()
+            first_peak = self.parent.peak_fitting_grid.add_peak_params()
+            second_peak = self.parent.peak_fitting_grid.add_peak_params()
 
             self.parent.peak_fill_types[second_peak] = self.parent.peak_fill_types[first_peak]
             self.parent.peak_hatch_patterns[second_peak] = self.parent.peak_hatch_patterns[first_peak]
@@ -1019,7 +1019,7 @@ class FittingWindow(wx.Frame):
             self.parent.disable_background_interaction()
 
         if not self.parent.peak_fitting_tab_selected:
-            self.parent.deselect_all_peaks()
+            self.parent.peak_manipulation.deselect_all_peaks()
 
         event.Skip()
 
@@ -1027,7 +1027,7 @@ class FittingWindow(wx.Frame):
         self.parent.background_tab_selected = False
         self.parent.peak_fitting_tab_selected = False
         self.parent.show_hide_vlines()
-        self.parent.deselect_all_peaks()
+        self.parent.peak_manipulation.deselect_all_peaks()
         self.Destroy()
 
     def parse_cross_section(self, text):

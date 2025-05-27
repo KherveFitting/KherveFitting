@@ -2868,16 +2868,21 @@ class FileManagerWindow(wx.Frame):
             if cell_value and cell_value in self.parent.Data['Core levels']:
                 sheets_in_row.append(cell_value)
 
+        # Handle empty row case
         if not sheets_in_row:
-            self.parent.show_popup_message2("Information", f"No core levels found in row {target_row}")
-            return
-
-        # Confirm deletion
-        if wx.MessageBox(f"Delete all {len(sheets_in_row)} core level(s) in row {target_row}?\n"
-                         f"This will decrement all higher row numbers.\n\n"
-                         f"Sheets to delete: {', '.join(sheets_in_row)}",
-                         "Confirm Delete Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
-            return
+            if wx.MessageBox(f"Delete empty row {target_row}?\n"
+                             f"This will decrement all higher row numbers.",
+                             "Confirm Delete Empty Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+                return
+            sheets_to_delete = set()
+        else:
+            # Confirm deletion for non-empty row
+            if wx.MessageBox(f"Delete all {len(sheets_in_row)} core level(s) in row {target_row}?\n"
+                             f"This will decrement all higher row numbers.\n\n"
+                             f"Sheets to delete: {', '.join(sheets_in_row)}",
+                             "Confirm Delete Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+                return
+            sheets_to_delete = set(sheets_in_row)
 
         # Backup before operation
         from libraries.Utilities import perform_auto_backup
@@ -2885,7 +2890,6 @@ class FileManagerWindow(wx.Frame):
 
         # Get all core levels and identify sheets to rename
         sheets_to_rename = []
-        sheets_to_delete = set(sheets_in_row)
 
         for sheet_name in list(self.parent.Data['Core levels'].keys()):
             # Handle Raman files with underscore
@@ -2928,7 +2932,7 @@ class FileManagerWindow(wx.Frame):
                     df = pd.read_excel(file_path, sheet_name=sheet_name)
                     data_frames[sheet_name] = df
 
-            # Delete sheets from Data structure
+            # Delete sheets from Data structure (only if row wasn't empty)
             for sheet_name in sheets_to_delete:
                 if sheet_name in self.parent.Data['Core levels']:
                     del self.parent.Data['Core levels'][sheet_name]
@@ -3019,8 +3023,13 @@ class FileManagerWindow(wx.Frame):
             # Refresh grid
             self.populate_grid()
 
-            self.parent.show_popup_message2("Success", f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
-                                                       f"{len(sheets_to_rename)} sheets renumbered.")
+            if sheets_to_delete:
+                self.parent.show_popup_message2("Success",
+                                                f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
+                                                f"{len(sheets_to_rename)} sheets renumbered.")
+            else:
+                self.parent.show_popup_message2("Success", f"Deleted empty row {target_row}. "
+                                                           f"{len(sheets_to_rename)} sheets renumbered.")
 
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error deleting row: {str(e)}")
