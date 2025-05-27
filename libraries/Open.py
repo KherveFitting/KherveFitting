@@ -1681,7 +1681,7 @@ def import_multiple_avg_files(window):
     except Exception as e:
         wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-def open_xlsx_file(window, file_path=None):
+def open_xlsx_file_OLD(window, file_path=None):
     """
     Opens an Excel file, loads its data, and updates the application's state accordingly.
     If a corresponding JSON file exists, it loads data from there instead.
@@ -1948,6 +1948,161 @@ def open_xlsx_file(window, file_path=None):
         traceback.print_exc()
         wx.MessageBox(f"Error reading file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+
+def open_xlsx_file(window, file_path=None):
+    if file_path is None:
+        with wx.FileDialog(window, "Open XLSX file", wildcard="Excel files (*.xlsx)|*.xlsx",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                file_path = dlg.GetPath()
+            else:
+                return
+
+    # Store file manager state
+    file_manager_was_open = False
+    file_manager_position = None
+    try:
+        if hasattr(window, 'file_manager') and window.file_manager is not None and window.file_manager.IsShown():
+            file_manager_was_open = True
+            file_manager_position = window.file_manager.GetPosition()
+            window.file_manager.Close()
+            window.file_manager = None
+    except RuntimeError:
+        window.file_manager = None
+
+    try:
+        # Create console window centered on parent
+        parent_pos = window.GetPosition()
+        parent_size = window.GetSize()
+        console_frame = wx.Frame(window, title="Loading Excel File", size=(500, 400))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 500) // 2,
+            parent_pos.y + (parent_size.height - 400) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        update_console("Initializing...")
+        window.SetStatusText(f"Selected File: {file_path}", 0)
+
+        # Clear history and results
+        window.history = []
+        window.redo_stack = []
+        update_undo_redo_state(window)
+        window.results_grid.ClearGrid()
+        if window.results_grid.GetNumberRows() > 0:
+            window.results_grid.DeleteRows(0, window.results_grid.GetNumberRows())
+
+        # Check for JSON file
+        json_file = os.path.splitext(file_path)[0] + '.json'
+        json_data_loaded = False
+        if os.path.exists(json_file):
+            update_console("Found corresponding JSON file - loading saved data...")
+            with open(json_file, 'r') as f:
+                loaded_data = json.load(f)
+            window.Data = convert_from_serializable(loaded_data)
+            json_data_loaded = True
+            populate_results_grid(window)
+        else:
+            update_console("Initializing new data structure...")
+            window.Data = Init_Measurement_Data(window)
+
+        # Read Excel file
+        update_console("Reading Excel file structure...")
+        excel_file = pd.ExcelFile(file_path)
+        all_sheet_names = excel_file.sheet_names
+        sheet_names = [name for name in all_sheet_names if
+                       name.lower() not in ["results table", "experimental description"]]
+
+        # Validation
+        invalid_sheets = [name for name in sheet_names if name.startswith('Sheet')]
+        if invalid_sheets:
+            console_frame.Close()
+            wx.MessageBox(f"File contains invalid sheet names: {', '.join(invalid_sheets)}", "Invalid Sheet Names",
+                          wx.OK | wx.ICON_WARNING)
+            return
+
+        for sheet_name in sheet_names:
+            df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+            col1_value = str(df.iloc[0, 0]).strip().upper()
+            col2_value = str(df.iloc[0, 1]).strip().upper()
+
+            xps_valid = ('BE' in col1_value or 'BINDING' in col1_value) and \
+                        ('RAW DATA' in col2_value or 'CORRECTED DATA' in col2_value or 'INTENSITY' in col2_value)
+            raman_valid = ('WAVENUMBER' in col1_value or 'CM-1' in col1_value) and \
+                          ('RAW DATA' in col2_value or 'INTENSITY' in col2_value)
+
+            if not (xps_valid or raman_valid):
+                console_frame.Close()
+                wx.MessageBox(f"Sheet '{sheet_name}' has invalid column labels", "Invalid Column Labels",
+                              wx.OK | wx.ICON_WARNING)
+                return
+
+        window.Data['FilePath'] = file_path
+        update_console(f"Found {len(sheet_names)} sheets to process...")
+
+        # Load core level data
+        if not json_data_loaded and ('Core levels' not in window.Data or not window.Data['Core levels']):
+            window.Data['Number of Core levels'] = 0
+            for i, sheet_name in enumerate(sheet_names, 1):
+                update_console(f"Loading sheet {i}/{len(sheet_names)}: {sheet_name}")
+                window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
+        else:
+            update_console("Data loaded from JSON file...")
+            update_console("Available sheets:")
+            for i, sheet_name in enumerate(sheet_names, 1):
+                update_console(f"  {i}/{len(sheet_names)}: {sheet_name}")
+
+        update_console("Loading BE corrections...")
+        window.load_be_correction()
+
+        update_console("Setting up interface...")
+        window.sheet_combobox.Clear()
+        window.sheet_combobox.AppendItems(sheet_names)
+        first_sheet = sheet_names[0]
+        window.sheet_combobox.SetValue(first_sheet)
+
+        event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
+        event.SetString(first_sheet)
+        window.plot_config.plot_limits.clear()
+        on_sheet_selected(window, event)
+
+        save_state(window)
+        update_recent_files(window, file_path)
+
+        if hasattr(window, 'setup_backup_timer'):
+            window.setup_backup_timer()
+
+
+        # Create backup before opening file
+        from libraries.Utilities import perform_auto_backup
+        update_console("Performing auto backup...")
+        perform_auto_backup(window)
+
+        # Refresh Sheet
+        update_console("Refreshing sheets...")
+        from libraries.Save import refresh_sheets
+        refresh_sheets(window, on_sheet_selected)
+
+        update_console("File loaded successfully!")
+        wx.CallLater(2000, console_frame.Close)
+
+        # Restore file manager
+        if file_manager_was_open:
+            from libraries.FileManager import FileManagerWindow
+            window.file_manager = FileManagerWindow(window)
+            if file_manager_position:
+                window.file_manager.SetPosition(file_manager_position)
+            window.file_manager.Show()
+
+    except Exception as e:
+        wx.MessageBox(f"Error reading file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
 def convert_from_serializable(obj):
     """
     Recursively converts a serializable object (list or dict) back into its original structure.
@@ -2047,7 +2202,7 @@ def open_vamas_file_dialog(window):
         file_path = fileDialog.GetPath()
         open_vamas_file(window, file_path)
 
-def open_vamas_file(window, file_path):
+def open_vamas_file_OLD(window, file_path):
     """
     Open and process a VAMAS file, converting it to an Excel file format.
     This function reads a VAMAS file, extracts its data and metadata,
@@ -2275,7 +2430,243 @@ def open_vamas_file(window, file_path):
     except Exception as e:
         wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-def open_xlsx_file_vamas(window, file_path):
+
+def open_vamas_file(window, file_path):
+    """
+    Open and process a VAMAS file, converting it to an Excel file format.
+    This function reads a VAMAS file, extracts its data and metadata,
+    and creates a new Excel file with multiple sheets for each data block
+    and an additional sheet for experimental description.
+
+    Args:
+    window: The main application window object.
+    file_path: The path to the VAMAS file to be opened.
+    """
+    try:
+        # Clear undo and redo history
+        window.history = []
+        window.redo_stack = []
+        update_undo_redo_state(window)
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"The file {file_path} does not exist.")
+
+        # Copy VAMAS file to current working directory
+        vamas_filename = os.path.basename(file_path)
+        destination_path = os.path.join(os.getcwd(), vamas_filename)
+        shutil.copy2(file_path, destination_path)
+
+        # Read VAMAS file
+        vamas_data = Vamas(vamas_filename)
+
+        # Create new Excel workbook
+        wb = Workbook()
+        wb.remove(wb.active)
+
+        exp_data = []
+
+        # Create console window centered on parent
+        parent_pos = window.GetPosition()
+        parent_size = window.GetSize()
+        console_frame = wx.Frame(window, title="Processing VAMAS File", size=(500, 400))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 500) // 2,
+            parent_pos.y + (parent_size.height - 400) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        num_blocks = len(vamas_data.blocks)
+        update_console(f"Found {num_blocks} core levels to process...")
+        update_console("Starting conversion to Excel format...")
+
+        # Process each block
+        for i, block in enumerate(vamas_data.blocks, start=1):
+            if block.species_label.lower() == "wide" or block.transition_or_charge_state_label.lower() == "none":
+                raw_sheet_name = block.species_label
+            else:
+                raw_sheet_name = f"{block.species_label}{block.transition_or_charge_state_label}"
+            raw_sheet_name = raw_sheet_name.replace("/", "_")
+
+            sheet_name = normalize_sheet_name(raw_sheet_name)
+
+            if sheet_name in wb.sheetnames:
+                count = 1
+                while f"{sheet_name}{count}" in wb.sheetnames:
+                    count += 1
+                sheet_name = f"{sheet_name}{count}"
+
+            update_console(f"Processing {i}/{num_blocks}: {sheet_name}")
+
+            # Create new sheet with normalized name
+            ws = wb.create_sheet(title=sheet_name)
+
+            # Extract and process data
+            num_points = block.num_y_values
+            x_start = block.x_start
+            x_step = block.x_step
+            x_values = [x_start + i * x_step for i in range(num_points)]
+            y_values = block.corresponding_variables[0].y_values
+            y_unit = block.corresponding_variables[0].unit
+            num_scans = block.num_scans_to_compile_block
+
+            # Convert counts to counts per second if necessary
+            if y_unit != "c/s":
+                y_values = [y / num_scans for y in y_values]
+
+            # Convert to Binding Energy if necessary
+            if block.x_label.lower() in ["kinetic energy", "ke"]:
+                x_values = [window.photons - x - window.workfunction for x in x_values]
+                x_label = "Binding Energy"
+            else:
+                x_label = block.x_label
+
+            # Write data to sheet
+            ws.append([x_label, "Corrected Data", "Raw Data", "Transmission"])
+
+            # Get transmission data if it exists
+            transmission_data = None
+            if hasattr(block, 'corresponding_variables') and len(block.corresponding_variables) > 1:
+                transmission_data = block.corresponding_variables[1].y_values
+            else:
+                transmission_data = [1.0] * len(y_values)
+
+            # Write data row by row
+            for j, (x, y) in enumerate(zip(x_values, y_values)):
+                trans = transmission_data[j] if j < len(transmission_data) else 1.0
+                corrected_y = y / trans
+                ws.append([x, corrected_y, y, trans])
+
+            # Store experimental setup data
+            block_exp_data = [
+                f"Block {i}",
+                block.sample_identifier,
+                f"{block.year}/{block.month}/{block.day}",
+                f"{block.hour}:{block.minute}:{block.second}",
+                block.technique,
+                f"{block.species_label} {block.transition_or_charge_state_label}",
+                block.num_scans_to_compile_block,
+                block.analysis_source_label,
+                block.analysis_source_characteristic_energy,
+                block.analysis_source_beam_width_x,
+                block.analysis_source_beam_width_y,
+                block.analyzer_pass_energy_or_retard_ratio_or_mass_res,
+                block.analyzer_work_function_or_acceptance_energy,
+                block.analyzer_mode,
+                block.sputtering_source_energy if hasattr(block, 'sputtering_source_energy') else 'N/A',
+                block.analyzer_axis_take_off_polar_angle,
+                block.analyzer_axis_take_off_azimuth,
+                block.target_bias,
+                block.analysis_width_x,
+                block.analysis_width_y,
+                block.x_label,
+                block.x_units,
+                block.x_start,
+                block.x_step,
+                block.num_y_values,
+                block.num_scans_to_compile_block,
+                block.signal_collection_time,
+                block.signal_time_correction,
+                y_unit,
+                block.num_lines_block_comment,
+                block.block_comment
+            ]
+            exp_data.append(block_exp_data)
+
+            # Add experimental description data to this sheet starting at column 50
+            exp_col = 50
+            ws.cell(row=1, column=exp_col, value="Experimental Description")
+
+            exp_labels = [
+                "Sample ID", "Date", "Time", "Technique", "Species & Transition", "Number of scans",
+                "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
+                "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+                "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
+                "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
+            ]
+
+            for j, (label, value) in enumerate(zip(exp_labels, block_exp_data[1:])):
+                ws.cell(row=j + 2, column=exp_col, value=label)
+                ws.cell(row=j + 2, column=exp_col + 1, value=value)
+
+            # Set column width for experimental data
+            ws.column_dimensions[chr(64 + exp_col)].width = 25
+            ws.column_dimensions[chr(64 + exp_col + 1)].width = 40
+
+        update_console("Creating experimental description sheet...")
+
+        # Create "Experimental description" sheet (keep this for backward compatibility)
+        exp_sheet = wb.create_sheet(title="Experimental description")
+        exp_sheet.column_dimensions['A'].width = 50
+        exp_sheet.column_dimensions['B'].width = 100
+        left_aligned = Alignment(horizontal='left')
+
+        # Add VAMAS header information
+        exp_sheet.append(["VAMAS Header Information"])
+        for item in [
+            ("Format Identifier", vamas_data.header.format_identifier),
+            ("Institution Identifier", vamas_data.header.institution_identifier),
+            ("Instrument Model", vamas_data.header.instrument_model_identifier),
+            ("Operator Identifier", vamas_data.header.operator_identifier),
+            ("Experiment Identifier", vamas_data.header.experiment_identifier),
+            ("Number of Comment Lines", vamas_data.header.num_lines_comment),
+            ("Comment", vamas_data.header.comment),
+            ("Experiment Mode", vamas_data.header.experiment_mode),
+            ("Scan Mode", vamas_data.header.scan_mode),
+            ("Number of Spectral Regions", vamas_data.header.num_spectral_regions),
+            ("Number of Analysis Positions", vamas_data.header.num_analysis_positions),
+            ("Number of Discrete X Coordinates", vamas_data.header.num_discrete_x_coords_in_full_map),
+            ("Number of Discrete Y Coordinates", vamas_data.header.num_discrete_y_coords_in_full_map)
+        ]:
+            exp_sheet.append(item)
+
+        exp_sheet.append([])  # Add a blank row for separation
+
+        # Define the order of block information
+        block_info_order = [
+            "Sample ID", "Year/Month/Day", "Time HH,MM,SS", "Technique", "Species & Transition", "Number of scans",
+            "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
+            "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+            "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
+            "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
+        ]
+
+        # Add block information
+        for i, block_data in enumerate(exp_data, start=1):
+            exp_sheet.append([f"Block {i}", ""])
+            for j, info in enumerate(block_info_order):
+                exp_sheet.append([info, block_data[j + 1]])
+            exp_sheet.append([])  # Add a blank row between blocks
+
+        # Set alignment for all cells in column B
+        for row in exp_sheet.iter_rows(min_row=1, max_row=exp_sheet.max_row, min_col=2, max_col=2):
+            for cell in row:
+                cell.alignment = left_aligned
+
+        update_console("Saving Excel file...")
+        excel_filename = os.path.splitext(vamas_filename)[0] + ".xlsx"
+        excel_path = os.path.join(os.path.dirname(file_path), excel_filename)
+        wb.save(excel_path)
+
+        update_console("Excel file created successfully!")
+        update_console("Loading Excel file into KherveFitting...")
+
+        os.remove(destination_path)
+        window.Data = Init_Measurement_Data(window)
+        window.Data['FilePath'] = excel_path
+
+        # Pass console to next function
+        open_xlsx_file_vamas(window, excel_path, console_frame, update_console)
+
+    except Exception as e:
+        wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=None):
     """
     Open and process an Excel file created from a VAMAS file.
 
@@ -2288,41 +2679,38 @@ def open_xlsx_file_vamas(window, file_path):
     file_path: The path to the Excel file to be opened.
     """
     try:
-        # Update status bar with the selected file path
-        window.SetStatusText(f"Selected File: {file_path}", 0)
+        if update_console:
+            update_console("Reading Excel file structure...")
 
-        # Initialize the measurement data structure
+        window.SetStatusText(f"Selected File: {file_path}", 0)
         window.Data = Init_Measurement_Data(window)
         window.Data['FilePath'] = file_path
 
-        # Read the Excel file
         excel_file = pd.ExcelFile(file_path)
-
-        # Get sheet names, excluding the "Experimental description" sheet
         sheet_names = [name for name in excel_file.sheet_names if name != "Experimental description"]
-
-        # Initialize the number of core levels
         window.Data['Number of Core levels'] = 0
 
-        # Process each sheet (core level) in the Excel file
-        for sheet_name in sheet_names:
+        if update_console:
+            update_console(f"Found {len(sheet_names)} sheets to load...")
+
+        for i, sheet_name in enumerate(sheet_names, 1):
+            if update_console:
+                update_console(f"Loading sheet {i}/{len(sheet_names)}: {sheet_name}")
             window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
 
-        print(f"Final number of core levels: {window.Data['Number of Core levels']}")
+        if update_console:
+            update_console("Updating interface...")
 
-        # Update GUI elements
         window.sheet_combobox.Clear()
         window.sheet_combobox.AppendItems(sheet_names)
-        window.sheet_combobox.SetValue(sheet_names[0])  # Set first sheet as default
-
-        # Plot the data for the first sheet
+        window.sheet_combobox.SetValue(sheet_names[0])
         window.plot_manager.plot_data(window)
 
+        if update_console:
+            update_console("Loading complete!")
+            wx.CallLater(2000, console_frame.Close)
+
     except Exception as e:
-        # Handle any errors that occur during file processing
-        print(f"Error in open_xlsx_file_vamas: {str(e)}")
-        import traceback
-        traceback.print_exc()
         wx.MessageBox(f"Error reading Excel file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 

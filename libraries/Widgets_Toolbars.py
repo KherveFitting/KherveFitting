@@ -643,7 +643,7 @@ def create_menu(window):
     chemistry_lab_item = bored_menu.Append(wx.NewId(), "Material Lab")
     window.Bind(wx.EVT_MENU, lambda event: show_chemistry_lab_game(window), chemistry_lab_item)
 
-    asteroid_item = bored_menu.Append(wx.NewId(), "Meteos Smash")
+    asteroid_item = bored_menu.Append(wx.NewId(), "Meteors Smash")
     window.Bind(wx.EVT_MENU, lambda event: show_asteroid_game(window), asteroid_item)
 
     solitaire_item = bored_menu.Append(wx.NewId(), "Kherve Solitaire")
