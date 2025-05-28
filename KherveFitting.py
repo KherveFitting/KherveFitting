@@ -899,27 +899,31 @@ class MyFrame(wx.Frame):
             if peak_label in peaks:
                 peaks[peak_label]['Area'] = new_linked_area
                 peaks[peak_label]['Height'] = new_linked_height
-
         elif height_constraint.startswith(original_peak_letter):
-            # Original height-based logic
-            if '*' in height_constraint:
-                factor = float(height_constraint.split('*')[1].split('#')[0])
-                new_linked_height = new_height * factor
-            elif '/' in height_constraint:
-                factor = float(height_constraint.split('/')[1].split('#')[0])
-                new_linked_height = new_height / factor
-            elif '+' in height_constraint:
-                offset = float(height_constraint.split('+')[1].split('#')[0])
-                new_linked_height = new_height + offset
-            elif '-' in height_constraint:
-                offset = float(height_constraint.split('-')[1].split('#')[0])
-                new_linked_height = new_height - offset
-            else:
-                new_linked_height = new_height
+            # Check if model uses height as primary parameter
+            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter"]
 
-            self.peak_params_grid.SetCellValue(row, 3, f"{new_linked_height:.2f}")
-            if peak_label in peaks:
-                peaks[peak_label]['Height'] = new_linked_height
+            if fitting_model in height_based_models:
+                # Only update height for height-based models
+                if '*' in height_constraint:
+                    factor = float(height_constraint.split('*')[1].split('#')[0])
+                    new_linked_height = new_height * factor
+                elif '/' in height_constraint:
+                    factor = float(height_constraint.split('/')[1].split('#')[0])
+                    new_linked_height = new_height / factor
+                elif '+' in height_constraint:
+                    offset = float(height_constraint.split('+')[1].split('#')[0])
+                    new_linked_height = new_height + offset
+                elif '-' in height_constraint:
+                    offset = float(height_constraint.split('-')[1].split('#')[0])
+                    new_linked_height = new_height - offset
+                else:
+                    new_linked_height = new_height
+
+                self.peak_params_grid.SetCellValue(row, 3, f"{new_linked_height:.2f}")
+                if peak_label in peaks:
+                    peaks[peak_label]['Height'] = new_linked_height
+
 
         # Recalculate area if not LA model
         # if not "LA" in fitting_model:

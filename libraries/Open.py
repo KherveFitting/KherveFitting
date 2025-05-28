@@ -2087,10 +2087,10 @@ def open_xlsx_file(window, file_path=None):
         # Refresh Sheet
         update_console("Refreshing sheets...")
         from libraries.Save import refresh_sheets
-        refresh_sheets(window, on_sheet_selected)
+        refresh_sheets(window, on_sheet_selected, update_console)
 
         update_console("File loaded successfully!")
-        wx.CallLater(2000, console_frame.Close)
+        wx.CallLater(500, console_frame.Close)
 
         # Restore file manager
         if file_manager_was_open:
@@ -2708,7 +2708,7 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
 
         if update_console:
             update_console("Loading complete!")
-            wx.CallLater(2000, console_frame.Close)
+            wx.CallLater(500, console_frame.Close)
 
     except Exception as e:
         wx.MessageBox(f"Error reading Excel file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)

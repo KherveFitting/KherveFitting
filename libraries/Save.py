@@ -243,12 +243,12 @@ def save_data(window, data):
             raise
 
         update_console("Save process completed successfully!")
-        wx.CallLater(2000, console_frame.Close)
+        wx.CallLater(500, console_frame.Close)
         print("Data Saved")
 
     except Exception as e:
         update_console(f"Error during save: {str(e)}")
-        wx.CallLater(3000, console_frame.Close)
+        wx.CallLater(1000, console_frame.Close)
         import traceback
         traceback.print_exc()
         wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -859,7 +859,7 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
             window.canvas.draw_idle()
 
 
-def refresh_sheets(window, on_sheet_selected_func):
+def refresh_sheets_OLD(window, on_sheet_selected_func):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file currently open. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
         return
@@ -1067,6 +1067,249 @@ def refresh_sheets(window, on_sheet_selected_func):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        wx.MessageBox(f"Error refreshing sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def refresh_sheets(window, on_sheet_selected_func, update_console=None):
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file currently open. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    # Create console if not provided
+    console_frame = None
+    if update_console is None:
+        parent_pos = window.GetPosition()
+        parent_size = window.GetSize()
+        console_frame = wx.Frame(window, title="Refreshing Sheets", size=(500, 300))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 500) // 2,
+            parent_pos.y + (parent_size.height - 300) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+    current_sheet = window.sheet_combobox.GetValue()
+    file_path = window.Data['FilePath']
+
+    try:
+        import re
+        update_console("Starting sheet refresh...")
+
+        # Save BEcorrections data
+        be_corrections = window.Data.get('BEcorrections', {}).copy() if 'BEcorrections' in window.Data else {}
+
+        # Save current state to JSON
+        update_console("Saving current state to JSON...")
+        json_file_path = os.path.splitext(file_path)[0] + '.json'
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+        # Reopen the XLSX file
+        update_console("Reading Excel file structure...")
+        excel_file = pd.ExcelFile(file_path)
+        all_sheet_names = excel_file.sheet_names
+
+        # Filter out "Results Table" and "Experimental Description" sheets
+        sheet_names = [name for name in all_sheet_names if
+                       name.lower() not in ["results table", "experimental description"]]
+
+        # Normalize sheet names
+        name_changes = {}
+        for old_name in sheet_names:
+            new_name = old_name
+
+            lower_name = old_name.lower()
+            if 'survey' in lower_name:
+                new_name = 'Survey'
+            elif 'xps survey' in lower_name:
+                new_name = 'Survey'
+            elif 'survey scan' in lower_name:
+                new_name = 'Survey'
+            elif 'xps' in lower_name:
+                new_name = 'Survey'
+            elif 'wide' in lower_name:
+                new_name = 'Wide'
+            elif 'wide scan' in lower_name:
+                new_name = 'Wide'
+            else:
+                # Remove spaces between element and orbital (e.g., "C 1s" → "C1s")
+                match = re.search(r'([A-Z][a-z]?)\s+(\d+[spdf])', old_name)
+                if match:
+                    element, orbital = match.groups()
+                    new_name = f"{element}{orbital}"
+
+                # Simplify names like "C1s Scan" to just "C1s"
+                match = re.search(r'([A-Z][a-z]?\d+[spdf])', new_name)
+                if match and len(new_name) > len(match.group(1)):
+                    new_name = match.group(1)
+
+            # Preserve sample number suffix if it exists
+            suffix_match = re.search(r'(\d+)$', old_name)
+            if suffix_match and not re.search(r'\d+$', new_name):
+                new_name = f"{new_name}{suffix_match.group(1)}"
+
+            if new_name != old_name:
+                name_changes[old_name] = new_name
+
+        # Rename sheets in Excel file if needed
+        if name_changes:
+            update_console("Normalizing sheet names...")
+            wb = openpyxl.load_workbook(file_path)
+            for old_name, new_name in name_changes.items():
+                if old_name in wb.sheetnames and new_name not in wb.sheetnames:
+                    sheet = wb[old_name]
+                    sheet.title = new_name
+            wb.save(file_path)
+
+            # Reopen Excel file to get updated sheet names
+            excel_file = pd.ExcelFile(file_path)
+            all_sheet_names = excel_file.sheet_names
+            sheet_names = [name for name in all_sheet_names if
+                           name.lower() not in ["results table", "experimental description"]]
+
+            # Update window.Data with new sheet names
+            updated_core_levels = {}
+            for old_name, new_name in name_changes.items():
+                if old_name in window.Data['Core levels']:
+                    updated_core_levels[new_name] = window.Data['Core levels'][old_name]
+
+                    # Update plot_config data structures
+                    if hasattr(window, 'plot_config'):
+                        # Update plot_limits
+                        if old_name in window.plot_config.plot_limits:
+                            window.plot_config.plot_limits[new_name] = window.plot_config.plot_limits.pop(old_name)
+
+                        # Update original_limits - THIS IS THE FIX
+                        if hasattr(window.plot_config,
+                                   'original_limits') and old_name in window.plot_config.original_limits:
+                            window.plot_config.original_limits[new_name] = window.plot_config.original_limits.pop(
+                                old_name)
+
+            # Add any remaining sheets that weren't renamed
+            for name in window.Data['Core levels']:
+                if name not in name_changes and name not in updated_core_levels:
+                    updated_core_levels[name] = window.Data['Core levels'][name]
+
+            window.Data['Core levels'] = updated_core_levels
+
+        # Update sheet names in the combobox
+        update_console("Updating interface...")
+        window.sheet_combobox.Clear()
+        window.sheet_combobox.AppendItems(sheet_names)
+
+        # Update window.Data with new sheet information
+        for sheet_name in sheet_names:
+            if sheet_name not in window.Data['Core levels']:
+                window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
+
+        # Remove any sheets from window.Data that no longer exist in the Excel file
+        sheets_to_remove = set(window.Data['Core levels'].keys()) - set(sheet_names)
+        for sheet_name in sheets_to_remove:
+            del window.Data['Core levels'][sheet_name]
+
+        # Update the number of core levels
+        window.Data['Number of Core levels'] = len(sheet_names)
+
+        # Update B.E. and Raw Data with current Excel data
+        update_console("Updating binding energy corrections...")
+        import re
+        for sheet_name in sheet_names:
+            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            raw_be_values = df.iloc[:, 0].tolist()
+
+            # Get BE correction for this sheet
+            sheet_correction = 0  # Default if no correction found
+
+            # Extract row number from sheet name
+            match = re.search(r'(\d+)$', sheet_name)
+
+            if match and be_corrections:
+                # Sheet name ends with a number
+                sample_row = match.group(1)
+                if sample_row in be_corrections:
+                    sheet_correction = be_corrections[sample_row]
+            elif be_corrections and "0" in be_corrections:
+                # Sheet name doesn't end with a number - treat as row "0"
+                sheet_correction = be_corrections["0"]
+
+            # Apply the sheet-specific BE correction
+            window.Data['Core levels'][sheet_name]['B.E.'] = [be + sheet_correction for be in raw_be_values]
+            window.Data['Core levels'][sheet_name]['Raw Data'] = df.iloc[:, 1].tolist()
+
+        # Restore BE corrections data
+        if be_corrections:
+            window.Data['BEcorrections'] = be_corrections
+
+        # Handle current sheet selection after normalization
+        if current_sheet in name_changes:
+            current_sheet = name_changes[current_sheet]
+
+        # Set the current sheet as selected if it still exists, otherwise select the first sheet
+        if current_sheet in sheet_names:
+            window.sheet_combobox.SetValue(current_sheet)
+        elif sheet_names:
+            window.sheet_combobox.SetValue(sheet_names[0])
+            current_sheet = sheet_names[0]
+
+        # Update the spinbox value for the current sheet
+        if current_sheet:
+            match = re.search(r'(\d+)$', current_sheet)
+            if match and be_corrections and match.group(1) in be_corrections:
+                window.be_correction = be_corrections[match.group(1)]
+            elif be_corrections and "0" in be_corrections:
+                # For sheets without a number suffix, use correction from row "0"
+                window.be_correction = be_corrections["0"]
+            else:
+                window.be_correction = 0
+
+            window.be_correction_spinbox.SetValue(window.be_correction)
+
+        # Initialize plot limits for new sheets
+        for sheet_name in sheet_names:
+            if hasattr(window, 'plot_config') and sheet_name not in window.plot_config.plot_limits:
+                # This will update both plot_limits and original_limits
+                window.plot_config.update_plot_limits(window, sheet_name)
+
+        # Update the plot for the current sheet
+        update_console("Updating plots...")
+        event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
+        event.SetString(current_sheet)
+        on_sheet_selected_func(window, event)
+
+        # Update plot limits for the current sheet
+        if hasattr(window, 'plot_config'):
+            window.plot_config.update_plot_limits(window, current_sheet)
+
+        # Refresh the plot
+        window.plot_manager.plot_data(window)
+        window.clear_and_replot()
+
+        # Show completion message in console
+        if name_changes:
+            changes_msg = ", ".join([f"{old} → {new}" for old, new in name_changes.items()])
+            update_console(f"Sheets refreshed and normalized: {changes_msg}")
+            update_console(f"Total sheets: {len(sheet_names)}")
+        else:
+            update_console(f"Sheets refreshed. Total sheets: {len(sheet_names)}")
+
+        update_console("Refresh completed successfully!")
+
+        # Close console if we created it
+        if console_frame:
+            wx.CallLater(500, console_frame.Close)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        update_console(f"Error refreshing sheets: {str(e)}")
+        if console_frame:
+            wx.CallLater(1000, console_frame.Close)
         wx.MessageBox(f"Error refreshing sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 def save_plot_only_to_excel(window):
@@ -2555,7 +2798,7 @@ def paste_core_level(window):
         # Refresh sheets after pasting
         try:
             from libraries.Sheet_Operations import on_sheet_selected
-            refresh_sheets(window, on_sheet_selected)
+            refresh_sheets(window, on_sheet_selected, update_console)
         except Exception as refresh_err:
             print(f"Error refreshing sheets: {refresh_err}")
 

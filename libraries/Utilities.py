@@ -308,7 +308,7 @@ def on_delete_sheet(window, event):
         try:
             from libraries.Save import refresh_sheets
             from libraries.Sheet_Operations import on_sheet_selected
-            refresh_sheets(window, on_sheet_selected)
+            refresh_sheets(window, on_sheet_selected, update_console)
         except Exception as refresh_err:
             print(f"Error refreshing sheets: {refresh_err}")
 
@@ -371,7 +371,7 @@ def rename_sheet(window, new_sheet_name):
     # Refresh sheets after renaming
     from libraries.Sheet_Operations import on_sheet_selected
     from libraries.Save import refresh_sheets
-    refresh_sheets(window, on_sheet_selected)
+    refresh_sheets(window, on_sheet_selected, update_console)
 
     # Close and reopen the file manager if it exists
     if hasattr(window, 'file_manager') and window.file_manager is not None:

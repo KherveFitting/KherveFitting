@@ -782,14 +782,33 @@ class FittingWindow(wx.Frame):
                     fwhm_constraint = f"{chr(65 + first_peak)}*1"
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 4, fwhm_constraint)
 
-            # Height constraint
+            # Height and Area constraints based on fitting model
             height_factor = {'p': 0.5, 'd': 0.667, 'f': 0.75}
-            height_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[1]]}#0.05"
-            self.parent.peak_params_grid.SetCellValue(row2 + 1, 3, height_constraint)
+            area_factor = {'p': 0.5, 'd': 0.667, 'f': 0.75}
 
-            # Area constraint
-            Area_factor = {'p': 0.5, 'd': 0.667, 'f': 0.75}
-            area_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[-1]]}#0.05"
+            current_model = self.parent.selected_fitting_method
+
+            # Check if model uses area or height as primary parameter
+            area_based_models = ["GL (Area)", "SGL (Area)", "Pseudo-Voigt (Area)",
+                                 "Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
+                                 "Voigt (Area, L/G, \u03c3, S)", "ExpGauss.(Area, \u03c3, \u03b3)",
+                                 "LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                                 "LA*G (Area, \u03c3/\u03b3, \u03b3)", "DS (A, \u03c3, \u03b3)",
+                                 "DS*G (A, \u03c3, \u03b3, S)"]
+
+            # Set default constraints
+            height_constraint = "1:1e7"
+            area_constraint = "1:1e7"
+
+            if current_model in area_based_models:
+                # For area-based models, constrain area and use default for height
+                area_constraint = f"{chr(65 + first_peak)}*{area_factor[orbital[-1]]}#0.05"
+            else:
+                # For height-based models, constrain height and use default for area
+                height_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[-1]]}#0.05"
+
+            # Apply constraints
+            self.parent.peak_params_grid.SetCellValue(row2 + 1, 3, height_constraint)
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 6, area_constraint)
 
             # Position constraint

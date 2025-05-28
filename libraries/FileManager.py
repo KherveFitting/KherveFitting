@@ -1776,7 +1776,7 @@ class FileManagerWindow(wx.Frame):
         try:
             from libraries.Sheet_Operations import on_sheet_selected
             from libraries.Save import refresh_sheets
-            refresh_sheets(self.parent, on_sheet_selected)
+            refresh_sheets(window, on_sheet_selected, update_console)
         except Exception as refresh_err:
             print(f"Error refreshing sheets: {refresh_err}")
 
