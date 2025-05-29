@@ -1447,7 +1447,6 @@ class FileManagerWindow(wx.Frame):
                 except ValueError:
                     pass  # Ignore invalid correction values
 
-
     def on_copy(self, event):
         """Copy the selected core levels with columns C and D preserved exactly"""
         import os
@@ -1484,13 +1483,20 @@ class FileManagerWindow(wx.Frame):
                     except Exception as e:
                         print(f"Error reading Excel data for {sheet_name}: {e}")
 
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Copy Core Levels", clipboard_data, "copy")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
+
         # Save to clipboard file
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
         with open(clipboard_file, 'w') as f:
             json.dump(clipboard_data, f)
 
-        self.parent.show_popup_message2("Copy Successful",
-                                        f"{len(clipboard_data)} core level(s) copied with exact C and D columns")
+        # self.parent.show_popup_message2("Copy Successful",
+        #                                 f"{len(clipboard_data)} core level(s) copied with exact C and D columns")
 
     def on_paste(self, event):
         """Paste the core levels with original column names and experimental description"""
@@ -1501,6 +1507,32 @@ class FileManagerWindow(wx.Frame):
         import numpy as np
         import pandas as pd
         from copy import deepcopy
+
+        # Get the clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+
+        if not os.path.exists(clipboard_file):
+            wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Load the clipboard data
+        try:
+            with open(clipboard_file, 'r') as f:
+                clipboard_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid clipboard data", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not clipboard_data:
+            wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Paste Core Levels", clipboard_data, "paste")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
 
         # Perform backup before pasting
         from libraries.Utilities import perform_auto_backup
@@ -3034,7 +3066,68 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error deleting row: {str(e)}")
 
-    # Add this class at the end of FileManager.py
+class CoreLevelPreviewDialog(wx.Dialog):
+    def __init__(self, parent, title, core_levels_data, operation_type):
+        super().__init__(parent, title=title, size=(290, 400))
+
+        self.core_levels_data = core_levels_data
+        self.operation_type = operation_type  # "copy" or "paste"
+
+        panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title label
+        if operation_type == "copy":
+            label_text = f"Core levels to copy ({len(core_levels_data)}):"
+        else:
+            label_text = f"Core levels to paste ({len(core_levels_data)}):"
+
+        title_label = wx.StaticText(panel, label=label_text)
+        main_sizer.Add(title_label, 0, wx.ALL, 10)
+
+        # List control
+        self.list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.list_ctrl.AppendColumn("Name", width=50)
+        self.list_ctrl.AppendColumn("N# Pts", width=50)
+        self.list_ctrl.AppendColumn("BE Range", width=80)
+        self.list_ctrl.AppendColumn("Fitting?", width=70)
+
+        # Populate list
+        for i, (sheet_name, core_level) in enumerate(core_levels_data.items()):
+            index = self.list_ctrl.InsertItem(i, sheet_name)
+
+            # Data points count
+            data_points = len(core_level.get('Raw Data', []))
+            self.list_ctrl.SetItem(index, 1, str(data_points))
+
+            # BE range
+            be_values = core_level.get('B.E.', [])
+            if be_values:
+                be_range = f"{min(be_values):.1f} - {max(be_values):.1f}"
+            else:
+                be_range = "N/A"
+            self.list_ctrl.SetItem(index, 2, be_range)
+
+            # Has peaks
+            has_peaks = "Yes" if 'Fitting' in core_level and 'Peaks' in core_level['Fitting'] else "No"
+            self.list_ctrl.SetItem(index, 3, has_peaks)
+
+        main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Buttons
+        btn_sizer = wx.StdDialogButtonSizer()
+        ok_btn = wx.Button(panel, wx.ID_OK)
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        btn_sizer.AddButton(ok_btn)
+        btn_sizer.AddButton(cancel_btn)
+        btn_sizer.Realize()
+
+        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        panel.SetSizer(main_sizer)
+        self.CenterOnParent()
+
+
 class ExperimentalDescriptionWindow(wx.Frame):
     def __init__(self, parent, sheet_name):
         super().__init__(parent, title="Experimental Description",

@@ -144,7 +144,7 @@ def on_sheet_selected(window, event):
                         constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
                         for col_idx, key in enumerate(constraint_keys, 2):
                             constraint_value = constraints.get(key, '')
-                            print(f"Check constraint Key: {key}, Value: {constraint_value}")
+                            # print(f"Check constraint Key: {key}, Value: {constraint_value}")
 
                             # Check if constraint is valid (either 'Fixed' or contains one of the special characters)
                             is_valid = (constraint_value == 'Fixed' or
