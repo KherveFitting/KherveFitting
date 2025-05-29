@@ -1846,7 +1846,7 @@ class FileManagerWindow(wx.Frame):
                     self.populate_grid()
             dlg.Destroy()
 
-    def on_delete(self, event):
+    def on_delete_OLD(self, event):
         """Delete selected core level(s)."""
         # Gather all sheet names to delete
         sheet_names = []
@@ -1881,6 +1881,101 @@ class FileManagerWindow(wx.Frame):
         if wx.MessageBox(f"Are you sure you want to delete {len(sheet_names)} core level(s)?",
                          "Confirm Delete", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
             return
+
+        # Backup before deletion
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Delete the sheets
+        for sheet_name in sheet_names:
+            # Delete the sheet from parent Data
+            if sheet_name in self.parent.Data['Core levels']:
+                del self.parent.Data['Core levels'][sheet_name]
+                self.parent.Data['Number of Core levels'] -= 1
+
+                # Also remove from Excel file if possible
+                try:
+                    import pandas as pd
+                    from openpyxl import load_workbook
+
+                    excel_path = self.parent.Data.get('FilePath', '')
+                    if excel_path and os.path.exists(excel_path):
+                        book = load_workbook(excel_path)
+                        if sheet_name in book.sheetnames:
+                            del book[sheet_name]
+                            book.save(excel_path)
+                except Exception as e:
+                    print(f"Error removing sheet from Excel: {e}")
+
+        # Save JSON file
+        json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+        from libraries.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(self.parent.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+        # Update the parent's combobox
+        if hasattr(self.parent, 'sheet_combobox'):
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet in self.parent.Data['Core levels'].keys():
+                self.parent.sheet_combobox.Append(sheet)
+
+            # Select an available sheet
+            if current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+            elif self.parent.sheet_combobox.GetCount() > 0:
+                self.parent.sheet_combobox.SetSelection(0)
+                new_sheet = self.parent.sheet_combobox.GetValue()
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_sheet)
+
+        # Close and reopen the file manager to refresh all columns
+        self.parent.file_manager = None  # Clear the reference
+        self.Destroy()  # Close current file manager
+        wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
+
+        self.parent.show_popup_message2("Success", f"Deleted {len(sheet_names)} core level(s).")
+
+    def on_delete(self, event):
+        """Delete selected core level(s)."""
+        # Gather all sheet names to delete
+        sheet_names = []
+
+        # Check if cells are selected
+        selected_cells = []
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Skip sample name column
+                if self.grid.IsInSelection(row, col):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        sheet_names.append(cell_value)
+
+        # If no cells selected, try current cursor position
+        if not sheet_names:
+            row = self.grid.GetGridCursorRow()
+            col = self.grid.GetGridCursorCol()
+
+            if col > 0 and col <= len(self.core_levels):
+                cell_value = self.grid.GetCellValue(row, col)
+                if cell_value and cell_value in self.parent.Data['Core levels']:
+                    sheet_names.append(cell_value)
+
+        # Remove duplicates
+        sheet_names = list(set(sheet_names))
+
+        if not sheet_names:
+            self.parent.show_popup_message2("Information", "No core levels selected.")
+            return
+
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Delete Core Levels",
+                                                {name: self.parent.Data['Core levels'][name] for name in sheet_names},
+                                                "delete")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
 
         # Backup before deletion
         from libraries.Utilities import perform_auto_backup
@@ -3071,7 +3166,7 @@ class CoreLevelPreviewDialog(wx.Dialog):
         super().__init__(parent, title=title, size=(290, 400))
 
         self.core_levels_data = core_levels_data
-        self.operation_type = operation_type  # "copy" or "paste"
+        self.operation_type = operation_type  # "copy", "paste", or "delete"
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -3079,8 +3174,10 @@ class CoreLevelPreviewDialog(wx.Dialog):
         # Title label
         if operation_type == "copy":
             label_text = f"Core levels to copy ({len(core_levels_data)}):"
-        else:
+        elif operation_type == "paste":
             label_text = f"Core levels to paste ({len(core_levels_data)}):"
+        else:  # delete
+            label_text = f"Core levels to delete ({len(core_levels_data)}):"
 
         title_label = wx.StaticText(panel, label=label_text)
         main_sizer.Add(title_label, 0, wx.ALL, 10)
@@ -3116,7 +3213,11 @@ class CoreLevelPreviewDialog(wx.Dialog):
 
         # Buttons
         btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = wx.Button(panel, wx.ID_OK)
+        if operation_type == "delete":
+            ok_btn = wx.Button(panel, wx.ID_OK, "Delete")
+            ok_btn.SetBackgroundColour(wx.Colour(255, 100, 100))  # Red background for delete
+        else:
+            ok_btn = wx.Button(panel, wx.ID_OK)
         cancel_btn = wx.Button(panel, wx.ID_CANCEL)
         btn_sizer.AddButton(ok_btn)
         btn_sizer.AddButton(cancel_btn)
