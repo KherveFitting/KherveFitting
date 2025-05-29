@@ -173,10 +173,10 @@ def save_data(window, data):
     # Create console window centered on parent
     parent_pos = window.GetPosition()
     parent_size = window.GetSize()
-    console_frame = wx.Frame(window, title="Saving Data", size=(500, 300))
+    console_frame = wx.Frame(window, title="Saving Data", size=(300, 350))
     console_frame.SetPosition((
-        parent_pos.x + (parent_size.width - 500) // 2,
-        parent_pos.y + (parent_size.height - 300) // 2
+        parent_pos.x + (parent_size.width - 300) // 2,
+        parent_pos.y + (parent_size.height - 350) // 2
     ))
     console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
     console_frame.Show()
@@ -1080,10 +1080,10 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None):
     if update_console is None:
         parent_pos = window.GetPosition()
         parent_size = window.GetSize()
-        console_frame = wx.Frame(window, title="Refreshing Sheets", size=(500, 300))
+        console_frame = wx.Frame(window, title="Refreshing Sheets", size=(300, 350))
         console_frame.SetPosition((
-            parent_pos.x + (parent_size.width - 500) // 2,
-            parent_pos.y + (parent_size.height - 300) // 2
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 350) // 2
         ))
         console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
         console_frame.Show()

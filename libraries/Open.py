@@ -1974,10 +1974,10 @@ def open_xlsx_file(window, file_path=None):
         # Create console window centered on parent
         parent_pos = window.GetPosition()
         parent_size = window.GetSize()
-        console_frame = wx.Frame(window, title="Loading Excel File", size=(500, 400))
+        console_frame = wx.Frame(window, title="Loading Excel File", size=(300, 350))
         console_frame.SetPosition((
-            parent_pos.x + (parent_size.width - 500) // 2,
-            parent_pos.y + (parent_size.height - 400) // 2
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 350) // 2
         ))
         console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
         console_frame.Show()
@@ -2468,10 +2468,10 @@ def open_vamas_file(window, file_path):
         # Create console window centered on parent
         parent_pos = window.GetPosition()
         parent_size = window.GetSize()
-        console_frame = wx.Frame(window, title="Processing VAMAS File", size=(500, 400))
+        console_frame = wx.Frame(window, title="Processing VAMAS File", size=(300, 350))
         console_frame.SetPosition((
-            parent_pos.x + (parent_size.width - 500) // 2,
-            parent_pos.y + (parent_size.height - 400) // 2
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 350) // 2
         ))
         console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
         console_frame.Show()
