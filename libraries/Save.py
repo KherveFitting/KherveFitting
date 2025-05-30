@@ -2981,3 +2981,60 @@ def paste_all_peak_parameters(window):
         import traceback
         traceback.print_exc()
         window.show_popup_message2("Paste Failed", f"Error: {str(e)}")
+
+def on_backup_main(window):
+    """Create a backup of the current Excel and JSON files from main toolbar"""
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file currently open to backup.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    # Get current file paths
+    excel_file = window.Data['FilePath']
+    json_file = os.path.splitext(excel_file)[0] + '.json'
+
+    # Check if files exist
+    if not os.path.exists(excel_file):
+        wx.MessageBox(f"Excel file not found: {excel_file}", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    # Create backup folder in the executable directory
+    import sys
+    executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+    # For development environment, fall back to current script directory
+    if not "KherveFitting" in executable_dir:
+        executable_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up one level if in libraries folder
+        if os.path.basename(executable_dir) == "libraries":
+            executable_dir = os.path.dirname(executable_dir)
+
+    backup_folder = os.path.join(executable_dir, "Backup")
+    if not os.path.exists(backup_folder):
+        os.makedirs(backup_folder)
+
+    # Generate timestamp in format: YYcDD_HHMMSS
+    import datetime
+    now = datetime.datetime.now()
+    month_letter = chr(ord('a') + now.month - 1)  # a=Jan, b=Feb, c=Mar, etc.
+    timestamp = f"{now.year % 100}{month_letter}{now.day:02d}_{now.hour:02d}{now.minute:02d}{now.second:02d}"
+
+    # Create backup filenames
+    excel_filename = os.path.basename(excel_file)
+    excel_backup = os.path.join(backup_folder, f"{excel_filename}_{timestamp}")
+
+    # Copy the Excel file
+    try:
+        shutil.copy2(excel_file, excel_backup)
+        files_backed_up = [excel_backup]
+
+        # Copy the JSON file if it exists
+        if os.path.exists(json_file):
+            json_filename = os.path.basename(json_file)
+            json_backup = os.path.join(backup_folder, f"{json_filename}_{timestamp}")
+            shutil.copy2(json_file, json_backup)
+            files_backed_up.append(json_backup)
+
+        # Show success message
+        window.show_popup_message2("Backup Complete", f"Backup created successfully:\n" + "\n".join(files_backed_up))
+
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error creating backup: {str(e)}")

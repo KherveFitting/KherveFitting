@@ -34,7 +34,8 @@ from libraries.Asteroid import main as asteroid_main
 from libraries.Solitaire import SolitaireGame
 from libraries.Flappybird import main as flappybird_main
 from libraries.ChemistryLab import ChemistryLabGame
-
+from libraries.Save import on_backup_main
+from libraries.Utilities import sort_excel_sheets
 
 def show_tetris_game(window):
     """Launch the Tetris game"""
@@ -750,6 +751,15 @@ def create_horizontal_toolbar(parent, window):
     window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
     # toolbar.AddSeparator()
 
+    # Add sort sheets button
+    sort_icon = os.path.join(icon_path, "Sort-25.png")
+    if os.path.exists(sort_icon):
+        sort_bmp = wx.Bitmap(sort_icon)
+    else:
+        sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
+    sort_tool = toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
+    window.Bind(wx.EVT_TOOL, lambda event: sort_excel_sheets(window), sort_tool)
+
     # Add File Manager button to toolbar
     file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-25.png"), wx.BITMAP_TYPE_PNG)
     file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp,
@@ -894,6 +904,15 @@ def create_horizontal_toolbar(parent, window):
     delete_master_tool = toolbar.AddTool(wx.ID_ANY, 'Delete',
                                          wx.Bitmap(os.path.join(icon_path, "DeleteRow-25.png"), wx.BITMAP_TYPE_PNG),
                                          shortHelp="Delete Options for Results Grid")
+
+    # Add backup tool
+    backup_icon = os.path.join(icon_path, "backup-25.png")
+    if os.path.exists(backup_icon):
+        backup_bmp = wx.Bitmap(backup_icon)
+    else:
+        backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
+    backup_tool = toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
+    window.Bind(wx.EVT_TOOL, lambda event: on_backup_main(window), backup_tool)
 
     Setting_tool = toolbar.AddTool(wx.ID_ANY, 'Load Settings',
                                       wx.Bitmap(os.path.join(icon_path, "Settings-25.png"), wx.BITMAP_TYPE_PNG),

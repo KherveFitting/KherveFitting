@@ -265,14 +265,14 @@ class FileManagerWindow(wx.Frame):
         sum_bmp = wx.Bitmap(sum_icon)
         sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
         self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
-
-        sort_icon = os.path.join(icon_path, "Sort-25.png")
-        if os.path.exists(sort_icon):
-            sort_bmp = wx.Bitmap(sort_icon)
-        else:
-            sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
-        sort_tool = self.toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
-        self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
+        #
+        # sort_icon = os.path.join(icon_path, "Sort-25.png")
+        # if os.path.exists(sort_icon):
+        #     sort_bmp = wx.Bitmap(sort_icon)
+        # else:
+        #     sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
+        # sort_tool = self.toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
+        # self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
 
         # Plot button
         plot_icon = os.path.join(icon_path, "Plot2-25.png")
@@ -323,14 +323,14 @@ class FileManagerWindow(wx.Frame):
                                              "\nCurrently only upport .vms and .kal")
         self.Bind(wx.EVT_TOOL, self.on_view_exp_info, exp_info_tool)
 
-        # Backup button
-        backup_icon = os.path.join(icon_path, "backup-25.png")
-        if os.path.exists(backup_icon):
-            backup_bmp = wx.Bitmap(backup_icon)
-        else:
-            backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
-        backup_tool = self.toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
-        self.Bind(wx.EVT_TOOL, self.on_backup, backup_tool)
+        # # Backup button
+        # backup_icon = os.path.join(icon_path, "backup-25.png")
+        # if os.path.exists(backup_icon):
+        #     backup_bmp = wx.Bitmap(backup_icon)
+        # else:
+        #     backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
+        # backup_tool = self.toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
+        # self.Bind(wx.EVT_TOOL, self.on_backup, backup_tool)
 
         # Add F2/Ctrl+2 info button
         f2_icon = os.path.join(icon_path, "Find-25.png")  # Use existing plot icon or another appropriate one
@@ -2980,8 +2980,8 @@ class FileManagerWindow(wx.Frame):
             # Refresh grid
             self.populate_grid()
 
-            self.parent.show_popup_message2("Success", f"Inserted row above row {target_row}. "
-                                                       f"{len(sheets_to_rename)} sheets renamed.")
+            # self.parent.show_popup_message2("Success", f"Inserted row above row {target_row}. "
+            #                                            f"{len(sheets_to_rename)} sheets renamed.")
 
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error inserting row: {str(e)}")
@@ -3150,13 +3150,13 @@ class FileManagerWindow(wx.Frame):
             # Refresh grid
             self.populate_grid()
 
-            if sheets_to_delete:
-                self.parent.show_popup_message2("Success",
-                                                f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
-                                                f"{len(sheets_to_rename)} sheets renumbered.")
-            else:
-                self.parent.show_popup_message2("Success", f"Deleted empty row {target_row}. "
-                                                           f"{len(sheets_to_rename)} sheets renumbered.")
+            # if sheets_to_delete:
+            #     self.parent.show_popup_message2("Success",
+            #                                     f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
+            #                                     f"{len(sheets_to_rename)} sheets renumbered.")
+            # else:
+            #     self.parent.show_popup_message2("Success", f"Deleted empty row {target_row}. "
+            #                                                f"{len(sheets_to_rename)} sheets renumbered.")
 
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error deleting row: {str(e)}")

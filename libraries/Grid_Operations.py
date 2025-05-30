@@ -92,9 +92,9 @@ def populate_results_grid(window):
         # window.results_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, window.on_cell_changed)
         # window.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, window.on_checkbox_update)
 
-    else:
-        # Just leave the grid empty if no results for this row
-        print(f"No results data found for {results_table_key}")
+    # else:
+    #     # Just leave the grid empty if no results for this row
+    #     print(f"No results data found for {results_table_key}")
 
     # # Calculate atomic percentages for checked elements
     # window.update_atomic_percentages()
