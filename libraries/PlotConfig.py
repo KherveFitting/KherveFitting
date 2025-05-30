@@ -340,3 +340,96 @@ class CustomRectangleSelector(widgets.RectangleSelector):
             self.visible = False
             self.ax.figure.canvas.draw_idle()
 
+
+class PlotLimitsWindow(wx.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, title="Plot Limits", size=(280, 200),
+                         style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX))
+
+        self.parent = parent
+        panel = wx.Panel(self)
+
+        # Center on parent
+        main_pos = parent.GetPosition()
+        main_size = parent.GetSize()
+        win_size = self.GetSize()
+        x = main_pos.x + (main_size.width - win_size.width) // 2
+        y = main_pos.y + (main_size.height - win_size.height) // 2
+        self.SetPosition((x, y))
+
+        # Main sizer
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # BE limits
+        be_box = wx.StaticBox(panel, label="Binding Energy Limits")
+        be_sizer = wx.StaticBoxSizer(be_box, wx.HORIZONTAL)
+
+        be_sizer.Add(wx.StaticText(panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.be_max_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1)
+        be_sizer.Add(self.be_max_ctrl, 1, wx.RIGHT, 10)
+
+        be_sizer.Add(wx.StaticText(panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.be_min_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1)
+        be_sizer.Add(self.be_min_ctrl, 1)
+
+        # Intensity limits
+        int_box = wx.StaticBox(panel, label="Intensity Limits")
+        int_sizer = wx.StaticBoxSizer(int_box, wx.HORIZONTAL)
+
+        int_sizer.Add(wx.StaticText(panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.int_max_ctrl = wx.SpinCtrlDouble(panel, min=0, max=1e10, inc=100)
+        int_sizer.Add(self.int_max_ctrl, 1, wx.RIGHT, 10)
+
+        int_sizer.Add(wx.StaticText(panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.int_min_ctrl = wx.SpinCtrlDouble(panel, min=-1e10, max=1e10, inc=100)
+        int_sizer.Add(self.int_min_ctrl, 1)
+
+        # Buttons
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        apply_btn = wx.Button(panel, label="Apply")
+        reset_btn = wx.Button(panel, label="Reset")
+
+        btn_sizer.Add(apply_btn, 0, wx.RIGHT, 5)
+        btn_sizer.Add(reset_btn, 0)
+
+        # Layout
+        main_sizer.Add(be_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(int_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 10)
+
+        panel.SetSizer(main_sizer)
+
+        # Bind events
+        apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
+        reset_btn.Bind(wx.EVT_BUTTON, self.on_reset)
+
+        # Initialize values
+        self.update_values()
+
+    def update_values(self):
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        limits = self.parent.plot_config.get_plot_limits(self.parent, sheet_name)
+
+        self.be_max_ctrl.SetValue(limits.get('Xmax', 0))
+        self.be_min_ctrl.SetValue(limits.get('Xmin', 0))
+        self.int_max_ctrl.SetValue(limits.get('Ymax', 0))
+        self.int_min_ctrl.SetValue(limits.get('Ymin', 0))
+
+    def on_apply(self, event):
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        be_max = self.be_max_ctrl.GetValue()
+        be_min = self.be_min_ctrl.GetValue()
+        int_max = self.int_max_ctrl.GetValue()
+        int_min = self.int_min_ctrl.GetValue()
+
+        self.parent.plot_config.update_plot_limits(
+            self.parent, sheet_name, be_min, be_max, int_min, int_max
+        )
+        self.parent.plot_config.resize_plot(self.parent)
+
+    def on_reset(self, event):
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        self.parent.plot_config.reset_plot_limits(self.parent, sheet_name)
+        self.parent.plot_config.resize_plot(self.parent)
+        self.update_values()

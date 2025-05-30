@@ -1136,6 +1136,14 @@ def create_vertical_toolbar(parent, frame):
                                   wx.Bitmap(os.path.join(icon_path, "Drag-25.png"), wx.BITMAP_TYPE_PNG),
                                   shortHelp="Drag Plot")
 
+    # Plot limits tool
+    plot_limits_tool = v_toolbar.AddTool(wx.ID_ANY, 'Plot Limits',
+                                         wx.Bitmap(os.path.join(icon_path, "PlotLimits.png"), wx.BITMAP_TYPE_PNG),
+                                         shortHelp="Set Plot Limits")
+
+    # Bind the plot limits tool
+    frame.Bind(wx.EVT_TOOL, lambda event: show_plot_limits_window(frame), plot_limits_tool)
+
     v_toolbar.AddSeparator()
 
     # BE adjustment tools
@@ -1361,6 +1369,13 @@ def open_manual(window):
         else:
             log.write("Manual not found in any expected locations\n")
             return False
+
+def show_plot_limits_window(window):
+    from libraries.PlotConfig import PlotLimitsWindow
+    if not hasattr(window, 'plot_limits_window') or not window.plot_limits_window:
+        window.plot_limits_window = PlotLimitsWindow(window)
+    window.plot_limits_window.Show()
+    window.plot_limits_window.Raise()
 
 
 class ToggleToolbar(wx.Frame):
