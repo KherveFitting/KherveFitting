@@ -2515,9 +2515,20 @@ def open_vamas_file(window, file_path):
             y_unit = block.corresponding_variables[0].unit
             num_scans = block.num_scans_to_compile_block
 
+            # # Convert counts to counts per second if necessary
+            # if y_unit != "c/s":
+            #     y_values = [y / num_scans for y in y_values]
+
             # Convert counts to counts per second if necessary
-            if y_unit != "c/s":
-                y_values = [y / num_scans for y in y_values]
+            collection_time = block.signal_collection_time
+            print(f"Collection time: {collection_time}, Num scans: {num_scans}, Y unit: {y_unit}")
+            print(f'Number of Scans: {num_scans}')
+            num_scan=num_scans # To stop division by number of scan quickly if needed
+            if y_unit != "c/s" and collection_time > 0:
+                y_values = [y / (num_scan * collection_time) for y in y_values]
+                print(f'Maximum Y value after conversion: {max(y_values)}')
+            elif y_unit != "c/s":
+                y_values = [y / num_scan for y in y_values]
 
             # Convert to Binding Energy if necessary
             if block.x_label.lower() in ["kinetic energy", "ke"]:

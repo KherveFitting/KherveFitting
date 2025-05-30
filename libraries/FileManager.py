@@ -1716,16 +1716,31 @@ class FileManagerWindow(wx.Frame):
                         # Pad with zeros if too short
                         bkg_data = bkg_data + [0] * (data_length - len(bkg_data))
 
-                    # Use original column names if available, otherwise use defaults
-                    column_names = core_level_data.get('column_names', ['BE', 'Raw Data', 'Background', 'Transmission'])
+                    # Check if it's a Raman file
+                    is_raman = "Raman_" in new_sheet_name or "Ra_" in new_sheet_name
+
+                    # Use original column names for Raman, standardized names for others
+                    if is_raman:
+                        column_names = core_level_data.get('column_names',
+                                                           ['BE', 'Raw Data', 'Background', 'Transmission'])
+                    else:
+                        # Force standard column names for all XPS core levels and surveys
+                        column_names = ['Binding Energy (eV)', 'Corrected Data', 'Raw Data', 'Transmission']
 
                     # Make sure we have enough column names
                     while len(column_names) < 4:
-                        column_names.append(f"Column{len(column_names) + 1}")
+                        if is_raman:
+                            column_names.append(f"Column{len(column_names) + 1}")
+                        else:
+                            default_names = ['Binding Energy (eV)', 'Corrected Data', 'Raw Data', 'Transmission']
+                            if len(column_names) < len(default_names):
+                                column_names.append(default_names[len(column_names)])
+                            else:
+                                column_names.append(f"Column{len(column_names) + 1}")
 
                     # Create DataFrame with original column names
                     data_dict = {
-                        column_names[0]: adjusted_be_values,
+                        column_names[0]: core_level_data['B.E.'],
                         column_names[1]: raw_data
                     }
 
@@ -1760,6 +1775,16 @@ class FileManagerWindow(wx.Frame):
                     with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
                                         if_sheet_exists='replace') as writer:
                         df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+                        # Remove borders from header row
+                        workbook = writer.book
+                        worksheet = workbook[new_sheet_name]
+                        from openpyxl.styles import Border
+                        no_border = Border()
+
+                        # Apply no border to header row (row 1)
+                        for col in range(1, len(column_names) + 1):
+                            worksheet.cell(row=1, column=col).border = no_border
 
                         # Add experimental description data if available
                         if 'experimental_description' in core_level_data and core_level_data[

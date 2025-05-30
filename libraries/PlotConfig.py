@@ -365,11 +365,11 @@ class PlotLimitsWindow(wx.Frame):
         be_sizer = wx.StaticBoxSizer(be_box, wx.HORIZONTAL)
 
         be_sizer.Add(wx.StaticText(panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.be_max_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1)
+        self.be_max_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(80, -1))
         be_sizer.Add(self.be_max_ctrl, 1, wx.RIGHT, 10)
 
         be_sizer.Add(wx.StaticText(panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.be_min_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1)
+        self.be_min_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(80, -1))
         be_sizer.Add(self.be_min_ctrl, 1)
 
         # Intensity limits
@@ -377,11 +377,11 @@ class PlotLimitsWindow(wx.Frame):
         int_sizer = wx.StaticBoxSizer(int_box, wx.HORIZONTAL)
 
         int_sizer.Add(wx.StaticText(panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.int_max_ctrl = wx.SpinCtrlDouble(panel, min=0, max=1e10, inc=100)
+        self.int_max_ctrl = wx.SpinCtrlDouble(panel, min=0, max=1e10, inc=100, size=(80, -1))
         int_sizer.Add(self.int_max_ctrl, 1, wx.RIGHT, 10)
 
         int_sizer.Add(wx.StaticText(panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.int_min_ctrl = wx.SpinCtrlDouble(panel, min=-1e10, max=1e10, inc=100)
+        self.int_min_ctrl = wx.SpinCtrlDouble(panel, min=-1e10, max=1e10, inc=100, size=(80, -1))
         int_sizer.Add(self.int_min_ctrl, 1)
 
         # Buttons
