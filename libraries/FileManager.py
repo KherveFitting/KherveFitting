@@ -1447,7 +1447,7 @@ class FileManagerWindow(wx.Frame):
                 except ValueError:
                     pass  # Ignore invalid correction values
 
-    def on_copy(self, event):
+    def on_copy_OLD(self, event):
         """Copy the selected core levels with columns C and D preserved exactly"""
         import os
         import json
@@ -1497,6 +1497,103 @@ class FileManagerWindow(wx.Frame):
 
         # self.parent.show_popup_message2("Copy Successful",
         #                                 f"{len(clipboard_data)} core level(s) copied with exact C and D columns")
+
+    def on_copy(self, event):
+        """Copy the selected core levels with original uncorrected BE values"""
+        import os
+        import json
+        import tempfile
+        from copy import deepcopy
+
+        sheet_names = self.get_selected_sheet_names()
+        if not sheet_names:
+            return
+
+        clipboard_data = {}
+
+        for sheet_name in sheet_names:
+            if sheet_name in self.parent.Data['Core levels']:
+                clipboard_data[sheet_name] = deepcopy(self.parent.Data['Core levels'][sheet_name])
+
+                # Get BE correction for this sheet's row
+                source_row = 0
+                if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                    base_parts = sheet_name.split('_')
+                    if len(base_parts) > 2 and base_parts[2].isdigit():
+                        source_row = int(base_parts[2])
+                else:
+                    match_row = re.search(r'(\d+)$', sheet_name)
+                    if match_row:
+                        source_row = int(match_row.group(1))
+
+                be_correction = self.parent.Data.get('BEcorrections', {}).get(str(source_row), 0.0)
+
+                # Store original BE values (subtract the applied correction)
+                original_be_values = [be - be_correction for be in clipboard_data[sheet_name]['B.E.']]
+                clipboard_data[sheet_name]['B.E.'] = original_be_values
+
+                # Also adjust background limits if present
+                if 'Background' in clipboard_data[sheet_name]:
+                    if 'Bkg Low' in clipboard_data[sheet_name]['Background'] and \
+                            clipboard_data[sheet_name]['Background']['Bkg Low'] != '':
+                        try:
+                            clipboard_data[sheet_name]['Background']['Bkg Low'] -= be_correction
+                        except (TypeError, ValueError):
+                            pass
+
+                    if 'Bkg High' in clipboard_data[sheet_name]['Background'] and \
+                            clipboard_data[sheet_name]['Background']['Bkg High'] != '':
+                        try:
+                            clipboard_data[sheet_name]['Background']['Bkg High'] -= be_correction
+                        except (TypeError, ValueError):
+                            pass
+
+                # Adjust peak positions if present
+                if 'Fitting' in clipboard_data[sheet_name] and 'Peaks' in clipboard_data[sheet_name]['Fitting']:
+                    for peak in clipboard_data[sheet_name]['Fitting']['Peaks'].values():
+                        if 'Position' in peak:
+                            peak['Position'] -= be_correction
+                        if 'Constraints' in peak:
+                            pos_constraint = peak['Constraints'].get('Position', '')
+                            if pos_constraint and ',' in pos_constraint and not any(
+                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                                try:
+                                    min_val, max_val = map(float, pos_constraint.split(','))
+                                    peak['Constraints'][
+                                        'Position'] = f"{min_val - be_correction:.2f},{max_val - be_correction:.2f}"
+                                except ValueError:
+                                    pass
+
+                file_path = self.parent.Data.get('FilePath', '')
+                if file_path and os.path.exists(file_path):
+                    try:
+                        # Read all data including columns C and D
+                        import pandas as pd
+                        df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+                        # Store column names
+                        column_names = df.columns.tolist()
+                        clipboard_data[sheet_name]['column_names'] = column_names
+
+                        # Store exact data from columns C and D (indices 2 and 3)
+                        if df.shape[1] > 3:
+                            clipboard_data[sheet_name]['column_C_data'] = df.iloc[:, 2].tolist()
+                            clipboard_data[sheet_name]['column_D_data'] = df.iloc[:, 3].tolist()
+
+                    except Exception as e:
+                        print(f"Error reading Excel data for {sheet_name}: {e}")
+
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Copy Core Levels", clipboard_data, "copy")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
+
+        # Save to clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+        with open(clipboard_file, 'w') as f:
+            json.dump(clipboard_data, f)
 
     def on_paste(self, event):
         """Paste the core levels with original column names and experimental description"""
@@ -1737,6 +1834,9 @@ class FileManagerWindow(wx.Frame):
                                 column_names.append(default_names[len(column_names)])
                             else:
                                 column_names.append(f"Column{len(column_names) + 1}")
+
+                    # Calculate original BE values by adding back the source correction
+                    # original_be_values = [be - source_correction for be in core_level_data['B.E.']]
 
                     # Create DataFrame with original column names
                     data_dict = {

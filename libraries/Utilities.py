@@ -371,7 +371,7 @@ def rename_sheet(window, new_sheet_name):
     # Refresh sheets after renaming
     from libraries.Sheet_Operations import on_sheet_selected
     from libraries.Save import refresh_sheets
-    refresh_sheets(window, on_sheet_selected, update_console)
+    refresh_sheets(window, on_sheet_selected, None)
 
     # Close and reopen the file manager if it exists
     if hasattr(window, 'file_manager') and window.file_manager is not None:
@@ -1357,7 +1357,7 @@ def perform_auto_backup(parent):
         print(f"Auto backup error: {str(e)}")
         return False
 
-def sort_excel_sheets(window):
+def sort_excel_sheets_NOT_GOOD(window):
     """Sort Excel sheets by sample group and element name"""
     from libraries.Save import save_state
     save_state(window)
@@ -1502,4 +1502,113 @@ def sort_excel_sheets(window):
     except Exception as e:
         update_console(f"Error during sorting: {str(e)}")
         wx.CallLater(2000, console_frame.Close)
+        wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def sort_excel_sheets(window):
+    """Sort Excel sheets by sample group and element name without modifying data"""
+    from libraries.Save import save_state
+    save_state(window)
+
+    if not hasattr(window, 'Data') or 'Core levels' not in window.Data:
+        wx.MessageBox("No data available to sort.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    file_path = window.Data['FilePath']
+
+    # Check if file is accessible
+    try:
+        with open(file_path, 'rb') as f:
+            pass
+    except PermissionError:
+        wx.MessageBox("Cannot sort sheets: Excel file is open in another program.",
+                      "File Locked", wx.OK | wx.ICON_ERROR)
+        return
+
+    try:
+        import openpyxl
+        import re
+
+        # Load workbook
+        wb = openpyxl.load_workbook(file_path)
+        sheet_names = wb.sheetnames.copy()
+
+        # Group sheets by sample number (same logic as before)
+        grouped_sheets = {}
+        for sheet_name in sheet_names:
+            if "wide" in sheet_name.lower() or "survey" in sheet_name.lower():
+                match = re.match(r'(wide|survey)(\d*)$', sheet_name.lower(), re.IGNORECASE)
+                if match:
+                    base_name = match.group(1).capitalize()
+                    sample_num = match.group(2)
+                else:
+                    base_name = sheet_name
+                    sample_num = ""
+            else:
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                if match:
+                    base_name, sample_num = match.groups()
+                else:
+                    base_name = sheet_name
+                    sample_num = ""
+
+            sample_num = int(sample_num) if sample_num else 0
+
+            if sample_num not in grouped_sheets:
+                grouped_sheets[sample_num] = []
+            grouped_sheets[sample_num].append((base_name, sheet_name))
+
+        # Sort each group
+        for sample_num in grouped_sheets:
+            def sort_key(item):
+                base = item[0].lower()
+                if "wide" in base or "survey" in base:
+                    return "zzz"
+                return base
+
+            grouped_sheets[sample_num].sort(key=sort_key)
+
+        # Create sorted list
+        sorted_sheet_names = []
+        for sample_num in sorted(grouped_sheets.keys()):
+            for _, sheet_name in grouped_sheets[sample_num]:
+                sorted_sheet_names.append(sheet_name)
+
+        # Check if already sorted
+        if sheet_names == sorted_sheet_names:
+            window.show_popup_message2("Information", "Sheets are already sorted.")
+            return
+
+        # Reorder sheets using openpyxl
+        for i, sheet_name in enumerate(sorted_sheet_names):
+            sheet = wb[sheet_name]
+            # Move sheet to position i
+            wb.move_sheet(sheet, offset=i - wb.index(sheet))
+
+        # Save workbook
+        wb.save(file_path)
+        wb.close()
+
+        # Update Data structure order to match
+        sorted_core_levels = {}
+        for sheet_name in sorted_sheet_names:
+            sorted_core_levels[sheet_name] = window.Data['Core levels'][sheet_name]
+        window.Data['Core levels'] = sorted_core_levels
+
+        # Update UI
+        current_sheet = window.sheet_combobox.GetValue()
+        window.sheet_combobox.Clear()
+        for sheet_name in sorted_sheet_names:
+            window.sheet_combobox.Append(sheet_name)
+
+        if current_sheet in sorted_sheet_names:
+            window.sheet_combobox.SetValue(current_sheet)
+        elif sorted_sheet_names:
+            window.sheet_combobox.SetValue(sorted_sheet_names[0])
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(window, sorted_sheet_names[0])
+
+        window.show_popup_message2("Success", "Sheets sorted successfully.")
+
+    except Exception as e:
         wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
