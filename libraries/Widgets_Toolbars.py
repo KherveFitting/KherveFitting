@@ -35,6 +35,7 @@ from libraries.Solitaire import SolitaireGame
 from libraries.Flappybird import main as flappybird_main
 from libraries.ChemistryLab import ChemistryLabGame
 from libraries.Save import on_backup_main
+from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
 
 def show_tetris_game(window):
@@ -739,12 +740,20 @@ def create_horizontal_toolbar(parent, window):
     # File operations
     open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
 
-    save_tool = toolbar.AddTool(wx.ID_ANY, 'Save', wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Save the Fitted Results to Excel for this Core Level \tCtrl+S")
-    save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
-                                    wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG),
-                                    shortHelp="Save all sheets with plots")
+    # Change the default save tool
+    quick_save_tool = toolbar.AddTool(wx.ID_ANY, 'Save Data',
+                                      wx.Bitmap(os.path.join(icon_path, "Save-25.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Save Data - Default (JSON only)\tCtrl+S")
+    window.Bind(wx.EVT_TOOL, lambda event: save_json_only(window), quick_save_tool)
 
-    save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
+    save_tool = toolbar.AddTool(wx.ID_ANY, 'Export to Excel', wx.Bitmap(os.path.join(icon_path, "Save-Excel-25.png"),
+                                wx.BITMAP_TYPE_PNG), shortHelp="Export this core level to Excel")
+
+    save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
+                                wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG),
+                                    shortHelp="Save all core level to Excel")
+
+    # save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
 
     # toolbar.AddSeparator()
     window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
@@ -946,7 +955,7 @@ def create_horizontal_toolbar(parent, window):
     bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool,
                         # noise_analysis_tool,
                         # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, plot_tool, toggle_peak_fill_tool,
-                        save_tool, save_plot_tool,
+                        save_tool, #save_plot_tool,
                         save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool)
     # toolbar.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_y_axis(), toggle_y_axis_tool)
     window.Bind(wx.EVT_MENU, window.on_preferences, Setting_tool)
@@ -1064,7 +1073,7 @@ def add_vertical_separator(toolbar, separators):
 
 def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool,
                         # noise_analysis_tool,
-                        save_tool, save_plot_tool,
+                        save_tool, #save_plot_tool,
                         save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool
                         # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, toggle_peak_fill_tool, plot_tool,
                         ):
@@ -1074,7 +1083,7 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(), fitting_tool)
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected_wrapper(window, event))
     window.Bind(wx.EVT_TOOL, lambda event: on_save(window), save_tool)
-    window.Bind(wx.EVT_TOOL, lambda event: on_save_plot(window), save_plot_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: on_save_plot(window), save_plot_tool)
     window.Bind(wx.EVT_TOOL, lambda event: on_save_all_sheets(window, event), save_all_tool)
     window.Bind(wx.EVT_TOOL, lambda event: toggle_Col_1(window), toggle_Col_1_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.export_results(), export_tool)

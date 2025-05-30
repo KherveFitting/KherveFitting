@@ -211,9 +211,9 @@ class KeyEventHandlers:
             redo(self.main_frame)
             return True
         elif keycode == ord('S'):
-            print("Saving")
-            from Functions import on_save
-            on_save(self.main_frame)
+            print("Quick Saving")
+            from libraries.Save import save_json_only
+            save_json_only(self.main_frame)
             return True
         elif keycode == ord('O'):
             print("Opening")

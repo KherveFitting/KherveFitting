@@ -657,7 +657,7 @@ class Tetris:
             self.draw()
 
         pygame.quit()
-        sys.exit()
+        # sys.exit()
 
 
 if __name__ == "__main__":

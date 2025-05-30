@@ -21,7 +21,58 @@ import shutil
 # from Functions import convert_to_serializable_and_round
 
 
-def save_all_sheets_with_plots(window):
+def save_json_only(window):
+    """Save only the JSON file with console updates"""
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    file_path = window.Data['FilePath']
+
+    # Create console window centered on parent
+    parent_pos = window.GetPosition()
+    parent_size = window.GetSize()
+    console_frame = wx.Frame(window, title="Saving Data", size=(300, 200))
+    console_frame.SetPosition((
+        parent_pos.x + (parent_size.width - 300) // 2,
+        parent_pos.y + (parent_size.height - 200) // 2
+    ))
+    console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+    console_frame.Show()
+
+    def update_console(message):
+        console_text.AppendText(message + '\n')
+        console_text.Update()
+        wx.SafeYield()
+
+    try:
+        update_console("Starting JSON save process...")
+
+        # Save JSON file with entire window.Data
+        json_file_path = os.path.splitext(file_path)[0] + '.json'
+        update_console("Preparing data for JSON export...")
+
+        # Create a copy of window.Data to modify
+        json_data = window.Data.copy()
+
+        update_console("Converting data to serializable format...")
+        json_data = convert_to_serializable_and_round(json_data)
+
+        update_console("Writing JSON file...")
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+        update_console("JSON file saved successfully!")
+        wx.CallLater(500, console_frame.Close)
+
+    except Exception as e:
+        update_console(f"Error during save: {str(e)}")
+        wx.CallLater(1000, console_frame.Close)
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error saving JSON: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+def save_all_sheets_with_plots_OLD(window):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         # wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
         window.show_popup_message2("Error", "No file selected. Please open a file first.")
@@ -97,6 +148,76 @@ def save_data_OLD_OLD(window, data):
         print("Data Saved")
     except Exception as e:
         wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def save_all_sheets_with_plots(window):
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    file_path = window.Data['FilePath']
+
+    # Create console window centered on parent
+    parent_pos = window.GetPosition()
+    parent_size = window.GetSize()
+    console_frame = wx.Frame(window, title="Saving All Sheets", size=(300, 350))
+    console_frame.SetPosition((
+        parent_pos.x + (parent_size.width - 300) // 2,
+        parent_pos.y + (parent_size.height - 350) // 2
+    ))
+    console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+    console_frame.Show()
+
+    def update_console(message):
+        console_text.AppendText(message + '\n')
+        console_text.Update()
+        wx.SafeYield()
+
+    try:
+        update_console("Starting save all sheets process...")
+        total_sheets = len(window.Data['Core levels'].keys())
+        update_console(f"Found {total_sheets} sheets to process")
+
+        for i, sheet_name in enumerate(window.Data['Core levels'].keys(), 1):
+            update_console(f"Processing sheet {i}/{total_sheets}: {sheet_name}")
+
+            # Select the sheet
+            window.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(window, sheet_name)
+
+            # Get fitting data
+            update_console(f"Getting fitting data for {sheet_name}")
+            fit_data = window.get_data_for_save()
+
+            # Save fitting data to Excel
+            update_console(f"Saving fitting data to Excel for {sheet_name}")
+            save_to_excel(window, fit_data, file_path, sheet_name, update_console)
+
+            # Save plot to Excel
+            update_console(f"Saving plot to Excel for {sheet_name}")
+            save_plot_to_excel(window, update_console)
+
+        # Save results table
+        update_console("Saving results table...")
+        save_results_table(window)
+
+        # Save JSON
+        update_console("Saving JSON data...")
+        json_file_path = os.path.splitext(file_path)[0] + '.json'
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+        update_console("All sheets, plots, and results table have been saved successfully!")
+        wx.CallLater(500, console_frame.Close)
+
+    except Exception as e:
+        update_console(f"Error saving sheets with plots: {str(e)}")
+        wx.CallLater(1000, console_frame.Close)
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error saving sheets with plots: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 def save_data_OLD(window, data):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
