@@ -413,6 +413,7 @@ def show_version_log(window):
 - Added import VG-MicroTech .1 files
 - Fix Constraint rows which were rewriting the user values
 - Improve the conversion of MRS files
+- Fix copy/paste/sort in sample manager
 - Fix the conversion of Phi files
 - Added import of .txt files for XPS and Raman data
 - Added import of CSV

@@ -413,7 +413,7 @@ def create_menu(window):
     import_kal_item = import_menu.Append(wx.NewId(), "Import Kratos Data file (.kal)")
     window.Bind(wx.EVT_MENU, lambda event: open_kal_file_dialog(window), import_kal_item)
 
-    import_spe_item = import_menu.Append(wx.NewId(), "Import Phi Data file (.spe) -Beta-")
+    import_spe_item = import_menu.Append(wx.NewId(), "Import Phi Data file (.spe)")
     window.Bind(wx.EVT_MENU, lambda event: open_spe_file_dialog(window), import_spe_item)
 
     # Add MRS file import items
