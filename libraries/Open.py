@@ -2340,42 +2340,85 @@ def open_vamas_file(window, file_path):
                 ws.append([x, corrected_y, y, trans])
 
             # Transfer fitting data to be used when opening Excel file
-            # ADD THE FITTING CODE HERE - BEFORE "Store experimental setup data"
+            # if import_fitting:
+            #     print(f"Processing fitting for block {i}: {sheet_name}")
+            #     print(f"Block comment length: {len(block.block_comment)}")
+            #     print(f"Block comment preview: {block.block_comment[:200]}...")
+            #
+            #     # Parse Casa fitting information
+            #     casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
+            #                                         window.photons, transmission_data)
+            #     print(f"Casa data parsed: {casa_data is not None}")
+            #
+            #     if casa_data:
+            #         print(f"Found {len(casa_data['Peaks'])} peaks")
+            #         print(f"Peak names: {list(casa_data['Peaks'].keys())}")
+            #         for peak_name, peak_data in casa_data['Peaks'].items():
+            #             print(
+            #                 f"Peak {peak_name}: Position={peak_data['Position']}, Area={peak_data['Area']}, FWHM={peak_data['FWHM']}")
+            #
+            #         # Store fitting data in a way that will be transferred to window.Data
+            #         if not hasattr(wb, '_fitting_data'):
+            #             wb._fitting_data = {}
+            #             print("VAMAS: Created wb._fitting_data")
+            #
+            #         wb._fitting_data[sheet_name] = {
+            #             'Fitting': {
+            #                 'Peaks': casa_data['Peaks']
+            #             }
+            #         }
+            #         print(f"VAMAS: Stored fitting data for {sheet_name}")
+            #
+            #         if casa_data['Background']:
+            #             wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
+            #             wb._fitting_data[sheet_name]['Background']['Bkg Y'] = y_values
+            #             print(f"Background type: {casa_data['Background'].get('Bkg Type')}")
+            #     else:
+            #         print("No Casa data found in block comment")
+
             if import_fitting:
-                print(f"Processing fitting for block {i}: {sheet_name}")
-                print(f"Block comment length: {len(block.block_comment)}")
-                print(f"Block comment preview: {block.block_comment[:200]}...")
+                if update_console:
+                    update_console(f"Processing fitting data for {sheet_name}...")
 
                 # Parse Casa fitting information
                 casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
                                                     window.photons, transmission_data)
-                print(f"Casa data parsed: {casa_data is not None}")
 
-                if casa_data:
-                    print(f"Found {len(casa_data['Peaks'])} peaks")
-                    print(f"Peak names: {list(casa_data['Peaks'].keys())}")
-                    for peak_name, peak_data in casa_data['Peaks'].items():
-                        print(
-                            f"Peak {peak_name}: Position={peak_data['Position']}, Area={peak_data['Area']}, FWHM={peak_data['FWHM']}")
+                if import_fitting and casa_data:
+                    print(f"DEBUG: Casa data keys: {list(casa_data.keys())}")
+                    print(f"DEBUG: Background data: {casa_data.get('Background', 'No Background key')}")
+
+                    num_peaks = len(casa_data['Peaks'])
+                    if num_peaks > 0:
+                        peak_names = list(casa_data['Peaks'].keys())
+                        if update_console:
+                            update_console(f"  Found {num_peaks} peaks: {', '.join(peak_names)}")
 
                     # Store fitting data in a way that will be transferred to window.Data
                     if not hasattr(wb, '_fitting_data'):
                         wb._fitting_data = {}
-                        print("VAMAS: Created wb._fitting_data")
 
                     wb._fitting_data[sheet_name] = {
                         'Fitting': {
                             'Peaks': casa_data['Peaks']
                         }
                     }
-                    print(f"VAMAS: Stored fitting data for {sheet_name}")
 
                     if casa_data['Background']:
+                        print(f"DEBUG: Background exists, storing it")
                         wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
+                        wb._fitting_data[sheet_name]['Background']['Bkg X'] = x_values
                         wb._fitting_data[sheet_name]['Background']['Bkg Y'] = y_values
-                        print(f"Background type: {casa_data['Background'].get('Bkg Type')}")
+                        # print(f"DEBUG: Stored background data: {wb._fitting_data[sheet_name]['Background']}")
+                        if update_console:
+                            update_console(
+                                f"  Background: {casa_data['Background'].get('Bkg Type')} from {casa_data['Background'].get('Bkg Low'):.1f} to {casa_data['Background'].get('Bkg High'):.1f} eV")
+                    else:
+                        print(f"DEBUG: No background data in casa_data or background is empty")
+                        print(f"DEBUG: casa_data['Background'] = {casa_data.get('Background', 'KEY NOT FOUND')}")
                 else:
-                    print("No Casa data found in block comment")
+                    if update_console:
+                        update_console(f"  No Casa fitting data found for {sheet_name}")
 
             # Store experimental setup data
             block_exp_data = [
@@ -2557,26 +2600,33 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
         if line.startswith('CASA region'):
             # Parse background information
             parts = line.split()
-            if len(parts) >= 6:
+            if len(parts) >= 5:
                 # Extract background type - look for second (*...*) pattern
                 bg_matches = re.findall(r'\(\*([^*]+)\*\)', line)
                 bg_type = bg_matches[1] if len(bg_matches) > 1 else "Shirley"
 
+                # Map Casa background types to KherveFitting types
+                if bg_type.lower() == "shirley":
+                    kf_bg_type = "Multi-Regions Smart"
+                else:
+                    kf_bg_type = bg_type
+
                 # Extract energy range and convert from KE to BE
                 try:
-                    low_ke = float(parts[3])
-                    high_ke = float(parts[4])
+                    low_ke = float(parts[5])
+                    high_ke = float(parts[6])
                     # Convert KE to BE
-                    low_energy = photon_energy - high_ke  # Note: reversed because KE range inverts for BE
+                    low_energy = photon_energy - high_ke
                     high_energy = photon_energy - low_ke
+                    print(f"DEBUG: Parsed background - Type: {kf_bg_type}, Low: {low_energy}, High: {high_energy}")
 
                     fitting_data['Background'] = {
-                        'Bkg Type': bg_type,
-                        'Bkg Low': str(low_energy),
-                        'Bkg High': str(high_energy),
+                        'Bkg Type': kf_bg_type,
+                        'Bkg Low': low_energy,
+                        'Bkg High': high_energy,
                         'Bkg Offset Low': '0',
                         'Bkg Offset High': '0',
-                        'Bkg Y': []  # Will be set later
+                        'Bkg Y': []
                     }
                 except (ValueError, IndexError):
                     pass
@@ -2590,39 +2640,101 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
             # Extract model (second pattern)
             model_str = peak_matches[1] if len(peak_matches) > 1 else "GL(30)"
 
-            # Parse model
+            # Parse model and determine KherveFitting equivalent
+            model = "GL (Area)"
+            lg_value = 30
+            sigma_value = 0.6
+            gamma_value = 0.4
+
             if 'GL(' in model_str:
                 lg_match = re.search(r'GL\((\d+)\)', model_str)
                 lg_value = float(lg_match.group(1)) if lg_match else 30
                 model = "GL (Area)"
+            elif 'SGL(' in model_str:
+                lg_match = re.search(r'SGL\((\d+)\)', model_str)
+                lg_value = float(lg_match.group(1)) if lg_match else 30
+                model = "SGL (Area)"
+            elif 'LA(' in model_str:
+                # Extract LA parameters: LA(sigma, gamma, w_g)
+                la_params = re.search(r'LA\(([\d.]+),\s*([\d.]+),\s*([\d.]+)\)', model_str)
+                if la_params:
+                    sigma_value = float(la_params.group(1))
+                    gamma_value = float(la_params.group(2))
+                    w_g = float(la_params.group(3))
+
+                    if w_g > 100:
+                        model = "LA*G (Area, σ/γ, γ)"
+                    else:
+                        model = "LA (Area, σ, γ)"
+
+                    # Calculate L/G ratio from sigma and gamma
+                    lg_value = 100 * sigma_value / (sigma_value + gamma_value)
+                else:
+                    model = "LA (Area, σ, γ)"
+
+            # Extract parameters with constraints
+            area_match = re.search(r'Area\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
+            fwhm_match = re.search(r'MFWHM\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
+            pos_match = re.search(r'Position\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
+
+            # Calculate area (divide by average transmission only)
+            area_value = float(area_match.group(1)) / avg_transmission if area_match else 1000
+
+            # Handle area constraints
+            if area_match:
+                area_constrained_peak = int(area_match.group(4))
+                area_constraint_value = float(area_match.group(5))
+
+                if area_constrained_peak >= 0:
+                    peak_letter = chr(65 + area_constrained_peak)  # A=0, B=1, etc.
+                    area_constraint = f"{peak_letter}*{area_constraint_value}#0.05"
+                else:
+                    area_min = float(area_match.group(2)) if float(area_match.group(2)) > 1e-19 else 1
+                    area_max = float(area_match.group(3)) / avg_transmission
+                    area_constraint = f"{area_min}:{area_max}"
             else:
-                model = "GL (Area)"
-                lg_value = 30
-
-            # Extract parameters using regex
-            area_match = re.search(r'Area\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)', line)
-            fwhm_match = re.search(r'MFWHM\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)', line)
-            pos_match = re.search(r'Position\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)', line)
-
-            # Calculate area (divide by number of scans AND average transmission)
-            num_scan = 1
-            area_value = float(area_match.group(1)) / (num_scan * avg_transmission) if area_match else 1000
-            area_min = float(area_match.group(2)) if area_match else 1
-            area_max = float(area_match.group(3)) / (num_scan * avg_transmission) if area_match else 1e7
+                area_constraint = "1:1e7"
 
             # Convert position from KE to BE
             pos_ke = float(pos_match.group(1)) if pos_match else 800
             position_be = photon_energy - pos_ke
 
-            # Convert position constraints from KE to BE (note the inversion)
-            pos_ke_min = float(pos_match.group(2)) if pos_match else 780
-            pos_ke_max = float(pos_match.group(3)) if pos_match else 820
-            pos_be_min = photon_energy - pos_ke_max  # Inverted
-            pos_be_max = photon_energy - pos_ke_min  # Inverted
+            # Handle position constraints
+            if pos_match:
+                pos_constrained_peak = int(pos_match.group(4))
+                pos_constraint_value = float(pos_match.group(5))
 
-            # Calculate height from area and FWHM (GL model formula)
+                if pos_constrained_peak >= 0:
+                    peak_letter = chr(65 + pos_constrained_peak)
+                    pos_constraint = f"{peak_letter}+0.0#0.2"  # Position typically uses +
+                else:
+                    pos_ke_min = float(pos_match.group(2))
+                    pos_ke_max = float(pos_match.group(3))
+                    pos_be_min = photon_energy - pos_ke_max  # Inverted
+                    pos_be_max = photon_energy - pos_ke_min  # Inverted
+                    pos_constraint = f"{pos_be_min:.2f}:{pos_be_max:.2f}"
+            else:
+                pos_constraint = "1:1000"
+
+            # Handle FWHM constraints
             fwhm_value = float(fwhm_match.group(1)) if fwhm_match else 1.5
-            height = area_value / (fwhm_value * np.sqrt(np.pi / (4 * np.log(2))))
+            if fwhm_match:
+                fwhm_constrained_peak = int(fwhm_match.group(4))
+                fwhm_constraint_value = float(fwhm_match.group(5))
+
+                if fwhm_constrained_peak >= 0:
+                    peak_letter = chr(65 + fwhm_constrained_peak)
+                    fwhm_constraint = f"{peak_letter}*{fwhm_constraint_value}#0.05"
+                else:
+                    fwhm_constraint = f"{fwhm_match.group(2)}:{fwhm_match.group(3)}"
+            else:
+                fwhm_constraint = "0.3:3.5"
+
+            # Calculate height from area and FWHM
+            if 'LA' in model:
+                height = area_value / (fwhm_value * 1.5)  # Approximation
+            else:
+                height = area_value / (fwhm_value * np.sqrt(np.pi / (4 * np.log(2))))
 
             peak_data = {
                 'Position': position_be,
@@ -2630,8 +2742,8 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
                 'FWHM': fwhm_value,
                 'L/G': lg_value,
                 'Area': area_value,
-                'Sigma': 0.6,
-                'Gamma': 0.4,
+                'Sigma': sigma_value,
+                'Gamma': gamma_value,
                 'Skew': 0.1,
                 'Fitting Model': model,
                 'Bkg Type': fitting_data['Background'].get('Bkg Type', ''),
@@ -2641,11 +2753,11 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
                 'Bkg Offset High': '0'
             }
 
-            # Create constraints with BE values
-            pos_constraint = f"{pos_be_min:.2f}:{pos_be_max:.2f}"
-            fwhm_constraint = f"{fwhm_match.group(2)}:{fwhm_match.group(3)}" if fwhm_match else "0.3:3.5"
-            area_constraint = f"{area_min}:{area_max}" if area_match else "1:1e7"
-            lg_constraint = "Fixed" if 'GL(' in model_str else "5:80"
+            # Set constraints
+            if 'LA' in model:
+                lg_constraint = "Fixed"
+            else:
+                lg_constraint = "Fixed" if any(x in model_str for x in ['GL(', 'SGL(']) else "5:80"
 
             constraints = {
                 'Position': pos_constraint,
@@ -2653,8 +2765,8 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
                 'FWHM': fwhm_constraint,
                 'L/G': lg_constraint,
                 'Area': area_constraint,
-                'Sigma': "0.3:3",
-                'Gamma': "0.3:3",
+                'Sigma': "0.01:10" if 'LA' in model else "0.3:3",
+                'Gamma': "0.01:10" if 'LA' in model else "0.3:3",
                 'Skew': "0.01:2"
             }
 
@@ -2806,7 +2918,23 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
         event.SetString(sheet_names[0])
         on_sheet_selected(window, event)
 
+        # Calculate backgrounds for sheets with fitting data
+        for sheet_name in sheet_names:
+            if (fitting_data and sheet_name in fitting_data and
+                    'Background' in fitting_data[sheet_name]):
+                window.sheet_combobox.SetValue(sheet_name)
+                bg_data = fitting_data[sheet_name]['Background']
+                window.bg_min_energy = bg_data.get('Bkg Low')
+                window.bg_max_energy = bg_data.get('Bkg High')
+                window.background_method = bg_data.get('Bkg Type', 'Multi-Regions Smart')
+                window.plot_manager.plot_background(window, use_smoothing=False)
+
+        # Set back to first sheet
+        window.sheet_combobox.SetValue(sheet_names[0])
+
         window.plot_manager.plot_data(window)
+
+        window.plot_manager.clear_and_replot(window)
 
         if update_console:
             update_console("Loading complete!")
