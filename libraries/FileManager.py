@@ -125,7 +125,8 @@ class FileManagerWindow(wx.Frame):
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_cell_changing)
         self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
-        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed) # now redundant I believe
+        self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cell_focus_changed)
 
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
@@ -143,12 +144,6 @@ class FileManagerWindow(wx.Frame):
         """Handle completed cell edit event"""
         row = event.GetRow()
         col = event.GetCol()
-
-        # Handle sample name column
-        if col == 0:
-            name = self.grid.GetCellValue(row, 0)
-            self.sample_names[str(row)] = name
-            self.save_sample_names()
 
         event.Skip()
 
@@ -829,6 +824,27 @@ class FileManagerWindow(wx.Frame):
         # Save to parent.Data
         self.parent.Data['SampleNames'] = self.sample_names
 
+        # Save to JSON file
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                # Load existing JSON data
+                json_data = {}
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+
+                # Update sample names in JSON
+                json_data['SampleNames'] = self.sample_names
+
+                # Save back to JSON file
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=2)
+
+            except Exception as e:
+                print(f"Error saving sample names to JSON: {e}")
+
     def on_key_down(self, event):
         """Handle key press events"""
         key_code = event.GetKeyCode()
@@ -1325,6 +1341,12 @@ class FileManagerWindow(wx.Frame):
         sheet_names = self.get_selected_sheet_names()
         if sheet_names:
             self.plot_multiple_sheets(sheet_names)
+
+    def on_cell_focus_changed(self, event):
+        """Save sample names when cell focus changes"""
+        if event.GetCol() == 0:  # Sample name column
+            self.save_sample_names()
+        event.Skip()
 
     def on_cell_changing(self, event):
         """Handle cell edit event for renaming and repositioning core levels"""
