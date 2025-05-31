@@ -751,7 +751,8 @@ def create_horizontal_toolbar(parent, window):
 
     save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
                                 wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG),
-                                    shortHelp="Save all core level to Excel")
+                                    shortHelp="Export all core level to Excel (Not recommended for 50 above core "
+                                              "levels)")
 
     # save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
 

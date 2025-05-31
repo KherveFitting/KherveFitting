@@ -2348,7 +2348,7 @@ def open_vamas_file(window, file_path):
 
                 # Parse Casa fitting information
                 casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
-                                                    window.photons)
+                                                    window.photons, transmission_data)
                 print(f"Casa data parsed: {casa_data is not None}")
 
                 if casa_data:
@@ -2511,7 +2511,7 @@ def open_vamas_file(window, file_path):
         wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67):
+def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, transmission_data=None):
     """
     Parse Casa XPS peak fitting information from VAMAS block comment.
 
@@ -2519,12 +2519,18 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67):
         block_comment (str): The block comment containing Casa Info
         num_scans (int): Number of scans to divide area by
         photon_energy (float): X-ray photon energy for KE to BE conversion
+        transmission_data (list): Transmission values for area correction
 
     Returns:
         dict: Dictionary containing background and peak fitting information
     """
     if "Casa Info Follows" not in block_comment:
         return None
+
+    # Calculate average transmission if available
+    avg_transmission = 1.0
+    if transmission_data and len(transmission_data) > 0:
+        avg_transmission = np.mean(transmission_data)
 
     lines = block_comment.split('\n')
     casa_start = -1
@@ -2598,10 +2604,11 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67):
             fwhm_match = re.search(r'MFWHM\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)', line)
             pos_match = re.search(r'Position\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)', line)
 
-            # Calculate area (divide by number of scans)
-            area_value = float(area_match.group(1)) / num_scans if area_match else 1000
+            # Calculate area (divide by number of scans AND average transmission)
+            num_scan = 1
+            area_value = float(area_match.group(1)) / (num_scan * avg_transmission) if area_match else 1000
             area_min = float(area_match.group(2)) if area_match else 1
-            area_max = float(area_match.group(3)) / num_scans if area_match else 1e7
+            area_max = float(area_match.group(3)) / (num_scan * avg_transmission) if area_match else 1e7
 
             # Convert position from KE to BE
             pos_ke = float(pos_match.group(1)) if pos_match else 800
@@ -2741,8 +2748,6 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
         if update_console:
             update_console("Reading Excel file structure...")
 
-        print(f"EXCEL: Starting to load {file_path}, has_fitting={has_fitting}")
-
         window.SetStatusText(f"Selected File: {file_path}", 0)
         window.Data = Init_Measurement_Data(window)
         window.Data['FilePath'] = file_path
@@ -2751,22 +2756,23 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
         fitting_data = {}
         if has_fitting:
             fitting_file = file_path.replace('.xlsx', '_fitting.json')
-            print(f"EXCEL: Looking for fitting file: {fitting_file}")
             if os.path.exists(fitting_file):
                 if update_console:
                     update_console("Loading peak fitting data...")
-                print(f"EXCEL: Loading fitting data from: {fitting_file}")
 
                 with open(fitting_file, 'r') as f:
                     fitting_data = json.load(f)
-                print(f"EXCEL: Loaded fitting data for {len(fitting_data)} sheets")
+
+                # Update console with peak information
                 for sheet_name, data in fitting_data.items():
-                    print(f"EXCEL: Sheet {sheet_name} has {len(data.get('Fitting', {}).get('Peaks', {}))} peaks")
+                    num_peaks = len(data.get('Fitting', {}).get('Peaks', {}))
+                    if num_peaks > 0:
+                        peak_names = list(data.get('Fitting', {}).get('Peaks', {}).keys())
+                        if update_console:
+                            update_console(f"  {sheet_name}: {num_peaks} peaks - {', '.join(peak_names)}")
 
                 # Clean up temporary file
                 os.remove(fitting_file)
-            else:
-                print(f"EXCEL: Fitting file not found: {fitting_file}")
 
         excel_file = pd.ExcelFile(file_path)
         sheet_names = [name for name in excel_file.sheet_names if name != "Experimental description"]
@@ -2778,37 +2784,14 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
         for i, sheet_name in enumerate(sheet_names, 1):
             if update_console:
                 update_console(f"Loading sheet {i}/{len(sheet_names)}: {sheet_name}")
-            print(f"EXCEL: Processing sheet {sheet_name}")
 
             window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
 
             # Add fitting data if available for this sheet
             if fitting_data and sheet_name in fitting_data:
-                print(f"EXCEL: Adding fitting data for sheet: {sheet_name}")
                 if 'Core levels' in window.Data and sheet_name in window.Data['Core levels']:
                     # Add the fitting data to the core level
                     window.Data['Core levels'][sheet_name].update(fitting_data[sheet_name])
-                    print(f"EXCEL: Fitting data added to {sheet_name}")
-
-                    # Verify the data was added
-                    if 'Fitting' in window.Data['Core levels'][sheet_name]:
-                        peaks = window.Data['Core levels'][sheet_name]['Fitting'].get('Peaks', {})
-                        print(f"EXCEL: Verification - {sheet_name} now has {len(peaks)} peaks in window.Data")
-                    else:
-                        print(f"EXCEL: ERROR - No Fitting section found in {sheet_name} after update")
-                else:
-                    print(f"EXCEL: ERROR - Sheet {sheet_name} not found in window.Data['Core levels']")
-            else:
-                print(f"EXCEL: No fitting data for sheet {sheet_name}")
-
-        print(
-            f"EXCEL: Final check - window.Data['Core levels'] keys: {list(window.Data.get('Core levels', {}).keys())}")
-        for sheet_name in window.Data.get('Core levels', {}):
-            has_fitting_check = 'Fitting' in window.Data['Core levels'][sheet_name]
-            print(f"EXCEL: Final - {sheet_name} has fitting: {has_fitting_check}")
-            if has_fitting_check:
-                peaks = window.Data['Core levels'][sheet_name]['Fitting'].get('Peaks', {})
-                print(f"EXCEL: Final - {sheet_name} has {len(peaks)} peaks")
 
         if update_console:
             update_console("Updating interface...")
@@ -2816,6 +2799,13 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
         window.sheet_combobox.Clear()
         window.sheet_combobox.AppendItems(sheet_names)
         window.sheet_combobox.SetValue(sheet_names[0])
+
+        # Refresh peak fitting grid to show imported peaks
+        from libraries.Sheet_Operations import on_sheet_selected
+        event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
+        event.SetString(sheet_names[0])
+        on_sheet_selected(window, event)
+
         window.plot_manager.plot_data(window)
 
         if update_console:
