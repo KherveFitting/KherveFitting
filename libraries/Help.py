@@ -419,7 +419,6 @@ Philosophy:
 -v1.7 xxx-25  - Automatic Survey identification
 -v1.8 xxx-25  - Towards Linux Version (Synchrotron)
 
-
 Version 1.505-1.590
 - Added opening peak fitting of CasaXPS files
 - Added Add/Delete core level in the Peak Fitting Grid

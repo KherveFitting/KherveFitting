@@ -1365,23 +1365,6 @@ def import_avantage_file(window):
             import_avantage_file_direct_xls(window, file_path)
 
 
-def parse_avg_file_OLD(file_path):
-    with open(file_path, 'r') as file:
-        content = file.read()
-
-    photon_energy = float(re.search(r'DS_SOPROPID_ENERGY\s+:\s+VT_R4\s+=\s+(\d+\.\d+)', content).group(1))
-    start_energy, width, num_points = map(float, re.search(r'\$SPACEAXES=1\s+0=\s+(\d+\.\d+),\s+(\d+\.\d+),\s+(\d+),',
-                                                           content).groups())
-
-    # Modified part to handle multiple numbers per line
-    y_values = []
-    for match in re.findall(r'LIST@\s+\d+=\s+([\d., ]+)', content):
-        values = [float(val.strip()) for val in match.split(',')]
-        y_values.extend(values)
-
-    return photon_energy, start_energy, width, int(num_points), y_values
-
-
 def parse_avg_file(file_path):
     with open(file_path, 'r') as file:
         content = file.read()
@@ -2238,8 +2221,10 @@ def open_vamas_file(window, file_path):
 
         if has_casa_fitting:
             dlg = wx.MessageDialog(window,
-                                   "Peak fitting information detected in VAMAS file.\n\nDo you want to import the peak fitting data?",
-                                   "Import Peak Fitting",
+                                   "Peak fitting information detected in VAMAS file.\n\nDo you want to import the "
+                                   "peak fitting data?\n"
+                                   "Note that this feature is still in beta testing and may not work perfectly.\n",
+                                   "Import Peak Fitting [Beta testing]",
                                    wx.YES_NO | wx.ICON_QUESTION)
             result = dlg.ShowModal()
             import_fitting = (result == wx.ID_YES)
@@ -2617,14 +2602,14 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
             sigma_value = 0.6
             gamma_value = 0.4
 
-            if 'GL(' in model_str:
-                lg_match = re.search(r'GL\((\d+)\)', model_str)
-                lg_value = float(lg_match.group(1)) if lg_match else 30
-                model = "GL (Area)"
-            elif 'SGL(' in model_str:
+            if 'SGL(' in model_str:
                 lg_match = re.search(r'SGL\((\d+)\)', model_str)
                 lg_value = float(lg_match.group(1)) if lg_match else 30
                 model = "SGL (Area)"
+            elif 'GL(' in model_str:
+                lg_match = re.search(r'GL\((\d+)\)', model_str)
+                lg_value = float(lg_match.group(1)) if lg_match else 30
+                model = "GL (Area)"
             elif 'LA(' in model_str:
                 # Extract LA parameters: LA(sigma, gamma, w_g)
                 la_params = re.search(r'LA\(([\d.]+),\s*([\d.]+),\s*([\d.]+)\)', model_str)
@@ -2641,7 +2626,26 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
                     # Calculate L/G ratio from sigma and gamma
                     lg_value = 100 * sigma_value / (sigma_value + gamma_value)
                 else:
-                    model = "LA (Area, σ, γ)"
+                    # Check for single parameter LA(number) format
+                    single_param = re.search(r'LA\((\d+)\)', model_str)
+                    if single_param:
+                        ratio_value = int(single_param.group(1))
+
+                        # Mapping for gamma values based on sigma/gamma ratio
+                        gamma_mapping = {
+                            20: 2.7, 30: 2.4, 40: 2.2, 50: 2.0, 60: 1.8,
+                            70: 1.6, 80: 1.4, 90: 1.2, 100: 1.0
+                        }
+
+                        gamma_value = gamma_mapping.get(ratio_value, 2.0)  # Default to 2.0 if not found
+                        sigma_value = gamma_value  # sigma = (sigma/gamma) * gamma
+                        lg_value = ratio_value  # L/G ratio is the number itself
+                        model = "LA (Area, σ/γ, γ)"
+                    else:
+                        model = "LA (Area, σ, γ)"
+                        sigma_value = 0.6
+                        gamma_value = 0.4
+                        lg_value = 100 * sigma_value / (sigma_value + gamma_value)
 
             # Extract parameters with constraints
             area_match = re.search(r'Area\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
