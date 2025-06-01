@@ -407,7 +407,21 @@ def show_version_log(window):
     dlg = wx.Dialog(window, title="Version Log", size=(600, 400))
     text = wx.TextCtrl(dlg, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
 
-    version_log = """Version 1.505-1.590
+    version_log = """
+Philosophy:
+-v1.0 Sep-24  - Initial release of KherveFitting
+-v1.1 Oct-24  - Towards models constraint to Area
+-v1.2 Nov-24  - Towards asymmetric models
+-v1.3 Dec-24  - Towards true Atomic concentration (TPP-2M, IMFP, Transmission)
+-v1.4 Feb-25  - Towards Mac Version
+-v1.5 May-25  - Towards multi-samples 2D-Manager
+-v1.6 Jun-25  - Towards opening/saving fitted CasaXPS data
+-v1.7 xxx-25  - Automatic Survey identification
+-v1.8 xxx-25  - Towards Linux Version (Synchrotron)
+
+
+Version 1.505-1.590
+- Added opening peak fitting of CasaXPS files
 - Added Add/Delete core level in the Peak Fitting Grid
 - Added a game menu
 - Added import VG-MicroTech .1 files
@@ -418,6 +432,7 @@ def show_version_log(window):
 - Added import of .txt files for XPS and Raman data
 - Added import of CSV
 - Added My dream NIST library
+
 Version 1.41-1.5 (March-Apr 2025)
 - Release of the Mac Version
 - Added analysis of Raman Data

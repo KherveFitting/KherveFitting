@@ -2339,42 +2339,6 @@ def open_vamas_file(window, file_path):
                 corrected_y = y / trans
                 ws.append([x, corrected_y, y, trans])
 
-            # Transfer fitting data to be used when opening Excel file
-            # if import_fitting:
-            #     print(f"Processing fitting for block {i}: {sheet_name}")
-            #     print(f"Block comment length: {len(block.block_comment)}")
-            #     print(f"Block comment preview: {block.block_comment[:200]}...")
-            #
-            #     # Parse Casa fitting information
-            #     casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
-            #                                         window.photons, transmission_data)
-            #     print(f"Casa data parsed: {casa_data is not None}")
-            #
-            #     if casa_data:
-            #         print(f"Found {len(casa_data['Peaks'])} peaks")
-            #         print(f"Peak names: {list(casa_data['Peaks'].keys())}")
-            #         for peak_name, peak_data in casa_data['Peaks'].items():
-            #             print(
-            #                 f"Peak {peak_name}: Position={peak_data['Position']}, Area={peak_data['Area']}, FWHM={peak_data['FWHM']}")
-            #
-            #         # Store fitting data in a way that will be transferred to window.Data
-            #         if not hasattr(wb, '_fitting_data'):
-            #             wb._fitting_data = {}
-            #             print("VAMAS: Created wb._fitting_data")
-            #
-            #         wb._fitting_data[sheet_name] = {
-            #             'Fitting': {
-            #                 'Peaks': casa_data['Peaks']
-            #             }
-            #         }
-            #         print(f"VAMAS: Stored fitting data for {sheet_name}")
-            #
-            #         if casa_data['Background']:
-            #             wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
-            #             wb._fitting_data[sheet_name]['Background']['Bkg Y'] = y_values
-            #             print(f"Background type: {casa_data['Background'].get('Bkg Type')}")
-            #     else:
-            #         print("No Casa data found in block comment")
 
             if import_fitting:
                 if update_console:
@@ -2408,7 +2372,14 @@ def open_vamas_file(window, file_path):
                         print(f"DEBUG: Background exists, storing it")
                         wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
                         wb._fitting_data[sheet_name]['Background']['Bkg X'] = x_values
-                        wb._fitting_data[sheet_name]['Background']['Bkg Y'] = y_values
+
+                        # Calculate corrected_y (same as done in Excel writing loop)
+                        corrected_y_values = []
+                        for j, y in enumerate(y_values):
+                            trans = transmission_data[j] if j < len(transmission_data) else 1.0
+                            corrected_y_values.append(y / trans)
+
+                        wb._fitting_data[sheet_name]['Background']['Bkg Y'] = corrected_y_values
                         # print(f"DEBUG: Stored background data: {wb._fitting_data[sheet_name]['Background']}")
                         if update_console:
                             update_console(
@@ -2607,7 +2578,7 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
                 # Map Casa background types to KherveFitting types
                 if bg_type.lower() == "shirley":
-                    kf_bg_type = "Multi-Regions Smart"
+                    kf_bg_type = "Shirley"
                 else:
                     kf_bg_type = bg_type
 
@@ -2679,7 +2650,7 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
             # Calculate area (divide by average transmission only)
             area_value = float(area_match.group(1)) / avg_transmission if area_match else 1000
-
+            area_value = round(area_value,2)
             # Handle area constraints
             if area_match:
                 area_constrained_peak = int(area_match.group(4))
@@ -2687,7 +2658,7 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
                 if area_constrained_peak >= 0:
                     peak_letter = chr(65 + area_constrained_peak)  # A=0, B=1, etc.
-                    area_constraint = f"{peak_letter}*{area_constraint_value}#0.05"
+                    area_constraint = f"{peak_letter}*{area_constraint_value}"
                 else:
                     area_min = float(area_match.group(2)) if float(area_match.group(2)) > 1e-19 else 1
                     area_max = float(area_match.group(3)) / avg_transmission
@@ -2706,7 +2677,7 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
                 if pos_constrained_peak >= 0:
                     peak_letter = chr(65 + pos_constrained_peak)
-                    pos_constraint = f"{peak_letter}+0.0#0.2"  # Position typically uses +
+                    pos_constraint = f"{peak_letter}+0.0"  # Position typically uses +
                 else:
                     pos_ke_min = float(pos_match.group(2))
                     pos_ke_max = float(pos_match.group(3))
@@ -2718,13 +2689,14 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
             # Handle FWHM constraints
             fwhm_value = float(fwhm_match.group(1)) if fwhm_match else 1.5
+            fwhm_value = round(fwhm_value,2)
             if fwhm_match:
                 fwhm_constrained_peak = int(fwhm_match.group(4))
                 fwhm_constraint_value = float(fwhm_match.group(5))
 
                 if fwhm_constrained_peak >= 0:
                     peak_letter = chr(65 + fwhm_constrained_peak)
-                    fwhm_constraint = f"{peak_letter}*{fwhm_constraint_value}#0.05"
+                    fwhm_constraint = f"{peak_letter}*{fwhm_constraint_value}"
                 else:
                     fwhm_constraint = f"{fwhm_match.group(2)}:{fwhm_match.group(3)}"
             else:
@@ -2738,10 +2710,10 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
             peak_data = {
                 'Position': position_be,
-                'Height': height,
-                'FWHM': fwhm_value,
+                'Height': round(height,2),
+                'FWHM': round(fwhm_value,2),
                 'L/G': lg_value,
-                'Area': area_value,
+                'Area': round(area_value,2),
                 'Sigma': sigma_value,
                 'Gamma': gamma_value,
                 'Skew': 0.1,
@@ -2924,8 +2896,9 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
                     'Background' in fitting_data[sheet_name]):
                 window.sheet_combobox.SetValue(sheet_name)
                 bg_data = fitting_data[sheet_name]['Background']
-                window.bg_min_energy = bg_data.get('Bkg Low')
-                window.bg_max_energy = bg_data.get('Bkg High')
+                window.bg_min_energy = bg_data.get('Bkg Low')  # Add print here
+                window.bg_max_energy = bg_data.get('Bkg High')  # Add print here
+                print(f"DEBUG: Setting bg range: {window.bg_min_energy} to {window.bg_max_energy}")
                 window.background_method = bg_data.get('Bkg Type', 'Multi-Regions Smart')
                 window.plot_manager.plot_background(window, use_smoothing=False)
 
