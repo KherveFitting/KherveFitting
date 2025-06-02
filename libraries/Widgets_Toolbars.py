@@ -575,15 +575,21 @@ def create_menu(window):
         "https://www.mdpi.com/2311-5629/7/3/51"),
                 d_parameter_item)
 
-    Fepeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Transition Metal")
-    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
-        "https://drive.google.com/file/d/1Kxx_j2kCpj8Hrd3XwbmEcJ16qHpgDmuN/view"),
-                Fepeaktable_item)
-
     Carbonpeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Carbon")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://drive.google.com/file/d/1fyXNfX46cN7q2sYRqwBM-jaj7C2cNSPA/view"),
                 Carbonpeaktable_item)
+
+    Fepeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Transition Metal Cr/Mn/Fe/Co/Ni")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1Kxx_j2kCpj8Hrd3XwbmEcJ16qHpgDmuN/view"),
+                Fepeaktable_item)
+
+    Fepeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Transition Metal Cu/Ti/V/Sc/Zn")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1YYw7O1JVW4Ni_3GJv72uTE9KVE4Cg1S9/view"),
+                Fepeaktable_item)
+
 
 
 
