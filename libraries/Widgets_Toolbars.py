@@ -744,31 +744,31 @@ def create_horizontal_toolbar(parent, window):
     separators = []
 
     # File operations
-    open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
+    open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-2.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
 
     # Change the default save tool
     quick_save_tool = toolbar.AddTool(wx.ID_ANY, 'Save Data',
-                                      wx.Bitmap(os.path.join(icon_path, "Save-25.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "Save_Json.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Save Data - Default (JSON only)\tCtrl+S")
     window.Bind(wx.EVT_TOOL, lambda event: save_json_only(window), quick_save_tool)
 
-    save_tool = toolbar.AddTool(wx.ID_ANY, 'Export to Excel', wx.Bitmap(os.path.join(icon_path, "Save-Excel-25.png"),
+    save_tool = toolbar.AddTool(wx.ID_ANY, 'Export to Excel', wx.Bitmap(os.path.join(icon_path, "Save-Excel-2.png"),
                                 wx.BITMAP_TYPE_PNG), shortHelp="Export this core level to Excel")
 
     save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
-                                wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"), wx.BITMAP_TYPE_PNG),
+                                wx.Bitmap(os.path.join(icon_path, "save-Multi-2.png"), wx.BITMAP_TYPE_PNG),
                                     shortHelp="Export all core level to Excel (Not recommended for 50 above core "
                                               "levels)")
 
     # save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
 
     # toolbar.AddSeparator()
-    window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
+    window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-2.png"), wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
     window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
     # toolbar.AddSeparator()
 
     # Add sort sheets button
-    sort_icon = os.path.join(icon_path, "Sort-25.png")
+    sort_icon = os.path.join(icon_path, "Sort-2.png")
     if os.path.exists(sort_icon):
         sort_bmp = wx.Bitmap(sort_icon)
     else:
@@ -777,7 +777,7 @@ def create_horizontal_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda event: sort_excel_sheets(window), sort_tool)
 
     # Add File Manager button to toolbar
-    file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-25.png"), wx.BITMAP_TYPE_PNG)
+    file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-2.png"), wx.BITMAP_TYPE_PNG)
     file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp,
                                         "Open Sample/Experiment Manager. Make sure to use F2 or Ctrl+2 to plot with peak models")
     window.Bind(wx.EVT_TOOL, window.on_open_file_manager, file_manager_tool)
@@ -790,27 +790,27 @@ def create_horizontal_toolbar(parent, window):
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected(window, event))
 
     refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path,
-                                                                                                  "Refresh-25.png"),
+                                                                                                  "Refresh-2.png"),
                                                                                      wx.BITMAP_TYPE_PNG),
                                           shortHelp="Refresh Excel File and json file. Used when the Excel File has "
                                                     "more sheets or when the file does not work well")
 
     delete_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Delete Core Level/Survey',
-                                        wx.Bitmap(os.path.join(icon_path, "delete-25.png"), wx.BITMAP_TYPE_PNG),
+                                        wx.Bitmap(os.path.join(icon_path, "delete-2.png"), wx.BITMAP_TYPE_PNG),
                                         shortHelp="Delete current Core Level/Survey")
     window.Bind(wx.EVT_TOOL, lambda event: on_delete_sheet(window, event), delete_sheet_tool)
 
     copy_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Copy/Paste Core Level',
-                                      wx.Bitmap(os.path.join(icon_path, "copy-25.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "copy-2.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Copy/Paste this Core Level/Survey at the end of this file")
 
     join_sheets_tool = toolbar.AddTool(wx.ID_ANY, 'Join Core Level/Survey',
-                                       wx.Bitmap(os.path.join(icon_path, "join2-25.png"), wx.BITMAP_TYPE_PNG),
+                                       wx.Bitmap(os.path.join(icon_path, "join-2.png"), wx.BITMAP_TYPE_PNG),
                                        shortHelp="Join Multiple Core Level/Survey")
 
 
     rename_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Rename Core Level/Survey',
-                                        wx.Bitmap(os.path.join(icon_path, "rename-25.png"), wx.BITMAP_TYPE_PNG),
+                                        wx.Bitmap(os.path.join(icon_path, "rename-2.png"), wx.BITMAP_TYPE_PNG),
                                         shortHelp="Rename current Core Level/Survey")
     window.Bind(wx.EVT_TOOL, lambda evt: _show_rename_dialog(window), rename_sheet_tool)
 

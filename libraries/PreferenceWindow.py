@@ -362,7 +362,7 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.angle_spin, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Add photon source selection
-        photon_sources = ["Al Kα", "Mg Kα", "Custom"]
+        photon_sources = ["Al Kα", "Mg Kα", "Ag Lα", "Ga Kα", "Custom"]
         self.photon_combo = wx.ComboBox(self.instrument_tab, choices=photon_sources, style=wx.CB_READONLY)
         self.photon_combo.SetSelection(0)
 
@@ -1120,11 +1120,20 @@ class PreferenceWindow(wx.Frame):
 
     def on_photon_source(self, event):
         selection = self.photon_combo.GetValue()
-        if selection == "Al Kα (1486.67 eV)":
+        if selection == "Al Kα":
             self.custom_photon.SetValue(1486.67)
             self.custom_photon.Enable(False)
-        elif selection == "Mg Kα (1253.6 eV)":
+        elif selection == "Mg Kα":
             self.custom_photon.SetValue(1253.6)
+            self.custom_photon.Enable(False)
+        elif selection == "Ag Lα":
+            self.custom_photon.SetValue(2984.3)
+            self.custom_photon.Enable(False)
+        elif selection == "Ga Kα":
+            self.custom_photon.SetValue(9251)
+            self.custom_photon.Enable(False)
+        elif selection == "Cr Kα":
+            self.custom_photon.SetValue(5417)
             self.custom_photon.Enable(False)
         else:
             self.custom_photon.Enable(True)
