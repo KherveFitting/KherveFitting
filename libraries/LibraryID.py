@@ -120,7 +120,7 @@ class PeriodicTableXPS(tk.Tk):
         # Wait for the window to be closed
         self.wait_window(about_window)
 
-    def load_data(self):
+    def load_data_OLD(self):
         """Load XPS data from CSV file"""
         # Determine the correct path when running as script or frozen executable
         if getattr(sys, 'frozen', False):
@@ -150,9 +150,53 @@ class PeriodicTableXPS(tk.Tk):
                     break
                 except Exception as e:
                     continue
-
+        print(f'Loaded the .parquet NIST library')
+        print(f'Loaded the .xlsx NIST library')
         if not data_found:
             tk.messagebox.showerror("Error", f"Failed to load data: NIST_BE.xlsx not found in expected locations")
+            self.quit()
+
+    def load_data(self):
+        """Load XPS data from binary file (fast) or CSV file (fallback)"""
+        # Determine the correct path when running as script or frozen executable
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # Running as script
+            # First check if we're in the libraries directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            base_path = os.path.dirname(current_dir)  # Go up one level to the root
+
+        # Try both locations - prioritize parquet files for speed
+        possible_paths = [
+            os.path.join(base_path, "NIST_BE.parquet"),
+            os.path.join(base_path, "libraries", "NIST_BE.parquet"),
+            os.path.join(base_path, "NIST_BE.xlsx"),
+            os.path.join(base_path, "libraries", "NIST_BE.xlsx")
+        ]
+
+        data_found = False
+        for data_path in possible_paths:
+            if os.path.exists(data_path):
+                try:
+                    if data_path.endswith('.parquet'):
+                        self.df = pd.read_parquet(data_path)
+                        print(f'Loaded the .parquet NIST library')
+                    else:
+                        self.df = pd.read_excel(data_path)
+                        print(f'Loaded the .xlsx NIST library')
+
+                    # Get unique elements and lines
+                    self.elements = sorted(self.df['Element'].unique())
+                    self.lines = sorted(self.df['Line'].unique())
+                    data_found = True
+                    break
+                except Exception as e:
+                    continue
+
+        if not data_found:
+            tk.messagebox.showerror("Error", f"Failed to load data: NIST_BE file not found in expected locations")
             self.quit()
 
     def create_frames(self):

@@ -362,12 +362,12 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(self.angle_spin, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Add photon source selection
-        photon_sources = ["Al Kα", "Mg Kα", "Ag Lα", "Ga Kα", "Custom"]
+        photon_sources = ["Al Kα", "Mg Kα", "Ag Lα", "Ga Kα", "Cr Kα", "Custom"]
         self.photon_combo = wx.ComboBox(self.instrument_tab, choices=photon_sources, style=wx.CB_READONLY)
         self.photon_combo.SetSelection(0)
 
         # Custom photon energy input
-        self.custom_photon = wx.SpinCtrlDouble(self.instrument_tab, value='1486.67', min=0, max=3000, inc=0.01)
+        self.custom_photon = wx.SpinCtrlDouble(self.instrument_tab, value='1486.67', min=0, max=10000, inc=0.01)
         self.custom_photon.Enable(False)
 
         # Reference peak controls
