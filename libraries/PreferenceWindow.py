@@ -335,8 +335,8 @@ class PreferenceWindow(wx.Frame):
         open_lib_btn.Bind(wx.EVT_BUTTON, self.on_open_lib)
         sizer.Add(open_lib_btn, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        convert_lib_btn = wx.Button(self.instrument_tab, label="Library to JSON")
-        convert_lib_btn.SetToolTip("Convert Excel library file to a readable .json file")
+        convert_lib_btn = wx.Button(self.instrument_tab, label="Library to Parquet")
+        convert_lib_btn.SetToolTip("Convert Excel library file to a readable .parquet file")
         convert_lib_btn.SetMinSize((110, 30))
         convert_lib_btn.Bind(wx.EVT_BUTTON, self.on_convert_lib)
         sizer.Add(convert_lib_btn, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -1138,6 +1138,9 @@ class PreferenceWindow(wx.Frame):
         else:
             self.custom_photon.Enable(True)
 
+        # Immediately update parent photon energy
+        self.parent.photons = new_photon
+
     # Add button handlers
     def on_open_lib_OLD(self, evt):
         os.startfile('KherveFitting_library.xlsx')
@@ -1154,7 +1157,7 @@ class PreferenceWindow(wx.Frame):
         else:  # Linux and other Unix-like systems
             subprocess.call(['xdg-open', 'KherveFitting_library.xlsx'])
 
-    def on_convert_lib(self, evt):
+    def on_convert_lib_JSON_ONLY(self, evt):
         wb = openpyxl.load_workbook('KherveFitting_library.xlsx')
         sheet = wb['Library']
         data = {}
@@ -1184,6 +1187,34 @@ class PreferenceWindow(wx.Frame):
 
         # wx.MessageBox("Library converted to JSON", "Success")
         self.parent.show_popup_message2("Success", "Library converted to JSON")
+
+    def on_convert_lib(self, evt):
+        """Updated to create parquet instead of json"""
+        import pandas as pd
+
+        wb = openpyxl.load_workbook('KherveFitting_library.xlsx')
+        sheet = wb['Library']
+
+        rows = []
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            element, orbital, full_name, auger, ke_be, position, ds, rsf, instrument = row
+            rows.append({
+                'element': element,
+                'orbital': orbital,
+                'instrument': instrument,
+                'position': position,
+                'ds': ds,
+                'rsf': rsf,
+                'full_name': full_name,
+                'auger': auger,
+                'ke_be': ke_be
+            })
+        print("Convert xls database to Parquet")
+        df = pd.DataFrame(rows)
+        df.to_parquet('KherveFitting_library.parquet', index=False)
+
+        self.parent.library_data = load_library_data()  # Reload library
+        self.parent.show_popup_message2("Success", "Library converted to Parquet")
 
     def on_view_library(self, evt):
         instrument = self.instrument_combo.GetValue()

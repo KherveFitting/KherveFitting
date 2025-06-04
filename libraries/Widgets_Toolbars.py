@@ -744,31 +744,34 @@ def create_horizontal_toolbar(parent, window):
     separators = []
 
     # File operations
-    open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-2.png"), wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
+    open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-3.png"),
+                                                                       wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
 
     # Change the default save tool
     quick_save_tool = toolbar.AddTool(wx.ID_ANY, 'Save Data',
-                                      wx.Bitmap(os.path.join(icon_path, "Save_Json.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "Save_Json-2.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Save Data - Default (JSON only)\tCtrl+S")
     window.Bind(wx.EVT_TOOL, lambda event: save_json_only(window), quick_save_tool)
 
-    save_tool = toolbar.AddTool(wx.ID_ANY, 'Export to Excel', wx.Bitmap(os.path.join(icon_path, "Save-Excel-2.png"),
+    save_tool = toolbar.AddTool(wx.ID_ANY, 'Export to Excel', wx.Bitmap(os.path.join(icon_path, "Save-excel-3.png"),
                                 wx.BITMAP_TYPE_PNG), shortHelp="Export this core level to Excel")
 
     save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
-                                wx.Bitmap(os.path.join(icon_path, "save-Multi-2.png"), wx.BITMAP_TYPE_PNG),
+                                wx.Bitmap(os.path.join(icon_path, "save-Multi-3.png"), wx.BITMAP_TYPE_PNG),
                                     shortHelp="Export all core level to Excel (Not recommended for 50 above core "
                                               "levels)")
 
     # save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
 
     # toolbar.AddSeparator()
-    window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-2.png"), wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
-    window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
+    window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-3.png"),
+                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
+    window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-3.png"),
+                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
     # toolbar.AddSeparator()
 
     # Add sort sheets button
-    sort_icon = os.path.join(icon_path, "Sort-2.png")
+    sort_icon = os.path.join(icon_path, "Sort-3.png")
     if os.path.exists(sort_icon):
         sort_bmp = wx.Bitmap(sort_icon)
     else:
@@ -777,7 +780,7 @@ def create_horizontal_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda event: sort_excel_sheets(window), sort_tool)
 
     # Add File Manager button to toolbar
-    file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-2.png"), wx.BITMAP_TYPE_PNG)
+    file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-3.png"), wx.BITMAP_TYPE_PNG)
     file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp,
                                         "Open Sample/Experiment Manager. Make sure to use F2 or Ctrl+2 to plot with peak models")
     window.Bind(wx.EVT_TOOL, window.on_open_file_manager, file_manager_tool)
@@ -790,27 +793,27 @@ def create_horizontal_toolbar(parent, window):
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected(window, event))
 
     refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path,
-                                                                                                  "Refresh-2.png"),
+                                                                                                  "Refresh-3.png"),
                                                                                      wx.BITMAP_TYPE_PNG),
                                           shortHelp="Refresh Excel File and json file. Used when the Excel File has "
                                                     "more sheets or when the file does not work well")
 
     delete_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Delete Core Level/Survey',
-                                        wx.Bitmap(os.path.join(icon_path, "delete-2.png"), wx.BITMAP_TYPE_PNG),
+                                        wx.Bitmap(os.path.join(icon_path, "delete-3.png"), wx.BITMAP_TYPE_PNG),
                                         shortHelp="Delete current Core Level/Survey")
     window.Bind(wx.EVT_TOOL, lambda event: on_delete_sheet(window, event), delete_sheet_tool)
 
     copy_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Copy/Paste Core Level',
-                                      wx.Bitmap(os.path.join(icon_path, "copy-2.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "copy-3.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Copy/Paste this Core Level/Survey at the end of this file")
 
     join_sheets_tool = toolbar.AddTool(wx.ID_ANY, 'Join Core Level/Survey',
-                                       wx.Bitmap(os.path.join(icon_path, "join-2.png"), wx.BITMAP_TYPE_PNG),
+                                       wx.Bitmap(os.path.join(icon_path, "join-3.png"), wx.BITMAP_TYPE_PNG),
                                        shortHelp="Join Multiple Core Level/Survey")
 
 
     rename_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Rename Core Level/Survey',
-                                        wx.Bitmap(os.path.join(icon_path, "rename-2.png"), wx.BITMAP_TYPE_PNG),
+                                        wx.Bitmap(os.path.join(icon_path, "rename-3.png"), wx.BITMAP_TYPE_PNG),
                                         shortHelp="Rename current Core Level/Survey")
     window.Bind(wx.EVT_TOOL, lambda evt: _show_rename_dialog(window), rename_sheet_tool)
 
@@ -851,22 +854,23 @@ def create_horizontal_toolbar(parent, window):
     window.be_correction_spinbox.SetToolTip("BE Correction")
     toolbar.AddControl(window.be_correction_spinbox)
 
-    auto_be_button = toolbar.AddTool(wx.ID_ANY, 'Auto BE', wx.Bitmap(os.path.join(icon_path, "BEcorrect-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Automatic binding energy correction")
+    auto_be_button = toolbar.AddTool(wx.ID_ANY, 'Auto BE', wx.Bitmap(os.path.join(icon_path, "BEcorrect-3.png"),
+                                                                     wx.BITMAP_TYPE_PNG), shortHelp="Automatic binding energy correction")
 
 
     toolbar.AddSeparator()
 
     # Analysis tools
-    bkg_tool = toolbar.AddTool(wx.ID_ANY, 'Background', wx.Bitmap(os.path.join(icon_path, "BKG-25.png"),
+    bkg_tool = toolbar.AddTool(wx.ID_ANY, 'Background', wx.Bitmap(os.path.join(icon_path, "BKG-3.png"),
                                                                   wx.BITMAP_TYPE_PNG), shortHelp="Calculate Area "
                                                                                                  "Under Curve\tCtrl+A")
-    fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1s-25.png"),
+    fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1s-3.png"),
                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
                                                                                                   "Model \tCtrl+P")
 
 
     diff_tool = toolbar.AddTool(wx.ID_ANY, 'Differentiate',
-                                wx.Bitmap(os.path.join(icon_path, "Dpara-25.png"), wx.BITMAP_TYPE_PNG),
+                                wx.Bitmap(os.path.join(icon_path, "Dpara-3.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="D-parameter Calculation")
 
 
@@ -876,7 +880,7 @@ def create_horizontal_toolbar(parent, window):
 
 
     plot_mod_tool = toolbar.AddTool(wx.ID_ANY, 'Plot Modifications',
-                                    wx.Bitmap(os.path.join(icon_path, "Mod-25.png"), wx.BITMAP_TYPE_PNG),
+                                    wx.Bitmap(os.path.join(icon_path, "Mod-3.png"), wx.BITMAP_TYPE_PNG),
                                     shortHelp="Plot modifications window")
     window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
     window.Bind(wx.EVT_TOOL, window.on_differentiate, diff_tool)
@@ -888,11 +892,11 @@ def create_horizontal_toolbar(parent, window):
     #                                       shortHelp="Open Noise Analysis Window")
 
 
-    id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-25.png"), wx.BITMAP_TYPE_PNG),
+    id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-3.png"), wx.BITMAP_TYPE_PNG),
                               shortHelp="Element identifications (ID)")
 
     nist_tool = toolbar.AddTool(wx.ID_ANY, 'NIST Database',
-                                wx.Bitmap(os.path.join(icon_path, "NIST.png"), wx.BITMAP_TYPE_PNG),
+                                wx.Bitmap(os.path.join(icon_path, "NIST-3.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="Open KherveNIST database")
     window.Bind(wx.EVT_TOOL, lambda event: window.open_dream_nist(), nist_tool)
 
@@ -931,7 +935,7 @@ def create_horizontal_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda event: on_backup_main(window), backup_tool)
 
     Setting_tool = toolbar.AddTool(wx.ID_ANY, 'Load Settings',
-                                      wx.Bitmap(os.path.join(icon_path, "Settings-25.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "Settings-3.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Open Preference Window")
 
 
@@ -1137,7 +1141,7 @@ def create_vertical_toolbar(parent, frame):
 
     # Add master toggle tool
     toggle_master_tool = v_toolbar.AddTool(wx.ID_ANY, 'Toggles',
-                                           wx.Bitmap(os.path.join(icon_path, "Toggles-25.png"), wx.BITMAP_TYPE_PNG),
+                                           wx.Bitmap(os.path.join(icon_path, "Toggles-3.png"), wx.BITMAP_TYPE_PNG),
                                            shortHelp="Toggle Options")
 
     def show_toggle_toolbar(event):
