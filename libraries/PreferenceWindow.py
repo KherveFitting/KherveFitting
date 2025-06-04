@@ -361,6 +361,11 @@ class PreferenceWindow(wx.Frame):
         sizer.Add(angle_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.angle_spin, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
+        # Quick Settings Enable
+        self.enable_quick_settings = wx.CheckBox(self.instrument_tab, label="Use Multiple Instruments? Enable Quick "
+                                                                            "Settings Toolbar")
+        sizer.Add(self.enable_quick_settings, pos=(8, 0), span=(1, 2), flag=wx.EXPAND | wx.ALL, border=5)
+
         # Add photon source selection
         photon_sources = ["Al Kα", "Mg Kα", "Ag Lα", "Ga Kα", "Cr Kα", "Custom"]
         self.photon_combo = wx.ComboBox(self.instrument_tab, choices=photon_sources, style=wx.CB_READONLY)
@@ -375,23 +380,23 @@ class PreferenceWindow(wx.Frame):
         self.ref_peak_value = wx.SpinCtrlDouble(self.instrument_tab, value='284.8', min=0, max=1200, inc=0.1)
 
         # Add to sizer
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Photon Source:"), pos=(8, 0), flag=wx.EXPAND | wx.ALL,
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Photon Source:"), pos=(9, 0), flag=wx.EXPAND | wx.ALL,
                   border=5)
-        sizer.Add(self.photon_combo, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.photon_combo, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Custom Energy (eV):"), pos=(9, 0), flag=wx.EXPAND |
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Custom Energy (eV):"), pos=(10, 0), flag=wx.EXPAND |
                                                                                                     wx.ALL, border=5)
-        sizer.Add(self.custom_photon, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.custom_photon, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference Peak:"), pos=(11, 0), flag=wx.EXPAND | wx.ALL,
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference Peak:"), pos=(12, 0), flag=wx.EXPAND | wx.ALL,
                   border=5)
-        sizer.Add(self.ref_peak_text, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.ref_peak_text, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference BE (eV):"), pos=(12, 0), flag=wx.EXPAND |
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Reference BE (eV):"), pos=(13, 0), flag=wx.EXPAND |
                                                                                                    wx.ALL, border=5)
-        sizer.Add(self.ref_peak_value, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.ref_peak_value, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Bind photon source selection
         self.photon_combo.Bind(wx.EVT_COMBOBOX, self.on_photon_source)
@@ -933,6 +938,11 @@ class PreferenceWindow(wx.Frame):
         self.ref_peak_text.SetValue(self.parent.ref_peak_name)
         self.ref_peak_value.SetValue(self.parent.ref_peak_be)
 
+        if hasattr(self.parent, 'enable_quick_settings'):
+            self.enable_quick_settings.SetValue(self.parent.enable_quick_settings)
+        else:
+            self.enable_quick_settings.SetValue(False)
+
     def OnPeakNumberChange(self, event):
         current_peak = event.GetPosition() - 1
         if current_peak < len(self.temp_peak_colors):
@@ -1087,6 +1097,14 @@ class PreferenceWindow(wx.Frame):
         self.parent.export_height = self.export_height.GetValue()
         self.parent.export_dpi = self.export_dpi.GetValue()
 
+        # Quick settings
+        old_quick_settings = getattr(self.parent, 'enable_quick_settings', False)
+        self.parent.enable_quick_settings = self.enable_quick_settings.GetValue()
+
+        # If quick settings state changed, refresh toolbar
+        if old_quick_settings != self.parent.enable_quick_settings:
+            self.refresh_toolbar()
+
         # Auto backup settings
         self.parent.enable_auto_backup = self.enable_auto_backup.GetValue()
         self.parent.backup_interval = self.backup_interval.GetValue()
@@ -1121,22 +1139,28 @@ class PreferenceWindow(wx.Frame):
     def on_photon_source(self, event):
         selection = self.photon_combo.GetValue()
         if selection == "Al Kα":
-            self.custom_photon.SetValue(1486.67)
+            new_photon = 1486.67
+            self.custom_photon.SetValue(new_photon)
             self.custom_photon.Enable(False)
         elif selection == "Mg Kα":
-            self.custom_photon.SetValue(1253.6)
+            new_photon = 1253.6
+            self.custom_photon.SetValue(new_photon)
             self.custom_photon.Enable(False)
         elif selection == "Ag Lα":
-            self.custom_photon.SetValue(2984.3)
+            new_photon = 2984.3
+            self.custom_photon.SetValue(new_photon)
             self.custom_photon.Enable(False)
         elif selection == "Ga Kα":
-            self.custom_photon.SetValue(9251)
+            new_photon = 9251
+            self.custom_photon.SetValue(new_photon)
             self.custom_photon.Enable(False)
         elif selection == "Cr Kα":
-            self.custom_photon.SetValue(5417)
+            new_photon = 5417
+            self.custom_photon.SetValue(new_photon)
             self.custom_photon.Enable(False)
         else:
             self.custom_photon.Enable(True)
+            return  # Don't update if custom
 
         # Immediately update parent photon energy
         self.parent.photons = new_photon
@@ -1292,6 +1316,44 @@ class PreferenceWindow(wx.Frame):
                 wx.MessageBox(f"Error clearing backup folder: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
         dlg.Destroy()
+
+    def on_quick_settings_toggle(self, event):
+        """Handle quick settings checkbox toggle"""
+        # The toolbar will be refreshed when preferences are saved
+        pass
+
+    def refresh_toolbar(self):
+        """Refresh the toolbar to show/hide quick settings"""
+        # Get current toolbar info
+        if hasattr(self.parent, 'toolbar') and self.parent.toolbar:
+            # Save current sheet selection
+            old_sheet_value = ""
+            if hasattr(self.parent, 'sheet_combobox') and self.parent.sheet_combobox:
+                old_sheet_value = self.parent.sheet_combobox.GetValue()
+
+            # Get toolbar parent
+            toolbar_panel = self.parent.toolbar.GetParent()
+            toolbar_sizer = toolbar_panel.GetSizer()
+
+            # Remove current toolbar
+            toolbar_sizer.Detach(self.parent.toolbar)
+            self.parent.toolbar.Destroy()
+
+            # Recreate toolbar
+            from libraries.Widgets_Toolbars import create_horizontal_toolbar
+            self.parent.toolbar = create_horizontal_toolbar(toolbar_panel, self.parent)
+            toolbar_sizer.Add(self.parent.toolbar, 0, wx.EXPAND)
+
+            # Restore sheet selection
+            if old_sheet_value and hasattr(self.parent, 'sheet_combobox'):
+                if 'Core levels' in self.parent.Data:
+                    sheets = list(self.parent.Data['Core levels'].keys())
+                    self.parent.sheet_combobox.Clear()
+                    self.parent.sheet_combobox.AppendItems(sheets)
+                    if old_sheet_value in sheets:
+                        self.parent.sheet_combobox.SetValue(old_sheet_value)
+
+            toolbar_panel.Layout()
 
 
 

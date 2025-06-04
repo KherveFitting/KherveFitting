@@ -68,6 +68,8 @@ from libraries.PeakManipulation import PeakManipulation
 from libraries.On_Key_Defs import setup_key_handlers
 from libraries.On_Mouse_Defs import setup_mouse_handlers
 
+from libraries.QuickSettings import QuickSettings
+
 
 
 
@@ -327,6 +329,9 @@ class MyFrame(wx.Frame):
         # If you stored the config as an attribute:
         if not hasattr(self, 'registered') or not self.registered:
             self.times_opened = 0
+
+        # Initialize quick settings
+        self.quick_settings = QuickSettings(self)
 
         create_widgets(self)
         create_menu(self)
@@ -2040,6 +2045,7 @@ class MyFrame(wx.Frame):
                 self.legend_visible = config.get('legend_visible', 1)
                 self.y_axis_state = config.get('y_axis_state', 0)
                 self.residuals_state = config.get('residuals_state', 2)
+                self.enable_quick_settings = config.get('enable_quick_settings', False)
 
                 # Set registered flag
                 self.registered = config.get('registered', False)
@@ -2134,6 +2140,9 @@ class MyFrame(wx.Frame):
             'export_width': self.export_width,
             'export_height': self.export_height,
             'export_dpi': self.export_dpi,
+
+            # Quick Settings
+            'enable_quick_settings': self.enable_quick_settings,
 
             # Auto backup settings
             'enable_auto_backup': self.enable_auto_backup,

@@ -749,7 +749,7 @@ def create_horizontal_toolbar(parent, window):
 
     # Change the default save tool
     quick_save_tool = toolbar.AddTool(wx.ID_ANY, 'Save Data',
-                                      wx.Bitmap(os.path.join(icon_path, "Save_Json-2.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "Save_Json-3.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Save Data - Default (JSON only)\tCtrl+S")
     window.Bind(wx.EVT_TOOL, lambda event: save_json_only(window), quick_save_tool)
 
@@ -933,6 +933,10 @@ def create_horizontal_toolbar(parent, window):
         backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
     backup_tool = toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
     window.Bind(wx.EVT_TOOL, lambda event: on_backup_main(window), backup_tool)
+
+    # Add quick settings if enabled
+    if hasattr(window, 'enable_quick_settings') and window.enable_quick_settings:
+        window.quick_settings.create_quick_settings_tool(toolbar)
 
     Setting_tool = toolbar.AddTool(wx.ID_ANY, 'Load Settings',
                                       wx.Bitmap(os.path.join(icon_path, "Settings-3.png"), wx.BITMAP_TYPE_PNG),
