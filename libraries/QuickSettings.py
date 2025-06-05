@@ -52,21 +52,42 @@ class QuickSettings:
 
     def apply_quick_setting(self, photon_energy, instrument):
         """Apply the selected quick setting"""
+        # Create brief console window
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+        console_frame = wx.Frame(self.parent, title="Quick Settings", size=(300, 150))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 150) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        update_console("Applying quick settings...")
+
         # Update photon energy
         self.parent.photons = photon_energy
+        update_console(f"X-ray source: {photon_energy} eV")
 
         # Update instrument
         self.parent.current_instrument = instrument
+        update_console(f"Instrument: {instrument}")
 
         # Save config
         self.parent.save_config()
+        update_console("Configuration saved")
 
         # Update any open preference windows
         self.update_preference_windows(photon_energy, instrument)
+        update_console("Settings applied successfully!")
 
-        # Show confirmation
-        self.parent.show_popup_message2("Quick Settings Applied",
-                                        f"X-ray source: {photon_energy} eV\nInstrument: {instrument}")
+        # Close console after 1 second
+        wx.CallLater(1000, console_frame.Close)
 
     def update_preference_windows(self, photon_energy, instrument):
         """Update any open preference windows with new settings"""

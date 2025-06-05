@@ -908,25 +908,26 @@ def create_horizontal_toolbar(parent, window):
 
     # Export and toggle tools
     save_peaks_tool = toolbar.AddTool(wx.ID_ANY, 'Save Peaks Library',
-                                      wx.Bitmap(os.path.join(icon_path, "LibSave.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "LibSave-3.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Save peaks parameters to library")
 
     open_peaks_tool = toolbar.AddTool(wx.ID_ANY, 'Open Peaks Library',
-                                      wx.Bitmap(os.path.join(icon_path, "LibOpen.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "LibOpen-3.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Load peaks parameters from library")
 
-    export_tool = toolbar.AddTool(wx.ID_ANY, 'Export Results', wx.Bitmap(os.path.join(icon_path, "Export-25g.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export to Results Grid")
+    export_tool = toolbar.AddTool(wx.ID_ANY, 'Export Results', wx.Bitmap(os.path.join(icon_path, "Export-3.png"),
+                                                                         wx.BITMAP_TYPE_PNG), shortHelp="Export to Results Grid")
 
     # Create delete toolbar instance
     window.delete_toolbar = DeleteToolbar(window)
 
     # Add delete master toggle tool
     delete_master_tool = toolbar.AddTool(wx.ID_ANY, 'Delete',
-                                         wx.Bitmap(os.path.join(icon_path, "DeleteRow-25.png"), wx.BITMAP_TYPE_PNG),
+                                         wx.Bitmap(os.path.join(icon_path, "DeleteRow-3.png"), wx.BITMAP_TYPE_PNG),
                                          shortHelp="Delete Options for Results Grid")
 
     # Add backup tool
-    backup_icon = os.path.join(icon_path, "backup-25.png")
+    backup_icon = os.path.join(icon_path, "backup-3.png")
     if os.path.exists(backup_icon):
         backup_bmp = wx.Bitmap(backup_icon)
     else:
@@ -944,7 +945,7 @@ def create_horizontal_toolbar(parent, window):
 
 
     toggle_Col_1_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',
-                                        wx.Bitmap(os.path.join(icon_path, "HideColumn-25.png"), wx.BITMAP_TYPE_PNG),
+                                        wx.Bitmap(os.path.join(icon_path, "HideColumn-3.png"), wx.BITMAP_TYPE_PNG),
                                         shortHelp="Toggle Columns Peak Fitting Parameters")
     window.toggle_right_panel_tool = window.add_toggle_tool(toolbar, "Toggle Right Panel",
                                                             wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR))
