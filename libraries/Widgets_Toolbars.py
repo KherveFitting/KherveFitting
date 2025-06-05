@@ -1171,10 +1171,10 @@ def create_vertical_toolbar(parent, frame):
 
     # Zoom tools
     zoom_in_tool = v_toolbar.AddTool(wx.ID_ANY, 'Zoom In',
-                                     wx.Bitmap(os.path.join(icon_path, "ZoomIN-25.png"), wx.BITMAP_TYPE_PNG),
+                                     wx.Bitmap(os.path.join(icon_path, "ZoomIN-3.png"), wx.BITMAP_TYPE_PNG),
                                      shortHelp="Zoom In")
     zoom_out_tool = v_toolbar.AddTool(wx.ID_ANY, 'Zoom Out',
-                                      wx.Bitmap(os.path.join(icon_path, "ZoomOUT-25.png"), wx.BITMAP_TYPE_PNG),
+                                      wx.Bitmap(os.path.join(icon_path, "ZoomOUT-3.png"), wx.BITMAP_TYPE_PNG),
                                       shortHelp="Zoom Out")
     drag_tool = v_toolbar.AddTool(wx.ID_ANY, 'Drag',
                                   wx.Bitmap(os.path.join(icon_path, "Drag-25.png"), wx.BITMAP_TYPE_PNG),
@@ -1182,7 +1182,7 @@ def create_vertical_toolbar(parent, frame):
 
     # Plot limits tool
     plot_limits_tool = v_toolbar.AddTool(wx.ID_ANY, 'Plot Limits',
-                                         wx.Bitmap(os.path.join(icon_path, "PlotLimits.png"), wx.BITMAP_TYPE_PNG),
+                                         wx.Bitmap(os.path.join(icon_path, "PlotLimits-3.png"), wx.BITMAP_TYPE_PNG),
                                          shortHelp="Set Plot Limits")
 
     # Bind the plot limits tool

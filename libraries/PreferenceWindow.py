@@ -330,7 +330,7 @@ class PreferenceWindow(wx.Frame):
 
         # Add buttons for library
         open_lib_btn = wx.Button(self.instrument_tab, label="Edit Library")
-        open_lib_btn.SetToolTip("You must convert the excel file to a .json after changing the library")
+        open_lib_btn.SetToolTip("You must convert the excel file to a .parquet after changing the library")
         open_lib_btn.SetMinSize((110, 30))
         open_lib_btn.Bind(wx.EVT_BUTTON, self.on_open_lib)
         sizer.Add(open_lib_btn, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
