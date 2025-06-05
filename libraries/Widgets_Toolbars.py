@@ -841,7 +841,7 @@ def create_horizontal_toolbar(parent, window):
         dlg.Destroy()
 
     crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',
-                                wx.Bitmap(os.path.join(icon_path, "Crop-25.png"), wx.BITMAP_TYPE_PNG),
+                                wx.Bitmap(os.path.join(icon_path, "Crop-3.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="Crop data to new sheet")
     window.Bind(wx.EVT_TOOL, lambda event: CropWindow(window).Show(), crop_tool)
 
