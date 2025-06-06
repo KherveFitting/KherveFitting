@@ -21,10 +21,10 @@ class PeriodicTableXPS(tk.Tk):
         super().__init__()
         self.title("My KherveNIST Library: How I wish NIST would look like")
         if self.detect_mac_os():
-            self.geometry("760x660")
+            self.geometry("620x660")
             # Fix the width but allow height to vary
-            self.minsize(760, 660)  # Minimum width set to 740, minimum height can be 0
-            self.maxsize(760, 10000)  # Maximum width fixed at 740, height can be very large
+            self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
+            self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
         else:
             self.geometry("620x660")
             # Fix the width but allow height to vary
@@ -211,16 +211,8 @@ class PeriodicTableXPS(tk.Tk):
     def create_frames(self):
         """Create main layout frames"""
         # Top frame for periodic table
-        if self.detect_mac_os():
-            self.periodic_frame = tk.Frame(self, bg="#f0f0f0", padx=0, pady=0)
-            self.periodic_frame.pack(fill=tk.BOTH, expand=False)
-        else:
-            self.periodic_frame = tk.Frame(self, bg="#f0f0f0", padx=10, pady=10)
-            self.periodic_frame.pack(fill=tk.BOTH, expand=False)
-
-        # Remove the "Periodic Table" label
-        # tk.Label(self.periodic_frame, text="Periodic Table", font=self.heading_font,
-        #         bg="#f0f0f0").pack(side=tk.TOP, pady=(0, 10))
+        self.periodic_frame = tk.Frame(self, bg="#f0f0f0", padx=10, pady=10)
+        self.periodic_frame.pack(fill=tk.BOTH, expand=False)
 
         # Middle frame for search options
         self.search_frame = tk.Frame(self, bg="#e0e0e0", padx=10, pady=10)
@@ -323,12 +315,9 @@ class PeriodicTableXPS(tk.Tk):
             color = colors.get(category, colors['unknown'])
 
             # Create button based on platform
-            if self.detect_mac_os():
-                btn = self.create_mac_button(pt_grid, element, color, row, col)
-                btn.grid(row=row, column=col, padx=0, pady=0, sticky='nsew')
-            else:
-                btn = self.create_windows_button(pt_grid, element, color, row, col)
-                btn.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
+            btn = self.create_mac_button(pt_grid, element, color, row, col)
+            btn.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
+
 
 
 
@@ -460,7 +449,8 @@ class PeriodicTableXPS(tk.Tk):
         # Line selection dropdown
         tk.Label(left_frame, text="XPS Line:", bg="#e0e0e0").grid(row=1, column=0, sticky='w', pady=2)
         self.line_var = tk.StringVar()
-        self.line_dropdown = ttk.Combobox(left_frame, textvariable=self.line_var, width=15, state="readonly")
+        combo_width = 7 if self.detect_mac_os() else 15
+        self.line_dropdown = ttk.Combobox(left_frame, textvariable=self.line_var, width=combo_width, state="readonly")
         self.line_dropdown['values'] = ['All Lines'] + list(self.lines)
         self.line_dropdown.current(0)
         self.line_dropdown.grid(row=1, column=1, sticky='w', padx=5, pady=2)
@@ -487,6 +477,9 @@ class PeriodicTableXPS(tk.Tk):
         # # Reset button
         # self.reset_btn = tk.Button(search_frame, text="Reset All", command=self.reset_all)
         # self.reset_btn.grid(row=0, column=3, padx=10, pady=2, sticky='w')
+
+        # # Set button height based on platform
+        # button_height = 2 if self.detect_mac_os() else 1
 
         # Add element properties button
         self.properties_btn = tk.Button(search_frame, text="Properties", command=self.show_element_properties)
@@ -641,10 +634,8 @@ class PeriodicTableXPS(tk.Tk):
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Treeview")
 
         # Define column widths and headings
-        if self.detect_mac_os():
-            widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 220, "Journal": 250}
-        else:
-            widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 150, "Journal": 220}
+
+        widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 150, "Journal": 220}
         for col in columns:
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_column(c))
             self.tree.column(col, width=widths[col], stretch=False)
@@ -670,8 +661,14 @@ class PeriodicTableXPS(tk.Tk):
         # Bind click event for URL opening
         self.tree.bind("<Double-1>", self.on_item_double_click)
 
-        # Add right-click context menu for the Journal column
-        self.tree.bind("<Button-3>", self.show_context_menu)
+        # Add right-click context menu - platform specific
+        if self.detect_mac_os():
+            # Mac uses Button-2 for right-click or Control+Button-1
+            self.tree.bind("<Button-2>", self.show_context_menu)
+            self.tree.bind("<Control-Button-1>", self.show_context_menu)
+        else:
+            # Windows/Linux use Button-3
+            self.tree.bind("<Button-3>", self.show_context_menu)
 
         # Create context menu
         self.context_menu = Menu(self.tree, tearoff=0)
@@ -1058,7 +1055,7 @@ class PeriodicTableXPS(tk.Tk):
         self.name_search_var.set("")
         self.update_results()
 
-    def create_mac_button(self, parent, element, color, row, col):
+    def create_mac_button_OLD(self, parent, element, color, row, col):
         """Create macOS-optimized button"""
         btn = tk.Button(parent, text=element, width=2, height=2,
                         bg=color,
@@ -1075,6 +1072,56 @@ class PeriodicTableXPS(tk.Tk):
             btn.config(state=tk.DISABLED, relief=tk.SUNKEN)
 
         return btn
+
+    def create_mac_button(self, parent, element, color, row, col):
+        """Create macOS canvas-based button"""
+        # Create canvas
+        canvas = tk.Canvas(parent, width=28, height=28, bg=color,
+                           highlightthickness=1, highlightbackground="#666666")
+
+        # Add text
+        text_id = canvas.create_text(14, 14, text=element, font=("Helvetica", 11),
+                                     fill="black" if element in self.elements else "#888888")
+
+        # Store element and enabled state
+        canvas.element = element
+        canvas.enabled = element in self.elements
+        canvas.default_color = color
+        canvas.text_id = text_id
+
+        # Bind events only if enabled
+        if canvas.enabled:
+            canvas.bind("<Button-1>", lambda e: self.select_element(element))
+            canvas.bind("<Enter>", lambda e: self.on_canvas_enter(canvas))
+            canvas.bind("<Leave>", lambda e: self.on_canvas_leave(canvas))
+        else:
+            canvas.config(bg=self.lighten_color(color))
+
+        return canvas
+
+    def lighten_color(self, hex_color: str) -> str:
+        """Lighten a hex color for disabled state"""
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+        # Lighten by factor
+        factor = 1.3
+        r = min(int(r * factor), 255)
+        g = min(int(g * factor), 255)
+        b = min(int(b * factor), 255)
+
+        return f'#{r:02x}{g:02x}{b:02x}'
+
+    def on_canvas_enter(self, canvas):
+        """Handle mouse enter on canvas button"""
+        if canvas.enabled:
+            darker_color = self.darken_color(canvas.default_color)
+            canvas.config(bg=darker_color)
+
+    def on_canvas_leave(self, canvas):
+        """Handle mouse leave on canvas button"""
+        if canvas.enabled:
+            canvas.config(bg=canvas.default_color)
 
     def create_windows_button(self, parent, element, color, row, col):
         """Create Windows-optimized button (original logic)"""
