@@ -955,7 +955,7 @@ def create_horizontal_toolbar(parent, window):
 
     nist_tool = toolbar.AddTool(wx.ID_ANY, 'NIST Database',
                                 wx.Bitmap(os.path.join(icon_path, "NIST-3.png"), wx.BITMAP_TYPE_PNG),
-                                shortHelp="Open KherveNIST database")
+                                shortHelp="Open KherveDB database")
     window.Bind(wx.EVT_TOOL, lambda event: window.open_dream_nist(), nist_tool)
 
 

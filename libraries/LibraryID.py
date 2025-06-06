@@ -19,17 +19,11 @@ import platform
 class PeriodicTableXPS(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("My KherveNIST Library: How I wish NIST would look like")
-        if self.detect_mac_os():
-            self.geometry("620x660")
-            # Fix the width but allow height to vary
-            self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
-            self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
-        else:
-            self.geometry("620x660")
-            # Fix the width but allow height to vary
-            self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
-            self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
+        self.title("KherveDB Library: How I wish NIST would look like")
+        self.geometry("620x660")
+        # Fix the width but allow height to vary
+        self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
+        self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
 
 
         # Set up styles and fonts
