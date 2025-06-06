@@ -429,6 +429,7 @@ def setup_key_handlers(main_frame):
     main_frame.key_handlers = key_handlers
 
     # Set up the event bindings
+    print("set key event handler")
     main_frame.canvas.mpl_connect('key_press_event', key_handlers.on_key_press)
     main_frame.Bind(wx.EVT_CHAR_HOOK, key_handlers.on_key_press_global)
 

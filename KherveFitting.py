@@ -75,7 +75,7 @@ from libraries.QuickSettings import QuickSettings
 
 class MyFrame(wx.Frame):
     def __init__(self, parent, title):
-        super().__init__(parent, title=title, size=(1640, 740))
+        super().__init__(parent, title=title, size=(1470, 680))
 
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -336,6 +336,11 @@ class MyFrame(wx.Frame):
         create_widgets(self)
         create_menu(self)
         load_recent_files_from_config(self)
+
+        # Set initial splitter position to make plot ~900 pixels wide
+        if hasattr(self, 'splitter'):
+            self.splitter.SetSashPosition(650)
+            self.initial_sash_position = 650
 
         # Add specific event handling for checkbox clicks
         self.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_cell_click)
@@ -2516,6 +2521,7 @@ if __name__ == '__main__':
     set_high_priority()
 
     app = wx.App(False)
+    # app = wx.App(redirect=False, clearSigInt=False)
 
     # Create Splash Screen
     splash = show_splash(duration=2000, delay=0)
@@ -2555,10 +2561,7 @@ if __name__ == '__main__':
     updater = UpdateChecker()
     updater.check_update_delayed(frame)
 
-    # # Apply preferences right before checking first time use
-    # if frame.times_opened > 0:
-    #         # wx.CallAfter(apply_preferences, frame)
-    #         apply_preferences(frame)
+
 
     app.MainLoop()
     sys.exit(0)
