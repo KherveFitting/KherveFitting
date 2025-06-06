@@ -432,7 +432,7 @@ Version 1.505-1.590
 - Added import of .txt files for XPS and Raman data
 - Added import of CSV
 - Added My dream NIST library
-- Change Icon theme
+- Change Icons theme
 
 Version 1.41-1.5 (March-Apr 2025)
 - Release of the Mac Version
