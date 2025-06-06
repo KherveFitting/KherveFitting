@@ -2366,7 +2366,7 @@ def open_vamas_file(window, file_path):
             # Write data row by row
             for j, (x, y) in enumerate(zip(x_values, y_values)):
                 trans = transmission_data[j] if j < len(transmission_data) else 1.0
-                corrected_y = y / trans
+                corrected_y = y / abs(trans)
                 ws.append([x, corrected_y, y, trans])
 
 

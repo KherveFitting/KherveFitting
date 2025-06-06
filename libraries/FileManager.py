@@ -154,7 +154,7 @@ class FileManagerWindow(wx.Frame):
         v_toolbar_sizer = self.v_toolbar_panel.GetSizer()
 
         # Copy button
-        copy_icon = os.path.join(icon_path, "copy-25.png")
+        copy_icon = os.path.join(icon_path, "copy-3.png")
         copy_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
                                    wx.Bitmap(copy_icon) if os.path.exists(copy_icon) else
                                    wx.ArtProvider.GetBitmap(wx.ART_COPY, wx.ART_BUTTON))
@@ -170,7 +170,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.on_paste, paste_btn)
 
         # Rename button
-        rename_icon = os.path.join(icon_path, "rename-25.png")
+        rename_icon = os.path.join(icon_path, "rename-3.png")
         rename_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
                                      wx.Bitmap(rename_icon) if os.path.exists(rename_icon) else
                                      wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_BUTTON))
@@ -179,7 +179,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.on_rename, rename_btn)
 
         # Delete button
-        delete_icon = os.path.join(icon_path, "delete-25.png")
+        delete_icon = os.path.join(icon_path, "delete-3.png")
         delete_btn = wx.BitmapButton(self.v_toolbar_panel, wx.ID_ANY,
                                      wx.Bitmap(delete_icon) if os.path.exists(delete_icon) else
                                      wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_BUTTON))
@@ -220,7 +220,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, lambda evt: self.delete_single_row(), del_rows_tool)
 
         # Copy button
-        copy_icon = os.path.join(icon_path, "copy-25.png")
+        copy_icon = os.path.join(icon_path, "copy-3.png")
         if os.path.exists(copy_icon):
             copy_bmp = wx.Bitmap(copy_icon)
         else:
@@ -229,7 +229,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_copy, copy_tool)
 
         # Paste button
-        paste_icon = os.path.join(icon_path, "paste-25.png")
+        paste_icon = os.path.join(icon_path, "paste-3.png")
         if os.path.exists(paste_icon):
             paste_bmp = wx.Bitmap(paste_icon)
         else:
@@ -238,7 +238,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_paste, paste_tool)
 
         # Rename button
-        rename_icon = os.path.join(icon_path, "rename-25.png")
+        rename_icon = os.path.join(icon_path, "rename-3.png")
         if os.path.exists(rename_icon):
             rename_bmp = wx.Bitmap(rename_icon)
         else:
@@ -247,7 +247,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_rename, rename_tool)
 
         # Delete button
-        delete_icon = os.path.join(icon_path, "delete-25.png")
+        delete_icon = os.path.join(icon_path, "delete-3.png")
         if os.path.exists(delete_icon):
             delete_bmp = wx.Bitmap(delete_icon)
         else:
