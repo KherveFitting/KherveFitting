@@ -2498,12 +2498,33 @@ class MyFrame(wx.Frame):
     #     self.raman_window.Show()
     #     self.raman_window.Raise()
 
-    def open_dream_nist(self):
+    def open_dream_nist_OLD(self):
         """Open the Dream NIST periodic table window"""
         from libraries.LibraryID import PeriodicTableXPS
         nist_window = PeriodicTableXPS()
         nist_window.mainloop()
 
+    def open_dream_nist(self):
+        """Open the Dream NIST periodic table window"""
+        import subprocess
+        import sys
+        import os
+
+        try:
+            # Get the current script directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            nist_script = os.path.join(current_dir, "libraries", "LibraryID.py")
+
+            # Run as separate process
+            if getattr(sys, 'frozen', False):
+                # If running as executable, use the executable path
+                subprocess.Popen([sys.executable, nist_script])
+            else:
+                # If running as script
+                subprocess.Popen([sys.executable, nist_script])
+
+        except Exception as e:
+            print(f"Error opening NIST window: {e}")
 
 def set_high_priority():
     try:

@@ -13,18 +13,24 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
+import platform
+
 
 class PeriodicTableXPS(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("My KherveNIST Library: How I wish NIST would look like")
-        self.geometry("620x660")
-        # Fix the width but allow height to vary
-        self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
-        self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
+        if self.detect_mac_os():
+            self.geometry("760x660")
+            # Fix the width but allow height to vary
+            self.minsize(760, 660)  # Minimum width set to 740, minimum height can be 0
+            self.maxsize(760, 10000)  # Maximum width fixed at 740, height can be very large
+        else:
+            self.geometry("620x660")
+            # Fix the width but allow height to vary
+            self.minsize(620, 660)  # Minimum width set to 740, minimum height can be 0
+            self.maxsize(620, 10000)  # Maximum width fixed at 740, height can be very large
 
-        # self.SetMinSize((262, 380))
-        # self.SetMaxSize((262, 380))
 
         # Set up styles and fonts
         self.style = ttk.Style()
@@ -51,6 +57,9 @@ class PeriodicTableXPS(tk.Tk):
         self.selected_element = None
         self.selected_line = None
 
+    def detect_mac_os(self):
+        return platform.system() == 'Darwin'
+
     def create_menu(self):
         """Create the application menu bar"""
         menubar = Menu(self)
@@ -59,7 +68,7 @@ class PeriodicTableXPS(tk.Tk):
         # File menu
         file_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Exit", command=self.quit)
+        file_menu.add_command(label="Exit", command=self.destroy)
 
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
@@ -96,20 +105,20 @@ class PeriodicTableXPS(tk.Tk):
 
         # Information text
         info_text = tk.Text(frame, wrap=tk.WORD, height=10, width=50,
-                            font=("Helvetica", 10))
+                            font=("Helvetica", 9))
         info_text.pack(fill=tk.BOTH, expand=True)
 
         # Insert the about text
         about_str = """This application provides access to the NIST X-ray Photoelectron Spectroscopy (XPS) binding energy database recorded in 2019, before it was shut down during the Trump administration.
 
-    The original NIST database is an invaluable resource for scientists and researchers in materials science, 
-    chemistry, and physics fields, providing standard reference data for XPS analysis.
-
-    This application aims to preserve and provide easy access to this important scientific resource.
-
-    Developer: Gwilherm Kerherve
-    Version: 1.0
-    """
+        The original NIST database is an invaluable resource for scientists and researchers in materials science, 
+        chemistry, and physics fields, providing standard reference data for XPS analysis.
+    
+        This application aims to preserve and provide easy access to this important scientific resource.
+    
+        Developer: Gwilherm Kerherve
+        Version: 1.0
+        """
         info_text.insert(tk.END, about_str)
         info_text.config(state=tk.DISABLED)  # Make text read-only
 
@@ -154,7 +163,7 @@ class PeriodicTableXPS(tk.Tk):
         print(f'Loaded the .xlsx NIST library')
         if not data_found:
             tk.messagebox.showerror("Error", f"Failed to load data: NIST_BE.xlsx not found in expected locations")
-            self.quit()
+            self.destroy()
 
     def load_data(self):
         """Load XPS data from binary file (fast) or CSV file (fallback)"""
@@ -202,8 +211,12 @@ class PeriodicTableXPS(tk.Tk):
     def create_frames(self):
         """Create main layout frames"""
         # Top frame for periodic table
-        self.periodic_frame = tk.Frame(self, bg="#f0f0f0", padx=10, pady=10)
-        self.periodic_frame.pack(fill=tk.BOTH, expand=False)
+        if self.detect_mac_os():
+            self.periodic_frame = tk.Frame(self, bg="#f0f0f0", padx=0, pady=0)
+            self.periodic_frame.pack(fill=tk.BOTH, expand=False)
+        else:
+            self.periodic_frame = tk.Frame(self, bg="#f0f0f0", padx=10, pady=10)
+            self.periodic_frame.pack(fill=tk.BOTH, expand=False)
 
         # Remove the "Periodic Table" label
         # tk.Label(self.periodic_frame, text="Periodic Table", font=self.heading_font,
@@ -284,24 +297,40 @@ class PeriodicTableXPS(tk.Tk):
         for element in actinides:
             element_categories[element] = 'actinide'
 
+        # # Create buttons for each element
+        # for element, (row, col) in self.element_positions.items():
+        #     # Get color based on element category
+        #     category = element_categories.get(element, 'unknown')
+        #     color = colors.get(category, colors['unknown'])
+        #
+        #     # Create button
+        #     btn = tk.Button(pt_grid, text=element, width=3, height=1,
+        #                     bg=color, activebackground=self.darken_color(color),
+        #                     command=lambda e=element: self.select_element(e))
+        #
+        #     # Check if element is in our dataset
+        #     if element in self.elements:
+        #         btn.config(relief=tk.RAISED)
+        #     else:
+        #         btn.config(relief=tk.SUNKEN, state=tk.DISABLED)
+        #
+        #     btn.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
+
         # Create buttons for each element
         for element, (row, col) in self.element_positions.items():
             # Get color based on element category
             category = element_categories.get(element, 'unknown')
             color = colors.get(category, colors['unknown'])
 
-            # Create button
-            btn = tk.Button(pt_grid, text=element, width=3, height=1,
-                            bg=color, activebackground=self.darken_color(color),
-                            command=lambda e=element: self.select_element(e))
-
-            # Check if element is in our dataset
-            if element in self.elements:
-                btn.config(relief=tk.RAISED)
+            # Create button based on platform
+            if self.detect_mac_os():
+                btn = self.create_mac_button(pt_grid, element, color, row, col)
+                btn.grid(row=row, column=col, padx=0, pady=0, sticky='nsew')
             else:
-                btn.config(relief=tk.SUNKEN, state=tk.DISABLED)
+                btn = self.create_windows_button(pt_grid, element, color, row, col)
+                btn.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
 
-            btn.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
+
 
         # Add labels for lanthanides and actinides
         tk.Label(pt_grid, text="*", font=("Helvetica", 11)).grid(row=6, column=2)
@@ -612,7 +641,10 @@ class PeriodicTableXPS(tk.Tk):
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Treeview")
 
         # Define column widths and headings
-        widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 150, "Journal": 220}
+        if self.detect_mac_os():
+            widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 220, "Journal": 250}
+        else:
+            widths = {"": 30, "Line": 40, "BE (eV)": 60, "Formula": 100, "Name": 150, "Journal": 220}
         for col in columns:
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_column(c))
             self.tree.column(col, width=widths[col], stretch=False)
@@ -1025,6 +1057,40 @@ class PeriodicTableXPS(tk.Tk):
         self.search_var.set("")
         self.name_search_var.set("")
         self.update_results()
+
+    def create_mac_button(self, parent, element, color, row, col):
+        """Create macOS-optimized button"""
+        btn = tk.Button(parent, text=element, width=2, height=2,
+                        bg=color,
+                        activebackground=self.darken_color(color),
+                        font=("Helvetica", 8),
+                        relief=tk.RAISED,
+                        borderwidth=0,
+                        command=lambda e=element: self.select_element(e))
+
+        # Check if element is in dataset
+        if element in self.elements:
+            btn.config(state=tk.NORMAL)
+        else:
+            btn.config(state=tk.DISABLED, relief=tk.SUNKEN)
+
+        return btn
+
+    def create_windows_button(self, parent, element, color, row, col):
+        """Create Windows-optimized button (original logic)"""
+        btn = tk.Button(parent, text=element, width=3, height=1,
+                        bg=color, activebackground=self.darken_color(color),
+                        command=lambda e=element: self.select_element(e))
+
+        # Check if element is in our dataset
+        if element in self.elements:
+            btn.config(relief=tk.RAISED)
+        else:
+            btn.config(relief=tk.SUNKEN, state=tk.DISABLED)
+
+        return btn
+
+
 
     def show_element_properties(self):
         """Show properties for the selected element"""
