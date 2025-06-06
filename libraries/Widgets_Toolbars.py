@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
 from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
-from libraries.Open import ExcelDropTarget, open_xlsx_file, open_avg_file, import_mrs_file, import_multiple_mrs_files
+from libraries.Open import ExcelDropTarget, open_xlsx_file, open_avg_file, import_mrs_file, import_multiple_mrs_files, \
+    open_vg_microtech_file_dialog
 from libraries.Plot_Operations import PlotManager
 from Functions import toggle_Col_1
 from libraries.Save import update_undo_redo_state
@@ -30,16 +31,50 @@ from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots
 from libraries.Utilities import add_draggable_text
 from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1, undo, redo
 from libraries.LibraryID import PeriodicTableXPS
-from libraries.Asteroid import main as asteroid_main
-from libraries.Solitaire import SolitaireGame
-from libraries.Flappybird import main as flappybird_main
-from libraries.ChemistryLab import ChemistryLabGame
+# from libraries.Asteroid import main as asteroid_main
+# from libraries.Solitaire import SolitaireGame
+# from libraries.Flappybird import main as flappybird_main
+# from libraries.ChemistryLab import ChemistryLabGame
 from libraries.Save import on_backup_main
 from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
 
+# With conditional imports:
+import platform
+IS_MAC = platform.system() == 'Darwin'
+
+# Only import games if not on Mac
+if not IS_MAC:
+    try:
+        print("Starting pygame as no macOS has been detected")
+        from libraries.Asteroid import main as asteroid_main
+        from libraries.Flappybird import main as flappybird_main
+        from libraries.TetrisGame import Tetris
+        from libraries.Solitaire import SolitaireGame
+        from libraries.ChemistryLab import ChemistryLabGame
+    except ImportError:
+        # Fallback if games can't be imported
+        asteroid_main = None
+        flappybird_main = None
+        Tetris = None
+        SolitaireGame = None
+        ChemistryLabGame = None
+else:
+    # Set all game functions to None on Mac
+    asteroid_main = None
+    flappybird_main = None
+    Tetris = None
+    SolitaireGame = None
+    ChemistryLabGame = None
+
+
+
 def show_tetris_game(window):
     """Launch the Tetris game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
     try:
         from libraries.TetrisGame import Tetris
         game = Tetris()
@@ -49,7 +84,12 @@ def show_tetris_game(window):
 
 def show_chemistry_lab_game(window):
     """Launch the Chemistry Lab game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
     try:
+        from libraries.ChemistryLab import ChemistryLabGame
         game = ChemistryLabGame()
         game.run()
     except Exception as e:
@@ -57,25 +97,39 @@ def show_chemistry_lab_game(window):
 
 def show_flappybird_game(window):
     """Launch the Flappybird game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
     try:
+        from libraries.Flappybird import main as flappybird_main
         flappybird_main()
     except Exception as e:
         print(f"Error launching Flappybird game: {e}")
 
 def show_asteroid_game(window):
     """Launch the Asteroid game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
     try:
-        asteroid_main()
+        if asteroid_main:
+            asteroid_main()
     except Exception as e:
         print(f"Error launching Asteroid game: {e}")
 
 def launch_solitaire(window):
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
     try:
+        from libraries.Solitaire import SolitaireGame
         game = SolitaireGame()
         game.run()
     except Exception as e:
         wx.MessageBox(f"Error launching solitaire: {e}", "Error", wx.OK | wx.ICON_ERROR)
-
 def create_widgets(window):
     # Main sizer
     # main_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -645,25 +699,29 @@ def create_menu(window):
     # Create Bored submenu
     bored_menu = wx.Menu()
 
-    atoms_item = bored_menu.Append(wx.NewId(), "Atoms")
-    window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), atoms_item)
+    # Create Bored submenu only if not on Mac
+    if not IS_MAC:
+        bored_menu = wx.Menu()
 
-    chemistry_lab_item = bored_menu.Append(wx.NewId(), "Material Lab")
-    window.Bind(wx.EVT_MENU, lambda event: show_chemistry_lab_game(window), chemistry_lab_item)
+        atoms_item = bored_menu.Append(wx.NewId(), "Atoms")
+        window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), atoms_item)
 
-    asteroid_item = bored_menu.Append(wx.NewId(), "Meteors Smash")
-    window.Bind(wx.EVT_MENU, lambda event: show_asteroid_game(window), asteroid_item)
+        chemistry_lab_item = bored_menu.Append(wx.NewId(), "Material Lab")
+        window.Bind(wx.EVT_MENU, lambda event: show_chemistry_lab_game(window), chemistry_lab_item)
 
-    solitaire_item = bored_menu.Append(wx.NewId(), "Kherve Solitaire")
-    window.Bind(wx.EVT_MENU, lambda event: launch_solitaire(window), solitaire_item)
+        asteroid_item = bored_menu.Append(wx.NewId(), "Meteors Smash")
+        window.Bind(wx.EVT_MENU, lambda event: show_asteroid_game(window), asteroid_item)
 
-    tetris_item = bored_menu.Append(wx.NewId(), "Kherve Tetris")
-    window.Bind(wx.EVT_MENU, lambda event: show_tetris_game(window), tetris_item)
+        solitaire_item = bored_menu.Append(wx.NewId(), "Kherve Solitaire")
+        window.Bind(wx.EVT_MENU, lambda event: launch_solitaire(window), solitaire_item)
 
-    flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the Flappy Bird")
-    window.Bind(wx.EVT_MENU, lambda event: show_flappybird_game(window), flappybird_item)
+        tetris_item = bored_menu.Append(wx.NewId(), "Kherve Tetris")
+        window.Bind(wx.EVT_MENU, lambda event: show_tetris_game(window), tetris_item)
 
-    help_menu.AppendSubMenu(bored_menu, "Take a Break")
+        flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the Flappy Bird")
+        window.Bind(wx.EVT_MENU, lambda event: show_flappybird_game(window), flappybird_item)
+
+        help_menu.AppendSubMenu(bored_menu, "Take a Break")
 
     resubmit_form_item = help_menu.Append(wx.NewId(), "Registration Form")
     window.Bind(wx.EVT_MENU, lambda event: launch_registration_form(window), resubmit_form_item)
