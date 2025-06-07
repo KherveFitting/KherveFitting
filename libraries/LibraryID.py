@@ -33,6 +33,10 @@ class PeriodicTableXPS(tk.Tk):
         self.default_font.configure(size=9)
         self.heading_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
 
+        # Configure Mac-specific combobox font
+        if self.detect_mac_os():
+            self.style.configure("TCombobox", font=("Helvetica", 8))
+
         # Create main menu
         self.create_menu()
 
@@ -436,12 +440,12 @@ class PeriodicTableXPS(tk.Tk):
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Element selection info
-        tk.Label(left_frame, text="Selected Element:", bg="#e0e0e0").grid(row=0, column=0, sticky='w', pady=2)
-        self.element_label = tk.Label(left_frame, text="None", width=6, relief=tk.SUNKEN, bg="white")
+        tk.Label(left_frame, text="Selected Element:", bg="#e0e0e0", font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9)).grid(row=0, column=0, sticky='w', pady=2)
+        self.element_label = tk.Label(left_frame, text="None", width=6, relief=tk.SUNKEN, bg="white", font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9))
         self.element_label.grid(row=0, column=1, sticky='w', padx=5, pady=2)
 
         # Line selection dropdown
-        tk.Label(left_frame, text="XPS Line:", bg="#e0e0e0").grid(row=1, column=0, sticky='w', pady=2)
+        tk.Label(left_frame, text="XPS Line:", bg="#e0e0e0", font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9)).grid(row=1, column=0, sticky='w', pady=2, )
         self.line_var = tk.StringVar()
         combo_width = 7 if self.detect_mac_os() else 15
         self.line_dropdown = ttk.Combobox(left_frame, textvariable=self.line_var, width=combo_width, state="readonly")
@@ -455,17 +459,19 @@ class PeriodicTableXPS(tk.Tk):
         search_frame.pack(fill=tk.X)
 
         # Formula search
-        tk.Label(search_frame, text="Search Formula:", bg="#e0e0e0").grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        tk.Label(search_frame, text="Search Formula:", bg="#e0e0e0",font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9)).grid(row=0, column=0, padx=5, pady=2, sticky='w')
         self.search_var = tk.StringVar()
         self.search_var.trace("w", self.on_search_change)
-        self.search_entry = tk.Entry(search_frame, textvariable=self.search_var, width=20)
+        self.search_entry = tk.Entry(search_frame, textvariable=self.search_var, width=20,
+                                     font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9))
         self.search_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
 
         # Name search
-        tk.Label(search_frame, text="Search Name:", bg="#e0e0e0").grid(row=1, column=0, padx=5, pady=2, sticky='w')
+        tk.Label(search_frame, text="Search Name:", bg="#e0e0e0", font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9)).grid(row=1, column=0, padx=5, pady=2, sticky='w')
         self.name_search_var = tk.StringVar()
         self.name_search_var.trace("w", self.on_search_change)
-        self.name_search_entry = tk.Entry(search_frame, textvariable=self.name_search_var, width=20)
+        self.name_search_entry = tk.Entry(search_frame, textvariable=self.name_search_var, width=20,
+                                          font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9))
         self.name_search_entry.grid(row=1, column=1, padx=5, pady=2, sticky='w')
 
         # # Reset button
@@ -476,11 +482,11 @@ class PeriodicTableXPS(tk.Tk):
         # button_height = 2 if self.detect_mac_os() else 1
 
         # Add element properties button
-        self.properties_btn = tk.Button(search_frame, text="Properties", command=self.show_element_properties)
+        self.properties_btn = tk.Button(search_frame, text="Properties", command=self.show_element_properties, font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9))
         self.properties_btn.grid(row=0, column=3, sticky='w', padx=10, pady=2)
 
         # Plot button - ADD THIS NEW BUTTON
-        self.plot_btn = tk.Button(search_frame, text="Plot Results", command=self.plot_results)
+        self.plot_btn = tk.Button(search_frame, text="Plot Results", command=self.plot_results, font=("Helvetica", 12) if self.detect_mac_os() else ("Helvetica", 9))
         self.plot_btn.grid(row=1, column=3, padx=10, pady=2, sticky='w')
 
     def plot_results(self):
@@ -620,8 +626,12 @@ class PeriodicTableXPS(tk.Tk):
 
         # Modify the Treeview style to allow smaller columns
         style = ttk.Style()
-        style.configure("Treeview", rowheight=20)
-        style.configure("Treeview.Heading", font=('Helvetica', 10))  # Smaller heading font
+        if self.detect_mac_os():
+            style.configure("Treeview", rowheight=24, font=('Helvetica', 11))
+            style.configure("Treeview.Heading", font=('Helvetica', 12))
+        else:
+            style.configure("Treeview", rowheight=20, font=('Helvetica', 9))
+            style.configure("Treeview.Heading", font=('Helvetica', 10))
 
         # Create treeview widget
         columns = ("", "Line", "BE (eV)", "Formula", "Name", "Journal")
