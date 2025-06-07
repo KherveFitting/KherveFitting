@@ -1059,24 +1059,6 @@ class PeriodicTableXPS(tk.Tk):
         self.name_search_var.set("")
         self.update_results()
 
-    def create_mac_button_OLD(self, parent, element, color, row, col):
-        """Create macOS-optimized button"""
-        btn = tk.Button(parent, text=element, width=2, height=2,
-                        bg=color,
-                        activebackground=self.darken_color(color),
-                        font=("Helvetica", 8),
-                        relief=tk.RAISED,
-                        borderwidth=0,
-                        command=lambda e=element: self.select_element(e))
-
-        # Check if element is in dataset
-        if element in self.elements:
-            btn.config(state=tk.NORMAL)
-        else:
-            btn.config(state=tk.DISABLED, relief=tk.SUNKEN)
-
-        return btn
-
     def create_mac_button(self, parent, element, color, row, col):
         """Create macOS canvas-based button"""
         # Create canvas
@@ -1096,6 +1078,7 @@ class PeriodicTableXPS(tk.Tk):
         # Bind events only if enabled
         if canvas.enabled:
             canvas.bind("<Button-1>", lambda e: self.select_element(element))
+            canvas.bind("<Double-1>", lambda e: self.on_element_double_click(element))
             canvas.bind("<Enter>", lambda e: self.on_canvas_enter(canvas))
             canvas.bind("<Leave>", lambda e: self.on_canvas_leave(canvas))
         else:
@@ -1133,6 +1116,9 @@ class PeriodicTableXPS(tk.Tk):
                         bg=color, activebackground=self.darken_color(color),
                         command=lambda e=element: self.select_element(e))
 
+        # Add double-click binding
+        btn.bind("<Double-1>", lambda e: self.on_element_double_click(element))
+
         # Check if element is in our dataset
         if element in self.elements:
             btn.config(relief=tk.RAISED)
@@ -1140,6 +1126,12 @@ class PeriodicTableXPS(tk.Tk):
             btn.config(relief=tk.SUNKEN, state=tk.DISABLED)
 
         return btn
+
+    def on_element_double_click(self, element):
+        """Handle double-click on element to open properties"""
+        if element in self.elements:
+            self.select_element(element)
+            self.show_element_properties()
 
 
 
