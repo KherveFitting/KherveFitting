@@ -67,8 +67,6 @@ else:
     SolitaireGame = None
     ChemistryLabGame = None
 
-
-
 def show_tetris_game(window):
     """Launch the Tetris game"""
     if IS_MAC:
@@ -956,8 +954,9 @@ def create_horizontal_toolbar(parent, window):
     nist_tool = toolbar.AddTool(wx.ID_ANY, 'NIST Database',
                                 wx.Bitmap(os.path.join(icon_path, "NIST-3.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="Open KherveDB database")
-    window.Bind(wx.EVT_TOOL, lambda event: window.open_dream_nist(), nist_tool)
-
+    # window.Bind(wx.EVT_TOOL, lambda event: window.open_dream_nist(), nist_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: open_dream_nist_handler(window), nist_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.open_kherve_db(), nist_tool)
 
     toolbar.AddStretchableSpace()
 

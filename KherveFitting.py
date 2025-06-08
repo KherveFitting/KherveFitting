@@ -2480,51 +2480,18 @@ class MyFrame(wx.Frame):
         except ValueError:
             return default
 
-    # def on_open_raman_window(self):
-    #     from libraries.Raman_Screen import RamanWindow
-    #     if not hasattr(self, 'raman_window') or not self.raman_window:
-    #         self.raman_window = RamanWindow(self)
-    #
-    #         # Set position relative to main window
-    #         main_pos = self.GetPosition()
-    #         main_size = self.GetSize()
-    #         raman_size = self.raman_window.GetSize()
-    #
-    #         x = main_pos.x + (main_size.width - raman_size.width) // 2
-    #         y = main_pos.y + (main_size.height - raman_size.height) // 2
-    #
-    #         self.raman_window.SetPosition((x, y))
-    #
-    #     self.raman_window.Show()
-    #     self.raman_window.Raise()
-
     def open_dream_nist_OLD(self):
         """Open the Dream NIST periodic table window"""
         from libraries.LibraryID import PeriodicTableXPS
         nist_window = PeriodicTableXPS()
         nist_window.mainloop()
 
-    def open_dream_nist(self):
-        """Open the Dream NIST periodic table window"""
-        import subprocess
-        import sys
-        import os
+    def open_kherve_db(self, kherveDB_wxpython=None):
+        from libraries.kherveDB_wxpython import PeriodicTableXPS
+        kherve_frame = PeriodicTableXPS()
+        kherve_frame.Show()
 
-        try:
-            # Get the current script directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            nist_script = os.path.join(current_dir, "libraries", "LibraryID.py")
 
-            # Run as separate process
-            if getattr(sys, 'frozen', False):
-                # If running as executable, use the executable path
-                subprocess.Popen([sys.executable, nist_script])
-            else:
-                # If running as script
-                subprocess.Popen([sys.executable, nist_script])
-
-        except Exception as e:
-            print(f"Error opening NIST window: {e}")
 
 def set_high_priority():
     try:
