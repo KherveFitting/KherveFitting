@@ -228,7 +228,9 @@ def _extract_peak_parameters(window, row, library_data, current_instrument):
         rsf = library_data[key][current_instrument]['rsf']
     else:
         # Fallback to Al if instrument not found
-        rsf = library_data[key]['Al']['rsf'] if key in library_data else 1.0
+        # rsf = library_data[key]['Al']['rsf'] if key in library_data else 1.0
+        rsf = library_data[key][current_instrument]['rsf'] if key in library_data and current_instrument in \
+                                                              library_data[key] else 1.0
 
     return {
         'name': peak_name,
