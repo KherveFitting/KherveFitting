@@ -3398,36 +3398,44 @@ class ElementTile(wx.Panel):
         gc.SetBrush(wx.Brush(actual_color))
         gc.DrawRoundedRectangle(0, 0, width - 1, height - 1, 2)
 
-        # Set up fonts and colors
+        # Set up fonts and colors - PLATFORM SPECIFIC SIZES
         text_color = wx.BLACK if self.enabled else wx.Colour(136, 136, 136)
 
-        # Different font sizes for different elements
-        small_font = wx.Font(7, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        element_font = wx.Font(13, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        # Different font sizes for macOS vs Windows
+        import platform
+        if platform.system() == 'Darwin':  # macOS
+            small_font_size = 7
+            element_font_size = 13
+        else:  # Windows and other systems
+            small_font_size = 6  # Smaller for Windows
+            element_font_size = 9  # Smaller for Windows
+
+        small_font = wx.Font(small_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        element_font = wx.Font(element_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
 
         # 1. Draw atomic number in top-left corner
         if self.atomic_number and self.atomic_number > 0:
             gc.SetFont(small_font, text_color)
-            gc.DrawText(str(self.atomic_number), 3, 3)
+            gc.DrawText(str(self.atomic_number), 1, 1)
 
         # 2. Draw binding energy in top-right corner
         if self.binding_energy and self.binding_energy != 'N.D.':
             gc.SetFont(small_font, text_color)
             be_width, be_height = gc.GetTextExtent(self.binding_energy)
-            be_x = width - be_width - 3  # Right-aligned with small margin
-            gc.DrawText(self.binding_energy, be_x, 3)
+            be_x = width - be_width - 1  # Right-aligned with small margin
+            gc.DrawText(self.binding_energy, be_x, 1)
         elif self.binding_energy == 'N.D.':
             gc.SetFont(small_font, text_color)
             be_width, be_height = gc.GetTextExtent('N.D.')
-            be_x = width - be_width - 3
-            gc.DrawText('N.D.', be_x, 3)
+            be_x = width - be_width - 1
+            gc.DrawText('N.D.', be_x, 1)
 
         # 3. Draw element symbol in center
         gc.SetFont(element_font, text_color)
         element_width, element_height = gc.GetTextExtent(self.element)
         element_x = (width - element_width) / 2
         element_y = (height - element_height) / 2 - 2  # Slightly higher to make room for core level
-        gc.DrawText(self.element, element_x, element_y)
+        gc.DrawText(self.element, element_x, element_y+1)
 
         # 4. Draw core level below element symbol
         if self.core_level and self.core_level != 'N.D.':
