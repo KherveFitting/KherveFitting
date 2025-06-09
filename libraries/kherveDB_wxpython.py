@@ -1181,7 +1181,7 @@ class ElementPropertiesDialog(wx.Dialog):
             grid.SetColLabelValue(1, "Avg BE (eV)")
             grid.SetColLabelValue(2, "Min BE (eV)")
             grid.SetColLabelValue(3, "Max BE (eV)")
-            grid.SetColLabelValue(4, "Count")
+            grid.SetColLabelValue(4, "N# of References")
 
             # Set column widths
             grid.SetColSize(0, 80)
