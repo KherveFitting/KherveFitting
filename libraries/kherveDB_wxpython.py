@@ -22,12 +22,20 @@ import wx.html2
 
 class PeriodicTableXPS(wx.Frame):
     def __init__(self):
-        super().__init__(None, title="KherveDB Library: How I wish NIST would look like",
-                         size=(620, 720))
+        super().__init__(None, title="KherveDB Library: How I wish NIST would look like")#,
+                        # size=(620, 720))
 
-        # Set minimum and maximum sizes
-        self.SetMinSize((620, 660))
-        self.SetMaxSize((620, 10000))
+        if platform.system() == 'Darwin':  # Mac OS
+            window_size = (620, 720)
+            # Set minimum and maximum sizes
+            self.SetMinSize((620, 660))
+            self.SetMaxSize((620, 10000))
+
+        else:
+            window_size = (640, 720)
+            # Set minimum and maximum sizes
+            self.SetMinSize((640, 660))
+            self.SetMaxSize((640, 10000))
 
         # Center the window
         self.Centre()
@@ -107,8 +115,11 @@ data for XPS analysis.
 This application aims to preserve and provide easy access to this important 
 scientific resource.
 
+This application also provide rapid access to the website XPSfitting from M. Biesinger and to
+the webite of Thermo Knowledge.
+
 Developer: Gwilherm Kerherve
-Version: 1.0"""
+Version: 1.1"""
 
         wx.MessageBox(about_text, "About My KherveDB Library",
                       wx.OK | wx.ICON_INFORMATION)
@@ -1125,12 +1136,18 @@ class ElementPropertiesDialog(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         try:
-            # Create toolbar with refresh button
+            # Create toolbar with refresh and zoom buttons
             toolbar_panel = wx.Panel(panel)
             toolbar_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
             refresh_btn = wx.Button(toolbar_panel, label="Refresh")
             refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh_thermo)
+
+            zoom_in_btn = wx.Button(toolbar_panel, label="+", size=(30, -1))
+            zoom_in_btn.Bind(wx.EVT_BUTTON, self.on_thermo_zoom_in)
+
+            zoom_out_btn = wx.Button(toolbar_panel, label="-", size=(30, -1))
+            zoom_out_btn.Bind(wx.EVT_BUTTON, self.on_thermo_zoom_out)
 
             url_label = wx.StaticText(toolbar_panel, label="Thermo Fisher Knowledge Base")
             font = url_label.GetFont()
@@ -1138,6 +1155,8 @@ class ElementPropertiesDialog(wx.Dialog):
             url_label.SetFont(font)
 
             toolbar_sizer.Add(url_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+            toolbar_sizer.Add(zoom_out_btn, 0, wx.ALL, 2)
+            toolbar_sizer.Add(zoom_in_btn, 0, wx.ALL, 2)
             toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 5)
             toolbar_panel.SetSizer(toolbar_sizer)
 
@@ -1191,12 +1210,18 @@ class ElementPropertiesDialog(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         try:
-            # Create toolbar with refresh button
+            # Create toolbar with refresh and zoom buttons
             toolbar_panel = wx.Panel(panel)
             toolbar_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
             refresh_btn = wx.Button(toolbar_panel, label="Refresh")
             refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh_xps)
+
+            zoom_in_btn = wx.Button(toolbar_panel, label="+", size=(30, -1))
+            zoom_in_btn.Bind(wx.EVT_BUTTON, self.on_xps_zoom_in)
+
+            zoom_out_btn = wx.Button(toolbar_panel, label="-", size=(30, -1))
+            zoom_out_btn.Bind(wx.EVT_BUTTON, self.on_xps_zoom_out)
 
             url_label = wx.StaticText(toolbar_panel, label="XPS Fitting Database")
             font = url_label.GetFont()
@@ -1204,9 +1229,10 @@ class ElementPropertiesDialog(wx.Dialog):
             url_label.SetFont(font)
 
             toolbar_sizer.Add(url_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+            toolbar_sizer.Add(zoom_out_btn, 0, wx.ALL, 2)
+            toolbar_sizer.Add(zoom_in_btn, 0, wx.ALL, 2)
             toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 5)
             toolbar_panel.SetSizer(toolbar_sizer)
-
             # Create web view control
             self.xps_web_view = wx.html2.WebView.New(panel)
 
@@ -1269,7 +1295,51 @@ class ElementPropertiesDialog(wx.Dialog):
         except:
             pass
 
+    def on_xps_zoom_in(self, event):
+        """Zoom in the XPS web view using JavaScript"""
+        try:
+            script = """
+            document.body.style.zoom = (parseFloat(document.body.style.zoom || 1) * 1.1).toString();
+            """
+            self.xps_web_view.RunScript(script)
+        except:
+            pass
 
+    def on_xps_zoom_out(self, event):
+        """Zoom out the XPS web view using JavaScript"""
+        try:
+            script = """
+            var currentZoom = parseFloat(document.body.style.zoom || 1);
+            if (currentZoom > 0.5) {
+                document.body.style.zoom = (currentZoom / 1.1).toString();
+            }
+            """
+            self.xps_web_view.RunScript(script)
+        except:
+            pass
+
+    def on_thermo_zoom_in(self, event):
+        """Zoom in the Thermo web view using JavaScript"""
+        try:
+            script = """
+            document.body.style.zoom = (parseFloat(document.body.style.zoom || 1) * 1.1).toString();
+            """
+            self.web_view.RunScript(script)
+        except:
+            pass
+
+    def on_thermo_zoom_out(self, event):
+        """Zoom out the Thermo web view using JavaScript"""
+        try:
+            script = """
+            var currentZoom = parseFloat(document.body.style.zoom || 1);
+            if (currentZoom > 0.5) {
+                document.body.style.zoom = (currentZoom / 1.1).toString();
+            }
+            """
+            self.web_view.RunScript(script)
+        except:
+            pass
 
     def on_page_loaded(self, event):
         """Handle successful page loading"""
