@@ -17,6 +17,7 @@ a = Analysis(['KherveFitting.py'],
              datas=[
                  ('KherveFitting_library.json', '.'),
                  ('KherveFitting_library.xlsx', '.'),
+                 ('NIST_BE.parquet', '.'),
                  ('Manual.pdf', '.'),
                  (os.path.join('libraries', 'Images'), os.path.join('libraries', 'Images')),
                  (os.path.join('libraries', 'Icons'), os.path.join('libraries', 'Icons')),

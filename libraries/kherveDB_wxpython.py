@@ -135,8 +135,10 @@ Version: 1.1"""
         possible_paths = [
             os.path.join(base_path, "NIST_BE.parquet"),
             os.path.join(base_path, "libraries", "NIST_BE.parquet"),
+            os.path.join(base_path, "..", "Resources", "NIST_BE.parquet"),  # Mac app bundle
             os.path.join(base_path, "NIST_BE.xlsx"),
-            os.path.join(base_path, "libraries", "NIST_BE.xlsx")
+            os.path.join(base_path, "libraries", "NIST_BE.xlsx"),
+            os.path.join(base_path, "..", "Resources", "NIST_BE.xlsx")  # Mac app bundle
         ]
 
         data_found = False
@@ -216,15 +218,90 @@ Version: 1.1"""
         self.pt_sizer.Add(label2, pos=(7, 2))
 
         pt_panel.SetSizer(self.pt_sizer)
-        self.main_sizer.Add(pt_panel, 0, wx.LEFT | wx.RIGHT | wx.TOP | wx.EXPAND, 10)
+        self.main_sizer.Add(pt_panel, 0, wx.EXPAND, 0)
+
+    def get_atomic_number(self, element_symbol):
+        """Get atomic number for an element"""
+        atomic_numbers = {
+            'H': 1, 'He': 2, 'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8, 'F': 9, 'Ne': 10,
+            'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15, 'S': 16, 'Cl': 17, 'Ar': 18,
+            'K': 19, 'Ca': 20, 'Sc': 21, 'Ti': 22, 'V': 23, 'Cr': 24, 'Mn': 25, 'Fe': 26,
+            'Co': 27, 'Ni': 28, 'Cu': 29, 'Zn': 30, 'Ga': 31, 'Ge': 32, 'As': 33, 'Se': 34,
+            'Br': 35, 'Kr': 36, 'Rb': 37, 'Sr': 38, 'Y': 39, 'Zr': 40, 'Nb': 41, 'Mo': 42,
+            'Tc': 43, 'Ru': 44, 'Rh': 45, 'Pd': 46, 'Ag': 47, 'Cd': 48, 'In': 49, 'Sn': 50,
+            'Sb': 51, 'Te': 52, 'I': 53, 'Xe': 54, 'Cs': 55, 'Ba': 56, 'La': 57, 'Ce': 58,
+            'Pr': 59, 'Nd': 60, 'Pm': 61, 'Sm': 62, 'Eu': 63, 'Gd': 64, 'Tb': 65, 'Dy': 66,
+            'Ho': 67, 'Er': 68, 'Tm': 69, 'Yb': 70, 'Lu': 71, 'Hf': 72, 'Ta': 73, 'W': 74,
+            'Re': 75, 'Os': 76, 'Ir': 77, 'Pt': 78, 'Au': 79, 'Hg': 80, 'Tl': 81, 'Pb': 82,
+            'Bi': 83, 'Po': 84, 'At': 85, 'Rn': 86, 'Fr': 87, 'Ra': 88, 'Ac': 89, 'Th': 90,
+            'Pa': 91, 'U': 92, 'Np': 93, 'Pu': 94, 'Am': 95, 'Cm': 96, 'Bk': 97, 'Cf': 98,
+            'Es': 99, 'Fm': 100, 'Md': 101, 'No': 102, 'Lr': 103, 'Rf': 104, 'Db': 105,
+            'Sg': 106, 'Bh': 107, 'Hs': 108, 'Mt': 109, 'Ds': 110, 'Rg': 111, 'Cn': 112,
+            'Nh': 113, 'Fl': 114, 'Mc': 115, 'Lv': 116, 'Ts': 117, 'Og': 118
+        }
+        return atomic_numbers.get(element_symbol, 0)
+
+    def get_main_core_level(self, element_symbol):
+        """Get the main XPS core level for an element"""
+        core_levels = {
+            'H': 'N.D.', 'He': 'N.D.', 'Li': '1s', 'Be': '1s', 'B': '1s', 'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s',
+            'Ne': '1s',
+            'Na': '1s', 'Mg': '2p', 'Al': '2p', 'Si': '2p', 'P': '2p3/2', 'S': '2p3/2', 'Cl': '2p3/2', 'Ar': '2p3/2',
+            'K': '2p3/2', 'Ca': '2p3/2', 'Sc': '2p3/2', 'Ti': '2p3/2', 'V': '2p3/2', 'Cr': '2p3/2', 'Mn': '2p3/2',
+            'Fe': '2p3/2',
+            'Co': '2p3/2', 'Ni': '2p3/2', 'Cu': '2p3/2', 'Zn': '2p3/2', 'Ga': '2p3/2', 'Ge': '3d', 'As': '3d5/2',
+            'Se': '3d5/2',
+            'Br': '3d5/2', 'Kr': '3d5/2', 'Rb': '3d5/2', 'Sr': '3d5/2', 'Y': '3d5/2', 'Zr': '3d5/2', 'Nb': '3d5/2',
+            'Mo': '3d5/2',
+            'Tc': '3d5/2', 'Ru': '3d5/2', 'Rh': '3d5/2', 'Pd': '3d5/2', 'Ag': '3d5/2', 'Cd': '3d5/2', 'In': '3d5/2',
+            'Sn': '3d5/2',
+            'Sb': '3d5/2', 'Te': '3d5/2', 'I': '3d5/2', 'Xe': '3d5/2', 'Cs': '3d5/2', 'Ba': '3d5/2', 'La': '3d5/2',
+            'Ce': '3d5/2',
+            'Pr': '3d5/2', 'Nd': '3d5/2', 'Pm': '3d5/2', 'Sm': '3d5/2', 'Eu': '3d5/2', 'Gd': '4d', 'Tb': '4d',
+            'Dy': '4d',
+            'Ho': '4d', 'Er': '4d', 'Tm': '4d', 'Yb': '4d', 'Lu': '4f7/2', 'Hf': '4f7/2', 'Ta': '4f7/2', 'W': '4f7/2',
+            'Re': '4f7/2', 'Os': '4f7/2', 'Ir': '4f7/2', 'Pt': '4f7/2', 'Au': '4f7/2', 'Hg': '4f7/2', 'Tl': '4f7/2',
+            'Pb': '4f7/2',
+            'Bi': '4f7/2', 'Po': '4f7/2', 'At': '4f7/2', 'Rn': '4f7/2', 'Fr': '4f7/2', 'Ra': '4f7/2', 'Ac': '4f7/2',
+            'Th': '4f7/2',
+            'Pa': '4f7/2', 'U': '4f7/2', 'Np': '4f7/2', 'Pu': '4f7/2', 'Am': '4f7/2', 'Cm': '4f7/2', 'Bk': '4f7/2',
+            'Cf': '4f7/2',
+            'Es': '4f7/2', 'Fm': '4f7/2', 'Md': '4f7/2', 'No': '4f7/2', 'Lr': '4f7/2'
+        }
+        return core_levels.get(element_symbol, 'N.D.')
+
+    def get_main_core_binding_energy(self, element_symbol):
+        """Get the binding energy (eV) for the main XPS core level of an element"""
+        binding_energies = {
+            'H': 'N.D.', 'He': 'N.D.', 'Li': '56', 'Be': '112', 'B': '189', 'C': '285', 'N': '398', 'O': '531',
+            'F': '685', 'Ne': '863',
+            'Na': '1072', 'Mg': '50', 'Al': '73', 'Si': '99', 'P': '130', 'S': '164', 'Cl': '199', 'Ar': '242',
+            'K': '294', 'Ca': '347', 'Sc': '399', 'Ti': '454', 'V': '512', 'Cr': '574', 'Mn': '639', 'Fe': '707',
+            'Co': '778', 'Ni': '853', 'Cu': '933', 'Zn': '1022', 'Ga': '1117', 'Ge': '29', 'As': '42', 'Se': '57',
+            'Br': '69', 'Kr': '87', 'Rb': '111', 'Sr': '134', 'Y': '158', 'Zr': '179', 'Nb': '202', 'Mo': '228',
+            'Tc': 'N.D.', 'Ru': '280', 'Rh': '307', 'Pd': '335', 'Ag': '368', 'Cd': '405', 'In': '444', 'Sn': '485',
+            'Sb': '528', 'Te': '573', 'I': '619', 'Xe': '670', 'Cs': '726', 'Ba': '781', 'La': '836', 'Ce': '884',
+            'Pr': '932', 'Nd': '981', 'Pm': '1033', 'Sm': '1081', 'Eu': '1126', 'Gd': '140', 'Tb': '146', 'Dy': '152',
+            'Ho': '160', 'Er': '167', 'Tm': '175', 'Yb': '182', 'Lu': '7', 'Hf': '14', 'Ta': '22', 'W': '31',
+            'Re': '40', 'Os': '51', 'Ir': '61', 'Pt': '71', 'Au': '84', 'Hg': '101', 'Tl': '118', 'Pb': '137',
+            'Bi': '157', 'Po': 'N.D.', 'At': 'N.D.', 'Rn': 'N.D.', 'Fr': 'N.D.', 'Ra': 'N.D.', 'Ac': '307', 'Th': '333',
+            'Pa': '358', 'U': '377', 'Np': '403', 'Pu': '425', 'Am': '448', 'Cm': '472', 'Bk': '499', 'Cf': '523',
+            'Es': '550', 'Fm': 'N.D.', 'Md': 'N.D.', 'No': 'N.D.', 'Lr': 'N.D.'
+        }
+        return binding_energies.get(element_symbol, 'N.D.')
 
     def create_element_button(self, parent, element, color):
         """Create a colored tile for an element"""
         # Check if element is in our dataset
         enabled = element in self.elements
 
-        # Create custom tile
-        tile = ElementTile(parent, element, color, enabled)
+        # Get atomic number
+        atomic_number = self.get_atomic_number(element)
+        core_level = self.get_main_core_level(element)
+        binding_energy = self.get_main_core_binding_energy(element)
+
+        #  Create custom tile with all information
+        tile = ElementTile(parent, element, color, enabled, atomic_number, core_level, binding_energy)
 
         # Set callbacks
         tile.set_click_callback(self.select_element)
@@ -3260,11 +3337,14 @@ class ElementPropertiesDialog(wx.Dialog):
 class ElementTile(wx.Panel):
     """Custom widget for periodic table element tiles"""
 
-    def __init__(self, parent, element, color, enabled=True):
-        super().__init__(parent, size=(32, 32))
+    def __init__(self, parent, element, color, enabled=True, atomic_number=None, core_level=None, binding_energy=None):
+        super().__init__(parent, size=(33, 33))
         self.element = element
         self.color = color
         self.enabled = enabled
+        self.atomic_number = atomic_number or 0  # Default to 0 if not provided
+        self.core_level = core_level or 'N.D.'
+        self.binding_energy = binding_energy or 'N.D.'
         self.hover = False
         self.pressed = False
 
@@ -3282,15 +3362,14 @@ class ElementTile(wx.Panel):
         self.double_click_callback = None
 
     def on_paint(self, event):
-        """Draw the element tile"""
+        """Draw the element tile with atomic number, element symbol, core level, and binding energy"""
         dc = wx.PaintDC(self)
         gc = wx.GraphicsContext.Create(dc)
 
         width, height = self.GetSize()
 
-        # Determine the actual color to use
+        # Determine the actual color to use (existing color logic)
         if not self.enabled:
-            # Lighten color for disabled state
             base_color = wx.Colour(self.color)
             r, g, b = base_color.Red(), base_color.Green(), base_color.Blue()
             r = min(255, int(r * 1.3))
@@ -3298,7 +3377,6 @@ class ElementTile(wx.Panel):
             b = min(255, int(b * 1.3))
             actual_color = wx.Colour(r, g, b)
         elif self.pressed and self.hover:
-            # Darken color for pressed state
             base_color = wx.Colour(self.color)
             r, g, b = base_color.Red(), base_color.Green(), base_color.Blue()
             r = max(0, int(r * 0.8))
@@ -3306,7 +3384,6 @@ class ElementTile(wx.Panel):
             b = max(0, int(b * 0.8))
             actual_color = wx.Colour(r, g, b)
         elif self.hover:
-            # Slightly darken for hover
             base_color = wx.Colour(self.color)
             r, g, b = base_color.Red(), base_color.Green(), base_color.Blue()
             r = max(0, int(r * 0.9))
@@ -3321,16 +3398,51 @@ class ElementTile(wx.Panel):
         gc.SetBrush(wx.Brush(actual_color))
         gc.DrawRoundedRectangle(0, 0, width - 1, height - 1, 2)
 
-        # Draw text
-        font = wx.Font(11, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
-                       wx.FONTWEIGHT_NORMAL)
-        gc.SetFont(font, wx.BLACK if self.enabled else wx.Colour(136, 136, 136))
+        # Set up fonts and colors
+        text_color = wx.BLACK if self.enabled else wx.Colour(136, 136, 136)
 
-        # Center text
-        text_width, text_height = gc.GetTextExtent(self.element)
-        x = (width - text_width) / 2
-        y = (height - text_height) / 2
-        gc.DrawText(self.element, x, y)
+        # Different font sizes for different elements
+        small_font = wx.Font(7, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        element_font = wx.Font(13, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+
+        # 1. Draw atomic number in top-left corner
+        if self.atomic_number and self.atomic_number > 0:
+            gc.SetFont(small_font, text_color)
+            gc.DrawText(str(self.atomic_number), 3, 3)
+
+        # 2. Draw binding energy in top-right corner
+        if self.binding_energy and self.binding_energy != 'N.D.':
+            gc.SetFont(small_font, text_color)
+            be_width, be_height = gc.GetTextExtent(self.binding_energy)
+            be_x = width - be_width - 3  # Right-aligned with small margin
+            gc.DrawText(self.binding_energy, be_x, 3)
+        elif self.binding_energy == 'N.D.':
+            gc.SetFont(small_font, text_color)
+            be_width, be_height = gc.GetTextExtent('N.D.')
+            be_x = width - be_width - 3
+            gc.DrawText('N.D.', be_x, 3)
+
+        # 3. Draw element symbol in center
+        gc.SetFont(element_font, text_color)
+        element_width, element_height = gc.GetTextExtent(self.element)
+        element_x = (width - element_width) / 2
+        element_y = (height - element_height) / 2 - 2  # Slightly higher to make room for core level
+        gc.DrawText(self.element, element_x, element_y)
+
+        # 4. Draw core level below element symbol
+        if self.core_level and self.core_level != 'N.D.':
+            gc.SetFont(small_font, text_color)
+            core_width, core_height = gc.GetTextExtent(self.core_level)
+            core_x = (width - core_width) / 2
+            core_y = element_y + element_height + 2  # Below the element symbol
+            gc.DrawText(self.core_level, core_x, core_y)
+        elif self.core_level == 'N.D.':
+            # Show N.D. for elements with no data
+            gc.SetFont(small_font, text_color)
+            core_width, core_height = gc.GetTextExtent('N.D.')
+            core_x = (width - core_width) / 2
+            core_y = element_y + element_height + 2
+            gc.DrawText('N.D.', core_x, core_y)
 
     def on_mouse_down(self, event):
         """Handle mouse down"""
