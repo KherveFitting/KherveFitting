@@ -22,11 +22,11 @@ import wx.html2
 
 class PeriodicTableXPS(wx.Frame):
     def __init__(self):
-        super().__init__(None, title="KherveDB Library: How I wish NIST would look like")#,
-                        # size=(620, 720))
+        super().__init__(None, title="KherveDB Library: How I wish NIST would look like",
+                         size=(620, 720))
 
         if platform.system() == 'Darwin':  # Mac OS
-            window_size = (620, 720)
+            window_size = (680, 720)
             # Set minimum and maximum sizes
             self.SetMinSize((620, 660))
             self.SetMaxSize((620, 10000))
