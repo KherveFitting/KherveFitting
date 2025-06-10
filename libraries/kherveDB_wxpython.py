@@ -23,7 +23,7 @@ import wx.html2
 class PeriodicTableXPS(wx.Frame):
     def __init__(self):
         super().__init__(None, title="KherveDB Library: How I wish NIST would look like",
-                         size=(620, 720))
+                         size=(690, 720))
 
         if platform.system() == 'Darwin':  # Mac OS
             window_size = (680, 720)
@@ -538,7 +538,7 @@ Version: 1.1"""
         # Platform-specific column widths
         import platform
         if platform.system() == 'Darwin':  # macOS
-            col_widths = [25, 50, 60, 100, 170, 205]
+            col_widths = [25, 50, 60, 100, 200, 225]
         else:  # Windows and other systems
             col_widths = [25, 50, 60, 110, 180, 220]  # Slightly wider for Windows
 
@@ -3410,8 +3410,8 @@ class ElementTile(wx.Panel):
 
         import platform
         if platform.system() == 'Darwin':  # macOS
-            small_font_size = 7
-            element_font_size = 13
+            small_font_size = 9
+            element_font_size = 14
             small_font = wx.Font(small_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
             element_font = wx.Font(element_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         else:  # Windows and other systems
@@ -3452,14 +3452,22 @@ class ElementTile(wx.Panel):
             gc.SetFont(small_font, text_color)
             core_width, core_height = gc.GetTextExtent(self.core_level)
             core_x = (width - core_width) / 2
-            core_y = element_y + element_height + 0  # Below the element symbol
+            import platform
+            if platform.system() == 'Darwin':  # macOS
+                core_y = element_y + element_height + 2  # Below the element symbol
+            else:
+                core_y = element_y + element_height + 0
             gc.DrawText(self.core_level, core_x, core_y)
         elif self.core_level == 'N.D.':
             # Show N.D. for elements with no data
             gc.SetFont(small_font, text_color)
             core_width, core_height = gc.GetTextExtent('N.D.')
             core_x = (width - core_width) / 2
-            core_y = element_y + element_height + 0
+            import platform
+            if platform.system() == 'Darwin':  # macOS
+                core_y = element_y + element_height + 2  # Below the element symbol
+            else:
+                core_y = element_y + element_height + 0
             gc.DrawText('N.D.', core_x, core_y)
 
     def on_mouse_down(self, event):
