@@ -540,7 +540,7 @@ Version: 1.1"""
         if platform.system() == 'Darwin':  # macOS
             col_widths = [25, 50, 60, 100, 200, 225]
         else:  # Windows and other systems
-            col_widths = [25, 50, 60, 110, 180, 220]  # Slightly wider for Windows
+            col_widths = [25, 50, 60, 110, 190, 225]  # Slightly wider for Windows
 
         for i, (label, width) in enumerate(zip(col_labels, col_widths)):
             self.results_grid.SetColLabelValue(i, label)

@@ -173,11 +173,11 @@ class PeriodicTableWindow(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, title="Survey Identification / Labelling",
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
-                         size=(900, 400))
+                         size=(940, 450))
 
         # Set window properties
-        self.SetMinSize((900, 400))
-        self.SetMaxSize((900, 400))
+        self.SetMinSize((940, 450))
+        self.SetMaxSize((940, 450))
         self.Centre()
 
         self.parent_window = parent
@@ -1118,8 +1118,11 @@ class PeriodicTableWindow(wx.Frame):
                         self.element_lines[element] = []
 
                     for (orbital, be), rsf in zip(valid_transitions, rsf_values):
-                        # Use the variable intensity scale
-                        intensity = (rsf / max_rsf) * self.intensity_scale * (ymax - ymin)
+                        # For RSF = 0, use 0.1 of the max scale; otherwise normalize normally
+                        if rsf == 0:
+                            intensity = 0.1 * self.intensity_scale * (ymax - ymin)
+                        else:
+                            intensity = (rsf / max_rsf) * self.intensity_scale * (ymax - ymin)
 
                         # Draw the vertical line
                         line = self.parent_window.ax.vlines(be, ymin - intensity, ymin + intensity,
