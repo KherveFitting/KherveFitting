@@ -6,7 +6,7 @@ class QuickSettings:
     def __init__(self, parent):
         self.parent = parent
         self.quick_options = [
-            ("Al Kα + A-ALTHERMO01", 1486.67, "A-ALTHERMO01"),
+            ("Al Kα + A-ALTHERMO1", 1486.67, "A-ALTHERMO1"),
             ("Al Kα + KratosF1s-Al1486", 1486.67, "KratosF1s-Al1486"),
             ("Al Kα + KratosC1s-Al1486", 1486.67, "KratosC1s-Al1486"),
             ("Ag Lα + KratosC1s-Al1486", 2984.3, "KratosC1s-Al1486"),
