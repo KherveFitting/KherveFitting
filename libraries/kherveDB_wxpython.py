@@ -32,10 +32,10 @@ class PeriodicTableXPS(wx.Frame):
             self.SetMaxSize((620, 10000))
 
         else:
-            window_size = (640, 720)
+            window_size = (705, 720)
             # Set minimum and maximum sizes
-            self.SetMinSize((640, 660))
-            self.SetMaxSize((640, 10000))
+            self.SetMinSize((705, 660))
+            self.SetMaxSize((705, 10000))
 
         # Center the window
         self.Centre()
@@ -505,7 +505,8 @@ Version: 1.1"""
         search_sizer.Add(right_sizer, 1, wx.ALL | wx.EXPAND, 10)
 
         search_panel.SetSizer(search_sizer)
-        self.main_sizer.Add(search_panel, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 10)
+        self.main_sizer.Add(search_panel, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 1)
+
 
     def create_results_table(self):
         """Create the results table"""
@@ -531,9 +532,15 @@ Version: 1.1"""
         # Hide row labels (row numbers)
         self.results_grid.HideRowLabels()
 
-        # Set column labels
+        # Set column labels and platform-specific widths
         col_labels = ["", "Line", "BE (eV)", "Formula", "Name", "Journal"]
-        col_widths = [25, 50, 60, 100, 150, 195]
+
+        # Platform-specific column widths
+        import platform
+        if platform.system() == 'Darwin':  # macOS
+            col_widths = [25, 50, 60, 100, 170, 205]
+        else:  # Windows and other systems
+            col_widths = [25, 50, 60, 110, 180, 220]  # Slightly wider for Windows
 
         for i, (label, width) in enumerate(zip(col_labels, col_widths)):
             self.results_grid.SetColLabelValue(i, label)
@@ -555,7 +562,7 @@ Version: 1.1"""
         results_sizer.Add(self.status_text, 0, wx.ALL | wx.EXPAND, 5)
 
         results_panel.SetSizer(results_sizer)
-        self.main_sizer.Add(results_panel, 1, wx.ALL | wx.EXPAND, 10)
+        self.main_sizer.Add(results_panel, 1, wx.ALL | wx.EXPAND, 1)
 
         # Sort tracking
         self.sort_column = None
@@ -3338,7 +3345,7 @@ class ElementTile(wx.Panel):
     """Custom widget for periodic table element tiles"""
 
     def __init__(self, parent, element, color, enabled=True, atomic_number=None, core_level=None, binding_energy=None):
-        super().__init__(parent, size=(33, 33))
+        super().__init__(parent, size=(37, 37))
         self.element = element
         self.color = color
         self.enabled = enabled
@@ -3398,20 +3405,23 @@ class ElementTile(wx.Panel):
         gc.SetBrush(wx.Brush(actual_color))
         gc.DrawRoundedRectangle(0, 0, width - 1, height - 1, 2)
 
-        # Set up fonts and colors - PLATFORM SPECIFIC SIZES
+        # Set up fonts and colors - PLATFORM SPECIFIC
         text_color = wx.BLACK if self.enabled else wx.Colour(136, 136, 136)
 
-        # Different font sizes for macOS vs Windows
         import platform
         if platform.system() == 'Darwin':  # macOS
             small_font_size = 7
             element_font_size = 13
+            small_font = wx.Font(small_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+            element_font = wx.Font(element_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         else:  # Windows and other systems
-            small_font_size = 6  # Smaller for Windows
-            element_font_size = 9  # Smaller for Windows
-
-        small_font = wx.Font(small_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        element_font = wx.Font(element_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+            small_font_size = 7
+            element_font_size = 11
+            # Use Segoe UI which is clearer on Windows
+            small_font = wx.Font(small_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                                 faceName="Segoe UI")
+            element_font = wx.Font(element_font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD,
+                                   faceName="Segoe UI")
 
         # 1. Draw atomic number in top-left corner
         if self.atomic_number and self.atomic_number > 0:
@@ -3442,14 +3452,14 @@ class ElementTile(wx.Panel):
             gc.SetFont(small_font, text_color)
             core_width, core_height = gc.GetTextExtent(self.core_level)
             core_x = (width - core_width) / 2
-            core_y = element_y + element_height + 2  # Below the element symbol
+            core_y = element_y + element_height + 0  # Below the element symbol
             gc.DrawText(self.core_level, core_x, core_y)
         elif self.core_level == 'N.D.':
             # Show N.D. for elements with no data
             gc.SetFont(small_font, text_color)
             core_width, core_height = gc.GetTextExtent('N.D.')
             core_x = (width - core_width) / 2
-            core_y = element_y + element_height + 2
+            core_y = element_y + element_height + 0
             gc.DrawText('N.D.', core_x, core_y)
 
     def on_mouse_down(self, event):
