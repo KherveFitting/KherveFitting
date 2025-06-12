@@ -168,16 +168,27 @@ class PeriodicTableHelper:
 
         return element_categories
 
-
+import platform
 class PeriodicTableWindow(wx.Frame):
     def __init__(self, parent):
+        # Get OS-dependent window size
+        os_name = platform.system()
+        if os_name == "Windows":
+            window_size = (940, 430)
+        elif os_name == "Darwin":  # macOS
+            window_size = (940, 430)
+        elif os_name == "Linux":
+            window_size = (920, 440)
+        else:
+            window_size = (940, 450)  # Default fallback
+
         super().__init__(parent, title="Survey Identification / Labelling",
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
-                         size=(940, 450))
+                         size=window_size)
 
-        # Set window properties
-        self.SetMinSize((940, 450))
-        self.SetMaxSize((940, 450))
+        # Set window properties with OS-dependent sizing
+        self.SetMinSize(window_size)
+        self.SetMaxSize(window_size)
         self.Centre()
 
         self.parent_window = parent
