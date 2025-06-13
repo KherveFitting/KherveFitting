@@ -32,7 +32,7 @@ def populate_results_grid(window):
             window.results_grid.AppendRows(num_rows)
 
         # Ensure enough columns exist
-        num_cols = 26  # Based on your Export.py structure
+        num_cols = 29
         if window.results_grid.GetNumberCols() < num_cols:
             window.results_grid.AppendCols(num_cols - window.results_grid.GetNumberCols())
 
@@ -66,10 +66,11 @@ def populate_results_grid(window):
             window.results_grid.SetCellValue(row, 24, peak_data.get('FWHM Constraint', ''))
             window.results_grid.SetCellValue(row, 25, peak_data.get('L/G Constraint', ''))
 
-            if window.results_grid.GetNumberCols() > 26:
+            if window.results_grid.GetNumberCols() > 27:
                 window.results_grid.SetCellValue(row, 26, peak_data.get('Area Constraint', ''))
                 window.results_grid.SetCellValue(row, 27, peak_data.get('Sigma Constraint', ''))
                 window.results_grid.SetCellValue(row, 28, peak_data.get('Gamma Constraint', ''))
+                window.results_grid.SetCellValue(row, 29, peak_data.get('Weight\n%', ''))
 
             # # Use custom renderer and editor for checkboxes
             checkbox_state = peak_data.get('Checkbox', '0')

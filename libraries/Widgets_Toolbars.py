@@ -366,7 +366,7 @@ def create_results_grid(window, parent):
     results_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
     window.results_grid = wx.grid.Grid(window.results_frame)
-    window.results_grid.CreateGrid(0, 29)
+    window.results_grid.CreateGrid(0, 30)
 
     # Set column labels and properties for results grid
     column_labels = ["Peak\nLabel", "Position\n(eV)", "Height\n(CPS)", "FWHM\n(eV)", "L/G \n\u03c3/\u03b3 (%)",
@@ -375,7 +375,7 @@ def create_results_grid(window, parent):
                      "\u03c3 or \u03B1\nW_g", "\u03b3 or \u03B2\nW_l", "Bkg Type", "Bkg Low\n(eV)", "Bkg High\n(eV)", "Bkg Offset Low\n(CPS)",
                      "Bkg Offset High\n(CPS)", "Sheetname", "Position\nConstraint", "Height\nConstraint",
                      "FWHM\nConstraint", "L/G\nConstraint", "Area\nConstraint", "\u03c3\nConstraint",
-                     "\u03b3\nConstraint"]
+                     "\u03b3\nConstraint", "Weight\n(%)"]
     for i, label in enumerate(column_labels):
         window.results_grid.SetColLabelValue(i, label)
 
@@ -389,8 +389,7 @@ def create_results_grid(window, parent):
 
     # Adjust specific column sizes
     col_sizes = [120, 70, 70, 70, 50, 80, 80, 20, 30, 40, 50, 80,120, 80, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
-                 120,
-                 70,70,70]
+                 120,70,70,70,70]
     for i, size in enumerate(col_sizes):
         window.results_grid.SetColSize(i, size)
 

@@ -340,7 +340,7 @@ class DownloadStatsWindow(wx.Frame):
             {'box': (-170, -50, 15, 85), 'color': 'lightblue', 'alpha': 0.1, 'label': 'North America'},
             {'box': (-85, -60, -30, 15), 'color': 'lightgreen', 'alpha': 0.1, 'label': 'South America'},
             {'box': (-15, 30, 40, 75), 'color': 'lightcoral', 'alpha': 0.1, 'label': 'Europe'},
-            {'box': (-20, -40, 55, 40), 'color': 'lightyellow', 'alpha': 0.1, 'label': 'Africa'},
+            {'box': (-20, -50, 55, -10), 'color': 'lightyellow', 'alpha': 0.1, 'label': 'Africa'},
             {'box': (25, -15, 180, 80), 'color': 'lightpink', 'alpha': 0.1, 'label': 'Asia'},
             {'box': (110, -50, 180, -10), 'color': 'lightgray', 'alpha': 0.1, 'label': 'Oceania'},
         ]

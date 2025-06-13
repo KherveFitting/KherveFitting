@@ -70,6 +70,7 @@ from libraries.On_Mouse_Defs import setup_mouse_handlers
 
 from libraries.QuickSettings import QuickSettings
 
+from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES, calculate_weight_percentages
 
 
 
@@ -1643,6 +1644,50 @@ class MyFrame(wx.Frame):
             peak_key = f"Peak_{i}"
             if peak_key in self.Data[results_table_key]['Peak']:
                 self.Data[results_table_key]['Peak'][peak_key]['at. %'] = atomic_percent
+
+        # Calculate weight percentages
+        total_weight_sum = 0
+        weight_data = []
+
+        for i, norm_area in checked_indices:
+            atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
+            self.results_grid.SetCellValue(i, 6, f"{atomic_percent:.2f}")
+
+            # Get element symbol and atomic mass for weight calculation
+            peak_name = self.results_grid.GetCellValue(i, 0)
+            element_symbol = extract_element_symbol(peak_name)
+            atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)  # Default to carbon mass
+
+            # Calculate weight contribution
+            weight_contribution = atomic_percent * atomic_mass
+            total_weight_sum += weight_contribution
+            weight_data.append((i, weight_contribution))
+
+            # Update data structure
+            peak_key = f"Peak_{i}"
+            if peak_key in self.Data[results_table_key]['Peak']:
+                self.Data[results_table_key]['Peak'][peak_key]['at. %'] = atomic_percent
+
+        # Calculate and set weight percentages (column 28 - last column)
+        for i, weight_contribution in weight_data:
+            weight_percent = (weight_contribution / total_weight_sum) * 100 if total_weight_sum > 0 else 0
+            self.results_grid.SetCellValue(i, 29, f"{weight_percent:.2f}")  # Column 28 is the last column
+
+            # Update data structure
+            peak_key = f"Peak_{i}"
+            if peak_key in self.Data[results_table_key]['Peak']:
+                self.Data[results_table_key]['Peak'][peak_key]['wt. %'] = weight_percent
+
+        # Set weight percentage to 0 for unchecked rows
+        for i in range(current_rows):
+            if self.results_grid.GetCellValue(i, 7) != '1':  # Checkbox column stays at index 7
+                self.results_grid.SetCellValue(i, 29, "0.00")  # Weight % column at index 28
+
+                # Update in data structure
+                peak_key = f"Peak_{i}"
+                if results_table_key in self.Data and 'Peak' in self.Data[results_table_key] and peak_key in \
+                        self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_key]['wt. %'] = 0.00
 
         # Force a refresh to update the display
         self.results_grid.ForceRefresh()

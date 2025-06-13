@@ -422,7 +422,8 @@ Philosophy:
 Version 1.505-1.590
 - Added opening peak fitting of CasaXPS files
 - Added Add/Delete core level in the Peak Fitting Grid
-- Added a game menu
+- Added Weight concentration in the results Grid
+- Added a game menu in Help menu
 - Added a Download Stat in Help menu
 - Changed the icons of the toolbar
 - Added import VG-MicroTech .1 files
