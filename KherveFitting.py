@@ -2007,9 +2007,6 @@ class MyFrame(wx.Frame):
                             elif line.get_label() == 'Residuals':
                                 data['residuals'] = line.get_ydata()
 
-                        # for collection in self.ax.collections:
-                        #     if collection.get_label().startswith(sheet_name):
-                        #         data['individual_peak_fits'].append(collection.get_paths()[0].vertices[:, 1])
                         peak_labels = []
                         for i in range(self.peak_params_grid.GetNumberRows() // 2):
                             peak_labels.append(self.peak_params_grid.GetCellValue(i * 2, 1))

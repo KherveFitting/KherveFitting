@@ -72,83 +72,6 @@ def save_json_only(window):
         traceback.print_exc()
         wx.MessageBox(f"Error saving JSON: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-def save_all_sheets_with_plots_OLD(window):
-    if 'FilePath' not in window.Data or not window.Data['FilePath']:
-        # wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
-        window.show_popup_message2("Error", "No file selected. Please open a file first.")
-        return
-
-    file_path = window.Data['FilePath']
-
-    try:
-        for sheet_name in window.Data['Core levels'].keys():
-            # Select the sheet
-            window.sheet_combobox.SetValue(sheet_name)
-            from libraries.Sheet_Operations import on_sheet_selected
-            on_sheet_selected(window, sheet_name)
-
-            # Get fitting data
-            fit_data = window.get_data_for_save()
-
-            # Save fitting data to Excel
-            save_to_excel(window, fit_data, file_path, sheet_name)
-
-            # Save plot to Excel
-            save_plot_to_excel(window)
-
-        # Save results table
-        save_results_table(window)
-
-        json_file_path = os.path.splitext(file_path)[0] + '.json'
-        json_data = convert_to_serializable_and_round(window.Data)
-        with open(json_file_path, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
-
-        window.show_popup_message2("Save Complete", "All sheets, plots, and results table have been saved.")
-
-    except Exception as e:
-        wx.MessageBox(f"Error saving sheets with plots: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-def save_data_OLD_OLD(window, data):
-    if 'FilePath' not in window.Data or not window.Data['FilePath']:
-        wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
-        return
-
-    file_path = window.Data['FilePath']
-    sheet_name = window.sheet_combobox.GetValue()
-
-    try:
-        # Save JSON file with entire window.Data
-        json_file_path = os.path.splitext(file_path)[0] + '.json'
-
-        # Create a copy of window.Data to modify
-        json_data = window.Data.copy()
-        print('Created copy of json Data')
-
-        # Convert numpy arrays and other non-serializable types to lists, and round floats
-        json_data = convert_to_serializable_and_round(json_data)
-        print('Converted json data to serializable and rounded')
-
-        with open(json_file_path, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
-        print('Saved json file')
-
-        # print(json.dumps(window.Data['Results']['Peak'], indent=2))
-
-        # Save to Excel
-        save_to_excel(window, data, file_path, sheet_name)
-        print('Saved to Excel')
-
-        save_plot_to_excel(window)
-        print('Saved plot to Excel')
-
-        # Save results table
-        save_results_table(window)
-        print('Saved results table')
-
-        print("Data Saved")
-    except Exception as e:
-        wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
 
 def save_all_sheets_with_plots(window):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
@@ -219,71 +142,8 @@ def save_all_sheets_with_plots(window):
         traceback.print_exc()
         wx.MessageBox(f"Error saving sheets with plots: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-def save_data_OLD(window, data):
-    if 'FilePath' not in window.Data or not window.Data['FilePath']:
-        wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
-        return
 
-    file_path = window.Data['FilePath']
-    sheet_name = window.sheet_combobox.GetValue()
-
-    try:
-        # Save JSON file with entire window.Data
-        json_file_path = os.path.splitext(file_path)[0] + '.json'
-
-        # Create a copy of window.Data to modify
-        json_data = window.Data.copy()
-        print('Created copy of json Data')
-
-        # Convert numpy arrays and other non-serializable types to lists, and round floats
-        try:
-            json_data = convert_to_serializable_and_round(json_data)
-            print('Converted json data to serializable and rounded')
-        except Exception as e:
-            print(f"Error converting data: {str(e)}")
-            # Try to identify problematic section
-            for key in window.Data:
-                try:
-                    convert_to_serializable_and_round(window.Data[key])
-                except Exception as sub_e:
-                    print(f"Problem in section '{key}': {str(sub_e)}")
-            raise
-
-        with open(json_file_path, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
-        print('Saved json file')
-
-        # Save to Excel
-        try:
-            save_to_excel(window, data, file_path, sheet_name)
-            print('Saved to Excel')
-        except Exception as e:
-            print(f"Error in save_to_excel: {str(e)}")
-            raise
-
-        try:
-            save_plot_to_excel(window)
-            print('Saved plot to Excel')
-        except Exception as e:
-            print(f"Error in save_plot_to_excel: {str(e)}")
-            raise
-
-        # Save results table
-        try:
-            save_results_table(window)
-            print('Saved results table')
-        except Exception as e:
-            print(f"Error in save_results_table: {str(e)}")
-            raise
-
-        print("Data Saved")
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
-
-def save_data(window, data):
+def save_data_WorkingFILLED(window, data):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
         return
@@ -374,6 +234,124 @@ def save_data(window, data):
         traceback.print_exc()
         wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+
+def save_data(window, data):
+    if 'FilePath' not in window.Data or not window.Data['FilePath']:
+        wx.MessageBox("No file path found in window.Data. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    file_path = window.Data['FilePath']
+    sheet_name = window.sheet_combobox.GetValue()
+
+    # Create console window centered on parent
+    parent_pos = window.GetPosition()
+    parent_size = window.GetSize()
+    console_frame = wx.Frame(window, title="Saving Data", size=(300, 350))
+    console_frame.SetPosition((
+        parent_pos.x + (parent_size.width - 300) // 2,
+        parent_pos.y + (parent_size.height - 350) // 2
+    ))
+    console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+    console_frame.Show()
+
+    def update_console(message):
+        console_text.AppendText(message + '\n')
+        console_text.Update()
+        wx.SafeYield()
+
+    # Store original peak fill state
+    original_fill_state = window.plot_manager.peak_fill_enabled
+
+    try:
+        update_console("Starting save process...")
+
+        # FORCE PEAK FILLING for data extraction
+        if not original_fill_state:
+            update_console("Temporarily enabling peak filling for data extraction...")
+            window.plot_manager.peak_fill_enabled = True
+
+            # Force a replot to generate collections
+            if hasattr(window, 'clear_and_replot'):
+                window.clear_and_replot()
+            else:
+                window.plot_manager.plot_data(window)
+                if window.show_fit:
+                    window.plot_manager.plot_fitting_results(window)
+
+        # Now get fresh data with filled peaks (should extract from collections)
+        update_console("Extracting peak data (with filling enabled)...")
+        fresh_data = window.get_data_for_save()
+
+        # Save JSON file with entire window.Data
+        json_file_path = os.path.splitext(file_path)[0] + '.json'
+        update_console("Preparing data for JSON export...")
+
+        json_data = window.Data.copy()
+
+        update_console("Converting data to serializable format...")
+        try:
+            json_data = convert_to_serializable_and_round(json_data)
+        except Exception as e:
+            for key in window.Data:
+                try:
+                    convert_to_serializable_and_round(window.Data[key])
+                except Exception as sub_e:
+                    print(f"Problem in section '{key}': {str(sub_e)}")
+            raise
+
+        update_console("Saving JSON file...")
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+        # Save to Excel using fresh_data (with peak data from collections)
+        update_console(f"Saving fitting data to Excel sheet: {sheet_name}")
+        try:
+            save_to_excel(window, fresh_data, file_path, sheet_name, update_console)
+        except Exception as e:
+            print(f"Error in save_to_excel: {str(e)}")
+            raise
+
+        # NOW restore original fill state for plot image
+        if not original_fill_state:
+            update_console("Restoring unfilled peak display for plot image...")
+            window.plot_manager.peak_fill_enabled = False
+
+            # Replot with unfilled peaks for plot image
+            if hasattr(window, 'clear_and_replot'):
+                window.clear_and_replot()
+            else:
+                window.plot_manager.plot_data(window)
+                if window.show_fit:
+                    window.plot_manager.plot_fitting_results(window)
+
+        update_console("Saving plot to Excel...")
+        try:
+            save_plot_to_excel(window, update_console)
+        except Exception as e:
+            print(f"Error in save_plot_to_excel: {str(e)}")
+            raise
+
+        # Save results table
+        update_console("Saving results table...")
+        try:
+            save_results_table(window)
+        except Exception as e:
+            print(f"Error in save_results_table: {str(e)}")
+            raise
+
+        update_console("Save process completed successfully!")
+        wx.CallLater(500, console_frame.Close)
+
+    except Exception as e:
+        update_console(f"Error during save: {str(e)}")
+        wx.CallLater(1000, console_frame.Close)
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error saving data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    finally:
+        # Always restore original state
+        window.plot_manager.peak_fill_enabled = original_fill_state
 
 def convert_to_serializable_and_round2(obj, decimal_places=2):
     try:
@@ -1703,88 +1681,6 @@ def save_plot_as_svg(window):
         wx.MessageBox(f"Error saving plot as SVG: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-
-def save_results_table_OLD(window):
-    if 'FilePath' not in window.Data or not window.Data['FilePath']:
-        wx.MessageBox("No file selected. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
-        return
-
-    file_path = window.Data['FilePath']
-
-    try:
-        wb = openpyxl.load_workbook(file_path)
-
-        sheet_name = 'Results Table'
-        if sheet_name in wb.sheetnames:
-            wb.remove(wb[sheet_name])
-        ws = wb.create_sheet(sheet_name)
-
-        def get_column_letter(n):
-            result = ""
-            while n > 0:
-                n, remainder = divmod(n - 1, 26)
-                result = chr(65 + remainder) + result
-            return result
-
-        headers = [window.results_grid.GetColLabelValue(col) for col in range(window.results_grid.GetNumberCols())]
-        for col, header in enumerate(headers, start=2):
-            cell = ws.cell(row=2, column=col, value=header)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        for row in range(window.results_grid.GetNumberRows()):
-            for col in range(window.results_grid.GetNumberCols()):
-                cell = ws.cell(row=row + 3, column=col + 2, value=window.results_grid.GetCellValue(row, col))
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'),
-                             bottom=Side(style='thin'))
-        thick_border = Border(left=Side(style='medium'), right=Side(style='medium'), top=Side(style='medium'),
-                              bottom=Side(style='medium'))
-
-        max_row = ws.max_row
-        max_col = len(headers) + 1
-        end_letter = get_column_letter(max_col)
-
-        for row in ws[f'B2:{end_letter}2']:
-            for cell in row:
-                cell.border = thick_border
-
-        for row in ws[f'B3:{end_letter}{max_row}']:
-            for cell in row:
-                cell.border = thin_border
-
-        for col in range(2, max_col + 1):
-            ws.cell(row=2, column=col).border = Border(left=ws.cell(row=2, column=col).border.left,
-                                                       right=ws.cell(row=2, column=col).border.right,
-                                                       top=Side(style='medium'),
-                                                       bottom=ws.cell(row=2, column=col).border.bottom)
-            ws.cell(row=max_row, column=col).border = Border(left=ws.cell(row=max_row, column=col).border.left,
-                                                             right=ws.cell(row=max_row, column=col).border.right,
-                                                             top=ws.cell(row=max_row, column=col).border.top,
-                                                             bottom=Side(style='medium'))
-
-        for row in range(2, max_row + 1):
-            ws.cell(row=row, column=2).border = Border(left=Side(style='medium'),
-                                                       right=ws.cell(row=row, column=2).border.right,
-                                                       top=ws.cell(row=row, column=2).border.top,
-                                                       bottom=ws.cell(row=row, column=2).border.bottom)
-            ws.cell(row=row, column=max_col).border = Border(left=ws.cell(row=row, column=max_col).border.left,
-                                                             right=Side(style='medium'),
-                                                             top=ws.cell(row=row, column=max_col).border.top,
-                                                             bottom=ws.cell(row=row, column=max_col).border.bottom)
-
-        for column_cells in ws.columns:
-            length = max(len(str(cell.value)) for cell in column_cells)
-            ws.column_dimensions[column_cells[0].column_letter].width = length + 2
-
-        wb.save(file_path)
-
-        # window.show_popup_message2("Table Saved","Results table has been saved to the Excel file.")
-
-    except Exception as e:
-        wx.MessageBox(f"Error saving results table: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
 def save_results_table(window):
