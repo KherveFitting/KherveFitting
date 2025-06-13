@@ -38,6 +38,7 @@ from libraries.LibraryID import PeriodicTableXPS
 from libraries.Save import on_backup_main
 from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
+from libraries.DownloadStats import show_download_stats_window
 
 # With conditional imports:
 import platform
@@ -729,6 +730,9 @@ def create_menu(window):
 
     # version_log_item = help_menu.Append(wx.NewId(), "Version Log")
     # window.Bind(wx.EVT_MENU, lambda event: show_version_log(window), version_log_item)
+
+    download_stats_item = help_menu.Append(wx.NewId(), "Download Stats")
+    window.Bind(wx.EVT_MENU, lambda event: show_download_stats_window(window), download_stats_item)
 
     coffee_item = help_menu.Append(wx.NewId(), "Buy Me a Coffee")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://buymeacoffee.com/gkerherve"), coffee_item)
