@@ -34,6 +34,8 @@ class DownloadStatsWindow(wx.Frame):
             ("Last 3 Weeks", self.plot_last_3_weeks),
             ("Last 2 Weeks", self.plot_last_2_weeks),
             ("Last Week", self.plot_last_week),
+            ("Last 2 Days", self.plot_last_2_days),
+            ("Yesterday", self.plot_yesterday),
             ("Today", self.plot_today),
             ("Daily (Line)", self.plot_daily_line),
             ("Weekly (Line)", self.plot_weekly_line),
@@ -43,7 +45,7 @@ class DownloadStatsWindow(wx.Frame):
         for label, callback in time_periods:
             btn = wx.Button(left_panel, label=label, size=(90, 30))
             btn.Bind(wx.EVT_BUTTON, callback)
-            left_sizer.Add(btn, 0, wx.ALL | wx.EXPAND, 5)
+            left_sizer.Add(btn, 0, wx.ALL | wx.EXPAND, 1)
 
         left_panel.SetSizer(left_sizer)
 
@@ -456,6 +458,17 @@ class DownloadStatsWindow(wx.Frame):
     def plot_last_week(self, event):
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
+        data = self.get_sourceforge_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+        self.plot_world_map_bubbles(data)
+
+    def plot_yesterday(self, event):
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        data = self.get_sourceforge_data(yesterday, yesterday)
+        self.plot_world_map_bubbles(data)
+
+    def plot_last_2_days(self, event):
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=2)
         data = self.get_sourceforge_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
         self.plot_world_map_bubbles(data)
 
