@@ -1537,6 +1537,8 @@ class MyFrame(wx.Frame):
 
     # In MyFrame class
     def update_atomic_percentages(self):
+        from libraries.Area_Calculation import calculate_weight_percentages, extract_element_symbol
+
         # Get current sheet's row number
         sheet_name = self.sheet_combobox.GetValue()
         row_number = 0
@@ -1592,9 +1594,8 @@ class MyFrame(wx.Frame):
                     ecf = 1.0  # Default no correction
                     self.results_grid.SetCellValue(i, 10, "None: 1.0")
 
-
-                # Calculate Transmission function
-                txfn = 1.0  # Transmission function
+                # Get Transmission function from grid
+                txfn = float(self.results_grid.GetCellValue(i, 9))  # Get TXFN from grid
 
                 # Angular correction
                 angular_correction = 1.0
@@ -1605,6 +1606,7 @@ class MyFrame(wx.Frame):
 
                 # Calculate normalized area with ECF correction
                 normalized_area = area / (rsf * txfn * ecf * angular_correction)
+                self.results_grid.SetCellValue(i, 13, f"{normalized_area:.2f}")
 
                 total_normalized_area += normalized_area
                 checked_indices.append((i, normalized_area))
@@ -1622,8 +1624,13 @@ class MyFrame(wx.Frame):
                     'Name': peak_name,
                     'Position': binding_energy,
                     'Area': area,
-                    'Checkbox': '1'
+                    'Checkbox': '1',
+                    'Rel. Area': normalized_area
                 })
+                # Format TXFN display in grid
+                self.results_grid.SetCellValue(i, 9, f"{txfn:.2f}")
+                self.results_grid.SetCellValue(i, 8, f"{rsf:.2f}")
+
             else:
                 # Set the atomic percentage to 0 for unticked rows
                 self.results_grid.SetCellValue(i, 6, "0.00")
@@ -1658,6 +1665,9 @@ class MyFrame(wx.Frame):
             element_symbol = extract_element_symbol(peak_name)
             atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)  # Default to carbon mass
 
+            # Update mass display
+            self.results_grid.SetCellValue(i, 30, f"{atomic_mass:.3f}")
+
             # Calculate weight contribution
             weight_contribution = atomic_percent * atomic_mass
             total_weight_sum += weight_contribution
@@ -1670,13 +1680,31 @@ class MyFrame(wx.Frame):
 
         # Calculate and set weight percentages (column 28 - last column)
         for i, weight_contribution in weight_data:
-            weight_percent = (weight_contribution / total_weight_sum) * 100 if total_weight_sum > 0 else 0
-            self.results_grid.SetCellValue(i, 29, f"{weight_percent:.2f}")  # Column 28 is the last column
+            # Calculate weight percentages using Area_Calculation
+            if checked_indices:
+                atomic_percentages = []
+                peak_names = []
 
-            # Update data structure
-            peak_key = f"Peak_{i}"
-            if peak_key in self.Data[results_table_key]['Peak']:
-                self.Data[results_table_key]['Peak'][peak_key]['wt. %'] = weight_percent
+                for i, norm_area in checked_indices:
+                    atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
+                    atomic_percentages.append(atomic_percent)
+                    peak_names.append(self.results_grid.GetCellValue(i, 0))
+
+                try:
+                    weight_percentages = calculate_weight_percentages(atomic_percentages, peak_names)
+
+                    # Update grid and data structure with weight percentages
+                    for idx, (i, _) in enumerate(checked_indices):
+                        weight_percent = weight_percentages[idx]
+                        self.results_grid.SetCellValue(i, 29, f"{weight_percent:.2f}")
+
+                        # Update data structure
+                        peak_key = f"Peak_{i}"
+                        if peak_key in self.Data[results_table_key]['Peak']:
+                            self.Data[results_table_key]['Peak'][peak_key]['wt. %'] = weight_percent
+
+                except Exception as e:
+                    print(f"Error calculating weight percentages: {e}")
 
         # Set weight percentage to 0 for unchecked rows
         for i in range(current_rows):

@@ -2,8 +2,6 @@
 
 import wx
 
-
-# In Grid_Operations.py
 def populate_results_grid(window):
     # Get current sheet name and extract row number
     sheet_name = window.sheet_combobox.GetValue()
@@ -32,7 +30,7 @@ def populate_results_grid(window):
             window.results_grid.AppendRows(num_rows)
 
         # Ensure enough columns exist
-        num_cols = 29
+        num_cols = 31
         if window.results_grid.GetNumberCols() < num_cols:
             window.results_grid.AppendCols(num_cols - window.results_grid.GetNumberCols())
 
@@ -45,6 +43,7 @@ def populate_results_grid(window):
             window.results_grid.SetCellValue(row, 4, str(peak_data.get('L/G', '')))
             window.results_grid.SetCellValue(row, 5, f"{peak_data.get('Area', 0):.2f}")
             window.results_grid.SetCellValue(row, 6, f"{peak_data.get('at. %', 0):.2f}")
+
 
 
             window.results_grid.SetCellValue(row, 8, f"{peak_data.get('RSF', 0):.2f}")
@@ -66,11 +65,18 @@ def populate_results_grid(window):
             window.results_grid.SetCellValue(row, 24, peak_data.get('FWHM Constraint', ''))
             window.results_grid.SetCellValue(row, 25, peak_data.get('L/G Constraint', ''))
 
-            if window.results_grid.GetNumberCols() > 27:
-                window.results_grid.SetCellValue(row, 26, peak_data.get('Area Constraint', ''))
-                window.results_grid.SetCellValue(row, 27, peak_data.get('Sigma Constraint', ''))
-                window.results_grid.SetCellValue(row, 28, peak_data.get('Gamma Constraint', ''))
-                window.results_grid.SetCellValue(row, 29, peak_data.get('Weight\n%', ''))
+            # if window.results_grid.GetNumberCols() > 27:
+            window.results_grid.SetCellValue(row, 26, peak_data.get('Area Constraint', ''))
+            window.results_grid.SetCellValue(row, 27, peak_data.get('Sigma Constraint', ''))
+            window.results_grid.SetCellValue(row, 28, peak_data.get('Gamma Constraint', ''))
+            window.results_grid.SetCellValue(row, 29, f"{peak_data.get('wt. %', 0):.2f}")
+
+            # Calculate and display mass for reference
+            from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES
+            peak_name = peak_data.get('Name', '')
+            element_symbol = extract_element_symbol(peak_name)
+            atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)
+            window.results_grid.SetCellValue(row, 30, f"{atomic_mass:.2f}")
 
             # # Use custom renderer and editor for checkboxes
             checkbox_state = peak_data.get('Checkbox', '0')
@@ -82,26 +88,183 @@ def populate_results_grid(window):
             window.results_grid.SetReadOnly(row, 7)
 
 
-
         # Force a refresh to ensure renderer is applied
         window.results_grid.ForceRefresh()
 
-        # # Calculate atomic percentages for checked elements
-        # window.update_atomic_percentages()
+        # Set up column properties (read-only states)
+        setup_results_grid_column_properties(window)
 
-        # # Bind events
-        # window.results_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, window.on_cell_changed)
-        # window.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, window.on_checkbox_update)
-
-    # else:
-    #     # Just leave the grid empty if no results for this row
-    #     print(f"No results data found for {results_table_key}")
-
-    # # Calculate atomic percentages for checked elements
-    # window.update_atomic_percentages()
+        # Bind the cell changed event if not already bound
+        if not hasattr(window, '_results_grid_event_bound'):
+            window.results_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED,
+                                     lambda event: on_results_grid_cell_changed(window, event))
+            window._results_grid_event_bound = True
 
 
-# Add to Grid_Operations.py
+def setup_results_grid_column_properties(window):
+    """Set up column read-only properties for results grid"""
+    if not hasattr(window, 'results_grid') or not window.results_grid:
+        return
+
+    num_rows = window.results_grid.GetNumberRows()
+
+    # Define read-only columns: Position, FWHM, Area, Atomic%, ECF, Instrument, Corr. Area, Weight %
+    read_only_columns = [1, 2, 3, 5, 6, 10, 11, 13, 29,30]
+
+    # Define editable columns: Label, RSF, TXFN
+    editable_columns = [0, 8, 9]
+
+    for row in range(num_rows):
+        for col in read_only_columns:
+            if col < window.results_grid.GetNumberCols():
+                window.results_grid.SetReadOnly(row, col, True)
+
+        for col in editable_columns:
+            if col < window.results_grid.GetNumberCols():
+                window.results_grid.SetReadOnly(row, col, False)
+
+
+def on_results_grid_cell_changed(window, event):
+    """Handle cell changes in results grid"""
+    row = event.GetRow()
+    col = event.GetCol()
+
+    if col == 8:  # RSF column changed
+        handle_rsf_change(window, row)
+    elif col == 9:  # TXFN column changed
+        handle_txfn_change(window, row)
+    elif col == 0:  # Label column changed
+        handle_label_change(window, row)
+
+    event.Skip()
+
+
+def handle_rsf_change(window, row):
+    """Handle RSF value changes and recalculate dependent values"""
+    try:
+        new_rsf = float(window.results_grid.GetCellValue(row, 8))
+        window.results_grid.SetCellValue(row, 8, f"{new_rsf:.2f}")
+
+        # Update data structure
+        sheet_name = window.sheet_combobox.GetValue()
+        row_number = 0
+        import re
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            row_number = int(match.group(1))
+
+        results_table_key = f'Results Table{row_number}'
+        peak_key = f"Peak_{row}"
+
+        if (results_table_key in window.Data and 'Peak' in window.Data[results_table_key] and
+                peak_key in window.Data[results_table_key]['Peak']):
+            window.Data[results_table_key]['Peak'][peak_key]['RSF'] = new_rsf
+
+        # Recalculate all percentages
+        window.update_atomic_percentages()
+
+        # Save state
+        from libraries.Save import save_state
+        save_state(window)
+
+    except ValueError:
+        import wx
+        wx.MessageBox("Invalid RSF value. Please enter a valid number.", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def handle_txfn_change(window, row):
+    """Handle TXFN value changes and recalculate dependent values"""
+    try:
+        new_txfn = float(window.results_grid.GetCellValue(row, 9))
+
+        # Format TXFN to 2 decimal places in the grid
+        window.results_grid.SetCellValue(row, 9, f"{new_txfn:.2f}")
+
+        # Update data structure
+        sheet_name = window.sheet_combobox.GetValue()
+        row_number = 0
+        import re
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            row_number = int(match.group(1))
+
+        results_table_key = f'Results Table{row_number}'
+        peak_key = f"Peak_{row}"
+
+        if (results_table_key in window.Data and 'Peak' in window.Data[results_table_key] and
+                peak_key in window.Data[results_table_key]['Peak']):
+            window.Data[results_table_key]['Peak'][peak_key]['TXFN'] = new_txfn
+
+        # Recalculate all percentages
+        window.update_atomic_percentages()
+
+        # Save state
+        from libraries.Save import save_state
+        save_state(window)
+
+    except ValueError:
+        import wx
+        wx.MessageBox("Invalid TXFN value. Please enter a valid number.", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def handle_label_change_OLD(window, row):
+    """Handle label/name changes"""
+    new_label = window.results_grid.GetCellValue(row, 0)
+
+    # Update data structure
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = 0
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = int(match.group(1))
+
+    results_table_key = f'Results Table{row_number}'
+    peak_key = f"Peak_{row}"
+
+    if (results_table_key in window.Data and 'Peak' in window.Data[results_table_key] and
+            peak_key in window.Data[results_table_key]['Peak']):
+        window.Data[results_table_key]['Peak'][peak_key]['Name'] = new_label
+
+    # Save state
+    from libraries.Save import save_state
+    save_state(window)
+
+
+def handle_label_change(window, row):
+    """Handle label/name changes"""
+    new_label = window.results_grid.GetCellValue(row, 0)
+
+    # Calculate and display new mass for reference
+    from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES
+    element_symbol = extract_element_symbol(new_label)
+    atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)
+
+    # Update mass display in grid
+    window.results_grid.SetCellValue(row, 30, f"{atomic_mass:.3f}")
+
+    # Update data structure
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = 0
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = int(match.group(1))
+
+    results_table_key = f'Results Table{row_number}'
+    peak_key = f"Peak_{row}"
+
+    if (results_table_key in window.Data and 'Peak' in window.Data[results_table_key] and
+            peak_key in window.Data[results_table_key]['Peak']):
+        window.Data[results_table_key]['Peak'][peak_key]['Name'] = new_label
+
+    # Recalculate weight percentages (this will use ATOMIC_MASSES.get() internally)
+    window.update_atomic_percentages()
+
+    # Save state
+    from libraries.Save import save_state
+    save_state(window)
+
 class CustomCheckboxRenderer(wx.grid.GridCellRenderer):
     def __init__(self):
         wx.grid.GridCellRenderer.__init__(self)

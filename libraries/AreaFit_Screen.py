@@ -308,9 +308,17 @@ class BackgroundWindow(wx.Frame):
         x_range = x_values[mask]
         y_range = y_values[mask]
         bg_range = background[mask]
-
         y_minus_bg = y_range - bg_range
-        area = abs(np.trapz(y_minus_bg, x_range))
+
+        sorted_indices = np.argsort(x_range)
+        x_sorted = x_range[sorted_indices]
+        y_minus_bg_sorted = y_minus_bg[sorted_indices]
+
+        area = np.trapz(y_minus_bg_sorted, x_sorted)
+        
+        # area = np.trapz(y_minus_bg, x_range)
+        print(f"Area positive: {area}")
+        # print(f"Area negative: {np.trapz(y_minus_bg, x_range)}")
         peak_index = np.argmax(y_minus_bg)
         peak_position = x_range[peak_index]
         peak_height = y_minus_bg[peak_index]
@@ -494,133 +502,6 @@ class BackgroundWindow(wx.Frame):
         self.parent.background_tab_selected = False
         self.Destroy()
 
-    def on_background_OLD(self, event):
-        try:
-            # Define the background behavior here
-            self.parent.plot_manager.plot_background(self.parent)
-
-            # Calculate the area between data and background
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            if sheet_name in self.parent.Data['Core levels']:
-                core_level_data = self.parent.Data['Core levels'][sheet_name]
-                x_values = np.array(core_level_data['B.E.'])
-                y_values = np.array(core_level_data['Raw Data'])
-                background = np.array(core_level_data['Background']['Bkg Y'])
-
-                # Ensure the arrays have the same length
-                min_length = min(len(x_values), len(y_values), len(background))
-                x_values = x_values[:min_length]
-                y_values = y_values[:min_length]
-                background = background[:min_length]
-
-                # Save background data
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = background.tolist()
-
-                # Calculate the area
-                area = round(abs(np.trapz(y_values - background, x_values)), 2)
-
-                # Find the peak position and height
-                peak_index = np.argmax(y_values - background)
-                peak_position = round(x_values[peak_index], 2)
-                peak_height = round(y_values[peak_index] - background[peak_index], 2)
-
-                # Use sheet_name as peak_name
-                peak_name = sheet_name
-
-                # Calculate FWHM for a Gaussian peak (L/G = 0)
-                fwhm = round(2 * np.sqrt(2 * np.log(2)) * area / (peak_height * np.sqrt(2 * np.pi)), 2)
-
-                # Default constraints
-                position_constraint = "0,1e3"
-                height_constraint = "1,1e7"
-                fwhm_constraint = "0.3,3.5"
-                lg_constraint = "0,0.5"
-                sigma_constraint = "0.1,1"
-                gamma_constraint = "0.1,1"
-                skew_constraint = "0.01,2"
-
-                # Update peak fitting parameter grid
-                grid = self.parent.peak_params_grid
-                grid.ClearGrid()
-                if grid.GetNumberRows() > 0:
-                    grid.DeleteRows(0, grid.GetNumberRows())
-                grid.AppendRows(2)  # Add two rows for the new peak
-
-                grid.SetCellValue(0, 0, "A")  # Set ID
-                grid.SetCellValue(0, 1, peak_name)
-                grid.SetCellValue(0, 2, f"{peak_position:.2f}")
-                grid.SetCellValue(0, 3, f"{peak_height:.2f}")
-                grid.SetCellValue(0, 4, f"{fwhm:.2f}")
-                grid.SetCellValue(0, 5, "0.00")  # L/G
-                grid.SetCellValue(0, 6, f"{area:.2f}")
-                grid.SetCellValue(0, 7, "0.00")  # Sigma
-                grid.SetCellValue(0, 8, "0.00")  # Gamma
-                grid.SetCellValue(0, 9, "0.00")  # Skew
-                grid.SetCellValue(0, 13, "Unfitted")  # Fitting Model
-
-                # Set constraints and color
-                for col in range(grid.GetNumberCols()):
-                    grid.SetCellBackgroundColour(1, col, wx.Colour(230, 230, 230))
-                grid.SetCellValue(1, 2, position_constraint)
-                grid.SetCellValue(1, 3, height_constraint)
-                grid.SetCellValue(1, 4, fwhm_constraint)
-                grid.SetCellValue(1, 5, lg_constraint)
-                grid.SetCellValue(1, 7, sigma_constraint)
-                grid.SetCellValue(1, 8, gamma_constraint)
-                grid.SetCellValue(1, 9, skew_constraint)
-
-                # Save peak data in window.Data
-                if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
-                    self.parent.Data['Core levels'][sheet_name]['Fitting'] = {}
-                if 'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']:
-                    self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
-
-                self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_name] = {
-                    'Position': peak_position,
-                    'Height': peak_height,
-                    'FWHM': fwhm,
-                    'L/G': 0.00,
-                    'Area': area,
-                    'Sigma': 0,
-                    'Gamma': 0,
-                    'Skew': 0,
-                    'Fitting Model': "Unfitted",
-                    'Constraints': {
-                        'Position': position_constraint,
-                        'Height': height_constraint,
-                        'FWHM': fwhm_constraint,
-                        'L/G': lg_constraint,
-                        'Sigma': sigma_constraint,
-                        'Gamma': gamma_constraint,
-                        'Skew': skew_constraint
-                    }
-                }
-
-                # Fill the area between raw data and background
-                fill = self.parent.ax.fill_between(x_values, background, y_values,
-                                                   facecolor='lightgreen', alpha=0.5,
-                                                   label=f'{peak_name}')
-
-                # Update the legend
-                self.parent.ax.legend()
-
-                # Refresh the grid and plot
-                self.parent.peak_params_grid.ForceRefresh()
-                self.parent.canvas.draw_idle()
-
-                # Print the results to the terminal
-                print(f"Results for {sheet_name}:")
-                print(f"Peak Name: {peak_name}")
-                print(f"Peak Position: {peak_position:.2f} eV")
-                print(f"Peak Height: {peak_height:.2f} counts")
-                print(f"FWHM: {fwhm:.2f} eV")
-                print(f"Area: {area:.2f}")
-
-                save_state(self.parent)
-
-        except Exception as e:
-            print(f"Error calculating background: {str(e)}")
-
     def on_background(self, event):
         sheet_name = self.parent.sheet_combobox.GetValue()
         if self.parent.vline1 is None or self.parent.vline2 is None:
@@ -657,6 +538,8 @@ class BackgroundWindow(wx.Frame):
         # Calculate area and peak parameters
         y_minus_bg = y_range - bg_range
         area = abs(np.trapz(y_minus_bg, x_range))
+        print(f"Area positive: {area}")
+        print(f"Area negative: {np.trapz(y_minus_bg, x_range)}")
         peak_index = np.argmax(y_minus_bg)
         peak_position = x_range[peak_index]
         peak_height = y_minus_bg[peak_index]
