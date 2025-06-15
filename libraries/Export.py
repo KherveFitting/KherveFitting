@@ -8,51 +8,6 @@ from libraries.Sheet_Operations import on_sheet_selected
 from libraries.Peak_Functions import AtomicConcentrations
 from libraries.Grid_Operations import CheckboxRenderer
 
-def export_results_OLD(window):
-    """
-    Export peak fitting results to the results grid and update window.Data.
-    """
-    library_data = load_library_data()
-    current_instrument = window.current_instrument
-
-    current_rows = window.results_grid.GetNumberRows()
-    start_row = current_rows  # Preserve existing data
-
-    _ensure_results_grid_columns(window)
-
-    peak_data = []
-    sheet_name = window.sheet_combobox.GetValue()
-    num_peaks = window.peak_params_grid.GetNumberRows() // 2
-
-    for i in range(num_peaks):
-        row = i * 2
-
-        peak_params = _extract_peak_parameters(window, row, library_data, current_instrument)
-        fitting_model = window.peak_params_grid.GetCellValue(row, 13)
-
-        area, normalized_area, rel_area = _calculate_peak_areas(window, peak_params, row)
-
-        peak_data.append((peak_params['name'], peak_params['position'], peak_params['height'],
-                          peak_params['fwhm'], peak_params['lg_ratio'], area, peak_params['rsf'], normalized_area))
-
-        peak_label = _update_data_structure(window, sheet_name, i, peak_params, area, rel_area, fitting_model)
-
-        if start_row + i >= current_rows:
-            window.results_grid.AppendRows(1)
-
-        _update_results_grid(window, start_row + i, peak_params, area, rel_area, fitting_model, peak_label)
-
-    window.results_grid.ForceRefresh()
-    window.update_checkboxes_from_data()
-
-
-    # Try to solve the double duplicate
-    # _bind_grid_events(window) # Bind events to the results grid
-
-    window.update_atomic_percentages()
-
-    save_state(window)
-
 
 def export_results(window):
     """
@@ -318,46 +273,6 @@ def _calculate_peak_areas(window, peak_params, row):
 
     return round(area, 2), round(normalized_area, 2), round(rel_area, 2)
 
-def _update_results_grid_OLD(window, row, peak_params, area, rel_area, fitting_model, peak_label):
-    """Update a row in the results grid with peak data."""
-    window.results_grid.SetCellValue(row, 0, f"{peak_params['name']}")  # Keep the original peak name
-    window.results_grid.SetCellValue(row, 1, f"{peak_params['position']:.2f}")
-    window.results_grid.SetCellValue(row, 2, f"{peak_params['height']:.2f}")
-    window.results_grid.SetCellValue(row, 3, f"{peak_params['fwhm']:.2f}")
-    window.results_grid.SetCellValue(row, 4, f"{peak_params['lg_ratio']:.2f}")
-    window.results_grid.SetCellValue(row, 5, f"{area:.2f}")
-    window.results_grid.SetCellValue(row, 6, "0.00")  # Initial atomic percentage
-
-    checkbox_state = window.Data['Results']['Peak'][peak_label].get('Checkbox', '0')
-    _set_checkbox(window, row, 7, checkbox_state)
-
-    window.results_grid.SetCellValue(row, 8, f"{peak_params['rsf']:.2f}")
-    window.results_grid.SetCellValue(row, 9, "1.0")  # TXFN default value
-    print(f"Library: {window.library_type}")
-    if window.library_type == "Scofield":
-        window.results_grid.SetCellValue(row, 10, "KE^0.6")
-    elif window.library_type == "Wagner":
-        window.results_grid.SetCellValue(row, 10, "KE^1.0")
-    elif window.library_type == "TPP-2M":
-        window.results_grid.SetCellValue(row, 10, "TPP-2M")
-    elif window.library_type == "EAL":
-        window.results_grid.SetCellValue(row, 10, "EAL")
-    else:
-        window.results_grid.SetCellValue(row, 10, "1.0")
-
-    window.results_grid.SetCellValue(row, 11, window.current_instrument)
-    window.results_grid.SetCellValue(row, 12, fitting_model)
-    window.results_grid.SetCellValue(row, 13, f"{rel_area:.2f}")
-    window.results_grid.SetCellValue(row, 14, f"{peak_params['sigma']:.2f}")  # Sigma
-    window.results_grid.SetCellValue(row, 15, f"{peak_params['gamma']:.2f}")  # Gamma
-    window.results_grid.SetCellValue(row, 17, f"{window.bg_min_energy:.2f}" if window.bg_min_energy is not None else "")
-    window.results_grid.SetCellValue(row, 18, f"{window.bg_max_energy:.2f}" if window.bg_max_energy is not None else "")
-    window.results_grid.SetCellValue(row, 21, window.sheet_combobox.GetValue())
-    _set_constraints(window, row, peak_params['constraints'])
-
-    # Force a refresh of the grid cell to ensure the checkbox is displayed correctly
-    window.results_grid.RefreshAttr(row, 7)
-
 
 def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model, peak_label):
     """Update a row in the results grid with peak data."""
@@ -406,19 +321,36 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
     window.results_grid.SetCellValue(row, 17, f"{window.bg_min_energy:.2f}" if window.bg_min_energy is not None else "")
     window.results_grid.SetCellValue(row, 18, f"{window.bg_max_energy:.2f}" if window.bg_max_energy is not None else "")
     window.results_grid.SetCellValue(row, 21, window.sheet_combobox.GetValue())
+
+    # ADD MASS CALCULATION
+    from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES
+    peak_name = peak_params['name']
+    element_symbol = extract_element_symbol(peak_name)
+    atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)
+    window.results_grid.SetCellValue(row, 30, f"{atomic_mass:.2f}")
+
     _set_constraints(window, row, peak_params['constraints'])
+
+    # ADD FORMATTING - Set background colors and bold text for specified columns
+    bold_font = window.results_grid.GetDefaultCellFont()
+    bold_font.SetWeight(wx.FONTWEIGHT_BOLD)
+
+    # Set atomic % column (column 6) to green with bold text
+    window.results_grid.SetCellBackgroundColour(row, 6, wx.Colour(200, 245, 228))
+    window.results_grid.SetCellFont(row, 6, bold_font)
+
+    # Set corr. area column (column 13) to green with bold text
+    window.results_grid.SetCellBackgroundColour(row, 13, wx.Colour(200, 245, 228))
+    window.results_grid.SetCellFont(row, 13, bold_font)
+
+    # Set weight % column (column 29) to green with bold text
+    window.results_grid.SetCellBackgroundColour(row, 29, wx.Colour(200, 245, 228))
+    window.results_grid.SetCellFont(row, 29, bold_font)
+
 
     # Force a refresh of the grid cell to ensure the checkbox is displayed correctly
     window.results_grid.RefreshAttr(row, 7)
 
-
-def _set_checkbox_OLD(window, row, col, state='0'):
-    """Set up a checkbox in the specified grid cell."""
-    window.results_grid.SetCellRenderer(row, col, wx.grid.GridCellBoolRenderer())
-    window.results_grid.SetCellEditor(row, col, wx.grid.GridCellBoolEditor())
-    window.results_grid.SetCellValue(row, col, state)
-    # window.results_grid.SetCellValue(row, col, '1' if state == '1' else '0')
-    window.results_grid.ForceRefresh()
 
 def _set_checkbox(window, row, col, state='0'):
     """Set up a checkbox in the specified grid cell."""

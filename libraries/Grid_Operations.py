@@ -87,6 +87,23 @@ def populate_results_grid(window):
             window.results_grid.SetCellRenderer(row, 7, CheckboxRenderer())
             window.results_grid.SetReadOnly(row, 7)
 
+        for row in range(window.results_grid.GetNumberRows()):
+            # Set atomic % column (column 6) to green
+            window.results_grid.SetCellBackgroundColour(row, 6, wx.Colour(200, 245, 228))
+            bold_font = window.results_grid.GetDefaultCellFont()
+            bold_font.SetWeight(wx.FONTWEIGHT_BOLD)
+            window.results_grid.SetCellFont(row, 6, bold_font)
+
+            # Set calculated area column (column 3) to green
+            window.results_grid.SetCellBackgroundColour(row, 13, wx.Colour(200, 245, 228))
+            window.results_grid.SetCellFont(row, 13, bold_font)
+
+            # Set weight % column (column 29) to green
+            window.results_grid.SetCellBackgroundColour(row, 29, wx.Colour(200, 245, 228))
+            window.results_grid.SetCellFont(row, 29, bold_font)
+
+        # Force a refresh to ensure renderer is applied
+        window.results_grid.ForceRefresh()
 
         # Force a refresh to ensure renderer is applied
         window.results_grid.ForceRefresh()
@@ -241,7 +258,7 @@ def handle_label_change(window, row):
     atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)
 
     # Update mass display in grid
-    window.results_grid.SetCellValue(row, 30, f"{atomic_mass:.3f}")
+    window.results_grid.SetCellValue(row, 30, f"{atomic_mass:.2f}")
 
     # Update data structure
     sheet_name = window.sheet_combobox.GetValue()

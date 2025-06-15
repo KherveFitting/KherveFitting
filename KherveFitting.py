@@ -1536,7 +1536,7 @@ class MyFrame(wx.Frame):
 
 
     # In MyFrame class
-    def update_atomic_percentages(self):
+    def update_atomic_percentages_OLD(self):
         from libraries.Area_Calculation import calculate_weight_percentages, extract_element_symbol
 
         # Get current sheet's row number
@@ -1666,7 +1666,192 @@ class MyFrame(wx.Frame):
             atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)  # Default to carbon mass
 
             # Update mass display
-            self.results_grid.SetCellValue(i, 30, f"{atomic_mass:.3f}")
+            self.results_grid.SetCellValue(i, 30, f"{atomic_mass:.2f}")
+
+            # Calculate weight contribution
+            weight_contribution = atomic_percent * atomic_mass
+            total_weight_sum += weight_contribution
+            weight_data.append((i, weight_contribution))
+
+            # Update data structure
+            peak_key = f"Peak_{i}"
+            if peak_key in self.Data[results_table_key]['Peak']:
+                self.Data[results_table_key]['Peak'][peak_key]['at. %'] = atomic_percent
+
+        # Calculate and set weight percentages (column 28 - last column)
+        for i, weight_contribution in weight_data:
+            # Calculate weight percentages using Area_Calculation
+            if checked_indices:
+                atomic_percentages = []
+                peak_names = []
+
+                for i, norm_area in checked_indices:
+                    atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
+                    atomic_percentages.append(atomic_percent)
+                    peak_names.append(self.results_grid.GetCellValue(i, 0))
+
+                try:
+                    weight_percentages = calculate_weight_percentages(atomic_percentages, peak_names)
+
+                    # Update grid and data structure with weight percentages
+                    for idx, (i, _) in enumerate(checked_indices):
+                        weight_percent = weight_percentages[idx]
+                        self.results_grid.SetCellValue(i, 29, f"{weight_percent:.2f}")
+
+                        # Update data structure
+                        peak_key = f"Peak_{i}"
+                        if peak_key in self.Data[results_table_key]['Peak']:
+                            self.Data[results_table_key]['Peak'][peak_key]['wt. %'] = weight_percent
+
+                except Exception as e:
+                    print(f"Error calculating weight percentages: {e}")
+
+        # Set weight percentage to 0 for unchecked rows
+        for i in range(current_rows):
+            if self.results_grid.GetCellValue(i, 7) != '1':  # Checkbox column stays at index 7
+                self.results_grid.SetCellValue(i, 29, "0.00")  # Weight % column at index 28
+
+                # Update in data structure
+                peak_key = f"Peak_{i}"
+                if results_table_key in self.Data and 'Peak' in self.Data[results_table_key] and peak_key in \
+                        self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_key]['wt. %'] = 0.00
+
+        # Force a refresh to update the display
+        self.results_grid.ForceRefresh()
+
+    def update_atomic_percentages(self):
+        from libraries.Area_Calculation import calculate_weight_percentages, extract_element_symbol
+
+        # Get current sheet's row number
+        sheet_name = self.sheet_combobox.GetValue()
+        row_number = 0
+
+        import re
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            row_number = int(match.group(1))
+
+        results_table_key = f'Results Table{row_number}'
+
+        # Ensure the results table exists
+        if results_table_key not in self.Data:
+            self.Data[results_table_key] = {'Peak': {}}
+
+        current_rows = self.results_grid.GetNumberRows()
+        total_normalized_area = 0
+        checked_indices = []
+
+        # Calculate ECF for each peak
+        for i in range(current_rows):
+            # Get values from grid (calculate for ALL peaks)
+            peak_name = self.results_grid.GetCellValue(i, 0)
+            binding_energy = float(self.results_grid.GetCellValue(i, 1))
+            area = float(self.results_grid.GetCellValue(i, 5))
+            rsf = float(self.results_grid.GetCellValue(i, 8))
+
+            # Calculate kinetic energy
+            kinetic_energy = self.photons - binding_energy
+
+            # Calculate ECF based on method selected
+            if self.library_type == "Scofield":
+                ecf = kinetic_energy ** 0.6
+                self.results_grid.SetCellValue(i, 10, "KE^0.6")
+            elif self.library_type == "Wagner":
+                ecf = kinetic_energy ** 1.0
+                self.results_grid.SetCellValue(i, 10, "KE^1.0")
+            elif self.library_type == "TPP-2M":
+                # Calculate IMFP using TPP-2M
+                imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
+                ecf = imfp * 26.2
+                self.results_grid.SetCellValue(i, 10, "TPP-2M")
+            elif self.library_type == "EAL":
+                z_avg = 50  # Default value
+                eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
+                ecf = eal
+                self.results_grid.SetCellValue(i, 10, "EAL")
+            elif self.library_type == "None":
+                ecf = 1.0
+                self.results_grid.SetCellValue(i, 10, "None: 1.0")
+            else:
+                ecf = 1.0  # Default no correction
+                self.results_grid.SetCellValue(i, 10, "None: 1.0")
+
+            # Get Transmission function from grid
+            txfn = float(self.results_grid.GetCellValue(i, 9))  # Get TXFN from grid
+
+            # Angular correction
+            angular_correction = 1.0
+            if self.use_angular_correction:
+                angular_correction = AtomicConcentrations.calculate_angular_correction(
+                    self, peak_name, self.analysis_angle
+                )
+
+            # Calculate normalized area with ECF correction (for ALL peaks)
+            normalized_area = area / (rsf * txfn * ecf * angular_correction)
+            self.results_grid.SetCellValue(i, 13, f"{normalized_area:.2f}")
+
+            # Only add to percentage calculation if ticked
+            if self.results_grid.GetCellValue(i, 7) == '1':  # If checkbox ticked
+                total_normalized_area += normalized_area
+                checked_indices.append((i, normalized_area))
+
+                # Update the data in the correct Results Table
+                peak_key = f"Peak_{i}"
+                if peak_key not in self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_key] = {}
+
+                # Update ECF, TXFN values in the data structure
+                self.Data[results_table_key]['Peak'][peak_key].update({
+                    # 'ECF': ecf,
+                    'TXFN': txfn,
+                    'RSF': rsf,
+                    'Name': peak_name,
+                    'Position': binding_energy,
+                    'Area': area,
+                    'Checkbox': '1',
+                    'Rel. Area': normalized_area
+                })
+                # Format TXFN display in grid
+                self.results_grid.SetCellValue(i, 9, f"{txfn:.2f}")
+                self.results_grid.SetCellValue(i, 8, f"{rsf:.2f}")
+
+            else:
+                # Set the atomic percentage to 0 for unticked rows
+                self.results_grid.SetCellValue(i, 6, "0.00")
+
+                # Update in data structure if it exists
+                peak_key = f"Peak_{i}"
+                if results_table_key in self.Data and 'Peak' in self.Data[results_table_key] and peak_key in \
+                        self.Data[results_table_key]['Peak']:
+                    self.Data[results_table_key]['Peak'][peak_key]['at. %'] = 0.00
+                    self.Data[results_table_key]['Peak'][peak_key]['Checkbox'] = '0'
+
+        # Calculate atomic percentages
+        for i, norm_area in checked_indices:
+            atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
+            self.results_grid.SetCellValue(i, 6, f"{atomic_percent:.2f}")
+
+            # Update in data structure
+            peak_key = f"Peak_{i}"
+            if peak_key in self.Data[results_table_key]['Peak']:
+                self.Data[results_table_key]['Peak'][peak_key]['at. %'] = atomic_percent
+
+        # Calculate weight percentages
+        total_weight_sum = 0
+        weight_data = []
+
+        for i, norm_area in checked_indices:
+            atomic_percent = (norm_area / total_normalized_area) * 100 if total_normalized_area > 0 else 0
+            self.results_grid.SetCellValue(i, 6, f"{atomic_percent:.2f}")
+
+            # Get element symbol and atomic mass for weight calculation
+            peak_name = self.results_grid.GetCellValue(i, 0)
+            element_symbol = extract_element_symbol(peak_name)
+            atomic_mass = ATOMIC_MASSES.get(element_symbol, 12.01)  # Default to carbon mass
+
+            # Update mass display
+            self.results_grid.SetCellValue(i, 30, f"{atomic_mass:.2f}")
 
             # Calculate weight contribution
             weight_contribution = atomic_percent * atomic_mass
