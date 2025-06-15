@@ -512,33 +512,33 @@ class MyFrame(wx.Frame):
 
             # Add all requested tools
             open_tool = self.toolbar.AddTool(wx.ID_ANY, 'Open File',
-                                             wx.Bitmap(os.path.join(icon_path, "open-folder-25-green.png"),
+                                             wx.Bitmap(os.path.join(icon_path, "open-folder-3.png"),
                                                        wx.BITMAP_TYPE_PNG),
                                              shortHelp="Open File\tCtrl+O")
 
             save_tool = self.toolbar.AddTool(wx.ID_ANY, 'Save',
-                                             wx.Bitmap(os.path.join(icon_path, "save-Excel-25.png"),
+                                             wx.Bitmap(os.path.join(icon_path, "save-Excel-3.png"),
                                                        wx.BITMAP_TYPE_PNG),
                                              shortHelp="Save")
 
             save_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
-                                                 wx.Bitmap(os.path.join(icon_path, "save-Multi-25.png"),
+                                                 wx.Bitmap(os.path.join(icon_path, "save-Multi-3.png"),
                                                            wx.BITMAP_TYPE_PNG),
                                                  shortHelp="Save all sheets with plots")
 
             # Undo/Redo
             self.undo_tool = self.toolbar.AddTool(wx.ID_ANY, 'Undo',
-                                                  wx.Bitmap(os.path.join(icon_path, "undo-25.png"),
+                                                  wx.Bitmap(os.path.join(icon_path, "undo-3.png"),
                                                             wx.BITMAP_TYPE_PNG),
                                                   shortHelp="Undo")
             self.redo_tool = self.toolbar.AddTool(wx.ID_ANY, 'Redo',
-                                                  wx.Bitmap(os.path.join(icon_path, "redo-25.png"),
+                                                  wx.Bitmap(os.path.join(icon_path, "redo-3.png"),
                                                             wx.BITMAP_TYPE_PNG),
                                                   shortHelp="Redo")
 
             # File manager
             file_manager_tool = self.toolbar.AddTool(wx.ID_ANY, "Sample Manager",
-                                                     wx.Bitmap(os.path.join(icon_path, "list-view-25.png"),
+                                                     wx.Bitmap(os.path.join(icon_path, "list-view-3.png"),
                                                                wx.BITMAP_TYPE_PNG),
                                                      shortHelp="Sample Manager")
 
@@ -555,23 +555,23 @@ class MyFrame(wx.Frame):
 
             # Refresh, Delete, Copy, Join, Rename
             refresh_tool = self.toolbar.AddTool(wx.ID_ANY, 'Refresh',
-                                                wx.Bitmap(os.path.join(icon_path, "Refresh-25.png"),
+                                                wx.Bitmap(os.path.join(icon_path, "Refresh-3.png"),
                                                           wx.BITMAP_TYPE_PNG),
                                                 shortHelp="Refresh")
             delete_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete',
-                                               wx.Bitmap(os.path.join(icon_path, "delete-25.png"),
+                                               wx.Bitmap(os.path.join(icon_path, "delete-3.png"),
                                                          wx.BITMAP_TYPE_PNG),
                                                shortHelp="Delete")
             copy_tool = self.toolbar.AddTool(wx.ID_ANY, 'Copy',
-                                             wx.Bitmap(os.path.join(icon_path, "copy-25.png"),
+                                             wx.Bitmap(os.path.join(icon_path, "copy-3.png"),
                                                        wx.BITMAP_TYPE_PNG),
                                              shortHelp="Copy")
             join_tool = self.toolbar.AddTool(wx.ID_ANY, 'Join',
-                                             wx.Bitmap(os.path.join(icon_path, "join2-25.png"),
+                                             wx.Bitmap(os.path.join(icon_path, "join-3.png"),
                                                        wx.BITMAP_TYPE_PNG),
                                              shortHelp="Join")
             rename_tool = self.toolbar.AddTool(wx.ID_ANY, 'Rename',
-                                               wx.Bitmap(os.path.join(icon_path, "rename-25.png"),
+                                               wx.Bitmap(os.path.join(icon_path, "rename-3.png"),
                                                          wx.BITMAP_TYPE_PNG),
                                                shortHelp="Rename")
 
@@ -583,28 +583,28 @@ class MyFrame(wx.Frame):
             self.toolbar.AddControl(self.be_correction_spinbox)
 
             auto_be_tool = self.toolbar.AddTool(wx.ID_ANY, 'Auto BE',
-                                                wx.Bitmap(os.path.join(icon_path, "BEcorrect-25.png"),
+                                                wx.Bitmap(os.path.join(icon_path, "BEcorrect-3.png"),
                                                           wx.BITMAP_TYPE_PNG),
                                                 shortHelp="Auto BE")
 
             # Add the requested tools
             bkg_tool = self.toolbar.AddTool(wx.ID_ANY, 'Background/Area',
-                                            wx.Bitmap(os.path.join(icon_path, "BKG-25.png"),
+                                            wx.Bitmap(os.path.join(icon_path, "BKG-3.png"),
                                                       wx.BITMAP_TYPE_PNG),
                                             shortHelp="Calculate Area Under Curve\tCtrl+A")
 
             peak_fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Peak Fit',
-                                                 wx.Bitmap(os.path.join(icon_path, "C1s-25.png"),
+                                                 wx.Bitmap(os.path.join(icon_path, "C1s-3.png"),
                                                            wx.BITMAP_TYPE_PNG),
                                                  shortHelp="Peak Fit")
 
             diff_tool = self.toolbar.AddTool(wx.ID_ANY, 'D-parameter',
-                                             wx.Bitmap(os.path.join(icon_path, "Dpara-25.png"),
+                                             wx.Bitmap(os.path.join(icon_path, "Dpara-3.png"),
                                                        wx.BITMAP_TYPE_PNG),
                                              shortHelp="D-parameter Calculation")
 
             id_tool = self.toolbar.AddTool(wx.ID_ANY, 'Element ID',
-                                           wx.Bitmap(os.path.join(icon_path, "ID-25.png"),
+                                           wx.Bitmap(os.path.join(icon_path, "ID-3.png"),
                                                      wx.BITMAP_TYPE_PNG),
                                            shortHelp="Element identifications (ID)")
 
