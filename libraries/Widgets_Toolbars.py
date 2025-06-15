@@ -442,10 +442,13 @@ def create_menu(window):
     file_menu.AppendSubMenu(window.recent_files_menu, "Recent Files")
 
     # Save submenu items
-    save_Excel_item = save_menu.Append(wx.NewId(), "Save Sheet")
+    save_json_item = save_menu.Append(wx.NewId(), "Save Data (.json)")
+    window.Bind(wx.EVT_MENU, lambda event: save_json_only(window), save_json_item)
+
+    save_Excel_item = save_menu.Append(wx.NewId(), "Export/Save this Core Level to Excel")
     window.Bind(wx.EVT_MENU, lambda event: on_save(window), save_Excel_item)
 
-    save_all_item = save_menu.Append(wx.NewId(), "Save All")
+    save_all_item = save_menu.Append(wx.NewId(), "Export/Save all Core Levels to Excel")
     window.Bind(wx.EVT_MENU, lambda event: save_all_sheets_with_plots(window), save_all_item)
 
     save_plot_only_item = save_menu.Append(wx.NewId(), "Save Plot Only in Excel")

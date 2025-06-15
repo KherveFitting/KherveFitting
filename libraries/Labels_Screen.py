@@ -162,6 +162,12 @@ class LabelWindow(wx.Frame):
         if 'Labels' not in self.parent.Data['Core levels'][sheet_name]:
             return
 
+        # Get axis ranges for percentage-based calculations
+        xlim = self.parent.ax.get_xlim()
+        ylim = self.parent.ax.get_ylim()
+        x_range = abs(xlim[1] - xlim[0])
+        y_range = abs(ylim[1] - ylim[0])
+
         # Find clicked text
         clicked_text = None
         clicked_index = None
@@ -171,9 +177,9 @@ class LabelWindow(wx.Frame):
             text_x = label_data['x']
             text_y = label_data['y']
 
-            # Create approximate bounding box for text
-            bbox_width = len(label_data['text']) * 0.1  # Approximate width
-            bbox_height = 0.05 * max(self.parent.y_values)  # Approximate height
+            # Create larger clickable area based on percentage of plot size
+            bbox_width = x_range * 0.15  # 3% of x-axis range
+            bbox_height = y_range * 0.15  # 5% of y-axis range
 
             if (abs(event.xdata - text_x) < bbox_width and
                     abs(event.ydata - text_y) < bbox_height):
@@ -236,18 +242,18 @@ class LabelWindow(wx.Frame):
         x = label_data['x']
         y = label_data['y']
 
-        # Get axis ranges for proper scaling
+        # Get axis ranges
         xlim = self.parent.ax.get_xlim()
         ylim = self.parent.ax.get_ylim()
         x_range = abs(xlim[1] - xlim[0])
         y_range = abs(ylim[1] - ylim[0])
 
-        # Triangle dimensions based on axis ranges
-        triangle_width = x_range * 0.02  # 2% of x-axis range (in eV)
-        triangle_height = y_range * 0.03  # 3% of y-axis range (in CPS)
+        # Triangle dimensions - smaller and more consistent
+        triangle_width = x_range * 0.03  # 0.8% of x-axis range
+        triangle_height = y_range * 0.03  # 1.5% of y-axis range
 
         # Triangle positioned slightly lower
-        triangle_y = y - y_range * 0.01  # 1% below text
+        triangle_y = y - y_range * 0.005  # 0.5% below text
 
         from matplotlib.patches import Polygon
         triangle_points = [
@@ -260,7 +266,7 @@ class LabelWindow(wx.Frame):
             triangle_points,
             linewidth=1,
             edgecolor='black',
-            facecolor= (200 / 255, 245 / 255, 228 / 255),
+            facecolor=(200 / 255, 245 / 255, 228 / 255),
             linestyle='-'
         )
 
@@ -286,9 +292,10 @@ class LabelWindow(wx.Frame):
             x_range = abs(xlim[1] - xlim[0])
             y_range = abs(ylim[1] - ylim[0])
 
-            triangle_width = x_range * 0.02
-            triangle_height = y_range * 0.03
-            triangle_y = new_y - y_range * 0.01
+            # Smaller triangle dimensions
+            triangle_width = x_range * 0.03  # 0.8% of x-axis range
+            triangle_height = y_range * 0.03  # 1.5% of y-axis range
+            triangle_y = new_y - y_range * 0.005  # 0.5% below text
 
             triangle_points = [
                 [new_x, triangle_y],
