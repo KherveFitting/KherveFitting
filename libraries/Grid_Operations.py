@@ -102,8 +102,8 @@ def populate_results_grid(window):
             window.results_grid.SetCellBackgroundColour(row, 29, wx.Colour(200, 245, 228))
             window.results_grid.SetCellFont(row, 29, bold_font)
 
-        # Force a refresh to ensure renderer is applied
-        window.results_grid.ForceRefresh()
+        # # Force a refresh to ensure renderer is applied
+        # window.results_grid.ForceRefresh()
 
         # Force a refresh to ensure renderer is applied
         window.results_grid.ForceRefresh()
@@ -111,11 +111,16 @@ def populate_results_grid(window):
         # Set up column properties (read-only states)
         setup_results_grid_column_properties(window)
 
+        # Add this line at the end, after all the SetCellValue calls
+        setup_grid_editability(window)
+
         # Bind the cell changed event if not already bound
         if not hasattr(window, '_results_grid_event_bound'):
             window.results_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED,
                                      lambda event: on_results_grid_cell_changed(window, event))
             window._results_grid_event_bound = True
+
+
 
 
 def setup_results_grid_column_properties(window):
@@ -141,19 +146,38 @@ def setup_results_grid_column_properties(window):
                 window.results_grid.SetReadOnly(row, col, False)
 
 
+def setup_grid_editability(window):
+    """Set which columns are editable vs read-only"""
+    num_rows = window.results_grid.GetNumberRows()
+    if num_rows == 0:
+        return
+
+    # All columns except 0 (Label), 8 (RSF), 9 (TXFN) are read-only
+    all_columns = range(window.results_grid.GetNumberCols())
+    editable_columns = [0, 8, 9]  # Label, RSF, TXFN
+
+    for row in range(num_rows):
+        for col in all_columns:
+            if col in editable_columns:
+                window.results_grid.SetReadOnly(row, col, False)
+            else:
+                window.results_grid.SetReadOnly(row, col, True)
+
 def on_results_grid_cell_changed(window, event):
     """Handle cell changes in results grid"""
     row = event.GetRow()
     col = event.GetCol()
 
-    if col == 8:  # RSF column changed
-        handle_rsf_change(window, row)
-    elif col == 9:  # TXFN column changed
-        handle_txfn_change(window, row)
-    elif col == 0:  # Label column changed
+    # Only process changes for editable columns
+    if col == 0:  # Label column
         handle_label_change(window, row)
+    elif col == 8:  # RSF column
+        handle_rsf_change(window, row)
+    elif col == 9:  # TXFN column
+        handle_txfn_change(window, row)
 
     event.Skip()
+
 
 
 def handle_rsf_change(window, row):

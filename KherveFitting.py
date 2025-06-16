@@ -346,6 +346,10 @@ class MyFrame(wx.Frame):
         # Add specific event handling for checkbox clicks
         self.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_cell_click)
 
+        # Add this line after creating window.results_grid
+        self.results_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED,
+                                 lambda event: on_results_grid_cell_changed(window, event))
+
         # Start Backup timer
         self.setup_backup_timer()
 
