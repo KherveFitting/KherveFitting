@@ -1329,6 +1329,196 @@ def import_avantage_file_direct_xls(window, file_path):
     open_xlsx_file(window, new_file_path)
 
 
+def import_multiple_avantage_files(window):
+    """
+    Import multiple Avantage files from a folder in alphabetical order.
+    Creates a single Excel file with numbered core levels (C1s0, O1s0, C1s1, O1s1...).
+    Filenames are stored in SampleNames section of window.data JSON.
+    """
+    with wx.DirDialog(window, "Choose a directory containing Avantage files",
+                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
+
+        if dirDialog.ShowModal() == wx.ID_CANCEL:
+            return
+
+        folder_path = dirDialog.GetPath()
+
+    try:
+        # Find all Avantage files in the directory
+        avantage_files = [f for f in os.listdir(folder_path)
+                          if f.lower().endswith(('.xlsx', '.xls'))]
+
+        if not avantage_files:
+            window.show_popup_message2("Information", "No Avantage files found in the selected folder.")
+            return
+
+        # Sort files alphabetically
+        avantage_files.sort()
+
+        # Create single combined workbook
+        combined_file_path = os.path.join(folder_path, "Combined_Samples_Kfitting.xlsx")
+        combined_wb = openpyxl.Workbook()
+        combined_wb.remove(combined_wb.active)
+
+        # Store sample names as dictionary for JSON
+        sample_names_dict = {}
+
+        # Process each file as a separate sample
+        for sample_idx, avantage_file in enumerate(avantage_files):
+            file_path = os.path.join(folder_path, avantage_file)
+
+            # Remove file extension for cleaner sample names
+            sample_name = os.path.splitext(avantage_file)[0]
+            sample_names_dict[str(sample_idx)] = sample_name
+
+            # Load the workbook
+            if avantage_file.lower().endswith('.xlsx'):
+                wb = openpyxl.load_workbook(file_path)
+                process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx)
+            else:
+                wb = xlrd.open_workbook(file_path)
+                process_avantage_xls_with_sample_number(wb, combined_wb, sample_idx)
+
+        # Save the combined file
+        combined_wb.save(combined_file_path)
+
+        window.show_popup_message2("Success", f"Combined {len(avantage_files)} Avantage files into single Excel file.")
+
+        # Open the combined file
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, combined_file_path)
+
+        # Update SampleNames in window.Data
+        if not hasattr(window, 'Data') or window.Data is None:
+            from libraries.ConfigFile import Init_Measurement_Data
+            window.Data = Init_Measurement_Data(window)
+
+        # Add SampleNames as dictionary to the data structure
+        window.Data['SampleNames'] = sample_names_dict
+
+        # Save the updated JSON file
+        json_file_path = os.path.splitext(combined_file_path)[0] + '.json'
+        from libraries.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error processing Avantage files: {str(e)}")
+
+
+def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
+    """Process xlsx Avantage file and add numbered core levels to combined workbook"""
+    import re
+
+    sheets_to_process = []
+    for sheet_name in wb.sheetnames:
+        if "Survey" in sheet_name or "Scan" in sheet_name:
+            sheets_to_process.append(sheet_name)
+
+    for sheet_name in sheets_to_process:
+        sheet = wb[sheet_name]
+
+        # Extract element name
+        if "Survey" in sheet_name or "survey" in sheet_name:
+            base_name = "Survey"
+        else:
+            parts = sheet_name.split()
+            base_name = parts[0]  # Get element (C1s, O1s, etc.)
+
+        # Check if multi-sample (D8 cell not empty and > 1)
+        multi_sample = False
+        num_samples = 1
+        if sheet.cell(row=8, column=4).value is not None:
+            try:
+                num_samples = int(sheet.cell(row=8, column=4).value)
+                if num_samples > 1:
+                    multi_sample = True
+            except (ValueError, TypeError):
+                pass
+
+        # Find data start row
+        start_row = 19
+        for row_idx in range(1, sheet.max_row + 1):
+            if sheet.cell(row=row_idx, column=1).value == "eV":
+                start_row = row_idx + 1
+                break
+
+        if multi_sample:
+            # Process each sample within the file
+            for sub_sample_idx in range(num_samples):
+                new_sheet_name = f"{base_name}{sample_idx}"
+                if sub_sample_idx > 0:
+                    new_sheet_name = f"{base_name}{sample_idx}_{sub_sample_idx}"
+
+                new_sheet = combined_wb.create_sheet(new_sheet_name)
+                new_sheet['A1'] = "Binding Energy"
+                new_sheet['B1'] = "Raw Data"
+
+                # Data is in column C+sub_sample_idx
+                data_col = 3 + sub_sample_idx
+                copy_sheet_data(sheet, new_sheet, start_row, 1, data_col, 2)
+        else:
+            # Single sample - create sheet with sample number
+            new_sheet_name = f"{base_name}{sample_idx}"
+            new_sheet = combined_wb.create_sheet(new_sheet_name)
+            new_sheet['A1'] = "Binding Energy"
+            new_sheet['B1'] = "Raw Data"
+
+            # Copy data from columns A (BE) and C (intensity)
+            copy_sheet_data(sheet, new_sheet, start_row, 1, 3, 2)
+
+
+def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
+    """Process xls Avantage file and add numbered core levels to combined workbook"""
+    import re
+
+    for sheet_name in wb_xls.sheet_names():
+        if "Survey" in sheet_name or "Scan" in sheet_name:
+            sheet = wb_xls.sheet_by_name(sheet_name)
+
+            # Extract element name
+            if "Survey" in sheet_name or "survey" in sheet_name:
+                base_name = "Survey"
+            else:
+                parts = sheet_name.split()
+                base_name = parts[0]  # Get element (C1s, O1s, etc.)
+
+            # Create sheet with sample number
+            new_sheet_name = f"{base_name}{sample_idx}"
+            new_sheet = combined_wb.create_sheet(new_sheet_name)
+            new_sheet['A1'] = "Binding Energy"
+            new_sheet['B1'] = "Raw Data"
+
+            # Copy data starting from row 19 (18 in 0-indexed)
+            start_row = 18
+            row_new = 2
+            for row in range(start_row, sheet.nrows):
+                be_value = sheet.cell_value(row, 0)  # Column A
+                intensity_value = sheet.cell_value(row, 2)  # Column C
+
+                if be_value and intensity_value:
+                    new_sheet.cell(row=row_new, column=1, value=be_value)
+                    new_sheet.cell(row=row_new, column=2, value=intensity_value)
+                    row_new += 1
+
+
+def copy_sheet_data(source_sheet, target_sheet, start_row, source_be_col, source_intensity_col, target_row_start):
+    """Helper function to copy data from source sheet to target sheet"""
+    row_new = target_row_start
+    for row in range(start_row, source_sheet.max_row + 1):
+        be_value = source_sheet.cell(row=row, column=source_be_col).value
+        intensity_value = source_sheet.cell(row=row, column=source_intensity_col).value
+
+        if be_value is None or intensity_value is None:
+            continue
+
+        target_sheet.cell(row=row_new, column=1, value=be_value)
+        target_sheet.cell(row=row_new, column=2, value=intensity_value)
+        row_new += 1
+
+
+
 def open_avg_file_direct(window, avg_file_path):
 
     # Get the basename without extension

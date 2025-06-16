@@ -39,6 +39,7 @@ from libraries.Save import on_backup_main
 from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
 from libraries.DownloadStats import show_download_stats_window
+from libraries.Open import import_multiple_avantage_files
 
 # With conditional imports:
 import platform
@@ -465,6 +466,9 @@ def create_menu(window):
 
     import_avantage_item = import_menu.Append(wx.NewId(), "Import Avantage Data file (.xlsx or .xls)")
     window.Bind(wx.EVT_MENU, lambda event: import_avantage_file(window), import_avantage_item)
+
+    import_multiple_avantage_item = import_menu.Append(wx.NewId(), "Import Multiple Avantage xlsx files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_avantage_files(window), import_multiple_avantage_item)
 
     import_kal_item = import_menu.Append(wx.NewId(), "Import Kratos Data file (.kal)")
     window.Bind(wx.EVT_MENU, lambda event: open_kal_file_dialog(window), import_kal_item)
