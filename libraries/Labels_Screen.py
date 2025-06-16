@@ -178,8 +178,8 @@ class LabelWindow(wx.Frame):
             text_y = label_data['y']
 
             # Create larger clickable area based on percentage of plot size
-            bbox_width = x_range * 0.15  # 3% of x-axis range
-            bbox_height = y_range * 0.15  # 5% of y-axis range
+            bbox_width = x_range * 0.03  # 3% of x-axis range
+            bbox_height = y_range * 0.03  # 5% of y-axis range
 
             if (abs(event.xdata - text_x) < bbox_width and
                     abs(event.ydata - text_y) < bbox_height):
@@ -193,45 +193,6 @@ class LabelWindow(wx.Frame):
             self.is_dragging = True
             self.list_box.SetSelection(clicked_index)
 
-    def select_text_rectangle(self, label_data, index):
-        # Remove previous selection box
-        if self.selection_box:
-            self.selection_box.remove()
-
-        # Create selection box around text
-        x = label_data['x']
-        y = label_data['y']
-        text_width = len(label_data['text']) * 0.4
-        text_height = 0.03 * max(self.parent.y_values)
-
-        from matplotlib.patches import Rectangle
-        self.selection_box = Rectangle(
-            (x - text_width / 2, y),
-            text_width, text_height,
-            linewidth=1, edgecolor=(200 / 255, 245 / 255, 228 / 255), facecolor='none', linestyle='-')
-        self.parent.ax.add_patch(self.selection_box)
-        self.selected_text = label_data
-        self.parent.canvas.draw_idle()
-
-    def on_canvas_motion_rectangle(self, event):
-        if not self.is_dragging or not self.selected_text or not event.inaxes:
-            return
-
-        # Update text position
-        new_x = event.xdata - self.drag_offset[0]
-        new_y = event.ydata - self.drag_offset[1]
-
-        self.selected_text['x'] = new_x
-        self.selected_text['y'] = new_y
-
-        # Update selection box position
-        if self.selection_box:
-            text_width = len(self.selected_text['text']) * 0.4
-            text_height = 0.03 * max(self.parent.y_values)
-            self.selection_box.set_xy((new_x - text_width / 2, new_y))# - text_height / 2))
-
-        # Redraw all text
-        self.redraw_labels()
 
     def select_text(self, label_data, index):
         # Remove previous selection box

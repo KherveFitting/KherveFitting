@@ -426,6 +426,7 @@ Version 1.505-1.590
 - Added a game menu in Help menu
 - Added a Download Stat in Help menu
 - Changed the icons of the toolbar
+- Improve the Label manager 
 - Added import VG-MicroTech .1 files
 - Fix Constraint rows which were rewriting the user values
 - Improve the conversion of MRS files
