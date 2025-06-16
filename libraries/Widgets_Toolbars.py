@@ -40,6 +40,7 @@ from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
 from libraries.DownloadStats import show_download_stats_window
 from libraries.Open import import_multiple_avantage_files
+from libraries.Open import import_multiple_kfitting_files
 
 # With conditional imports:
 import platform
@@ -437,6 +438,17 @@ def create_menu(window):
 
     open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")
     window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_item)
+
+    # Open KherveFitting submenu
+    open_kfitting_menu = wx.Menu()
+
+    open_single_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open KFitting file (.xlsx)")
+    window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_single_kfitting_item)
+
+    open_multiple_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open Multiple KFitting files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_kfitting_files(window), open_multiple_kfitting_item)
+
+    file_menu.AppendSubMenu(open_kfitting_menu, "Open")
 
     # Recent files submenu
     window.recent_files_menu = wx.Menu()

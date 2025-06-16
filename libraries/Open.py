@@ -4296,3 +4296,158 @@ def import_multiple_vg_microtech_files(window):
         import traceback
         traceback.print_exc()
         window.show_popup_message2("Error", f"Error processing VG-Microtech files: {str(e)}")
+
+
+def import_multiple_kfitting_files(window):
+    """
+    Import multiple KherveFitting Excel files from a folder in alphabetical order.
+    Creates a single Excel file with numbered core levels (C1s0, O1s0, C1s1, O1s1...).
+    Filenames are stored in SampleNames section of window.data JSON.
+    """
+    with wx.DirDialog(window, "Choose a directory containing KherveFitting Excel files",
+                      style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST) as dirDialog:
+
+        if dirDialog.ShowModal() == wx.ID_CANCEL:
+            return
+
+        folder_path = dirDialog.GetPath()
+
+    try:
+        # Find all Excel files in the directory
+        excel_files = [f for f in os.listdir(folder_path)
+                       if f.lower().endswith('.xlsx') and not f.startswith('~')]
+
+        if not excel_files:
+            window.show_popup_message2("Information", "No Excel files found in the selected folder.")
+            return
+
+        # Sort files alphabetically
+        excel_files.sort()
+
+        # Create single combined workbook
+        combined_file_path = os.path.join(folder_path, "Combined_KherveFitting_Files.xlsx")
+        combined_wb = openpyxl.Workbook()
+        combined_wb.remove(combined_wb.active)
+
+        # Store sample names as dictionary for JSON
+        sample_names_dict = {}
+
+        # Process each file as a separate sample
+        for sample_idx, excel_file in enumerate(excel_files):
+            file_path = os.path.join(folder_path, excel_file)
+
+            # Remove file extension for cleaner sample names
+            sample_name = os.path.splitext(excel_file)[0]
+            sample_names_dict[str(sample_idx)] = sample_name
+
+            # Load the workbook
+            wb = openpyxl.load_workbook(file_path)
+            process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
+
+        # Save the combined file
+        combined_wb.save(combined_file_path)
+
+        window.show_popup_message2("Success",
+                                   f"Combined {len(excel_files)} KherveFitting files into single Excel file.")
+
+        # Open the combined file
+        from libraries.Open import open_xlsx_file
+        open_xlsx_file(window, combined_file_path)
+
+        # Update SampleNames in window.Data
+        if not hasattr(window, 'Data') or window.Data is None:
+            from libraries.ConfigFile import Init_Measurement_Data
+            window.Data = Init_Measurement_Data(window)
+
+        # Add SampleNames as dictionary to the data structure
+        window.Data['SampleNames'] = sample_names_dict
+
+        # Save the updated JSON file
+        json_file_path = os.path.splitext(combined_file_path)[0] + '.json'
+        from libraries.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error processing KherveFitting files: {str(e)}")
+
+
+def process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx):
+    """Process KherveFitting Excel file and add numbered core levels to combined workbook"""
+    import re
+
+    # Get all sheet names except Results Table and Experimental description
+    sheets_to_process = []
+    for sheet_name in wb.sheetnames:
+        if sheet_name.lower() not in ["results table", "experimental description"]:
+            sheets_to_process.append(sheet_name)
+
+    for sheet_name in sheets_to_process:
+        sheet = wb[sheet_name]
+
+        # Extract base core level name (remove existing numbers)
+        base_name = re.sub(r'\d+$', '', sheet_name)  # Remove trailing numbers
+
+        # Create new sheet name with sample number
+        new_sheet_name = f"{base_name}{sample_idx}"
+
+        # Create new sheet in combined workbook
+        new_sheet = combined_wb.create_sheet(new_sheet_name)
+
+        # Copy headers from row 1
+        for col in range(1, sheet.max_column + 1):
+            header_value = sheet.cell(row=1, column=col).value
+            if header_value:
+                new_sheet.cell(row=1, column=col, value=header_value)
+
+        # Copy data starting from row 2
+        for row in range(2, sheet.max_row + 1):
+            row_has_data = False
+            for col in range(1, min(sheet.max_column + 1, 5)):  # Copy first 4 columns typically
+                cell_value = sheet.cell(row=row, column=col).value
+                if cell_value is not None:
+                    row_has_data = True
+                new_sheet.cell(row=row, column=col, value=cell_value)
+
+            # Stop copying if we hit empty rows
+            if not row_has_data:
+                break
+
+        # Copy experimental description data if it exists (starting from column 50)
+        exp_col = 50
+        for row in range(1, sheet.max_row + 1):
+            exp_desc_value = sheet.cell(row=row, column=exp_col).value
+            exp_data_value = sheet.cell(row=row, column=exp_col + 1).value
+
+            if exp_desc_value or exp_data_value:
+                new_sheet.cell(row=row, column=exp_col, value=exp_desc_value)
+                new_sheet.cell(row=row, column=exp_col + 1, value=exp_data_value)
+
+
+def normalize_core_level_name(sheet_name):
+    """
+    Normalize core level names by removing numbers and common suffixes
+    Examples: C1s1 -> C1s, Survey2 -> Survey, O1s_old -> O1s
+    """
+    import re
+
+    # Remove trailing numbers
+    name = re.sub(r'\d+$', '', sheet_name)
+
+    # Remove common suffixes
+    suffixes_to_remove = ['_old', '_new', '_copy', '_backup']
+    for suffix in suffixes_to_remove:
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+
+    # Handle Survey variations
+    if 'survey' in name.lower():
+        return 'Survey'
+
+    # Handle Wide scan variations
+    if 'wide' in name.lower():
+        return 'Wide'
+
+    return name
