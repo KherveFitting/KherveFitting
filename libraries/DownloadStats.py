@@ -20,6 +20,9 @@ class DownloadStatsWindow(wx.Frame):
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
+        # Add strength control
+        self.geographic_pull_strength = 0.03  # Default value
+
         # Left panel for buttons
         left_panel = wx.Panel(panel)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -47,6 +50,24 @@ class DownloadStatsWindow(wx.Frame):
             btn.Bind(wx.EVT_BUTTON, callback)
             left_sizer.Add(btn, 0, wx.ALL | wx.EXPAND, 1)
 
+        # Add strength control after the time period buttons, before setting the sizer
+        left_sizer.AddSpacer(10)  # Add some space
+
+        # Add strength control
+        strength_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        strength_label = wx.StaticText(left_panel, label="Pull:")
+        strength_sizer.Add(strength_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+        self.strength_spin = wx.SpinCtrlDouble(left_panel)
+        self.strength_spin.SetRange(0.001, 0.200)
+        self.strength_spin.SetIncrement(0.005)
+        self.strength_spin.SetValue(0.03)
+        self.strength_spin.SetDigits(3)
+        self.strength_spin.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_strength_changed)
+        strength_sizer.Add(self.strength_spin, 1, wx.ALL, 2)
+
+        left_sizer.Add(strength_sizer, 0, wx.ALL | wx.EXPAND, 2)
+
         left_panel.SetSizer(left_sizer)
 
         # Create matplotlib figure and canvas
@@ -64,6 +85,11 @@ class DownloadStatsWindow(wx.Frame):
         # Initialize with Sept 2024 data
         self.plot_sept_2024(None)
         self.figure.subplots_adjust(top=0.98, bottom=0.08, left=0.08, right=0.95)
+
+    def on_strength_changed(self, event):
+        self.geographic_pull_strength = self.strength_spin.GetValue()
+        # Optionally refresh the current plot
+        # self.plot_world_map_bubbles(self.current_data)  # if you store current_data
 
     def show_welcome_message(self):
         """Show welcome message"""
@@ -105,7 +131,7 @@ class DownloadStatsWindow(wx.Frame):
                 ['Sweden', 432],
                 ['Italy', 398],
                 ['Spain', 321],
-                ['South Korea', 287]
+                ['Korea', 287]
             ]
         }
 
@@ -119,6 +145,12 @@ class DownloadStatsWindow(wx.Frame):
         country_downloads = {}
         for entry in countries_data:
             country_downloads[entry[0]] = entry[1]
+
+        # DEBUG: Print all countries received from API
+        print("=== DEBUG: Countries from API ===")
+        for country, downloads in country_downloads.items():
+            print(f"'{country}': {downloads}")
+        print("================================")
 
         # Country name to acronym mapping
         country_acronyms = {
@@ -148,6 +180,7 @@ class DownloadStatsWindow(wx.Frame):
             'Denmark': 'DK', 'DK': 'DK',
             'Ireland': 'IE', 'IE': 'IE',
             'Estonia': 'EE', 'EE': 'EE',
+            'Iraq': 'IQ', 'IQ': 'IQ',
             'Latvia': 'LV', 'LV': 'LV',
             'Lithuania': 'LT', 'LT': 'LT',
             'Croatia': 'HR', 'HR': 'HR',
@@ -158,15 +191,15 @@ class DownloadStatsWindow(wx.Frame):
             'China': 'CN', 'CN': 'CN',
             'Japan': 'JP', 'JP': 'JP',
             'India': 'IN', 'IN': 'IN',
-            'South Korea': 'KR', 'KR': 'KR',
+            'Korea': 'KR', 'KR': 'KR',
             'Indonesia': 'ID', 'ID': 'ID',
             'Thailand': 'TH', 'TH': 'TH',
             'Malaysia': 'MY', 'MY': 'MY',
             'Singapore': 'SG', 'SG': 'SG',
             'Philippines': 'PH', 'PH': 'PH',
-            'Vietnam': 'VN', 'VN': 'VN',
+            'Viet Nam': 'VN', 'VN': 'VN',
             'Israel': 'IL', 'IL': 'IL',
-            'UAE': 'AE', 'AE': 'AE',
+            'United Arab Emirates': 'AE', 'AE': 'AE',
             'Saudi Arabia': 'SA', 'SA': 'SA',
             'Pakistan': 'PK', 'PK': 'PK',
             'South Africa': 'ZA', 'ZA': 'ZA',
@@ -185,6 +218,10 @@ class DownloadStatsWindow(wx.Frame):
             'Ecuador': 'EC', 'EC': 'EC',
             'Australia': 'AU', 'AU': 'AU',
             'New Zealand': 'NZ', 'NZ': 'NZ',
+            'Hong Kong': 'HK', 'HK': 'HK',
+            'Taiwan': 'TW', 'TW': 'TW',
+            'Senegal': 'SN', 'SN': 'SN',
+            'Iran': 'IR', 'IR': 'IR',
         }
 
         # Country coordinates (longitude, latitude)
@@ -192,13 +229,13 @@ class DownloadStatsWindow(wx.Frame):
             'United States': (-95, 39), 'US': (-95, 39),
             'Canada': (-106, 56), 'CA': (-106, 56),
             'Mexico': (-102, 23), 'MX': (-102, 23),
-            'United Kingdom': (-0.13, 51.5), 'GB': (-0.13, 51.5),
+            'United Kingdom': (-0.13, 71.5), 'GB': (-0.13, 71.5),
             'Germany': (10.45, 51.16), 'DE': (10.45, 51.16),
             'France': (2.21, 46.60), 'FR': (2.21, 46.60),
             'Italy': (12.56, 41.87), 'IT': (12.56, 41.87),
             'Spain': (-3.74, 40.46), 'ES': (-3.74, 40.46),
             'Netherlands': (5.29, 52.13), 'NL': (5.29, 52.13),
-            'Belgium': (4.47, 50.50), 'BE': (4.47, 50.50),
+            'Belgium': (7.47, 50.50), 'BE': (7.47, 50.50),
             'Switzerland': (8.23, 46.82), 'CH': (8.23, 46.82),
             'Austria': (14.55, 47.52), 'AT': (14.55, 47.52),
             'Poland': (19.15, 51.92), 'PL': (19.15, 51.92),
@@ -209,11 +246,11 @@ class DownloadStatsWindow(wx.Frame):
             'Bulgaria': (25.49, 42.73), 'BG': (25.49, 42.73),
             'Greece': (21.82, 39.07), 'GR': (21.82, 39.07),
             'Portugal': (-9.14, 38.74), 'PT': (-9.14, 38.74),
-            'Sweden': (18.64, 60.13), 'SE': (18.64, 60.13),
-            'Norway': (8.47, 60.47), 'NO': (8.47, 60.47),
-            'Finland': (25.75, 61.92), 'FI': (25.75, 61.92),
+            'Sweden': (18.64, 70.13), 'SE': (18.64, 70.13),
+            'Norway': (8.47, 70.47), 'NO': (8.47, 70.47),
+            'Finland': (25.75, 71.92), 'FI': (25.75, 71.92),
             'Denmark': (9.50, 56.26), 'DK': (9.50, 56.26),
-            'Ireland': (-8.24, 53.41), 'IE': (-8.24, 53.41),
+            'Ireland': (-8.24, 73.41), 'IE': (-8.24, 73.41),
             'Estonia': (25.01, 58.60), 'EE': (25.01, 58.60),
             'Latvia': (24.60, 56.88), 'LV': (24.60, 56.88),
             'Lithuania': (23.88, 55.17), 'LT': (23.88, 55.17),
@@ -225,15 +262,16 @@ class DownloadStatsWindow(wx.Frame):
             'China': (104, 35), 'CN': (104, 35),
             'Japan': (138, 36), 'JP': (138, 36),
             'India': (78, 20), 'IN': (78, 20),
-            'South Korea': (127, 37), 'KR': (127, 37),
+            'Korea': (127, 37), 'KR': (127, 37),
             'Indonesia': (113, -5), 'ID': (113, -5),
             'Thailand': (100, 15), 'TH': (100, 15),
             'Malaysia': (101, 4), 'MY': (101, 4),
             'Singapore': (103, 1), 'SG': (103, 1),
             'Philippines': (122, 12), 'PH': (122, 12),
-            'Vietnam': (108, 14), 'VN': (108, 14),
+            'Viet Nam': (108, 14), 'VN': (108, 14),
+            'Iraq': (44, 33), 'IQ': (44, 33),
             'Israel': (34, 31), 'IL': (34, 31),
-            'UAE': (53, 23), 'AE': (53, 23),
+            'United Arab Emirates': (53, 23), 'AE': (53, 23),
             'Saudi Arabia': (45, 24), 'SA': (45, 24),
             'Pakistan': (70, 30), 'PK': (70, 30),
             'South Africa': (24, -49), 'ZA': (24, -49),
@@ -252,6 +290,10 @@ class DownloadStatsWindow(wx.Frame):
             'Ecuador': (-78, -1), 'EC': (-78, -1),
             'Australia': (133, -27), 'AU': (133, -27),
             'New Zealand': (138, -31), 'NZ': (138, -31),
+            'Hong Kong': (114, 22), 'HK': (114, 22),
+            'Taiwan': (121, 24), 'TW': (121, 24),
+            'Senegal': (-14, -26), 'SN': (-14, -26),
+            'Iran': (53, 32), 'IR': (53, 32),
         }
 
         # Prepare bubble data
@@ -280,8 +322,10 @@ class DownloadStatsWindow(wx.Frame):
                     'color_intensity': color_intensity
                 })
 
-        # Sort bubbles by size (largest first)
-        bubbles.sort(key=lambda b: b['radius'], reverse=True)
+        # # Sort bubbles by size (largest first)
+        # bubbles.sort(key=lambda b: b['radius'], reverse=True)
+        # Sort bubbles by downloads (largest first) - gives priority to bigger countries
+        bubbles.sort(key=lambda b: b['downloads'], reverse=True)
 
         # Collision resolution
         def distance(b1, b2):
@@ -291,7 +335,7 @@ class DownloadStatsWindow(wx.Frame):
             min_distance = b1['radius'] + b2['radius']
             return distance(b1, b2) < min_distance
 
-        def resolve_overlap(b1, b2):
+        def resolve_overlap_BEFORE(b1, b2):
             current_dist = distance(b1, b2)
             min_dist = b1['radius'] + b2['radius']
 
@@ -309,7 +353,37 @@ class DownloadStatsWindow(wx.Frame):
                 b2['x'] += move_x * b2_weight
                 b2['y'] += move_y * b2_weight
 
-        def apply_geographic_pull(bubble, strength=0.08):
+        def resolve_overlap(b1, b2):
+            current_dist = distance(b1, b2)
+            min_dist = b1['radius'] + b2['radius']
+
+            if current_dist < min_dist and current_dist > 0:
+                dx = b2['x'] - b1['x']
+                dy = b2['y'] - b1['y']
+                factor = min_dist / current_dist
+                total_radius = b1['radius'] + b2['radius']
+
+                # Add mass factor to favor larger countries
+                mass_factor = math.sqrt(b1['downloads'] / b2['downloads']) if b2['downloads'] > 0 else 1.0
+                mass_factor = max(0.1, min(10.0, mass_factor))  # Clamp between 0.1 and 10
+
+                # Adjust weights based on both radius and mass
+                b1_weight = (b2['radius'] / total_radius) / mass_factor
+                b2_weight = (b1['radius'] / total_radius) * mass_factor
+
+                # Normalize weights
+                total_weight = b1_weight + b2_weight
+                b1_weight /= total_weight
+                b2_weight /= total_weight
+
+                move_x = dx * (factor - 1) * 0.5
+                move_y = dy * (factor - 1) * 0.5
+                b1['x'] -= move_x * b1_weight
+                b1['y'] -= move_y * b1_weight
+                b2['x'] += move_x * b2_weight
+                b2['y'] += move_y * b2_weight
+
+        def apply_geographic_pull(bubble, strength=0.03):
             dx = bubble['original_x'] - bubble['x']
             dy = bubble['original_y'] - bubble['y']
             bubble['x'] += dx * strength
@@ -324,7 +398,7 @@ class DownloadStatsWindow(wx.Frame):
                         resolve_overlap(bubbles[i], bubbles[j])
                         overlaps_resolved = False
             for bubble in bubbles:
-                apply_geographic_pull(bubble, strength=0.03)
+                apply_geographic_pull(bubble, strength=self.geographic_pull_strength)
             if overlaps_resolved:
                 break
 
@@ -398,7 +472,22 @@ class DownloadStatsWindow(wx.Frame):
         total_downloads = sum(country_downloads.values())
         stats_text = f'Downloads: {format_downloads(total_downloads)}\n'
         stats_text += f'Countries: {len(bubbles)}\n'
-        stats_text += f'Largest: {bubbles[0]["acronym"]} ({format_downloads(bubbles[0]["downloads"])})'
+        stats_text += f'Largest: {bubbles[0]["acronym"]} ({format_downloads(bubbles[0]["downloads"])})\n'
+
+        # Add last updated time
+        last_updated = data.get('stats_updated', 'Unknown')
+        if last_updated != 'Unknown':
+            try:
+                # Try to format the date nicely
+                from datetime import datetime
+                dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                formatted_date = dt.strftime('%H:%M')
+                stats_text += f'Updated: {formatted_date}\n'
+                stats_text += f'Date: {dt.strftime('%d-%m-%y')}'
+            except:
+                stats_text += f'Updated: {last_updated}'
+        else:
+            stats_text += f'Updated: {last_updated}'
 
         self.ax.text(0.85, 0.98, stats_text,
                      transform=self.ax.transAxes, fontsize=8,
