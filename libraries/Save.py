@@ -18,6 +18,7 @@ from openpyxl import load_workbook
 from libraries.Sheet_Operations import on_sheet_selected
 from copy import deepcopy
 import shutil
+import datetime
 # from Functions import convert_to_serializable_and_round
 
 
@@ -2432,6 +2433,484 @@ def on_save_as(window, event=None):
             import traceback
             traceback.print_exc()
             wx.MessageBox(f"Error saving file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def save_vamas_file(window, output_path=None):
+    """
+    Save the current data as a VAMAS file.
+
+    This function takes the data from window.Data and creates a VAMAS file,
+    reading experimental description from column AX of Excel sheets or from JSON.
+
+    Args:
+        window: The main application window object containing the data
+        output_path: Optional path for output file. If None, shows save dialog.
+    """
+    import os
+    import json
+    import datetime
+
+    try:
+        if 'FilePath' not in window.Data or not window.Data['FilePath']:
+            wx.MessageBox("No data loaded to save as VAMAS file.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Show save dialog if no output path provided
+        if output_path is None:
+            with wx.FileDialog(window, "Save VAMAS file",
+                               wildcard="VAMAS files (*.vms)|*.vms",
+                               style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    return
+                output_path = fileDialog.GetPath()
+
+        # Ensure .vms extension
+        if not output_path.lower().endswith('.vms'):
+            output_path += '.vms'
+
+        # Create console window for progress updates
+        parent_pos = window.GetPosition()
+        parent_size = window.GetSize()
+        console_frame = wx.Frame(window, title="Creating VAMAS File", size=(300, 350))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 350) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        update_console("Starting VAMAS file creation...")
+
+        # Get experimental description data
+        exp_data = get_experimental_description_data(window)
+
+        # Write VAMAS file
+        with open(output_path, 'w') as f:
+            update_console("Writing VAMAS header...")
+            write_vamas_header(f, window, exp_data)
+
+            update_console("Writing data blocks...")
+            write_vamas_blocks(f, window, exp_data, update_console)
+
+        update_console("VAMAS file created successfully!")
+        wx.CallLater(1500, console_frame.Close)
+
+        wx.MessageBox(f"VAMAS file saved successfully:\n{output_path}",
+                      "Success", wx.OK | wx.ICON_INFORMATION)
+
+    except Exception as e:
+        if 'console_frame' in locals():
+            console_frame.Close()
+        wx.MessageBox(f"Error creating VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def get_experimental_description_data(window):
+    """
+    Extract experimental description data from Excel sheets or JSON file.
+
+    Returns:
+        dict: Dictionary containing experimental parameters for each core level
+    """
+    import pandas as pd
+    import json
+    import os
+
+    exp_data = {}
+
+    # Try to get data from JSON file first (easier structure)
+    json_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r') as f:
+                json_data = json.load(f)
+
+            # Extract experimental data from JSON if available
+            for core_level in window.Data['Core levels']:
+                if core_level in json_data.get('Core levels', {}):
+                    exp_data[core_level] = extract_exp_data_from_json(json_data['Core levels'][core_level])
+        except:
+            pass
+
+    # Fallback: read from Excel file column AX (column 50)
+    if not exp_data:
+        exp_data = get_exp_data_from_excel(window.Data['FilePath'], window.Data['Core levels'].keys())
+
+    return exp_data
+
+
+def extract_exp_data_from_json(core_level_data):
+    """Extract experimental parameters from JSON core level data."""
+
+    # Default experimental parameters structure
+    exp_params = {
+        'Sample ID': 'Unknown',
+        'Year': 2024,
+        'Month': 1,
+        'Day': 1,
+        'Hour': 0,
+        'Minute': 0,
+        'Second': 0,
+        'Technique': 'XPS',
+        'Species': 'Unknown',
+        'Transition': '1s',
+        'Source Label': 'Al Ka',
+        'Source Energy': 1486.67,
+        'Source Width X': 0.0,
+        'Source Width Y': 0.0,
+        'Pass Energy': 20.0,
+        'Work Function': 4.5,
+        'Analyzer Mode': 'CAE',
+        'Take-off Polar Angle': 45.0,
+        'Take-off Azimuth': 0.0,
+        'Analysis Width X': 1000.0,
+        'Analysis Width Y': 1000.0,
+        'X Label': 'Binding Energy',
+        'X Units': 'eV',
+        'X Start': 0.0,
+        'X Step': 0.1,
+        'Num Y Values': 0,
+        'Collection Time': 1.0,
+        'Y Unit': 'Counts',
+        'Block Comment': ''
+    }
+
+    # Try to extract actual values if they exist in the data
+    if 'experimental_description' in core_level_data:
+        for item in core_level_data['experimental_description']:
+            if isinstance(item, list) and len(item) >= 2:
+                key, value = item[0], item[1]
+                if key in exp_params:
+                    exp_params[key] = value
+
+    # Calculate parameters from actual data
+    if 'B.E.' in core_level_data and core_level_data['B.E.']:
+        be_values = core_level_data['B.E.']
+        exp_params['X Start'] = max(be_values)  # VAMAS starts with highest BE
+        exp_params['X Step'] = abs(be_values[1] - be_values[0]) if len(be_values) > 1 else 0.1
+        exp_params['Num Y Values'] = len(be_values)
+
+    return exp_params
+
+
+def get_exp_data_from_excel(excel_path, sheet_names):
+    """Extract experimental description data from Excel column AX."""
+    import pandas as pd
+
+    exp_data = {}
+
+    try:
+        for sheet_name in sheet_names:
+            exp_data[sheet_name] = {}
+
+            # Read experimental description from column AX (column 50)
+            df = pd.read_excel(excel_path, sheet_name=sheet_name, usecols=[49, 50], header=None)
+
+            # Parse experimental description
+            for idx, row in df.iterrows():
+                if pd.notna(row.iloc[0]) and pd.notna(row.iloc[1]):
+                    key = str(row.iloc[0]).strip()
+                    value = row.iloc[1]
+                    exp_data[sheet_name][key] = value
+
+            # Set default values for missing parameters
+            exp_data[sheet_name] = set_default_exp_values(exp_data[sheet_name])
+
+    except Exception as e:
+        print(f"Error reading experimental data from Excel: {e}")
+        # Return default values for all sheets
+        for sheet_name in sheet_names:
+            exp_data[sheet_name] = set_default_exp_values({})
+
+    return exp_data
+
+
+def set_default_exp_values(exp_dict):
+    """Set default values for missing experimental parameters."""
+
+    defaults = {
+        'Sample ID': 'Unknown',
+        'Year': 2024,
+        'Month': 1,
+        'Day': 1,
+        'Hour': 0,
+        'Minute': 0,
+        'Second': 0,
+        'Technique': 'XPS',
+        'Species': 'Unknown',
+        'Transition': '1s',
+        'Source Label': 'Al Ka',
+        'Source Energy': 1486.67,
+        'Source Width X': 0.0,
+        'Source Width Y': 0.0,
+        'Pass Energy': 20.0,
+        'Work Function': 4.5,
+        'Analyzer Mode': 'CAE',
+        'Take-off Polar Angle': 45.0,
+        'Take-off Azimuth': 0.0,
+        'Analysis Width X': 1000.0,
+        'Analysis Width Y': 1000.0,
+        'X Label': 'Binding Energy',
+        'X Units': 'eV',
+        'X Start': 0.0,
+        'X Step': 0.1,
+        'Num Y Values': 0,
+        'Collection Time': 1.0,
+        'Y Unit': 'Counts',
+        'Block Comment': ''
+    }
+
+    for key, default_value in defaults.items():
+        if key not in exp_dict:
+            exp_dict[key] = default_value
+
+    return exp_dict
+
+
+def write_vamas_header(f, window, exp_data):
+    """Write the VAMAS file header."""
+
+    # VAMAS format identifier
+    f.write("VAMAS Surface Chemical Analysis Standard Data Transfer Format 1988 May 4\n")
+
+    # Institution, instrument, operator, experiment identifiers
+    f.write("Not Specified\n")
+    f.write("Not Specified\n")
+    f.write("Not Specified\n")
+    f.write("Not Specified\n")
+
+    # Comment lines
+    f.write("4\n")
+    f.write("Casa Info Follows CasaXPS Version 2.3.27PR1.7\n")
+    f.write("0\n")
+    f.write("SourceAnalyserAngle: Not Specified\n")
+    f.write("CasaRowLabel:KherveFitting SampleID\n")
+
+    # Experiment and scan mode
+    f.write("MAP\n")
+    f.write("REGULAR\n")
+
+    # Number of spectral regions
+    num_core_levels = len(window.Data['Core levels'])
+    f.write(f"{num_core_levels}\n")
+
+    # MAP mode parameters (FIXED: these should be 0, 0, 0)
+    f.write("0\n")  # Number of analysis positions
+    f.write("0\n")  # Number of discrete X coordinates
+    f.write("0\n")  # Number of discrete Y coordinates
+
+    # Experiment variables
+    f.write("1\n")  # Number of experiment variables
+    f.write("Exp Variable\n")  # Variable label
+    f.write("d\n")  # Variable unit
+
+    # Inclusion/exclusion list
+    f.write("0\n")  # Number of entries
+
+    # Manually entered items
+    f.write("0\n")
+
+    # Future upgrade entries
+    f.write("0\n")
+    f.write("0\n")
+
+    # Number of blocks
+    f.write(f"{num_core_levels}\n")
+
+
+def write_vamas_blocks(f, window, exp_data, update_console):
+    """Write all data blocks to the VAMAS file."""
+
+    block_num = 0
+    for core_level_name, core_level_data in window.Data['Core levels'].items():
+        block_num += 1
+        update_console(f"Writing block {block_num}: {core_level_name}")
+
+        # Get experimental parameters for this core level
+        exp_params = exp_data.get(core_level_name, set_default_exp_values({}))
+
+        # Extract species and transition from core level name
+        species, transition = parse_core_level_name(core_level_name)
+        exp_params['Species'] = species
+        exp_params['Transition'] = transition
+
+        # Write block
+        write_single_block(f, core_level_name, core_level_data, exp_params, block_num)
+
+    # CRITICAL: Add the end of experiment marker
+    f.write("end of experiment\n")
+
+
+def parse_core_level_name(name):
+    """Parse core level name to extract species and transition."""
+    import re
+
+    # Try to match patterns like "C1s", "O2p", etc.
+    match = re.match(r'([A-Z][a-z]?)(\d+[spdfghi])', name)
+    if match:
+        return match.group(1), match.group(2)
+
+    # Fallback for other patterns
+    if name.lower() in ['survey', 'wide']:
+        return 'Survey', 'none'
+
+    return 'Unknown', '1s'
+
+
+def write_single_block(f, core_level_name, core_level_data, exp_params, block_num):
+    """Write a single data block to the VAMAS file."""
+
+    # Block identifier (use original sample name)
+    f.write(f"KherveFitting BlockID {core_level_name}/{block_num}\n")
+
+    # Sample identifier
+    f.write("KherveFitting SampleID\n")
+
+    # Date and time
+    f.write("2025\n") # To replace by the date of acquisition
+    f.write("02\n")
+    f.write("31\n")
+    f.write("13\n")
+    f.write("13\n")
+    f.write("13\n")
+
+    # Hours advance GMT
+    f.write("0\n")
+
+    # Block comment
+    f.write("6\n")
+    f.write("Casa Info Follows\n")
+    f.write("0\n")
+    f.write("0\n")
+    f.write("0\n")
+    f.write("0\n")
+    f.write("Created by KherveFitting\n")
+
+    # Technique
+    f.write("XPS\n")
+
+    # Experimental variables
+    f.write("16384\n")
+
+    # Analysis source parameters
+    f.write("16384\n")
+    f.write("0\n")
+    f.write("X-ray Source\n") # To replace by the type of source
+    f.write("1486.71\n") # To replace by the energy
+    f.write("001\n") # To replace by power of the source
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+    f.write("1000\n")
+    f.write("1000\n")
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+    f.write("FAT\n")
+    f.write("20\n")
+    f.write("1e+37\n")
+    f.write("-4.47\n") # To replace by workfunction
+    f.write("0\n")
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+
+    # Species and transition
+    species, transition = parse_core_level_name(core_level_name)
+    f.write(f"{species}\n")
+    f.write(f"{transition}\n")
+    f.write("-1\n")
+
+    # Data parameters
+    f.write("Binding Energy\n")
+    f.write("eV\n")
+
+    # Get actual data
+    be_values = core_level_data.get('B.E.', [])
+    intensity_values = (
+            core_level_data.get('Corrected Data', []) or
+            core_level_data.get('Raw Data', []) or
+            core_level_data.get('Intensity', [])
+    )
+
+    if not be_values or not intensity_values:
+        raise ValueError(f"No data found for core level {core_level_name}")
+
+    # Ensure equal length
+    min_length = min(len(be_values), len(intensity_values))
+    be_values = be_values[:min_length]
+    intensity_values = intensity_values[:min_length]
+    intensity_values.reverse()  # Reverse to match VAMAS order
+
+    # Use BE values - start from highest BE (be_end)
+    be_end = min(be_values)  # Highest binding energy
+    be_step = round(abs(be_values[1] - be_values[0]), 1) if len(be_values) > 1 else 0.1
+
+    f.write(f"{be_end}\n")  # Changed from be_start to be_end
+    f.write(f"{be_step}\n")
+
+    # Number of corresponding variables
+    f.write("2\n")
+
+    # Corresponding variable labels
+    f.write("Intensity\n")
+    f.write("d\n")
+    f.write("Transmission\n")
+    f.write("d\n")
+
+    # Additional parameters
+    f.write("pulse counting\n")
+    # f.write("0.352941\n")
+    f.write("1.00\n")   # To replace by the dwell time
+    f.write("1\n")          # To replace by how many time it was measured
+    f.write("0\n")
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+    f.write("1e+37\n")
+    f.write("1\n")
+
+    # Additional numerical parameter
+    f.write("MFP Exponent\n")
+    f.write("d\n")
+    f.write("0\n")
+
+    # Number of Y values - multiply by 2 for intensity + transmission pairs
+    f.write(f"{len(intensity_values) * 2}\n")
+
+    # Y mins and maxs (use actual data values)
+    intensity_min = int(min(intensity_values))
+    intensity_max = int(max(intensity_values))
+
+    f.write(f"{intensity_min}\n")
+    f.write(f"{intensity_max}\n")
+    f.write("1.00\n")
+    f.write("1.00\n")
+
+    # Write the data pairs
+    for i, intensity in enumerate(intensity_values):
+        f.write(f"{int(intensity)}\n")
+
+        # Generate transmission that matches original pattern
+        transmission_start = 1.00
+        transmission_end = 1.00
+        transmission_step = (transmission_start - transmission_end) / (len(intensity_values) - 1)
+        transmission = transmission_start - (i * transmission_step)
+        f.write(f"{transmission:.6f}\n")
+
+
+def save_vamas_file_dialog(window):
+    """
+    Show save dialog for VAMAS file and call save_vamas_file.
+
+    Args:
+        window: The main application window object.
+    """
+    save_vamas_file(window)
+
+
 
 
 def export_sheet_to_txt(window):

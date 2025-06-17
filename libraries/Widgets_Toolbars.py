@@ -41,6 +41,8 @@ from libraries.Utilities import sort_excel_sheets
 from libraries.DownloadStats import show_download_stats_window
 from libraries.Open import import_multiple_avantage_files
 from libraries.Open import import_multiple_kfitting_files
+from libraries.Save import save_vamas_file_dialog
+
 
 # With conditional imports:
 import platform
@@ -436,13 +438,13 @@ def create_menu(window):
     new_instance_item = file_menu.Append(wx.NewId(), "New Window\tCtrl+N")
     window.Bind(wx.EVT_MENU, lambda event: launch_new_instance(), new_instance_item)
 
-    open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")
-    window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_item)
+    # open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")
+    # window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_item)
 
     # Open KherveFitting submenu
     open_kfitting_menu = wx.Menu()
 
-    open_single_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open KFitting file (.xlsx)")
+    open_single_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open KFitting file (.xlsx) \tCtrl+O")
     window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_single_kfitting_item)
 
     open_multiple_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open Multiple KFitting files (folder)")
@@ -530,6 +532,11 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_raman_files(window), import_multiple_raman_item)
 
     # Export submenu items
+    export_vamas_item = export_menu.Append(wx.ID_ANY, "Export as VAMAS (.vms)",
+                                           "Export all data as VAMAS file")
+    window.Bind(wx.EVT_MENU, lambda event: save_vamas_file_dialog(window), export_vamas_item)
+
+
     export_python_plot_item = export_menu.Append(wx.NewId(), "Python Plot")
     window.Bind(wx.EVT_MENU, lambda event: create_plot_script_from_excel(window), export_python_plot_item)
 
