@@ -2761,6 +2761,145 @@ def parse_core_level_name(name):
     return 'Unknown', '1s'
 
 
+def write_casa_fitting_info(f, core_level_name, core_level_data):
+    """
+    Write CASA fitting information to VAMAS file between comment count and 'XPS'.
+
+    Args:
+        f: File object to write to
+        core_level_name: Name of the core level (e.g., "O1s")
+        core_level_data: Dictionary containing fitting and background data
+    """
+    # Prepare all comment lines first to count them
+    comment_lines = []
+
+    # Add standard CASA header lines
+    comment_lines.append("Casa Info Follows")
+    comment_lines.append("0")
+    comment_lines.append("0")
+
+    # Check if fitting data exists
+    fitting_data = core_level_data.get('Fitting', {})
+    background_data = core_level_data.get('Background', {})
+    peaks_data = fitting_data.get('Peaks', {})
+
+    # Add background information
+    num_backgrounds = 1 if background_data and background_data.get('Bkg Type') else 0
+    comment_lines.append(str(num_backgrounds))
+
+    if num_backgrounds > 0:
+        # Convert BE to KE for CASA format
+        photon_energy = 1486.67
+        bkg_low_be = float(background_data.get('Bkg Low', 0))
+        bkg_high_be = float(background_data.get('Bkg High', 0))
+
+        # Convert BE to KE (KE = photon_energy - BE)
+        low_ke = photon_energy - bkg_high_be
+        high_ke = photon_energy - bkg_low_be
+
+        # Map KherveFitting background types to CASA types
+        bg_type_mapping = {
+            'Smart': 'Multi-Regions Smart',
+            'Shirley': 'Shirley',
+            'Linear': 'Linear',
+            'Polynomial': 'Linear',
+            'Tougaard': 'Tougaard'
+        }
+
+        kf_bg_type = background_data.get('Bkg Type', 'Smart')
+        casa_bg_type = bg_type_mapping.get(kf_bg_type, 'Shirley')
+
+        # Extract species info from core level name
+        species, transition = parse_core_level_name(core_level_name)
+
+        # Get atomic mass and RSF
+        atomic_masses = {
+            'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Na': 22.990,
+            'Mg': 24.305, 'Al': 26.982, 'Si': 28.085, 'P': 30.974, 'S': 32.065,
+            'Cl': 35.453, 'K': 39.098, 'Ca': 40.078, 'Ti': 47.867, 'Fe': 55.845,
+            'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.38, 'Br': 79.904, 'Ag': 107.868
+        }
+        atomic_mass = atomic_masses.get(species, 1.0)
+
+        # RSF values
+        rsf_values = {
+            'C1s': 1.0, 'N1s': 1.8, 'O1s': 2.93, 'F1s': 4.43, 'Si2p': 0.817,
+            'Al2p': 0.537, 'S2p': 1.67, 'Cl2p': 2.29, 'Ca2p': 2.31, 'Ti2p': 2.55
+        }
+        rsf = rsf_values.get(f"{species}{transition}", 1.0)
+
+        # Write CASA region line
+        casa_region = (f"CASA region (*{core_level_name}*) (*{casa_bg_type}*) "
+                       f"{low_ke:.5f} {high_ke:.5f} {rsf} 2 0 0 0 -450 0 0 "
+                       f"(*{core_level_name}*) {atomic_mass} 0 {rsf}")
+        comment_lines.append(casa_region)
+
+    # Add peak information
+    num_peaks = len(peaks_data)
+    comment_lines.append(str(num_peaks))
+
+    for peak_name, peak_data in peaks_data.items():
+        # Get peak parameters
+        position_be = peak_data.get('Position', 0)
+        area = peak_data.get('Area', 0)
+        fwhm = peak_data.get('FWHM', 1.0)
+        lg_ratio = peak_data.get('L/G', 30)
+
+        # Convert position from BE to KE
+        position_ke = photon_energy - position_be
+
+        # Map KherveFitting model to CASA model
+        fitting_model = peak_data.get('Fitting Model', 'GL (Area)')
+        if 'LA' in fitting_model:
+            casa_model = f"LA({int(lg_ratio)})"
+        elif 'SGL' in fitting_model:
+            casa_model = f"SGL({int(lg_ratio)})"
+        else:
+            casa_model = f"GL({int(lg_ratio)})"
+
+        # Get background limits in KE
+        if background_data:
+            bg_low_ke = photon_energy - float(background_data.get('Bkg High', position_be + 5))
+            bg_high_ke = photon_energy - float(background_data.get('Bkg Low', position_be - 5))
+        else:
+            bg_low_ke = position_ke - 5
+            bg_high_ke = position_ke + 5
+
+        # Extract species info and get RSF
+        species, transition = parse_core_level_name(core_level_name)
+        rsf_values = {
+            'C1s': 1.0, 'N1s': 1.8, 'O1s': 2.93, 'F1s': 4.43, 'Si2p': 0.817,
+            'Al2p': 0.537, 'S2p': 1.67, 'Cl2p': 2.29, 'Ca2p': 2.31, 'Ti2p': 2.55
+        }
+        rsf = rsf_values.get(f"{species}{transition}", 1.0)
+
+        atomic_masses = {
+            'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Na': 22.990,
+            'Mg': 24.305, 'Al': 26.982, 'Si': 28.085, 'P': 30.974, 'S': 32.065,
+            'Cl': 35.453, 'K': 39.098, 'Ca': 40.078, 'Ti': 47.867, 'Fe': 55.845,
+            'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.38, 'Br': 79.904, 'Ag': 107.868
+        }
+        atomic_mass = atomic_masses.get(species, 1.0)
+
+        # Write CASA comp line
+        casa_comp = (f"CASA comp (*{peak_name}*) (*{casa_model}*) "
+                     f"Area {area} 1e-20 659597.45 -1 1 "
+                     f"MFWHM {fwhm:.2f} 0.24 6 -1 1 "
+                     f"Position {position_ke:.2f} {bg_low_ke:.5f} {bg_high_ke:.5f} -1 1 "
+                     f"RSF {rsf} MASS {atomic_mass} INDEX -1 "
+                     f"(*{core_level_name}*) CONST (**) UNCORRECTEDRSF {rsf}")
+        comment_lines.append(casa_comp)
+
+    # Add final line
+    comment_lines.append("Created by KherveFitting")
+
+    # Write the correct number of comment lines
+    f.write(f"{len(comment_lines)}\n")
+
+    # Write all comment lines
+    for line in comment_lines:
+        f.write(f"{line}\n")
+
 def write_single_block(f, core_level_name, core_level_data, exp_params, block_num):
     """Write a single data block to the VAMAS file."""
 
@@ -2782,13 +2921,13 @@ def write_single_block(f, core_level_name, core_level_data, exp_params, block_nu
     f.write("0\n")
 
     # Block comment
-    f.write("6\n")
-    f.write("Casa Info Follows\n")
-    f.write("0\n")
-    f.write("0\n")
-    f.write("0\n")
-    f.write("0\n")
-    f.write("Created by KherveFitting\n")
+    # f.write("Casa Info Follows\n")
+    # f.write("0\n")
+    # f.write("0\n")
+    # f.write("0\n")
+    # f.write("0\n")
+    # f.write("Created by KherveFitting\n")
+    write_casa_fitting_info(f, core_level_name, core_level_data)
 
     # Technique
     f.write("XPS\n")
