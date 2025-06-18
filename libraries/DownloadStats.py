@@ -494,8 +494,8 @@ class DownloadStatsWindow(wx.Frame):
                      bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9),
                      verticalalignment='top', zorder=100)
 
-        self.ax.set_xlabel('Longitude', fontsize=12)
-        self.ax.set_ylabel('Latitude', fontsize=12)
+        self.ax.set_xlabel('~Longitude (depends on download and pull)', fontsize=12)
+        self.ax.set_ylabel('~Latitude (depends on download and pull)', fontsize=12)
         self.canvas.draw()
 
     def plot_sept_2024(self, event):

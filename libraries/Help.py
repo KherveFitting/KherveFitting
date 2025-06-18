@@ -88,7 +88,9 @@ def on_about(self, event):
 
     developers = wx.StaticText(panel,
                                label="Developed by:\nG. Kerherve / g.kerherve@imperial.ac.uk")
-    Testers = wx.StaticText(panel, label="Tested by:\nWilliam Skinner, Arthur Graf,\nDavid Morgan, Mark A. Isaacs, "
+    Testers = wx.StaticText(panel, label="Tested by:\nWilliam Skinner, Julian A. Hochhaus, Hideki Nakajima, "
+                                         "Arthur Graf,"
+                                         "\nDavid Morgan, Mark A. Isaacs, "
                                          "Benjamin Reed, David J. Payne")
     copyright = wx.StaticText(panel, label="(C) 2025 Gwilherm Kerherve")
 

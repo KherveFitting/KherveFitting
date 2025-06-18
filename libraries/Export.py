@@ -210,14 +210,6 @@ def _extract_peak_parameters(window, row, library_data, current_instrument):
         }
     }
 
-def get_rsf_from_library_OLD(library_data, element, orbital, instrument):
-    key = (element, orbital)
-    if key in library_data and instrument in library_data[key]:
-        return library_data[key][instrument]['rsf']
-
-    return library_data[key]['Al1486']['rsf']  # Default to Al if not found
-
-
 def get_rsf_from_library(library_data, element, orbital, instrument):
    key = (element, orbital)
    if key in library_data and instrument in library_data[key]:

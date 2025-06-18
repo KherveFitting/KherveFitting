@@ -2739,7 +2739,7 @@ def write_vamas_blocks(f, window, exp_data, update_console):
         exp_params['Transition'] = transition
 
         # Write block
-        write_single_block(f, core_level_name, core_level_data, exp_params, block_num)
+        write_single_block(f, core_level_name, core_level_data, exp_params, block_num, window)
 
     # CRITICAL: Add the end of experiment marker
     f.write("end of experiment\n")
@@ -2761,15 +2761,82 @@ def parse_core_level_name(name):
     return 'Unknown', '1s'
 
 
-def write_casa_fitting_info(f, core_level_name, core_level_data):
+def get_rsf_for_core_level(peak_name, library_data, current_instrument):
+    """
+    Get RSF for a core level using the exact same method as _extract_peak_parameters.
+
+    Args:
+        peak_name: Name like "O1s", "C1s p1", etc.
+        library_data: The RSF library data
+        current_instrument: Current instrument from window
+
+    Returns:
+        float: RSF value
+    """
+    import re
+
+    # Use the EXACT same regex as _extract_peak_parameters
+    match = re.match(r'([A-Z][a-z]*)(\d+[spdf])(?:(\d+/\d+))?', peak_name)
+    if match:
+        element, orbital, suborbital = match.groups()
+        if suborbital:
+            # Use full orbital including suborbital for RSF lookup
+            core_level = f"{element}{orbital}{suborbital}"
+        else:
+            core_level = f"{element}{orbital}"
+    else:
+        core_level = ''.join(filter(str.isalnum, peak_name.split()[0]))
+        element, orbital, suborbital = core_level, '', None
+
+    print(f"DEBUG: Parsed - Element: {element}, Orbital: {orbital}, Suborbital: {suborbital}")
+
+    # Get RSF directly using complete orbital designation - EXACT same logic as _extract_peak_parameters
+    key = (element, orbital + (suborbital or ''))
+    print(f"DEBUG: Looking for key: {key}")
+    print(f"DEBUG: Available keys: {list(library_data.keys())[:10]}...")  # Show first 10 keys
+
+    if key in library_data and current_instrument in library_data[key]:
+        rsf = library_data[key][current_instrument]['rsf']
+        print(f"DEBUG: Found RSF: {rsf}")
+        return rsf
+    else:
+        print(f"DEBUG: Key {key} not found or instrument {current_instrument} not available")
+        if key in library_data:
+            print(f"DEBUG: Available instruments for {key}: {list(library_data[key].keys())}")
+            # Fallback to first available instrument
+            available_instruments = list(library_data[key].keys())
+            if available_instruments:
+                fallback_instrument = available_instruments[0]
+                rsf = library_data[key][fallback_instrument]['rsf']
+                print(f"DEBUG: Using fallback instrument {fallback_instrument}, RSF: {rsf}")
+                return rsf
+        print(f"DEBUG: No RSF found, returning 1.0")
+        return 1.0
+
+
+def write_casa_fitting_info(f, core_level_name, core_level_data, window):
     """
     Write CASA fitting information to VAMAS file between comment count and 'XPS'.
+    Uses existing RSF and atomic mass libraries from Export.py and Area_Calculation.
 
     Args:
         f: File object to write to
         core_level_name: Name of the core level (e.g., "O1s")
         core_level_data: Dictionary containing fitting and background data
+        window: Main window object to access current_instrument
     """
+    # Import existing libraries
+    from libraries.Open import load_library_data
+    from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES
+    import re
+
+    # Load RSF library data and get current instrument
+    library_data = load_library_data()
+    current_instrument = window.current_instrument
+
+    print(f"DEBUG: Current instrument: {current_instrument}")
+    print(f"DEBUG: Core level name: {core_level_name}")
+
     # Prepare all comment lines first to count them
     comment_lines = []
 
@@ -2809,24 +2876,14 @@ def write_casa_fitting_info(f, core_level_name, core_level_data):
         kf_bg_type = background_data.get('Bkg Type', 'Smart')
         casa_bg_type = bg_type_mapping.get(kf_bg_type, 'Shirley')
 
-        # Extract species info from core level name
-        species, transition = parse_core_level_name(core_level_name)
+        # Get RSF using the EXACT same method as _extract_peak_parameters
+        rsf = get_rsf_for_core_level(core_level_name, library_data, current_instrument)
 
-        # Get atomic mass and RSF
-        atomic_masses = {
-            'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Na': 22.990,
-            'Mg': 24.305, 'Al': 26.982, 'Si': 28.085, 'P': 30.974, 'S': 32.065,
-            'Cl': 35.453, 'K': 39.098, 'Ca': 40.078, 'Ti': 47.867, 'Fe': 55.845,
-            'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.38, 'Br': 79.904, 'Ag': 107.868
-        }
-        atomic_mass = atomic_masses.get(species, 1.0)
+        # Get atomic mass using existing library
+        element_symbol = extract_element_symbol(core_level_name)
+        atomic_mass = ATOMIC_MASSES.get(element_symbol, 1.0)
 
-        # RSF values
-        rsf_values = {
-            'C1s': 1.0, 'N1s': 1.8, 'O1s': 2.93, 'F1s': 4.43, 'Si2p': 0.817,
-            'Al2p': 0.537, 'S2p': 1.67, 'Cl2p': 2.29, 'Ca2p': 2.31, 'Ti2p': 2.55
-        }
-        rsf = rsf_values.get(f"{species}{transition}", 1.0)
+        print(f"DEBUG: Background RSF: {rsf}, Atomic mass: {atomic_mass}")
 
         # Write CASA region line
         casa_region = (f"CASA region (*{core_level_name}*) (*{casa_bg_type}*) "
@@ -2844,18 +2901,35 @@ def write_casa_fitting_info(f, core_level_name, core_level_data):
         area = peak_data.get('Area', 0)
         fwhm = peak_data.get('FWHM', 1.0)
         lg_ratio = peak_data.get('L/G', 30)
+        sigma = peak_data.get('Sigma', 0.6)
+        gamma = peak_data.get('Gamma', 0.4)
 
         # Convert position from BE to KE
         position_ke = photon_energy - position_be
 
-        # Map KherveFitting model to CASA model
+        # Map KherveFitting model to CASA model - UPDATED FOR LA MODELS
         fitting_model = peak_data.get('Fitting Model', 'GL (Area)')
-        if 'LA' in fitting_model:
+        print(f"DEBUG: Processing peak {peak_name} with model: {fitting_model}")
+
+        if 'LA*G' in fitting_model:
+            # LA*G model: use format LA(sigma, gamma, >100)
+            casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 150)"
+            print(f"DEBUG: LA*G model - sigma: {sigma}, gamma: {gamma}")
+        elif 'LA (Area, σ/γ, γ)' in fitting_model:
+            # LA with sigma/gamma ratio: use single parameter format LA(lg_ratio)
             casa_model = f"LA({int(lg_ratio)})"
+            print(f"DEBUG: LA σ/γ model - lg_ratio: {lg_ratio}")
+        elif 'LA (Area, σ, γ)' in fitting_model:
+            # Standard LA model: use format LA(sigma, gamma, 0.5)
+            casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 0.5)"
+            print(f"DEBUG: LA σ,γ model - sigma: {sigma}, gamma: {gamma}")
         elif 'SGL' in fitting_model:
             casa_model = f"SGL({int(lg_ratio)})"
         else:
+            # Default GL model
             casa_model = f"GL({int(lg_ratio)})"
+
+        print(f"DEBUG: Final CASA model: {casa_model}")
 
         # Get background limits in KE
         if background_data:
@@ -2865,21 +2939,14 @@ def write_casa_fitting_info(f, core_level_name, core_level_data):
             bg_low_ke = position_ke - 5
             bg_high_ke = position_ke + 5
 
-        # Extract species info and get RSF
-        species, transition = parse_core_level_name(core_level_name)
-        rsf_values = {
-            'C1s': 1.0, 'N1s': 1.8, 'O1s': 2.93, 'F1s': 4.43, 'Si2p': 0.817,
-            'Al2p': 0.537, 'S2p': 1.67, 'Cl2p': 2.29, 'Ca2p': 2.31, 'Ti2p': 2.55
-        }
-        rsf = rsf_values.get(f"{species}{transition}", 1.0)
+        # Get RSF for this specific peak using the same method as _extract_peak_parameters
+        rsf = get_rsf_for_core_level(peak_name, library_data, current_instrument)
 
-        atomic_masses = {
-            'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Na': 22.990,
-            'Mg': 24.305, 'Al': 26.982, 'Si': 28.085, 'P': 30.974, 'S': 32.065,
-            'Cl': 35.453, 'K': 39.098, 'Ca': 40.078, 'Ti': 47.867, 'Fe': 55.845,
-            'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.38, 'Br': 79.904, 'Ag': 107.868
-        }
-        atomic_mass = atomic_masses.get(species, 1.0)
+        # Get atomic mass
+        element_symbol = extract_element_symbol(peak_name)
+        atomic_mass = ATOMIC_MASSES.get(element_symbol, 1.0)
+
+        print(f"DEBUG: Peak {peak_name} RSF: {rsf}, Atomic mass: {atomic_mass}")
 
         # Write CASA comp line
         casa_comp = (f"CASA comp (*{peak_name}*) (*{casa_model}*) "
@@ -2900,7 +2967,7 @@ def write_casa_fitting_info(f, core_level_name, core_level_data):
     for line in comment_lines:
         f.write(f"{line}\n")
 
-def write_single_block(f, core_level_name, core_level_data, exp_params, block_num):
+def write_single_block(f, core_level_name, core_level_data, exp_params, block_num, window):
     """Write a single data block to the VAMAS file."""
 
     # Block identifier (use original sample name)
@@ -2927,7 +2994,7 @@ def write_single_block(f, core_level_name, core_level_data, exp_params, block_nu
     # f.write("0\n")
     # f.write("0\n")
     # f.write("Created by KherveFitting\n")
-    write_casa_fitting_info(f, core_level_name, core_level_data)
+    write_casa_fitting_info(f, core_level_name, core_level_data, window)
 
     # Technique
     f.write("XPS\n")
