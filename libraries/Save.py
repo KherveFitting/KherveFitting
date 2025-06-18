@@ -2866,7 +2866,7 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
 
         # Map KherveFitting background types to CASA types
         bg_type_mapping = {
-            'Smart': 'Multi-Regions Smart',
+            'Smart': 'Shirley',
             'Shirley': 'Shirley',
             'Linear': 'Linear',
             'Polynomial': 'Linear',
@@ -2907,7 +2907,7 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
         # Convert position from BE to KE
         position_ke = photon_energy - position_be
 
-        # Map KherveFitting model to CASA model - UPDATED FOR LA MODELS
+        # Map KherveFitting model to CASA model - UPDATED FOR LA MODELS WITH GAMMA MAPPING
         fitting_model = peak_data.get('Fitting Model', 'GL (Area)')
         print(f"DEBUG: Processing peak {peak_name} with model: {fitting_model}")
 
@@ -2916,15 +2916,63 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
             casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 150)"
             print(f"DEBUG: LA*G model - sigma: {sigma}, gamma: {gamma}")
         elif 'LA (Area, σ/γ, γ)' in fitting_model:
-            # LA with sigma/gamma ratio: use single parameter format LA(lg_ratio)
-            casa_model = f"LA({int(lg_ratio)})"
-            print(f"DEBUG: LA σ/γ model - lg_ratio: {lg_ratio}")
+            # LA with sigma/gamma ratio: check if sigma/gamma ≈ 50% (sigma ≈ gamma)
+            sigma_gamma_ratio = sigma / (sigma + gamma) * 100 if (sigma + gamma) > 0 else 50
+
+            if abs(sigma_gamma_ratio - 50) < 5:  # If approximately 50/50 split
+                # Check gamma mapping from Open.py
+                gamma_mapping = {
+                    20: 2.7, 30: 2.4, 40: 2.2, 50: 2.0, 60: 1.8,
+                    70: 1.6, 80: 1.4, 90: 1.2, 100: 1.0
+                }
+
+                # Find matching gamma value in mapping
+                matching_ratio = None
+                for ratio_val, mapped_gamma in gamma_mapping.items():
+                    if abs(gamma - mapped_gamma) < 0.1:
+                        matching_ratio = ratio_val
+                        break
+
+                if matching_ratio:
+                    casa_model = f"LA({matching_ratio})"
+                    print(f"DEBUG: LA σ/γ model matches 50% split with gamma mapping - ratio: {matching_ratio}")
+                else:
+                    casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 5)"
+                    print(f"DEBUG: LA σ/γ model 50% split but no gamma mapping match - using 3-param format")
+            else:
+                # Not 50/50 split, use 3-parameter format
+                casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 5)"
+                print(f"DEBUG: LA σ/γ model not 50% split ({sigma_gamma_ratio:.1f}%) - using 3-param format")
         elif 'LA (Area, σ, γ)' in fitting_model:
-            # Standard LA model: use format LA(sigma, gamma, 0.5)
-            casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 0.5)"
-            print(f"DEBUG: LA σ,γ model - sigma: {sigma}, gamma: {gamma}")
+            # Standard LA model: Check if it matches the gamma mapping pattern
+            # Gamma mapping from Open.py
+            gamma_mapping = {
+                20: 2.7, 30: 2.4, 40: 2.2, 50: 2.0, 60: 1.8,
+                70: 1.6, 80: 1.4, 90: 1.2, 100: 1.0
+            }
+
+            # Check if this sigma/gamma combination matches a gamma mapping entry
+            matches_mapping = False
+            for ratio_val, mapped_gamma in gamma_mapping.items():
+                # In Open.py: sigma_value = gamma_value and lg_value = ratio_value
+                # So if sigma ≈ gamma and they match a mapped value, use single parameter format
+                if abs(gamma - mapped_gamma) < 0.1 and abs(sigma - gamma) < 0.1:
+                    casa_model = f"LA({ratio_val})"
+                    matches_mapping = True
+                    print(f"DEBUG: LA σ,γ model matches mapping - ratio: {ratio_val}")
+                    break
+
+            if not matches_mapping:
+                # Use 3-parameter format if it doesn't match the mapping
+                casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 0.5)"
+                print(f"DEBUG: LA σ,γ model - sigma: {sigma}, gamma: {gamma}")
         elif 'SGL' in fitting_model:
             casa_model = f"SGL({int(lg_ratio)})"
+        elif 'Voigt' in fitting_model:
+            # Convert Voigt to SGL as closest CASA equivalent
+            # Voigt FWHM becomes SGL MFWHM, L/G ratio becomes SGL parameter
+            casa_model = f"SGL({int(lg_ratio)})"
+            print(f"DEBUG: Voigt model converted to SGL - L/G: {lg_ratio} -> SGL({int(lg_ratio)})")
         else:
             # Default GL model
             casa_model = f"GL({int(lg_ratio)})"
