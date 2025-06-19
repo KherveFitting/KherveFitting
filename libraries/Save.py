@@ -2996,14 +2996,73 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
 
         print(f"DEBUG: Peak {peak_name} RSF: {rsf}, Atomic mass: {atomic_mass}")
 
-        # Write CASA comp line
+        # Get constraints from peak data
+        constraints = peak_data.get('Constraints', {})
+
+        # Convert KherveFitting constraints back to CASA format
+        def convert_constraint_to_casa(constraint_str, value, param_name):
+            """Convert KherveFitting constraint format to CASA format"""
+            if not constraint_str or constraint_str == "":
+                # Default constraints
+                if param_name == "Area":
+                    return f"{value} 1e-20 659597.45 -1 1"
+                elif param_name == "MFWHM":
+                    return f"{value:.2f} 0.24 6 -1 1"
+                elif param_name == "Position":
+                    return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} -1 1"
+
+            if constraint_str == "Fixed":
+                # Fixed constraint - very tight limits
+                return f"{value:.2f} {value - 0.001:.3f} {value + 0.001:.3f} -1 1"
+
+            elif ":" in constraint_str:
+                # Range constraint like "1:1000" or "0.3:3.5"
+                min_val, max_val = constraint_str.split(":")
+                return f"{value:.2f} {min_val} {max_val} -1 1"
+
+            elif any(letter in constraint_str for letter in "ABCDEFGHIJKLMNOP"):
+                # Linked constraint like "A+1.5" or "B*2.0"
+                import re
+                match = re.match(r'([A-P])([+\-*/])([\d.]+)', constraint_str)
+                if match:
+                    peak_letter, operator, const_value = match.groups()
+                    peak_index = ord(peak_letter) - ord('A')  # A=0, B=1, etc.
+                    return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} {peak_index} {const_value}"
+
+            # Default fallback
+            return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} -1 1"
+
+        # Convert position BE to KE and apply constraints
+        area_constraint = convert_constraint_to_casa(constraints.get('Area', ''), area, 'Area')
+        fwhm_constraint = convert_constraint_to_casa(constraints.get('FWHM', ''), fwhm, 'MFWHM')
+
+        # For position, convert BE constraint limits to KE
+        pos_constraint_str = constraints.get('Position', '')
+        if ":" in pos_constraint_str:
+            be_min, be_max = pos_constraint_str.split(":")
+            ke_min = photon_energy - float(be_max)  # Inverted: higher BE = lower KE
+            ke_max = photon_energy - float(be_min)  # Inverted: lower BE = higher KE
+            pos_constraint = f"{position_ke:.2f} {ke_min:.2f} {ke_max:.2f} -1 1"
+        else:
+            pos_constraint = convert_constraint_to_casa(pos_constraint_str, position_ke, 'Position')
+
+        # Write CASA comp line with constraints
         casa_comp = (f"CASA comp (*{peak_name}*) (*{casa_model}*) "
-                     f"Area {area} 1e-20 659597.45 -1 1 "
-                     f"MFWHM {fwhm:.2f} 0.24 6 -1 1 "
-                     f"Position {position_ke:.2f} {bg_low_ke:.5f} {bg_high_ke:.5f} -1 1 "
+                     f"Area {area_constraint} "
+                     f"MFWHM {fwhm_constraint} "
+                     f"Position {pos_constraint} "
                      f"RSF {rsf} MASS {atomic_mass} INDEX -1 "
                      f"(*{core_level_name}*) CONST (**) UNCORRECTEDRSF {rsf}")
         comment_lines.append(casa_comp)
+
+        # # Write CASA comp line
+        # casa_comp = (f"CASA comp (*{peak_name}*) (*{casa_model}*) "
+        #              f"Area {area} 1e-20 659597.45 -1 1 "
+        #              f"MFWHM {fwhm:.2f} 0.24 6 -1 1 "
+        #              f"Position {position_ke:.2f} {bg_low_ke:.5f} {bg_high_ke:.5f} -1 1 "
+        #              f"RSF {rsf} MASS {atomic_mass} INDEX -1 "
+        #              f"(*{core_level_name}*) CONST (**) UNCORRECTEDRSF {rsf}")
+        # comment_lines.append(casa_comp)
 
     # Add final line
     comment_lines.append("Created by KherveFitting")
