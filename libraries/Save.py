@@ -3000,37 +3000,6 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
         constraints = peak_data.get('Constraints', {})
 
         # Convert KherveFitting constraints back to CASA format
-        def convert_constraint_to_casa(constraint_str, value, param_name):
-            """Convert KherveFitting constraint format to CASA format"""
-            if not constraint_str or constraint_str == "":
-                # Default constraints
-                if param_name == "Area":
-                    return f"{value} 1e-20 659597.45 -1 1"
-                elif param_name == "MFWHM":
-                    return f"{value:.2f} 0.24 6 -1 1"
-                elif param_name == "Position":
-                    return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} -1 1"
-
-            if constraint_str == "Fixed":
-                # Fixed constraint - very tight limits
-                return f"{value:.2f} {value - 0.001:.3f} {value + 0.001:.3f} -1 1"
-
-            elif ":" in constraint_str:
-                # Range constraint like "1:1000" or "0.3:3.5"
-                min_val, max_val = constraint_str.split(":")
-                return f"{value:.2f} {min_val} {max_val} -1 1"
-
-            elif any(letter in constraint_str for letter in "ABCDEFGHIJKLMNOP"):
-                # Linked constraint like "A+1.5" or "B*2.0"
-                import re
-                match = re.match(r'([A-P])([+\-*/])([\d.]+)', constraint_str)
-                if match:
-                    peak_letter, operator, const_value = match.groups()
-                    peak_index = ord(peak_letter) - ord('A')  # A=0, B=1, etc.
-                    return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} {peak_index} {const_value}"
-
-            # Default fallback
-            return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} -1 1"
 
         # Convert position BE to KE and apply constraints
         area_constraint = convert_constraint_to_casa(constraints.get('Area', ''), area, 'Area')
@@ -3073,6 +3042,39 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
     # Write all comment lines
     for line in comment_lines:
         f.write(f"{line}\n")
+
+
+def convert_constraint_to_casa(constraint_str, value, param_name):
+    """Convert KherveFitting constraint format to CASA format"""
+    if not constraint_str or constraint_str == "":
+        # Default constraints
+        if param_name == "Area":
+            return f"{value} 1e-20 659597.45 -1 1"
+        elif param_name == "MFWHM":
+            return f"{value:.2f} 0.24 6 -1 1"
+        elif param_name == "Position":
+            return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} -1 1"
+
+    if constraint_str == "Fixed":
+        # Fixed constraint - very tight limits
+        return f"{value:.2f} {value - 0.001:.3f} {value + 0.001:.3f} -1 1"
+
+    elif ":" in constraint_str:
+        # Range constraint like "1:1000" or "0.3:3.5"
+        min_val, max_val = constraint_str.split(":")
+        return f"{value:.2f} {min_val} {max_val} -1 1"
+
+    elif any(letter in constraint_str for letter in "ABCDEFGHIJKLMNOP"):
+        # Linked constraint like "A+1.5" or "B*2.0"
+        import re
+        match = re.match(r'([A-P])([+\-*/])([\d.]+)', constraint_str)
+        if match:
+            peak_letter, operator, const_value = match.groups()
+            peak_index = ord(peak_letter) - ord('A')  # A=0, B=1, etc.
+            return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} {peak_index} {const_value}"
+
+    # Default fallback
+    return f"{value:.2f} {value - 10:.2f} {value + 10:.2f} -1 1"
 
 def write_single_block(f, core_level_name, core_level_data, exp_params, block_num, window):
     """Write a single data block to the VAMAS file."""
