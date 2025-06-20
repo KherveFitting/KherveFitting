@@ -353,7 +353,7 @@ class FittingWindow(wx.Frame):
         self.max_iter_spin = wx.SpinCtrl(self.fitting_panel, value=str(self.parent.max_iterations), min=20, max=200)
         self.max_iter_spin.Bind(wx.EVT_SPINCTRL, self.on_max_iter_change)
 
-        self.fit_iterations_spin = wx.SpinCtrl(self.fitting_panel, value="20", min=3, max=100)
+        self.fit_iterations_spin = wx.SpinCtrl(self.fitting_panel, value="3", min=1, max=100)
 
         self.r_squared_label = wx.StaticText(self.fitting_panel, label="R²:")
         self.r_squared_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
