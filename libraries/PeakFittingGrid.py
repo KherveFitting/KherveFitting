@@ -6,6 +6,7 @@ import wx.adv
 import re
 
 from libraries.Peak_Functions import PeakFunctions
+from libraries.Sheet_Operations import on_sheet_selected
 
 
 # Peak parameter methods

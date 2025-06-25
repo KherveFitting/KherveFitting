@@ -11,9 +11,11 @@ from datetime import datetime, timedelta
 
 class DownloadStatsWindow(wx.Frame):
     def __init__(self, parent):
-        super().__init__(parent, title="Download Stats", size=(910, 580))
+        super().__init__(parent, title="Download Stats", size=(1100, 650))
+        self.SetMinSize((1100, 650))
+        self.SetMaxSize((1100, 650))  # Fix to this size, prevent resizing
+
         self.parent = parent
-        self.SetMinSize((900, 580))
         self.Center()
 
         # Create main panel
@@ -37,7 +39,10 @@ class DownloadStatsWindow(wx.Frame):
             ("Last 3 Weeks", self.plot_last_3_weeks),
             ("Last 2 Weeks", self.plot_last_2_weeks),
             ("Last Week", self.plot_last_week),
+            ("Last 4 Days", self.plot_last_4_days),  # NEW
+            ("Last 3 Days", self.plot_last_3_days),  # NEW
             ("Last 2 Days", self.plot_last_2_days),
+            ("2 Days Ago", self.plot_2_days_ago),  # NEW
             ("Yesterday", self.plot_yesterday),
             ("Today", self.plot_today),
             ("Daily (Line)", self.plot_daily_line),
@@ -48,7 +53,7 @@ class DownloadStatsWindow(wx.Frame):
         for label, callback in time_periods:
             btn = wx.Button(left_panel, label=label, size=(90, 30))
             btn.Bind(wx.EVT_BUTTON, callback)
-            left_sizer.Add(btn, 0, wx.ALL | wx.EXPAND, 1)
+            left_sizer.Add(btn, 0, wx.ALL | wx.EXPAND, 0)
 
         # Add strength control after the time period buttons, before setting the sizer
         left_sizer.AddSpacer(10)  # Add some space
@@ -85,6 +90,17 @@ class DownloadStatsWindow(wx.Frame):
         # Initialize with Sept 2024 data
         self.plot_sept_2024(None)
         self.figure.subplots_adjust(top=0.98, bottom=0.08, left=0.08, right=0.95)
+
+        # At the end of __init__, add these lines:
+        panel.SetSizer(main_sizer)
+        panel.Layout()
+        self.Layout()
+        self.Refresh()
+
+        # At the end of __init__:
+        if hasattr(self, 'canvas'):
+            self.canvas.SetSize((950, 610))  # Fixed size that fits well
+            self.canvas.draw()
 
     def on_strength_changed(self, event):
         self.geographic_pull_strength = self.strength_spin.GetValue()
@@ -549,6 +565,29 @@ class DownloadStatsWindow(wx.Frame):
         start_date = end_date - timedelta(days=7)
         data = self.get_sourceforge_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
         self.plot_world_map_bubbles(data)
+
+    def plot_2_days_ago(self, event):
+        """Plot downloads from 2 days ago"""
+        two_days_ago = datetime.now() - timedelta(days=2)
+        start_date = two_days_ago.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = two_days_ago.replace(hour=23, minute=59, second=59, microsecond=999999)
+        data = self.get_sourceforge_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+        self.plot_world_map_bubbles(data)
+
+    def plot_last_3_days(self, event):
+        """Plot downloads from last 3 days"""
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=3)
+        data = self.get_sourceforge_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+        self.plot_world_map_bubbles(data)
+
+    def plot_last_4_days(self, event):
+        """Plot downloads from last 4 days"""
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=4)
+        data = self.get_sourceforge_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+        self.plot_world_map_bubbles(data)
+
 
     def plot_yesterday(self, event):
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")

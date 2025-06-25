@@ -420,9 +420,25 @@ class MouseEventHandler:
                 6: "Areas", 7: "Sigmas", 8: "Gammas", 9: "Skews"
             }
             param_name = col_names.get(col, "values")
-            propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
-            if col == 4:
-                propagate_diff_text = f"OR Constraint all {param_name}: {peak_letter} + (current values - {peak_letter})"
+            if col == 2:
+                propagate_text = f"Constraint all Current {param_name} to {peak_letter}"
+            elif col == 3:
+                propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
+            elif col == 4:
+                propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
+                propagate_diff_text = (f"Constraint all Current {param_name} to {peak_letter}")
+            elif col == 5:
+                propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
+            elif col == 6:
+                propagate_text = f"Constraint all Current {param_name} to {peak_letter}"
+            elif col == 7:
+                propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
+            elif col == 8:
+                propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
+            elif col == 9:
+                propagate_text = f"Constraint all {param_name}: {peak_letter}*1"
+            # if col == 4:
+            #     propagate_diff_text = f"OR Constraint all {param_name}: {peak_letter} + (current values - {peak_letter})"
 
         propagate_item = menu.Append(wx.ID_ANY, propagate_text)
         propagate_diff_item = None

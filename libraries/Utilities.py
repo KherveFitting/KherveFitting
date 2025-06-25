@@ -513,6 +513,7 @@ def save_modified_data(self, x, y, sheet_name, operation_type):
     existing_sheets = wb.sheetnames
     sheet_name = get_unique_sheet_name(sheet_name, existing_sheets)
 
+
 def propagate_fwhm_difference(window, row, col):
     """Propagate FWHM differences from reference peak to all other peaks"""
     # Save state
@@ -528,6 +529,10 @@ def propagate_fwhm_difference(window, row, col):
     ref_fwhm = float(window.peak_params_grid.GetCellValue(ref_peak_index * 2, 4))
 
     num_peaks = window.peak_params_grid.GetNumberRows() // 2
+
+    # Get sheet and peaks data for saving
+    sheet_name = window.sheet_combobox.GetValue()
+    peaks = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
 
     for i in range(num_peaks):
         if i != ref_peak_index:  # Skip the reference peak itself
@@ -545,6 +550,14 @@ def propagate_fwhm_difference(window, row, col):
                 constraint_str = f"{ref_peak_letter}{difference:.2f}#0.1"  # difference is already negative
 
             window.peak_params_grid.SetCellValue(constraint_row_i, col, constraint_str)
+
+            # ASave constraint to Data structure
+            correct_peak_key = list(peaks.keys())[i]
+
+            if 'Constraints' not in peaks[correct_peak_key]:
+                peaks[correct_peak_key]['Constraints'] = {}
+
+            peaks[correct_peak_key]['Constraints']['FWHM'] = constraint_str
 
     window.peak_params_grid.ForceRefresh()
 
