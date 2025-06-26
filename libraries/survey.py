@@ -174,7 +174,7 @@ class PeriodicTableWindow(wx.Frame):
         # Get OS-dependent window size
         os_name = platform.system()
         if os_name == "Windows":
-            window_size = (940, 430)
+            window_size = (940, 450)
         elif os_name == "Darwin":  # macOS
             window_size = (940, 430)
         elif os_name == "Linux":
