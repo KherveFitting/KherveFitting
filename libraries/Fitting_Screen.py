@@ -916,15 +916,23 @@ class FittingWindow(wx.Frame):
                 self.parent.bg_max_energy = core_level_data['Background']['Bkg High']
         save_state(self.parent)
 
-
-
     def on_clear_background(self, event):
-        save_state(self.parent)
-        self.parent.plot_manager.clear_background(self.parent)
-        self.parent.bg_min_energy = None
-        self.parent.bg_max_energy = None
-        self.parent.plot_data()
-        save_state(self.parent)
+        # Show confirmation dialog
+        dlg = wx.MessageDialog(self,
+                               "Are you sure you want to clear all background data?",
+                               "Confirm Clear All",
+                               wx.YES_NO | wx.ICON_EXCLAMATION)
+
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+        if result == wx.ID_YES:
+            save_state(self.parent)
+            self.parent.plot_manager.clear_background(self.parent)
+            self.parent.bg_min_energy = None
+            self.parent.bg_max_energy = None
+            self.parent.plot_data()
+            save_state(self.parent)
 
 
     def on_offset_h_change(self, event):
