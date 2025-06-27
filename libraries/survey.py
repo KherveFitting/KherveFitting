@@ -1161,7 +1161,11 @@ class PeriodicTableWindow(wx.Frame):
     def remove_element_lines(self, element):
         if element in self.element_lines:
             for line in self.element_lines[element]:
-                line.remove()
+                try:
+                    line.remove()
+                except ValueError:
+                    # Line already removed or not in the axes anymore
+                    pass
             del self.element_lines[element]
             self.parent_window.canvas.draw_idle()
 
