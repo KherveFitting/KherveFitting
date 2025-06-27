@@ -1495,6 +1495,7 @@ def import_multiple_avantage_files(window):
 def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
     """Process xlsx Avantage file and add numbered core levels to combined workbook"""
     import re
+    from openpyxl.utils import get_column_letter  # ADDED
 
     sheets_to_process = []
     for sheet_name in wb.sheetnames:
@@ -1503,6 +1504,9 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
 
     for sheet_name in sheets_to_process:
         sheet = wb[sheet_name]
+
+        # ADDED: Extract acquisition parameters
+        acquisition_params = extract_acquisition_parameters(sheet)
 
         # Extract element name
         if "Survey" in sheet_name or "survey" in sheet_name:
@@ -1543,6 +1547,22 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
                 # Data is in column C+sub_sample_idx
                 data_col = 3 + sub_sample_idx
                 copy_sheet_data(sheet, new_sheet, start_row, 1, data_col, 2)
+
+                # ADDED: Add experimental description with acquisition parameters
+                if acquisition_params:
+                    exp_col = 45  # Column AS
+                    new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                    current_row = 2
+                    for param_name, param_value in acquisition_params.items():
+                        new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                        new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                        current_row += 1
+
+                    # Set column widths
+                    new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                    new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
         else:
             # Single sample - create sheet with sample number
             new_sheet_name = f"{base_name}{sample_idx}"
@@ -1553,14 +1573,45 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
             # Copy data from columns A (BE) and C (intensity)
             copy_sheet_data(sheet, new_sheet, start_row, 1, 3, 2)
 
+            # ADDED: Add experimental description with acquisition parameters
+            if acquisition_params:
+                exp_col = 45  # Column AS
+                new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                current_row = 2
+                for param_name, param_value in acquisition_params.items():
+                    new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                    new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                    current_row += 1
+
+                # Set column widths
+                new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
 
 def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
     """Process xls Avantage file and add numbered core levels to combined workbook"""
     import re
+    import openpyxl  # ADDED
+    from openpyxl.utils import get_column_letter  # ADDED
 
     for sheet_name in wb_xls.sheet_names():
         if "Survey" in sheet_name or "Scan" in sheet_name:
             sheet = wb_xls.sheet_by_name(sheet_name)
+
+            # ADDED: Create temporary openpyxl sheet for parameter extraction
+            temp_wb = openpyxl.Workbook()
+            temp_sheet = temp_wb.active
+
+            # Copy relevant cells for parameter extraction (first 20 rows, first 15 columns)
+            for row in range(min(20, sheet.nrows)):
+                for col in range(min(15, sheet.ncols)):
+                    cell_value = sheet.cell_value(row, col)
+                    if cell_value:
+                        temp_sheet.cell(row=row + 1, column=col + 1, value=cell_value)
+
+            # Extract acquisition parameters
+            acquisition_params = extract_acquisition_parameters(temp_sheet)
 
             # Extract element name
             if "Survey" in sheet_name or "survey" in sheet_name:
@@ -1586,6 +1637,21 @@ def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
                     new_sheet.cell(row=row_new, column=1, value=be_value)
                     new_sheet.cell(row=row_new, column=2, value=intensity_value)
                     row_new += 1
+
+            # ADDED: Add experimental description with acquisition parameters
+            if acquisition_params:
+                exp_col = 45  # Column AS
+                new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                current_row = 2
+                for param_name, param_value in acquisition_params.items():
+                    new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                    new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                    current_row += 1
+
+                # Set column widths
+                new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
 
 
 def copy_sheet_data(source_sheet, target_sheet, start_row, source_be_col, source_intensity_col, target_row_start):
