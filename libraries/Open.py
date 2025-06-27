@@ -1184,9 +1184,60 @@ def import_mrs_file(window):
         window.show_popup_message2("Error", f"Error processing MRS file: {str(e)}")
 
 
+def extract_acquisition_parameters(sheet):
+    """Extract acquisition parameters from Ovantage sheet"""
+    parameters = {}
+
+    # Search for "Acquisition Parameters :" in row 1 across all columns
+    acquisition_col = None
+    for col in range(1, sheet.max_column + 1):
+        cell_value = sheet.cell(row=1, column=col).value
+        if cell_value and "Acquisition Parameters" in str(cell_value):
+            acquisition_col = col
+            break
+
+    if acquisition_col is None:
+        return parameters
+
+    # Extract parameters starting from row 4 (after "Parameter" header in row 3)
+    row = 4
+    while row <= sheet.max_row:
+        # Parameter name is in acquisition_col (column H)
+        param_name = sheet.cell(row=row, column=acquisition_col).value
+        # Parameter value is in acquisition_col + 1 (column I)
+        param_value = sheet.cell(row=row, column=acquisition_col + 1).value
+        # Sometimes additional value in acquisition_col + 2 (column J)
+        param_value_j = sheet.cell(row=row, column=acquisition_col + 2).value
+
+        if param_name is None:
+            row += 1
+            continue
+
+        param_name_str = str(param_name).strip()
+        if not param_name_str:
+            row += 1
+            continue
+
+        # Build the parameter value
+        value_parts = []
+        if param_value is not None:
+            value_parts.append(str(param_value).strip())
+        if param_value_j is not None:
+            value_parts.append(str(param_value_j).strip())
+
+        if value_parts:
+            final_value = " ".join(value_parts)
+            parameters[param_name_str] = final_value
+
+        row += 1
+
+    return parameters
+
+
 def import_avantage_file_direct(window, file_path):
     import re
     import openpyxl
+    from openpyxl.utils import get_column_letter
 
     wb = openpyxl.load_workbook(file_path)
     new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
@@ -1200,6 +1251,9 @@ def import_avantage_file_direct(window, file_path):
 
     for sheet_name in sheets_to_process:
         sheet = wb[sheet_name]
+
+        # Extract acquisition parameters
+        acquisition_params = extract_acquisition_parameters(sheet)
 
         # Extract element name (e.g., C1s, O1s)
         if "Survey" in sheet_name or "survey" in sheet_name:
@@ -1249,6 +1303,22 @@ def import_avantage_file_direct(window, file_path):
                     new_sheet.cell(row=row_new, column=1, value=be_value)
                     new_sheet.cell(row=row_new, column=2, value=intensity_value)
                     row_new += 1
+
+                # Add experimental description with acquisition parameters
+                if acquisition_params:
+                    exp_col = 45  # Column AS
+                    new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                    current_row = 2
+                    for param_name, param_value in acquisition_params.items():
+                        new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                        new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                        current_row += 1
+
+                    # Set column widths
+                    new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                    new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
         else:
             # Single sample - process as before
             new_name = base_name
@@ -1271,6 +1341,21 @@ def import_avantage_file_direct(window, file_path):
 
                 new_sheet['A{}'.format(row - start_row + 2)] = be_value
                 new_sheet['B{}'.format(row - start_row + 2)] = intensity_value
+
+            # Add experimental description with acquisition parameters
+            if acquisition_params:
+                exp_col = 45  # Column AS
+                new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                current_row = 2
+                for param_name, param_value in acquisition_params.items():
+                    new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                    new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                    current_row += 1
+
+                # Set column widths
+                new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
 
     new_wb.save(new_file_path)
     open_xlsx_file(window, new_file_path)
