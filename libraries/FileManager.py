@@ -405,7 +405,7 @@ class FileManagerWindow(wx.Frame):
         self.grid.SetColSize(num_levels + 3, 70)  # New column
 
         # Enable cell editing for renaming
-        self.grid.EnableEditing(True)
+        self.grid.EnableEditing(False)
 
         # Set column labels (core level names)
         self.grid.SetRowLabelSize(30)
@@ -2570,6 +2570,25 @@ class FileManagerWindow(wx.Frame):
             # wx.MessageBox(f"Error creating backup: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
             self.parent.show_popup_message2("Error", f"Error creating backup: {str(e)}")
 
+    def rename_from_context_menu(self, sheet_name):
+        """Rename a core level from the right-click context menu"""
+        save_state(self.parent)
+
+        # Set the sheet in parent before renaming
+        self.parent.sheet_combobox.SetValue(sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name}:", "Rename Core Level", sheet_name)
+        if dlg.ShowModal() == wx.ID_OK:
+            new_name = dlg.GetValue()
+            if new_name and new_name != sheet_name:
+                from libraries.Utilities import rename_sheet
+                rename_sheet(self.parent, new_name)
+                # Reload the grid after renaming
+                self.populate_grid()
+        dlg.Destroy()
+
     def on_grid_right_click(self, event):
         """Handle right-click on grid to show context menu"""
         row = event.GetRow()
@@ -2581,6 +2600,14 @@ class FileManagerWindow(wx.Frame):
         # Add standard menu items
         copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
         paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
+
+        # Add rename option for core level cells
+        if col > 0 and col <= len(self.core_levels):  # Only for core level columns
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                menu.AppendSeparator()
+                rename_item = menu.Append(wx.ID_ANY, f"Rename '{cell_value}'")
+                self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.rename_from_context_menu(sheet), rename_item)
 
         # Add insert row option
         menu.AppendSeparator()
