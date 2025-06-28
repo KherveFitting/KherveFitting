@@ -316,7 +316,26 @@ class MyFrame(wx.Frame):
         self.recent_files = []
         self.max_recent_files = 20  # Maximum number of recent files to keep
 
+        # Instruments default settings
         self.library_type = "TPP-2M"  # Default value
+        self.use_angular_correction = False
+        self.analysis_angle = 54.7
+
+       # Word report default settings
+        self.word_width=5
+        self.word_height=5
+        self.word_dpi=300
+        self.survey_word_width=10
+        self.survey_word_height=5
+        self.survey_word_dpi=200
+
+        # Export Default settings
+        self.export_width=8
+        self.export_height=6
+        self.export_dpi=300
+
+        # Quick Default Settings
+        self.enable_quick_settings=False
 
         # Add Backup initializations
         self.backup_timer = None
