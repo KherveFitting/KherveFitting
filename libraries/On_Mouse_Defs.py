@@ -3,6 +3,7 @@ import numpy as np
 import os
 from libraries.Sheet_Operations import on_sheet_selected
 from libraries.Save import save_state
+import platform
 
 
 
@@ -157,6 +158,7 @@ class MouseEventHandler:
             self.window.canvas.draw()
 
     def on_mouse_wheel(self, event):
+        self.window.shift_key_pressed = False
         shift_currently_pressed = event.key == 'shift'
 
         if shift_currently_pressed:
@@ -192,6 +194,9 @@ class MouseEventHandler:
             self.window.peak_manipulation.highlight_selected_peak()
 
         elif not self.window.shift_key_pressed:
+            if platform.system() == 'Darwin':  # Darwin is macOS
+                return
+
             current_index = self.window.sheet_combobox.GetSelection()
             num_sheets = self.window.sheet_combobox.GetCount()
 
