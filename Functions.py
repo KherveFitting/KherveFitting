@@ -378,7 +378,12 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                     # Calculate gamma, gamma_min, and gamma_max
                     def calc_gamma(f, s):
-                        return (f * 2.355 * s) / (200 - 2 * f)
+                        """Calculate gamma from fraction and sigma, avoiding division by zero"""
+                        denominator = 200 - 2 * f
+                        if abs(denominator) < 1e-6:  # Very close to zero
+                            # For L/G ratio close to 100%, use a large gamma value
+                            return s * 2.355 * 10  # Approximate pure Lorentzian behavior
+                        return (f * 2.355 * s) / denominator
 
                     GAMMA_TOLERANCE = 1e-6  # Small tolerance value
 
@@ -789,14 +794,16 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 })
 
             else:
-                # Use existing fit() code
+                raw_weights = 1.0 / np.sqrt(np.maximum(y_values_subtracted, 1))
+
                 result = model.fit(
                     y_values_subtracted,
+                    # y_values_filtered,
                     params,
                     x=x_values_filtered,
                     max_nfev=max_nfev,
                     method=optimization_method,
-                    weights=np.ones(len(y_values_filtered)),
+                    weights=calculate_weights(window, y_values_filtered, y_values_subtracted),
                     scale_covar=True,
                     nan_policy='omit',
                     verbose=True,
@@ -1235,6 +1242,31 @@ def get_peak_value(peak_params_grid, peak_name, param_name):
 
 import re
 
+
+def calculate_weights(window, y_values_filtered, y_values_subtracted):
+    """Calculate weights based on the selected method in the fitting window"""
+    try:
+        weights_method = window.fitting_window.get_weights_method() if window.fitting_window else "uniform"
+    except:
+        weights_method = "uniform"
+
+    if weights_method == "statistical-XPS":
+        # Statistical weighting for XPS data
+        weights =1.0 /  np.sqrt(np.maximum(y_values_subtracted, 1))
+    elif weights_method == "hybrid-XPS":
+        weights = np.where(y_values_subtracted > 10, 1.0 / np.sqrt(y_values_subtracted), 0.1)  # Lower weight for very low counts
+        weights = weights / np.max(weights)
+
+    elif weights_method == "intensity-based":
+        # Statistical weighting for XPS data
+        weights = np.sqrt(np.maximum(y_values_subtracted, 0.1))
+        weights = weights / np.max(weights)
+
+    else:
+        # Uniform weighting (default)
+        weights = np.ones(len(y_values_filtered))
+
+    return weights
 
 def parse_constraints(constraint_str, current_value, peak_params_grid, peak_index, param_name):
     constraint_str = constraint_str.strip()

@@ -350,10 +350,15 @@ class FittingWindow(wx.Frame):
         ], style=wx.CB_READONLY)
         self.optimization_method.SetSelection(1)  # Default value
 
-        self.max_iter_spin = wx.SpinCtrl(self.fitting_panel, value=str(self.parent.max_iterations), min=20, max=200)
+        self.max_iter_spin = wx.SpinCtrl(self.fitting_panel, value=str(self.parent.max_iterations), min=20, max=500)
         self.max_iter_spin.Bind(wx.EVT_SPINCTRL, self.on_max_iter_change)
 
-        self.fit_iterations_spin = wx.SpinCtrl(self.fitting_panel, value="20", min=3, max=100)
+        self.fit_iterations_spin = wx.SpinCtrl(self.fitting_panel, value="20", min=2, max=100)
+
+        self.weights_combo = wx.ComboBox(self.fitting_panel, choices=["uniform", "intensity-based", "statistical-XPS",
+                                                                      "hybrid-XPS"],
+                                         style=wx.CB_READONLY)
+        self.weights_combo.SetSelection(0)  # Default to "uniform"
 
         self.r_squared_label = wx.StaticText(self.fitting_panel, label="R²:")
         self.r_squared_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
@@ -440,19 +445,23 @@ class FittingWindow(wx.Frame):
                               flag=wx.ALL | wx.EXPAND, border=1)
             fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            fitting_sizer.Add(self.r_squared_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(self.r_squared_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Weights:"), pos=(5, 0),
+                              flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.weights_combo, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+            fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
             # fitting_sizer.Add(self.rsd_label, pos=(6, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
             # fitting_sizer.Add(self.rsd_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=5)
-            fitting_sizer.Add(self.red_chi_squared_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(self.red_chi_squared_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.red_chi_squared_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.red_chi_squared_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # fitting_sizer.Add(self.actual_iter_label, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
             # fitting_sizer.Add(self.actual_iter_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
-            fitting_sizer.Add(self.current_fit_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(self.current_fit_text, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.current_fit_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(self.current_fit_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            fitting_sizer.Add(fit_report_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(fit_report_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             fitting_sizer.Add(add_peak_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
             fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
@@ -480,6 +489,10 @@ class FittingWindow(wx.Frame):
             fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="N# of Iterations:"), pos=(4, 0),
                               flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             fitting_sizer.Add(self.fit_iterations_spin, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Weights:"), pos=(5, 0),
+                              flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(self.weights_combo, pos=(5, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             fitting_sizer.Add(self.r_squared_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             fitting_sizer.Add(self.r_squared_text, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -537,6 +550,9 @@ class FittingWindow(wx.Frame):
     def get_optimization_method(self):
         selection = self.optimization_method.GetValue()
         return selection.split()[0]  # Get just the method name without description
+
+    def get_weights_method(self):
+        return self.weights_combo.GetStringSelection()
 
     def on_smooth_data_change(self, event):
         save_state(self.parent)
