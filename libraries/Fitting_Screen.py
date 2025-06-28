@@ -656,7 +656,7 @@ class FittingWindow(wx.Frame):
         save_state(self.parent)
         remove_peak(self.parent)
 
-    def on_fit_multi(self, event):
+    def on_fit_multi_OLD(self, event):
         save_state(self.parent)
         if self.parent.peak_params_grid.GetNumberRows() == 0:
             # wx.MessageBox("No peaks to fit. Add at least one peak first.", "Error", wx.OK | wx.ICON_ERROR)
@@ -674,6 +674,31 @@ class FittingWindow(wx.Frame):
             self.parent.clear_and_replot()
             wx.Yield()
         self.current_fit_text.SetValue("Complete")
+
+    def on_fit_multi(self, event):
+        save_state(self.parent)
+        if self.parent.peak_params_grid.GetNumberRows() == 0:
+            self.parent.show_popup_message2("Error", "No peaks to fit. Add at least one peak first.")
+            return
+
+        # Disable UI controls to prevent interference
+        self.disable_fitting_ui()
+
+        try:
+            save_state(self.parent)
+            iterations = self.fit_iterations_spin.GetValue()
+            for i in range(1, iterations + 1):
+                self.current_fit_text.SetValue(f"{i}/{iterations}")
+                result = fit_peaks(self.parent, self.parent.peak_params_grid)
+                if result:
+                    r_squared, rsd, red_chi_square = result
+                    self.update_fit_indicators(r_squared, rsd, red_chi_square)
+                self.parent.clear_and_replot()
+                wx.Yield()
+            self.current_fit_text.SetValue("Complete")
+        finally:
+            # Always re-enable UI controls, even if fitting fails
+            self.enable_fitting_ui()
 
 
     def on_fit_peaks(self, event):
@@ -1121,6 +1146,73 @@ class FittingWindow(wx.Frame):
                     core_level_data['Background']['Bkg Y'] = background.tolist()
                     self.parent.background = background
                     self.parent.clear_and_replot()
+
+    def disable_fitting_ui(self):
+        """Disable all UI controls during multiple fitting"""
+        # Fitting panel controls
+        self.model_combobox.Enable(False)
+        self.optimization_method.Enable(False)
+        self.max_iter_spin.Enable(False)
+        self.fit_iterations_spin.Enable(False)
+
+        # Buttons - find them by iterating through fitting_panel children
+        for child in self.fitting_panel.GetChildren():
+            if isinstance(child, wx.Button):
+                if child.GetLabel() != "Fit \nN# Times":  # Keep multi-fit button enabled to show it's running
+                    child.Enable(False)
+
+        # Background panel controls
+        self.method_combobox.Enable(False)
+        self.offset_h_text.Enable(False)
+        self.offset_l_text.Enable(False)
+        self.averaging_points_text.Enable(False)
+        self.smooth_data_checkbox.Enable(False)
+
+        # Background buttons
+        for child in self.background_panel.GetChildren():
+            if isinstance(child, wx.Button):
+                child.Enable(False)
+
+        # Find and update the multi-fit button
+        for child in self.fitting_panel.GetChildren():
+            if isinstance(child, wx.Button) and "N# Times" in child.GetLabel():
+                child.SetLabel("Fitting...")
+                break
+
+    def enable_fitting_ui(self):
+        """Re-enable all UI controls after multiple fitting"""
+        # Fitting panel controls
+        self.model_combobox.Enable(True)
+        self.optimization_method.Enable(True)
+        self.max_iter_spin.Enable(True)
+        self.fit_iterations_spin.Enable(True)
+
+        # Buttons
+        for child in self.fitting_panel.GetChildren():
+            if isinstance(child, wx.Button):
+                child.Enable(True)
+
+        # Background panel controls
+        self.method_combobox.Enable(True)
+        self.offset_h_text.Enable(True)
+        self.offset_l_text.Enable(True)
+        self.averaging_points_text.Enable(True)
+        self.smooth_data_checkbox.Enable(True)
+
+        # Background buttons - restore based on method
+        for child in self.background_panel.GetChildren():
+            if isinstance(child, wx.Button):
+                child.Enable(True)
+
+        # Restore Tougaard controls visibility based on current method
+        current_method = self.method_combobox.GetValue()
+        self.update_tougaard_controls_visibility(current_method)
+
+        # Restore multi-fit button label
+        for child in self.fitting_panel.GetChildren():
+            if isinstance(child, wx.Button) and "Fitting..." in child.GetLabel():
+                child.SetLabel("Fit \nN# Times")
+                break
 
 
 class TougaardFitWindow(wx.Frame):
