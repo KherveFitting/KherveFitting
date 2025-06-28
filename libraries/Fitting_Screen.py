@@ -1170,6 +1170,7 @@ class FittingWindow(wx.Frame):
         self.optimization_method.Enable(False)
         self.max_iter_spin.Enable(False)
         self.fit_iterations_spin.Enable(False)
+        self.weights_combo.Enable(False)
 
         # Buttons - find them by iterating through fitting_panel children
         for child in self.fitting_panel.GetChildren():
@@ -1202,6 +1203,7 @@ class FittingWindow(wx.Frame):
         self.optimization_method.Enable(True)
         self.max_iter_spin.Enable(True)
         self.fit_iterations_spin.Enable(True)
+        self.weights_combo.Enable(True)
 
         # Buttons
         for child in self.fitting_panel.GetChildren():
