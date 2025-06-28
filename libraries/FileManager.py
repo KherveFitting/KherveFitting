@@ -404,8 +404,16 @@ class FileManagerWindow(wx.Frame):
         self.grid.SetColSize(num_levels + 2, 70)  # Wider for the new name
         self.grid.SetColSize(num_levels + 3, 70)  # New column
 
-        # Enable cell editing for renaming
-        self.grid.EnableEditing(False)
+        # # Enable cell editing for renaming
+        # self.grid.EnableEditing(False)
+
+        # Keep editing enabled but control which cells are editable
+        self.grid.EnableEditing(True)
+
+        # Make all core level columns read-only (columns 1 to len(self.core_levels))
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Core level columns only
+                self.grid.SetReadOnly(row, col, True)
 
         # Set column labels (core level names)
         self.grid.SetRowLabelSize(30)
@@ -462,6 +470,25 @@ class FileManagerWindow(wx.Frame):
             self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
             self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cursor_changed)
             self.grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_grid_right_click)
+            self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK, self.on_cell_double_click)
+
+    def on_cell_double_click(self, event):
+        """Handle double-click on grid cells"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        # Allow double-click editing for experiment column (0) and normalization columns
+        editable_columns = [0,  # Experiment/Sample name column
+                            len(self.core_levels) + 2,  # Norm. @ BE column
+                            len(self.core_levels) + 3]  # Norm. to A column
+
+        if col in editable_columns:
+            # For editable columns, let the default double-click behavior work
+            event.Skip()
+        else:
+            # Call the plot function directly
+            self.on_plot_selected(None)
+            return  # Don't skip the event
 
     def get_unique_core_levels(self):
         """Get list of unique core level names from parent data"""
@@ -2601,7 +2628,7 @@ class FileManagerWindow(wx.Frame):
         copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
         paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
 
-        # Add rename option for core level cells
+        # Add rename option for core level cells only
         if col > 0 and col <= len(self.core_levels):  # Only for core level columns
             cell_value = self.grid.GetCellValue(row, col)
             if cell_value and cell_value in self.parent.Data['Core levels']:
