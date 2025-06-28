@@ -429,6 +429,7 @@ Version 1.505-1.590
 - Added a Download Stat in Help menu
 - Changed the icons of the toolbar
 - Improve the Label manager 
+- Improve Sample manager / double clicking
 - Added import VG-MicroTech .1 files
 - Fix Constraint rows which were rewriting the user values
 - Improve the conversion of MRS files

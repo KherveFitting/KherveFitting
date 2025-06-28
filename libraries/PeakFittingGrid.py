@@ -664,6 +664,24 @@ class PeakFittingGrid:
                 event.Veto()
                 return
 
+            elif ':' in new_value:
+                parts = new_value.split(':')
+                if len(parts) != 2:
+                    wx.MessageBox("Constraint with ':' must have exactly one colon", "Wrong Value",
+                                  wx.OK | wx.ICON_ERROR)
+                    event.Veto()
+                    return
+
+                try:
+                    # Check if both parts are valid numbers
+                    float(parts[0].strip())
+                    float(parts[1].strip())
+                except ValueError:
+                    wx.MessageBox("Constraint with ':' must have numbers before and after the colon", "Wrong Value",
+                                  wx.OK | wx.ICON_ERROR)
+                    event.Veto()
+                    return
+
             # Pattern to match all possible formats
             pattern = r'^([A-P])([+\-*/])(\d+\.?\d*)(?:#(\d+\.?\d*))?$'
             match = re.match(pattern, new_value)
@@ -688,6 +706,27 @@ class PeakFittingGrid:
                     new_value = "0.1:1"
                 self.window.peak_params_grid.SetCellValue(row, col, new_value)
 
+            # Save ALL constraint changes to Data structure
+            sheet_name = self.window.sheet_combobox.GetValue()
+            peak_index = row // 2
+            if sheet_name in self.window.Data['Core levels'] and 'Fitting' in self.window.Data['Core levels'][
+                sheet_name]:
+                peaks = self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                if peaks and peak_index < len(list(peaks.keys())):
+                    peak_label = list(peaks.keys())[peak_index]
+                    if 'Constraints' not in peaks[peak_label]:
+                        peaks[peak_label]['Constraints'] = {}
+
+                    # Map column indices to constraint names
+                    constraint_names = {
+                        2: 'Position', 3: 'Height', 4: 'FWHM', 5: 'L/G',
+                        6: 'Area', 7: 'Sigma', 8: 'Gamma', 9: 'Skew'
+                    }
+
+                    # Save the constraint value
+                    if col in constraint_names:
+                        peaks[peak_label]['Constraints'][constraint_names[col]] = new_value
+                        print(f"Saved constraint {constraint_names[col]} = {new_value} for peak {peak_label}")
 
             if match:
                 referenced_peak = match.group(1)
