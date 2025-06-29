@@ -884,6 +884,10 @@ class FileManagerWindow(wx.Frame):
             # Call the offset plot function
             self.on_plot_selected_with_offset(None)
             return  # Don't skip the event
+        elif key_code == wx.WXK_F4:
+            # Call the offset plot with fitted data function
+            self.on_plot_selected_with_fitted_data(None)
+            return  # Don't skip the event
         elif event.ControlDown() and key_code == wx.WXK_F2:
             # CTRL+F2: Standard multiple plot
             self.on_plot_selected(None)
@@ -900,8 +904,17 @@ class FileManagerWindow(wx.Frame):
             # CTRL+3: Offset multiple plot
             self.on_plot_selected_with_offset(None)
             return
+        elif event.ControlDown() and key_code == wx.WXK_F4:
+            # CTRL+F4: Offset multiple plot with fitted data
+            self.on_plot_selected_with_fitted_data(None)
+            return
+        elif event.ControlDown() and key_code == ord('4'):
+            # CTRL+4: Offset multiple plot with fitted data
+            self.on_plot_selected_with_fitted_data(None)
+            return
         else:
             event.Skip()
+
     def on_plot_selected(self, event):
         """Plot the currently selected core level(s)"""
         sheet_names = self.get_selected_sheet_names()
@@ -3018,6 +3031,676 @@ class FileManagerWindow(wx.Frame):
             # Highlight the selected cell(s)
             self.highlight_current_sheet(sheet_names[0])
             self.Raise()  # Bring the file manager window to the front
+
+    def on_plot_selected_with_fitted_data(self, event):
+        """Plot the currently selected core level(s) with offset and fitted data"""
+        sheet_names = self.get_selected_sheet_names()
+
+        if sheet_names:
+            if len(sheet_names) == 1:
+                # Single sheet - update combobox and plot
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_names[0])
+            else:
+                # Multiple sheets - offset plot with fitted data
+                self.plot_multiple_sheets_with_offset_and_fitted_data(sheet_names)
+                # Update combobox with first sheet name
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+
+            # Highlight the selected cell(s)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()  # Bring the file manager window to the front
+
+    def plot_multiple_sheets_with_offset_and_fitted_data(self, sheet_names):
+        """Plot multiple core levels with vertical offset between plots including fitted data"""
+        if not sheet_names:
+            return
+
+        # Use current time to determine if this is a rapid keypress for F4
+        import time
+        current_time = time.time()
+
+        # Use separate tracking variables for F4
+        if not hasattr(self, 'last_fitted_offset_sheets'):
+            self.last_fitted_offset_sheets = []
+        if not hasattr(self, 'last_fitted_keypress_time'):
+            self.last_fitted_keypress_time = 0
+        if not hasattr(self, 'fitted_offset_multiplier'):
+            self.fitted_offset_multiplier = 1
+
+        # Check if this is the same set of sheets as last time for F4
+        if self.last_fitted_offset_sheets == sheet_names:
+            # Check if the keypress was rapid (within threshold)
+            if current_time - self.last_fitted_keypress_time < self.rapid_press_threshold:
+                # Increment the offset multiplier for rapid presses
+                self.fitted_offset_multiplier += 1
+            else:
+                # Reset multiplier if too much time has passed
+                self.fitted_offset_multiplier = 1
+        else:
+            # Reset for new selection
+            self.fitted_offset_multiplier = 1
+            self.last_fitted_offset_sheets = sheet_names.copy()
+
+        # Update last keypress time for F4
+        self.last_fitted_keypress_time = current_time
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Set the first sheet as the active one in the parent window
+        self.parent.sheet_combobox.SetValue(sheet_names[0])
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_names[0])
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Track min/max x values
+        x_min = float('inf')
+        x_max = float('-inf')
+
+        # Determine if normalization is needed
+        normalize = self.norm_check.GetValue()
+        norm_method = self.norm_type.GetValue()
+
+        # Determine the reference maximum for offset calculation
+        if normalize:
+            # When normalized, use 1000 as the reference maximum
+            reference_max = 1000
+        else:
+            # When not normalized, use the actual maximum across all datasets
+            all_y_max = []
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+                    all_y_max.append(max(y_values))
+            reference_max = max(all_y_max) if all_y_max else 1000
+
+        # Plot each sheet with increasing offset
+        for i, sheet_name in enumerate(sheet_names):
+            if sheet_name not in self.parent.Data['Core levels']:
+                continue
+
+            # Get data
+            core_level = self.parent.Data['Core levels'][sheet_name]
+            x_values = np.array(core_level['B.E.'])
+            y_values = np.array(core_level['Raw Data'])
+            original_y_values = y_values.copy()  # Keep original for normalization parameters
+
+            # Update min/max x values
+            x_min = min(x_min, min(x_values))
+            x_max = max(x_max, max(x_values))
+
+            # Store normalization parameters for fitted data
+            norm_params = None
+
+            # Apply normalization if enabled and store parameters
+            if normalize:
+                if norm_method == "Auto":
+                    # Auto normalization
+                    norm_min = min(y_values)
+                    norm_max = max(y_values)
+                    # Avoid division by zero
+                    if norm_max != norm_min:
+                        norm_params = {'method': 'auto', 'min': norm_min, 'max': norm_max}
+                        y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+
+                elif norm_method == "Norm. @ BE":
+                    # Get the normalization point
+                    norm_min = min(y_values)
+                    norm_max = max(y_values)
+
+                    row_found = -1
+                    for row in range(self.grid.GetNumberRows()):
+                        for col in range(1, len(self.core_levels) + 1):
+                            if self.grid.GetCellValue(row, col) == sheet_name:
+                                row_found = row
+                                break
+                        if row_found >= 0:
+                            break
+
+                    if row_found >= 0:
+                        norm_be_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 2)
+                        try:
+                            norm_be = float(norm_be_str) if norm_be_str else None
+                            if norm_be is not None:
+                                closest_idx = np.argmin(np.abs(np.array(x_values) - norm_be))
+                                norm_value = y_values[closest_idx] - norm_min
+                                if norm_value != 0:
+                                    norm_params = {'method': 'norm_be', 'min': norm_min, 'norm_value': norm_value}
+                                    y_values = (y_values - norm_min) / norm_value * 1000
+                        except ValueError:
+                            pass
+
+                elif norm_method == "Norm. to A":
+                    # Get the normalization factor directly from the "Norm. to A" column
+                    row_found = -1
+                    for row in range(self.grid.GetNumberRows()):
+                        for col in range(1, len(self.core_levels) + 1):
+                            if self.grid.GetCellValue(row, col) == sheet_name:
+                                row_found = row
+                                break
+                        if row_found >= 0:
+                            break
+
+                    if row_found >= 0:
+                        norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+                        try:
+                            norm_area = float(norm_area_str) if norm_area_str else None
+                            if norm_area is not None and norm_area != 0:
+                                norm_min = min(y_values)
+                                norm_params = {'method': 'norm_area', 'min': norm_min, 'norm_area': norm_area}
+                                y_values = (y_values - norm_min) / norm_area * 1000
+                        except ValueError:
+                            pass
+
+            # Calculate offset: Initial 1.1*Max, then +0.2*Max for each additional press
+            base_spacing = 1.1  # Initial spacing
+            additional_spacing = 0.2 * (self.fitted_offset_multiplier - 1)  # Additional spacing per press
+            total_spacing = base_spacing + additional_spacing
+            offset = i * total_spacing * reference_max
+
+            # Apply the offset to y_values
+            y_values_with_offset = y_values + offset
+
+            # Define base color for this core level (for overall fit envelope)
+            base_color = self.parent.plot_manager.peak_colors[i % len(self.parent.plot_manager.peak_colors)]
+
+            # Plot raw data using the same style as clear_and_replot
+            if self.parent.plot_manager.plot_style == "scatter":
+                # Use scatter plot with config settings
+                self.parent.ax.scatter(x_values, y_values_with_offset,
+                                       c=self.parent.plot_manager.scatter_color,
+                                       s=self.parent.plot_manager.scatter_size,
+                                       alpha=self.parent.plot_manager.line_alpha,
+                                       marker=self.parent.plot_manager.scatter_marker,
+                                       label=f'{sheet_name} (Raw)')
+            else:
+                # Use line plot with config settings
+                self.parent.ax.plot(x_values, y_values_with_offset,
+                                    color=self.parent.plot_manager.line_color,
+                                    alpha=self.parent.plot_manager.line_alpha,
+                                    linewidth=self.parent.plot_manager.line_width,
+                                    linestyle=self.parent.plot_manager.raw_data_linestyle,
+                                    label=f'{sheet_name} (Raw)')
+
+            # Plot fitted data if available (with the SAME offset and normalization factor)
+            self.plot_fitted_data_for_sheet(sheet_name, x_values, offset, base_color, i, norm_params)
+
+        # Set up the plot
+        if self.parent.energy_scale == 'KE':
+            self.parent.ax.set_xlabel("Kinetic Energy (eV)")
+            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")  # Same as F3
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_min, x_max)  # Normal for KE
+        else:
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")  # Same as F3
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
+
+        # # Add scientific notation to Y-axis (same as clear_and_replot)
+        # from matplotlib.ticker import ScalarFormatter
+        # self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        # self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Hide Y-axis tick labels and numbers (not needed for stacked plots)
+        self.parent.ax.set_yticklabels([])
+        self.parent.ax.tick_params(axis='y', which='both', left=False, right=False)
+
+        # Apply text settings from preference window
+        self.parent.plot_manager.apply_text_settings(self.parent)
+
+        # Update the plot
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state in the manager
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def plot_fitted_data_for_sheet(self, sheet_name, x_values, offset, base_color, sheet_index, norm_params=None):
+        """Plot fitted data using the same styling as clear_and_replot"""
+        if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
+            return
+
+        fitting_data = self.parent.Data['Core levels'][sheet_name]['Fitting']
+
+        def apply_normalization(data, norm_params):
+            """Apply the same normalization transformation used for raw data"""
+            if norm_params is None:
+                return data
+
+            data = np.array(data)
+            if norm_params['method'] == 'auto':
+                norm_min = norm_params['min']
+                norm_max = norm_params['max']
+                if norm_max != norm_min:
+                    return (data - norm_min) / (norm_max - norm_min) * 1000
+            elif norm_params['method'] == 'norm_be':
+                norm_min = norm_params['min']
+                norm_value = norm_params['norm_value']
+                if norm_value != 0:
+                    return (data - norm_min) / norm_value * 1000
+            elif norm_params['method'] == 'norm_area':
+                norm_min = norm_params['min']
+                norm_area = norm_params['norm_area']
+                if norm_area != 0:
+                    return (data - norm_min) / norm_area * 1000
+
+            return data
+
+        # Get background data
+        background = np.zeros_like(x_values)
+        if ('Background' in self.parent.Data['Core levels'][sheet_name] and
+                'Bkg Y' in self.parent.Data['Core levels'][sheet_name]['Background']):
+            background = np.array(self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+            background = background[:len(x_values)]
+
+        # Plot background using the same style as clear_and_replot
+        background_normalized = apply_normalization(background, norm_params)
+        self.parent.ax.plot(x_values, background_normalized + offset,
+                            color=self.parent.plot_manager.background_color,
+                            alpha=self.parent.plot_manager.background_alpha,
+                            linestyle=self.parent.plot_manager.background_linestyle,
+                            linewidth=self.parent.plot_manager.background_thickness,
+                            label=f'{sheet_name} (Bkg)')
+
+        # Add text label for this dataset (smaller and leftmost position)
+        max_y_with_offset = (max(background_normalized) if len(background_normalized) > 0 else 0) + offset + 50
+        text_x = max(x_values) - (max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (high BE side)
+        self.parent.ax.text(text_x, max_y_with_offset, sheet_name,
+                            fontsize=getattr(self.parent, 'label_font_size', 8),  # Use smaller font
+                            ha='left', va='bottom',  # Left align
+                            color='k')
+
+        # Plot individual peaks using fill_between just like clear_and_replot
+        if 'Peaks' in fitting_data:
+            peaks = fitting_data['Peaks']
+            peaks_list = list(peaks.items())
+            num_peaks = len(peaks_list)
+
+            # Identify doublets using the same logic as clear_and_replot
+            doublets = []
+            for i in range(0, num_peaks - 1):
+                current_label = peaks_list[i][0]  # peak name
+                next_label = peaks_list[i + 1][0]  # next peak name
+                if self.is_part_of_doublet(current_label, next_label):
+                    doublets.extend([i, i + 1])
+
+            for peak_idx, (peak_name, peak_data) in enumerate(peaks_list):
+                if not self.is_peak_data_complete(peak_data):
+                    continue
+
+                # Calculate individual peak curve + background
+                individual_peak_with_bg = self.calculate_single_peak_with_background(
+                    x_values, peak_data, background, sheet_name)
+
+                if individual_peak_with_bg is not None:
+                    # Apply the SAME normalization as raw data
+                    peak_normalized = apply_normalization(individual_peak_with_bg, norm_params)
+                    background_normalized = apply_normalization(background, norm_params)
+
+                    # Handle doublet coloring the same way as clear_and_replot
+                    if peak_idx in doublets:
+                        if doublets.index(peak_idx) % 2 == 0:  # First peak of the doublet
+                            color = self.parent.plot_manager.peak_colors[
+                                peak_idx % len(self.parent.plot_manager.peak_colors)]
+                            alpha = getattr(self.parent, 'peak_alpha', 0.3)
+                        else:  # Second peak of the doublet
+                            # Use the same color as the first peak of the doublet, but with lower alpha
+                            color = self.parent.plot_manager.peak_colors[
+                                (peak_idx - 1) % len(self.parent.plot_manager.peak_colors)]
+                            alpha = getattr(self.parent, 'peak_alpha', 0.3) * 0.99  # Reduce alpha for the second peak
+                    else:
+                        color = self.parent.plot_manager.peak_colors[
+                            peak_idx % len(self.parent.plot_manager.peak_colors)]
+                        alpha = getattr(self.parent, 'peak_alpha', 0.3)
+
+                    # Get peak fill type (same as clear_and_replot)
+                    peak_fill_types = getattr(self.parent, 'peak_fill_types', ["Solid Fill"] * 15)
+                    peak_fill_type = peak_fill_types[peak_idx % len(peak_fill_types)]
+
+                    if peak_fill_type == "Solid Fill":
+                        # Use fill_between with solid fill
+                        self.parent.ax.fill_between(x_values, background_normalized + offset, peak_normalized + offset,
+                                                    facecolor=color, alpha=alpha, edgecolor='none',
+                                                    label=f'{peak_name}')
+
+                    elif peak_fill_type == "Hatch":
+                        # Use fill_between with hatch pattern
+                        peak_hatch_patterns = getattr(self.parent, 'peak_hatch_patterns', ["/"] * 15)
+                        hatch_density = getattr(self.parent, 'hatch_density', 2)
+                        hatch_pattern = peak_hatch_patterns[peak_idx % len(peak_hatch_patterns)] * hatch_density
+
+                        self.parent.ax.fill_between(x_values, background_normalized + offset, peak_normalized + offset,
+                                                    color='none',
+                                                    hatch=hatch_pattern,
+                                                    linewidth=getattr(self.parent, 'peak_line_thickness', 1),
+                                                    edgecolor=color, alpha=alpha,
+                                                    label=f'{peak_name}')
+
+                    elif peak_fill_type == "None":
+                        # Only draw the line (no fill) - but still need to plot something
+                        peak_line_style = getattr(self.parent, 'peak_line_style', 'Same Color')
+                        if peak_line_style != "No Line":
+                            # Determine line color
+                            if peak_line_style == "Black":
+                                line_color = 'black'
+                            elif peak_line_style == "Grey":
+                                line_color = 'grey'
+                            else:  # Same Color
+                                line_color = color
+
+                            self.parent.ax.plot(x_values, peak_normalized + offset,
+                                                color=line_color,
+                                                alpha=getattr(self.parent, 'peak_line_alpha', 0.7),
+                                                linewidth=getattr(self.parent, 'peak_line_thickness', 1),
+                                                linestyle=getattr(self.parent, 'peak_line_pattern', '-'),
+                                                label=f'{peak_name}')
+
+                    # Add peak line on top if peak_line_style is not "No Line" (same as plot_peak)
+                    peak_line_style = getattr(self.parent, 'peak_line_style', 'Same Color')
+                    if peak_line_style != "No Line":
+                        # Determine line color
+                        if peak_line_style == "Black":
+                            line_color = 'black'
+                        elif peak_line_style == "Grey":
+                            line_color = 'grey'
+                        else:  # Same Color
+                            line_color = color
+
+                        line_alpha = min(alpha + 0.1, 1)
+                        self.parent.ax.plot(x_values, peak_normalized + offset,
+                                            color=line_color,
+                                            alpha=getattr(self.parent, 'peak_line_alpha', 0.7),
+                                            linewidth=getattr(self.parent, 'peak_line_thickness', 1),
+                                            linestyle=getattr(self.parent, 'peak_line_pattern', '-'))
+
+        # Plot overall fit using the same style as clear_and_replot (envelope)
+        overall_fit = self.calculate_overall_fit_from_data(sheet_name, x_values, background)
+        if overall_fit is not None:
+            overall_fit_normalized = apply_normalization(overall_fit, norm_params)
+            self.parent.ax.plot(x_values, overall_fit_normalized + offset,
+                                color=self.parent.plot_manager.envelope_color,
+                                alpha=self.parent.plot_manager.envelope_alpha,
+                                linestyle=self.parent.plot_manager.envelope_linestyle,
+                                linewidth=self.parent.plot_manager.envelope_thickness,
+                                label=f'{sheet_name} (Fit)')
+
+    def is_part_of_doublet(self, current_label, next_label):
+        """Check if two consecutive peaks form a doublet (same logic as clear_and_replot)"""
+        try:
+            # Extract the element and orbital parts from peak labels
+            # Example: "C1s3/2 p1" and "C1s1/2 p2" should be detected as doublet
+            import re
+
+            # Pattern to match element + orbital + spin-orbit coupling
+            pattern = r'([A-Za-z]+\d+[spdf])(\d+/\d+)?'
+
+            current_match = re.match(pattern, current_label)
+            next_match = re.match(pattern, next_label)
+
+            if current_match and next_match:
+                current_base = current_match.group(1)  # e.g., "C1s"
+                next_base = next_match.group(1)
+
+                # If the base orbital is the same, check for spin-orbit coupling
+                if current_base == next_base:
+                    current_coupling = current_match.group(2)  # e.g., "3/2"
+                    next_coupling = next_match.group(2)  # e.g., "1/2"
+
+                    if current_coupling and next_coupling:
+                        # Check for common doublet patterns
+                        doublet_patterns = [
+                            ("3/2", "1/2"),  # p and d orbitals
+                            ("5/2", "3/2"),  # d orbitals
+                            ("7/2", "5/2")  # f orbitals
+                        ]
+
+                        for pattern in doublet_patterns:
+                            if (current_coupling, next_coupling) == pattern:
+                                return True
+
+            return False
+
+        except Exception:
+            return False
+
+    def calculate_single_peak_with_background(self, x_values, peak_data, background, sheet_name):
+        """Calculate a single peak curve with background added (same normalization as raw data)"""
+        try:
+            import lmfit
+            from libraries.Peak_Functions import PeakFunctions
+
+            # Get peak parameters
+            peak_x = float(peak_data['Position'])
+            peak_y = float(peak_data['Height'])
+            fwhm = float(peak_data['FWHM'])
+            lg_ratio = float(peak_data.get('L/G', 20))
+            fitting_model = peak_data.get('Fitting Model', 'Voigt (Area, L/G, σ)')
+
+            # Calculate peak curve only (without background) using same logic as update_overall_fit_and_residuals
+            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
+                # For Voigt: W_g and W_l are widths, need to convert to sigma and gamma
+                if 'Sigma' in peak_data and 'Gamma' in peak_data:
+                    w_g = float(peak_data['Sigma'])  # W_g (Gaussian width)
+                    w_l = float(peak_data['Gamma'])  # W_l (Lorentzian width)
+                    sigma = w_g / 2.355  # Convert width to sigma
+                    gamma = w_l / 2  # Convert width to gamma
+                else:
+                    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                    gamma = lg_ratio / 100 * sigma
+
+                peak_model = lmfit.models.VoigtModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "Voigt (Area, L/G, \u03c3, S)":
+                # For Skewed Voigt: same conversion
+                w_g = float(peak_data.get('Sigma', fwhm / 2.355))
+                w_l = float(peak_data.get('Gamma', lg_ratio / 100 * fwhm / 2.355))
+                sigma = w_g / 2.355
+                gamma = w_l / 2
+                skew = float(peak_data.get('Skew', 0.01))
+
+                peak_model = lmfit.models.SkewedVoigtModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, skew=skew, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "Gaussian":
+                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                peak_model = lmfit.models.GaussianModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "Lorentzian":
+                peak_model = lmfit.models.LorentzianModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=fwhm / 2, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=fwhm / 2)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "GL (Height)":
+                peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "SGL (Height)":
+                peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz)
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "GL (Area)":
+                peak_model = lmfit.Model(PeakFunctions.gauss_lorentz_Area)
+                area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "SGL (Area)":
+                peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area)
+                area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                                   "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                # For LA models, use stored y_values if available
+                if 'y_values' in peak_data:
+                    peak_curve = np.array(peak_data['y_values'])[:len(x_values)]
+                else:
+                    # Fallback - skip this peak
+                    return None
+
+            else:
+                # Fallback to Voigt for unknown models
+                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                gamma = lg_ratio / 100 * sigma
+                peak_model = lmfit.models.VoigtModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            # Add background to peak (same as plot_peak does: peak + background)
+            peak_with_background = peak_curve + background
+
+            return peak_with_background
+
+        except Exception as e:
+            print(f"Error calculating single peak: {e}")
+            return None
+
+    def calculate_overall_fit_from_data(self, sheet_name, x_values, background):
+        """Calculate overall fit from stored peak data - same logic as update_overall_fit_and_residuals"""
+        try:
+            if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
+                return None
+
+            fitting_data = self.parent.Data['Core levels'][sheet_name]['Fitting']
+
+            # Start with background (same as update_overall_fit_and_residuals)
+            overall_fit = background.astype(float).copy()[:len(x_values)]
+
+            # Add all peak curves using the same logic as update_overall_fit_and_residuals
+            if 'Peaks' in fitting_data:
+                peaks = fitting_data['Peaks']
+
+                for peak_name, peak_data in peaks.items():
+                    if not self.is_peak_data_complete(peak_data):
+                        continue
+
+                    # Get peak parameters (same as in update_overall_fit_and_residuals)
+                    peak_x = float(peak_data['Position'])
+                    peak_y = float(peak_data['Height'])
+                    fwhm = float(peak_data['FWHM'])
+                    lg_ratio = float(peak_data.get('L/G', 20))
+                    fitting_model = peak_data.get('Fitting Model', 'Voigt (Area, L/G, σ)')
+
+                    # Use the same model logic as update_overall_fit_and_residuals
+                    import lmfit
+                    from libraries.Peak_Functions import PeakFunctions
+
+                    if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
+                        # FIXED: For Voigt, W_g and W_l are widths, need to convert to sigma and gamma
+                        if 'Sigma' in peak_data and 'Gamma' in peak_data:
+                            w_g = float(peak_data['Sigma'])  # W_g (Gaussian width)
+                            w_l = float(peak_data['Gamma'])  # W_l (Lorentzian width)
+                            sigma = w_g / 2.355  # Convert width to sigma
+                            gamma = w_l / 2  # Convert width to gamma
+                        else:
+                            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                            gamma = lg_ratio / 100 * sigma
+
+                        peak_model = lmfit.models.VoigtModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+
+                    elif fitting_model == "Voigt (Area, L/G, \u03c3, S)":
+                        # FIXED: Same conversion for Skewed Voigt
+                        w_g = float(peak_data.get('Sigma', fwhm / 2.355))
+                        w_l = float(peak_data.get('Gamma', lg_ratio / 100 * fwhm / 2.355))
+                        sigma = w_g / 2.355
+                        gamma = w_l / 2
+                        skew = float(peak_data.get('Skew', 0.01))
+
+                        peak_model = lmfit.models.SkewedVoigtModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, skew=skew,
+                                                             x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma,
+                                                        skew=skew)
+
+                    elif fitting_model == "Gaussian":
+                        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                        peak_model = lmfit.models.GaussianModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma)
+
+                    elif fitting_model == "Lorentzian":
+                        peak_model = lmfit.models.LorentzianModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=fwhm / 2, x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=fwhm / 2)
+
+                    elif fitting_model == "GL (Height)":
+                        peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+
+                    elif fitting_model == "SGL (Height)":
+                        peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz)
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+
+                    elif fitting_model == "GL (Area)":
+                        peak_model = lmfit.Model(PeakFunctions.gauss_lorentz_Area)
+                        area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+
+                    elif fitting_model == "SGL (Area)":
+                        peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area)
+                        area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+
+                    elif fitting_model in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                                           "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                        # For LA models, use stored y_values if available
+                        if 'y_values' in peak_data:
+                            peak_fit = np.array(peak_data['y_values'])[:len(x_values)]
+                            overall_fit += peak_fit
+                            continue
+                        else:
+                            # Fallback to basic calculation
+                            continue
+
+                    elif fitting_model in ["D-parameter", "SurveyID"]:
+                        # Skip these models in overall fit calculation
+                        continue
+
+                    else:
+                        print(
+                            f"Warning: Unknown fitting model '{fitting_model}' for peak {peak_name}. Skipping this peak.")
+                        continue
+
+                    # Calculate and add peak fit (same as update_overall_fit_and_residuals)
+                    peak_fit = peak_model.eval(params, x=x_values)
+                    overall_fit += peak_fit
+
+            return overall_fit
+
+        except Exception as e:
+            print(f"Error calculating overall fit: {e}")
+            return None
+
+    def is_peak_data_complete(self, peak_data):
+        """Check if peak data has all required parameters"""
+        required_params = ['Position', 'Height', 'FWHM', 'Fitting Model']
+        return all(param in peak_data for param in required_params)
 
     def hide_norm_cursors(self):
         """Hide normalization cursors if they exist"""
