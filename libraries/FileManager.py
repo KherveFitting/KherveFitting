@@ -1982,6 +1982,7 @@ class FileManagerWindow(wx.Frame):
         # Update JSON file
         try:
             json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+            from libraries.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
@@ -1993,9 +1994,29 @@ class FileManagerWindow(wx.Frame):
 
         # Refresh sheets after pasting
         try:
+            # Create console window for refresh operation
+            parent_pos = self.parent.GetPosition()
+            parent_size = self.parent.GetSize()
+            console_frame = wx.Frame(self.parent, title="Refreshing Sheets", size=(300, 200))
+            console_frame.SetPosition((
+                parent_pos.x + (parent_size.width - 300) // 2,
+                parent_pos.y + (parent_size.height - 200) // 2
+            ))
+            console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            console_frame.Show()
+
+            def update_console(message):
+                console_text.AppendText(message + '\n')
+                console_text.Update()
+                wx.SafeYield()
+
             from libraries.Sheet_Operations import on_sheet_selected
             from libraries.Save import refresh_sheets
-            refresh_sheets(window, on_sheet_selected, update_console)
+            refresh_sheets(self.parent, on_sheet_selected, update_console)
+
+            # Close console after refresh
+            wx.CallLater(500, console_frame.Close)
+
         except Exception as refresh_err:
             print(f"Error refreshing sheets: {refresh_err}")
 
