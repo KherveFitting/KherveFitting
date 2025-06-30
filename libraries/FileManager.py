@@ -229,7 +229,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_copy, copy_tool)
 
         # Paste button
-        paste_icon = os.path.join(icon_path, "paste-3.png")
+        paste_icon = os.path.join(icon_path, "Paste-3.png")
         if os.path.exists(paste_icon):
             paste_bmp = wx.Bitmap(paste_icon)
         else:
@@ -291,7 +291,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_offset, offset_plot_tool)
 
         # Stacked plot button (F4)
-        stacked_plot_icon = os.path.join(icon_path, "Plot3-25.png")
+        stacked_plot_icon = os.path.join(icon_path, "StackedPlot.png")
         if os.path.exists(stacked_plot_icon):
             stacked_plot_bmp = wx.Bitmap(stacked_plot_icon)
         else:
