@@ -68,3 +68,4 @@ pyperclip
 bs4
 pyarrow
 fastparquet
+pygame
