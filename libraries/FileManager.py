@@ -250,6 +250,26 @@ class FileManagerWindow(wx.Frame):
         delete_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Core Level", delete_bmp, "Delete selected core level")
         self.Bind(wx.EVT_TOOL, self.on_delete, delete_tool)
 
+        # Smooth button
+        smooth_icon = os.path.join(icon_path, "Smooth-3.png")
+        if os.path.exists(smooth_icon):
+            smooth_bmp = wx.Bitmap(smooth_icon)
+        else:
+            smooth_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        smooth_tool = self.toolbar.AddTool(wx.ID_ANY, "Smooth Core Level", smooth_bmp,
+                                           "Apply Gaussian smoothing (width=1)")
+        self.Bind(wx.EVT_TOOL, self.on_smooth_default, smooth_tool)
+
+        # x1000 button (multiply by 1000) - add after sum button
+        x1000_icon = os.path.join(icon_path, "Multi-3.png")
+        if os.path.exists(x1000_icon):
+            x1000_bmp = wx.Bitmap(x1000_icon)
+        else:
+            x1000_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_TOOLBAR)
+        x1000_tool = self.toolbar.AddTool(wx.ID_ANY, "Multiply by 1000", x1000_bmp,
+                                          "Multiply selected core level by 1000")
+        self.Bind(wx.EVT_TOOL, self.on_multiply_1000, x1000_tool)
+
         # Sum button
         sum_icon = os.path.join(icon_path, "SUM-25.png")
         sum_bmp = wx.Bitmap(sum_icon)
@@ -4183,6 +4203,187 @@ class FileManagerWindow(wx.Frame):
 
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error deleting row: {str(e)}")
+
+    def on_smooth_default(self, event):
+        """Apply default gaussian smoothing with width 1"""
+        selected_sheets = self.get_selected_sheet_names()
+
+        if not selected_sheets:
+            wx.MessageBox("Please select a core level to smooth", "No Selection", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create console window
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+        console_frame = wx.Frame(self.parent, title="Smoothing Core Levels", size=(300, 200))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 200) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        try:
+            from scipy.ndimage import gaussian_filter
+            import re
+            from libraries.Utilities import PlotModWindow
+
+            for sheet_name in selected_sheets:
+                update_console(f"Smoothing: {sheet_name}")
+
+                # Get data
+                x = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+                # Apply Gaussian smoothing with width 5
+                smoothed_y = gaussian_filter(y, sigma=1)
+
+                # Get base name for new sheet
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                base_name = match.group(1) if match else sheet_name
+
+                # Use existing utility method to find next available name
+                plot_mod = PlotModWindow(self.parent)
+                new_sheet_name = plot_mod.get_earliest_row_name(base_name)
+
+                update_console(f"Creating: {new_sheet_name}")
+
+                # Create new core level data - ensure all data is in list format
+                new_core_level_data = {
+                    'B.E.': x if isinstance(x, list) else x.tolist(),
+                    'Raw Data': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y),
+                    'Background': {'Bkg Y': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y)},
+                    'Name': new_sheet_name
+                }
+
+                # Add to parent data
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+                self.parent.Data['Number of Core levels'] += 1
+
+                # Update sheet combobox
+                self.parent.sheet_combobox.Append(new_sheet_name)
+
+                update_console(f"Completed: {new_sheet_name}")
+
+            # Refresh grid
+            self.populate_grid()
+
+            # Select first new smoothed sheet
+            if selected_sheets:
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
+                base_name = match.group(1) if match else selected_sheets[0]
+                plot_mod = PlotModWindow(self.parent)
+                new_name = plot_mod.get_earliest_row_name(base_name)
+                self.parent.sheet_combobox.SetValue(new_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_name)
+
+            update_console("Smoothing completed!")
+            wx.CallLater(1000, console_frame.Close)
+
+        except Exception as e:
+            update_console(f"Error: {str(e)}")
+            wx.CallLater(2000, console_frame.Close)
+
+    def on_multiply_1000(self, event):
+        """Multiply selected core levels by 1000"""
+        selected_sheets = self.get_selected_sheet_names()
+
+        if not selected_sheets:
+            wx.MessageBox("Please select a core level to multiply", "No Selection", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create console window
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+        console_frame = wx.Frame(self.parent, title="Multiplying by 1000", size=(300, 200))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 200) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        try:
+            import re
+            from libraries.Utilities import PlotModWindow
+
+            for sheet_name in selected_sheets:
+                update_console(f"Multiplying: {sheet_name}")
+
+                # Get data
+                x = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+                # Multiply by 1000
+                multiplied_y = [val * 1000 for val in y]
+
+                # Get base name for new sheet
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                base_name = match.group(1) if match else sheet_name
+
+                # Use existing utility method to find next available name
+                plot_mod = PlotModWindow(self.parent)
+                new_sheet_name = plot_mod.get_earliest_row_name(base_name)
+
+                update_console(f"Creating: {new_sheet_name}")
+
+                # Create new core level data - ensure all data is in list format
+                new_core_level_data = {
+                    'B.E.': x if isinstance(x, list) else x.tolist(),
+                    'Raw Data': multiplied_y,
+                    'Background': {'Bkg Y': multiplied_y},
+                    'Name': new_sheet_name
+                }
+
+                # Add to parent data
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+                self.parent.Data['Number of Core levels'] += 1
+
+                # Update sheet combobox
+                self.parent.sheet_combobox.Append(new_sheet_name)
+
+                update_console(f"Completed: {new_sheet_name}")
+
+            # Refresh grid
+            self.populate_grid()
+
+            # Force clear plot limits before selecting new sheet
+            if hasattr(self.parent, 'plot_config') and hasattr(self.parent.plot_config, 'plot_limits'):
+                self.parent.plot_config.plot_limits.clear()
+
+            # Select first new multiplied sheet with proper refresh
+            if selected_sheets:
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
+                base_name = match.group(1) if match else selected_sheets[0]
+                plot_mod = PlotModWindow(self.parent)
+                new_name = plot_mod.get_earliest_row_name(base_name)
+                self.parent.sheet_combobox.SetValue(new_name)
+
+                # Force a complete refresh
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_name)
+
+                # Additional plot refresh
+                if hasattr(self.parent, 'plot_manager'):
+                    self.parent.plot_manager.clear_and_replot(self.parent)
+
+            update_console("Multiplication completed!")
+            wx.CallLater(1000, console_frame.Close)
+
+        except Exception as e:
+            update_console(f"Error: {str(e)}")
+            wx.CallLater(2000, console_frame.Close)
 
 class CoreLevelPreviewDialog(wx.Dialog):
     def __init__(self, parent, title, core_levels_data, operation_type):
