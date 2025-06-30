@@ -29,7 +29,7 @@ class ExcelDropTarget(wx.FileDropTarget):
         wx.FileDropTarget.__init__(self)
         self.window = window
 
-    def OnDropFiles(self, x, y, filenames):
+    def OnDropFiles_OLD(self, x, y, filenames):
         from libraries.Open import open_xlsx_file, open_vamas_file
         for file in filenames:
             if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe',
@@ -81,6 +81,419 @@ class ExcelDropTarget(wx.FileDropTarget):
                 wx.CallAfter(open_vg_microtech_file, self.window, file)
                 return True
         return False
+
+    def OnDropFiles(self, x, y, filenames):
+        from libraries.Open import (open_xlsx_file, open_vamas_file, open_kal_file,
+                                    open_avg_file_direct, open_spe_file, open_mrs_file,
+                                    open_vg_microtech_file)
+
+        # Check all files are valid first
+        for file in filenames:
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe',
+                                                              '.mrs', '.1']):
+                wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
+                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech) and .spe (Phi) files can be "
+                              f"dropped.",
+                              "Invalid File Type",
+                              wx.OK | wx.ICON_ERROR)
+                return False
+
+        # If single file, use original logic
+        if len(filenames) == 1:
+            file = filenames[0]
+            return self._process_single_dropped_file(file)
+
+        # Multiple files - group by type and process
+        return self._process_multiple_dropped_files(filenames)
+
+    def _process_single_dropped_file(self, file):
+        """Process single dropped file using original logic"""
+        from libraries.Open import open_xlsx_file, open_vamas_file, open_kal_file, open_avg_file_direct, open_spe_file, \
+            open_mrs_file, open_vg_microtech_file
+        from libraries.Open import import_avantage_file_direct, import_avantage_file_direct_xls
+
+        if file.lower().endswith('.xlsx'):
+            try:
+                wb = openpyxl.load_workbook(file)
+                if "Titles" in wb.sheetnames:
+                    wx.CallAfter(import_avantage_file_direct, self.window, file)
+                else:
+                    wx.CallAfter(open_xlsx_file, self.window, file)
+                wb.close()
+                return True
+            except Exception:
+                return False
+        elif file.lower().endswith('.xls'):
+            try:
+                wb = xlrd.open_workbook(file)
+                if "Titles" in wb.sheet_names():
+                    wx.CallAfter(import_avantage_file_direct_xls, self.window, file)
+                else:
+                    wx.CallAfter(open_xlsx_file, self.window, file)
+                wb.close()
+                return True
+            except Exception:
+                print("Error opening Excel file:", sys.exc_info())
+                return False
+        elif file.lower().endswith('.vms'):
+            wx.CallAfter(open_vamas_file, self.window, file)
+            return True
+        elif file.lower().endswith('.kal'):
+            wx.CallAfter(open_kal_file, self.window, file)
+            return True
+        elif file.lower().endswith('.avg'):
+            wx.CallAfter(open_avg_file_direct, self.window, file)
+            return True
+        elif file.lower().endswith('.spe'):
+            wx.CallAfter(open_spe_file, self.window, file)
+            return True
+        elif file.lower().endswith('.mrs'):
+            wx.CallAfter(open_mrs_file, self.window, file)
+            return True
+        elif file.lower().endswith('.1'):
+            wx.CallAfter(open_vg_microtech_file, self.window, file)
+            return True
+        return False
+
+    def _process_multiple_dropped_files(self, filenames):
+        """Process multiple dropped files by grouping them by type"""
+        # Group files by type
+        file_groups = {
+            'khervefitting_xlsx': [],
+            'khervefitting_xls': [],
+            'avantage_xlsx': [],
+            'avantage_xls': [],
+            'vms': [],
+            'kal': [],
+            'avg': [],
+            'spe': [],
+            'mrs': [],
+            'vg': []
+        }
+
+        # Categorize files
+        for file in filenames:
+            file_lower = file.lower()
+
+            if file_lower.endswith('.xlsx'):
+                try:
+                    wb = openpyxl.load_workbook(file)
+                    if "Titles" in wb.sheetnames:
+                        file_groups['avantage_xlsx'].append(file)
+                    else:
+                        file_groups['khervefitting_xlsx'].append(file)
+                    wb.close()
+                except Exception:
+                    file_groups['khervefitting_xlsx'].append(file)
+
+            elif file_lower.endswith('.xls'):
+                try:
+                    wb = xlrd.open_workbook(file)
+                    if "Titles" in wb.sheet_names():
+                        file_groups['avantage_xls'].append(file)
+                    else:
+                        file_groups['khervefitting_xls'].append(file)
+                    wb.close()
+                except Exception:
+                    file_groups['khervefitting_xls'].append(file)
+
+            elif file_lower.endswith('.vms'):
+                file_groups['vms'].append(file)
+            elif file_lower.endswith('.kal'):
+                file_groups['kal'].append(file)
+            elif file_lower.endswith('.avg'):
+                file_groups['avg'].append(file)
+            elif file_lower.endswith('.spe'):
+                file_groups['spe'].append(file)
+            elif file_lower.endswith('.mrs'):
+                file_groups['mrs'].append(file)
+            elif file_lower.endswith('.1'):
+                file_groups['vg'].append(file)
+
+        # Process each group
+        success = True
+
+        # Process KherveFitting files
+        all_khervefitting = file_groups['khervefitting_xlsx'] + file_groups['khervefitting_xls']
+        if len(all_khervefitting) > 1:
+            wx.CallAfter(self._import_multiple_khervefitting_direct, all_khervefitting)
+        elif len(all_khervefitting) == 1:
+            success &= self._process_single_dropped_file(all_khervefitting[0])
+
+        # Process Avantage files
+        all_avantage = file_groups['avantage_xlsx'] + file_groups['avantage_xls']
+        if len(all_avantage) > 1:
+            wx.CallAfter(self._import_multiple_avantage_direct, all_avantage)
+        elif len(all_avantage) == 1:
+            success &= self._process_single_dropped_file(all_avantage[0])
+
+        # Process MRS files
+        if len(file_groups['mrs']) > 1:
+            wx.CallAfter(self._import_multiple_mrs_direct, file_groups['mrs'])
+        elif len(file_groups['mrs']) == 1:
+            success &= self._process_single_dropped_file(file_groups['mrs'][0])
+
+        # Process AVG files
+        if len(file_groups['avg']) > 1:
+            wx.CallAfter(self._import_multiple_avg_direct, file_groups['avg'])
+        elif len(file_groups['avg']) == 1:
+            success &= self._process_single_dropped_file(file_groups['avg'][0])
+
+        # Process VG-Microtech files
+        if len(file_groups['vg']) > 1:
+            wx.CallAfter(self._import_multiple_vg_direct, file_groups['vg'])
+        elif len(file_groups['vg']) == 1:
+            success &= self._process_single_dropped_file(file_groups['vg'][0])
+
+        # Process other file types individually (no batch import available)
+        for file_type in ['vms', 'kal', 'spe']:
+            for file in file_groups[file_type]:
+                success &= self._process_single_dropped_file(file)
+
+        return success
+
+    def _import_multiple_khervefitting_direct(self, file_list):
+        """Import multiple KherveFitting files directly"""
+        try:
+            import openpyxl
+            import os
+            from libraries.Open import process_kfitting_file_with_sample_number
+
+            # Sort files alphabetically
+            file_list.sort(key=lambda x: os.path.basename(x))
+
+            # Create combined workbook
+            combined_wb = openpyxl.Workbook()
+            combined_wb.remove(combined_wb.active)
+
+            sample_names_dict = {}
+
+            # Process each file
+            for sample_idx, file_path in enumerate(file_list):
+                sample_name = os.path.splitext(os.path.basename(file_path))[0]
+                sample_names_dict[str(sample_idx)] = sample_name
+
+                wb = openpyxl.load_workbook(file_path)
+                process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
+                wb.close()
+
+            # Save combined file
+            first_file_dir = os.path.dirname(file_list[0])
+            combined_file_path = os.path.join(first_file_dir, "Combined_KherveFitting_Files.xlsx")
+            combined_wb.save(combined_file_path)
+            combined_wb.close()
+
+            # Open the combined file
+            from libraries.Open import open_xlsx_file
+            open_xlsx_file(self.window, combined_file_path)
+
+            # Store sample names
+            if 'SampleNames' not in self.window.Data:
+                self.window.Data['SampleNames'] = {}
+            self.window.Data['SampleNames'].update(sample_names_dict)
+
+            self.window.show_popup_message2("Success", f"Combined {len(file_list)} KherveFitting files.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error importing multiple KherveFitting files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _import_multiple_avantage_direct(self, file_list):
+        """Import multiple Avantage files directly"""
+        try:
+            from libraries.Open import import_avantage_file_direct, import_avantage_file_direct_xls
+
+            processed_count = 0
+            for file_path in file_list:
+                try:
+                    if file_path.lower().endswith('.xlsx'):
+                        import_avantage_file_direct(self.window, file_path)
+                    elif file_path.lower().endswith('.xls'):
+                        import_avantage_file_direct_xls(self.window, file_path)
+                    processed_count += 1
+                except Exception as e:
+                    print(f"Error processing {os.path.basename(file_path)}: {e}")
+
+            self.window.show_popup_message2("Success",
+                                            f"Processed {processed_count} of {len(file_list)} Avantage files.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error importing multiple Avantage files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _import_multiple_mrs_direct(self, file_list):
+        """Import multiple MRS files directly"""
+        try:
+            from libraries.Open import open_mrs_file
+
+            processed_count = 0
+            for file_path in file_list:
+                try:
+                    if open_mrs_file(self.window, file_path):
+                        processed_count += 1
+                except Exception as e:
+                    print(f"Error processing {os.path.basename(file_path)}: {e}")
+
+            self.window.show_popup_message2("Success", f"Processed {processed_count} of {len(file_list)} MRS files.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error importing multiple MRS files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _import_multiple_avg_direct(self, file_list):
+        """Import multiple AVG files directly"""
+        try:
+            from libraries.Open import open_avg_file_direct
+
+            processed_count = 0
+            for file_path in file_list:
+                try:
+                    open_avg_file_direct(self.window, file_path)
+                    processed_count += 1
+                except Exception as e:
+                    print(f"Error processing {os.path.basename(file_path)}: {e}")
+
+            self.window.show_popup_message2("Success", f"Processed {processed_count} of {len(file_list)} AVG files.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error importing multiple AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _import_multiple_vg_direct(self, file_list):
+        """Import multiple VG-Microtech files directly"""
+        try:
+            from libraries.Open import open_vg_microtech_file
+
+            processed_count = 0
+            for file_path in file_list:
+                try:
+                    open_vg_microtech_file(self.window, file_path)
+                    processed_count += 1
+                except Exception as e:
+                    print(f"Error processing {os.path.basename(file_path)}: {e}")
+
+            self.window.show_popup_message2("Success",
+                                            f"Processed {processed_count} of {len(file_list)} VG-Microtech files.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error importing multiple VG-Microtech files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def import_multiple_kfitting_files_from_dir(window, folder_path):
+    """Modified version that works with a provided directory path"""
+    try:
+        # Find all Excel files in the directory
+        excel_files = [f for f in os.listdir(folder_path)
+                       if f.lower().endswith('.xlsx') and not f.startswith('~')]
+
+        if not excel_files:
+            window.show_popup_message2("Information", "No Excel files found.")
+            return
+
+        # Sort files alphabetically
+        excel_files.sort()
+
+        # Create single combined workbook
+        combined_file_path = os.path.join(folder_path, "Combined_KherveFitting_Files.xlsx")
+        combined_wb = openpyxl.Workbook()
+        combined_wb.remove(combined_wb.active)
+
+        # Store sample names as dictionary for JSON
+        sample_names_dict = {}
+
+        # Process each file as a separate sample
+        for sample_idx, excel_file in enumerate(excel_files):
+            file_path = os.path.join(folder_path, excel_file)
+
+            # Remove file extension for cleaner sample names
+            sample_name = os.path.splitext(excel_file)[0]
+            sample_names_dict[str(sample_idx)] = sample_name
+
+            # Load the workbook
+            wb = openpyxl.load_workbook(file_path)
+            process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
+
+        # Save the combined file
+        combined_wb.save(combined_file_path)
+
+        window.show_popup_message2("Success",
+                                   f"Combined {len(excel_files)} KherveFitting files into single Excel file.")
+
+        # Load the combined file
+        open_xlsx_file(window, combined_file_path)
+
+        # Store sample names in Data
+        if 'SampleNames' not in window.Data:
+            window.Data['SampleNames'] = {}
+        window.Data['SampleNames'].update(sample_names_dict)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error combining KherveFitting files: {str(e)}")
+
+def import_multiple_avantage_files_from_dir(window, folder_path):
+    """Import multiple Avantage files from provided directory"""
+    try:
+        from libraries.Open import import_multiple_avantage_files
+
+        # Find all Excel files
+        excel_files = [f for f in os.listdir(folder_path)
+                       if f.lower().endswith(('.xlsx', '.xls')) and not f.startswith('~')]
+
+        if not excel_files:
+            window.show_popup_message2("Information", "No Avantage Excel files found.")
+            return
+
+        # Process each file
+        processed_count = 0
+        for excel_file in excel_files:
+            file_path = os.path.join(folder_path, excel_file)
+            try:
+                from libraries.Open import import_avantage_file
+                import_avantage_file(window, file_path)
+                processed_count += 1
+            except Exception as e:
+                print(f"Error processing {excel_file}: {e}")
+
+        window.show_popup_message2("Success",
+                                   f"Processed {processed_count} of {len(excel_files)} Avantage files.")
+
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error processing Avantage files: {str(e)}")
+
+def import_multiple_mrs_files_from_dir(window, folder_path):
+    """Import multiple MRS files from provided directory"""
+    try:
+        # Find all MRS files in the directory
+        mrs_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.mrs')]
+
+        if not mrs_files:
+            window.show_popup_message2("Information", "No MRS files found.")
+            return
+
+        # Ask if user wants individual Excel files or one combined file
+        dlg = wx.MessageDialog(window,
+                               "Do you want to create individual Excel files for each MRS file or combine them into one Excel file?",
+                               "Import Options",
+                               wx.YES_NO | wx.ICON_QUESTION)
+        dlg.SetYesNoLabels("Individual Files", "One Combined File")
+
+        result = dlg.ShowModal()
+        individual_files = (result == wx.ID_YES)
+        dlg.Destroy()
+
+        if individual_files:
+            # Process each MRS file individually
+            processed_count = 0
+            for mrs_file in mrs_files:
+                mrs_path = os.path.join(folder_path, mrs_file)
+                if import_mrs_file_direct(window, mrs_path):
+                    processed_count += 1
+            window.show_popup_message2("Success", f"Processed {processed_count} of {len(mrs_files)} MRS files.")
+        else:
+            # Combine all files - implement similar to kfitting files
+            # This would need to be implemented based on your MRS combination logic
+            pass
+
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error processing MRS files: {str(e)}")
 
 
 def load_library_data_WITHEXCEL():
