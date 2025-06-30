@@ -108,11 +108,6 @@ class FileManagerWindow(wx.Frame):
         self.is_dragging_cursor = False
 
         # Bind events
-        # self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
-        # self.auto_check.Bind(wx.EVT_CHECKBOX, self.on_auto_changed)
-        # self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
-        # self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
-        self.norm_check.Bind(wx.EVT_CHECKBOX, self.on_norm_changed)
         self.norm_type.Bind(wx.EVT_COMBOBOX, self.on_norm_type_changed)
 
         self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
@@ -301,14 +296,12 @@ class FileManagerWindow(wx.Frame):
                                                  "Press F4 or Ctrl+4 to plot with fitted data")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_fitted_data, stacked_plot_tool)
 
-        self.norm_check = wx.CheckBox(self.toolbar, label="Norm.")
-        self.norm_check.SetToolTip("Normalise multiple plot data")
-        self.norm_type = wx.ComboBox(self.toolbar, choices=["Auto", "Norm. @ BE", "Norm. to A"], style=wx.CB_READONLY)
-        self.norm_type.SetSelection(0)  # Default to "Auto"
-        self.norm_type.SetToolTip("Choose normalization method. \n Press the shift key to activate the vLine in Norm. @ BE mode.")
-        self.norm_check.SetValue(True)  # Auto is checked by default
+        self.norm_type = wx.ComboBox(self.toolbar, choices=["Norm. OFF", "Norm. Auto", "Norm. @ BE", "Norm. to A"],
+                                     style=wx.CB_READONLY)
+        self.norm_type.SetSelection(1)  # Default to "Norm Auto"
+        self.norm_type.SetToolTip(
+            "Choose normalization method. \n Press the shift key to activate the vLine in Norm. @ BE mode.")
 
-        self.toolbar.AddControl(self.norm_check)
         self.toolbar.AddControl(self.norm_type)
 
         # self.toolbar.AddSeparator()
@@ -1226,8 +1219,8 @@ class FileManagerWindow(wx.Frame):
         x_max = float('-inf')
 
         # Determine if normalization is needed
-        normalize = self.norm_check.GetValue()
         norm_method = self.norm_type.GetValue()
+        normalize = norm_method != "Norm. OFF"
 
         # For auto normalization, we need to calculate global min/max
         global_min = float('inf')
@@ -1238,7 +1231,7 @@ class FileManagerWindow(wx.Frame):
         same_column = len(base_names) == 1
         column_name = list(base_names)[0] if same_column else None
 
-        if normalize and norm_method == "Auto":
+        if normalize and norm_method == "Norm. Auto":
             # Get global min/max across all selected datasets
             for sheet_name in sheet_names:
                 if sheet_name in self.parent.Data['Core levels']:
@@ -1262,7 +1255,7 @@ class FileManagerWindow(wx.Frame):
 
                 # Apply normalization if enabled
                 if normalize:
-                    if norm_method == "Auto":
+                    if norm_method == "Norm. Auto":
                         # Original auto normalization code
                         norm_min = min(y_values)
                         norm_max = max(y_values)
@@ -2289,11 +2282,11 @@ class FileManagerWindow(wx.Frame):
 
         dlg.Destroy()
 
-    def on_norm_changed(self, event):
+    def on_norm_changed_OLD(self, event):
         """Handle normalization checkbox toggle."""
         if self.norm_check.GetValue():
             # self.replot_with_normalization()
-            if self.norm_type.GetValue() != "Auto":
+            if self.norm_type.GetValue() != "Norm. Auto":
                 self.show_norm_cursors()
         else:
             self.hide_norm_cursors()
@@ -2301,19 +2294,23 @@ class FileManagerWindow(wx.Frame):
 
     def on_norm_type_changed(self, event):
         """Handle normalization type selection change."""
-        if self.norm_check.GetValue():
-            norm_method = self.norm_type.GetValue()
+        norm_method = self.norm_type.GetValue()
+
+        if norm_method == "Norm. OFF":
+            self.hide_norm_cursors()
+            self.replot_with_normalization()
+        else:
             # Reapply normalization with new method setting
             self.replot_with_normalization()
 
             # Show or hide normalization cursors based on selected method
-            if norm_method == "Auto" and not self.is_dragging_cursor:
+            if norm_method == "Norm. Auto" and not self.is_dragging_cursor:
                 self.hide_norm_cursors()
-            elif norm_method == "Norm @ BE":
+            elif norm_method == "Norm. @ BE":
                 self.hide_norm_cursors()  # No cursors needed for BE normalization
 
     def on_auto_changed(self, event):
-        if self.norm_check.GetValue():
+        if self.norm_type.GetValue() != "Norm. OFF":
             # Re-apply normalization with new Auto setting
             self.replot_with_normalization()
             # Show or hide normalization cursors based on auto setting
@@ -2453,7 +2450,7 @@ class FileManagerWindow(wx.Frame):
 
         # Refresh grid and replot if normalization is active
         self.grid.ForceRefresh()
-        if self.norm_check.GetValue():
+        if self.norm_type.GetValue() != "Norm. OFF":
             self.replot_with_normalization()
 
 
@@ -2889,7 +2886,7 @@ class FileManagerWindow(wx.Frame):
         x_max = float('-inf')
 
         # Determine if normalization is needed
-        normalize = self.norm_check.GetValue()
+        normalize = self.norm_type.GetValue() != "Norm. OFF"
         norm_method = self.norm_type.GetValue()
 
         # For auto normalization, we need to calculate global min/max
@@ -2901,7 +2898,7 @@ class FileManagerWindow(wx.Frame):
         same_column = len(base_names) == 1
         column_name = list(base_names)[0] if same_column else None
 
-        if normalize and norm_method == "Auto":
+        if normalize and norm_method == "Norm. Auto":
             # Get global min/max across all selected datasets
             for sheet_name in sheet_names:
                 if sheet_name in self.parent.Data['Core levels']:
@@ -2923,7 +2920,7 @@ class FileManagerWindow(wx.Frame):
                 # Apply normalization if enabled
                 if normalize:
                     # print("Normalise_before")
-                    if norm_method == "Auto":
+                    if norm_method == "Norm. Auto":
                         # Auto normalization
                         norm_min = min(y_values)
                         norm_max = max(y_values)
@@ -3141,7 +3138,7 @@ class FileManagerWindow(wx.Frame):
         x_max = float('-inf')
 
         # Determine if normalization is needed
-        normalize = self.norm_check.GetValue()
+        normalize = self.norm_type.GetValue() != "Norm. OFF"
         norm_method = self.norm_type.GetValue()
 
         # Determine the reference maximum for offset calculation
@@ -3177,7 +3174,7 @@ class FileManagerWindow(wx.Frame):
 
             # Apply normalization if enabled and store parameters
             if normalize:
-                if norm_method == "Auto":
+                if norm_method == "Norm. Auto":
                     # Auto normalization
                     norm_min = min(y_values)
                     norm_max = max(y_values)
