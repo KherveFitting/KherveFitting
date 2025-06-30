@@ -3292,11 +3292,73 @@ class FileManagerWindow(wx.Frame):
         # Apply text settings from preference window
         self.parent.plot_manager.apply_text_settings(self.parent)
 
+        # Add core level name at top left
+        if sheet_names:
+            # Extract core level name from the first sheet
+            first_sheet = sheet_names[0]
+            # Assuming sheet names are like "Sample_C1s" or "Sample_O1s", extract the core level part
+            if '_' in first_sheet:
+                core_level = first_sheet.split('_')[-1]  # Get part after last underscore
+            else:
+                # If no underscore, use the whole name or try to extract from the end
+                # Look for common core level patterns (C1s, O1s, N1s, etc.)
+                import re
+                match = re.search(r'([A-Z][a-z]?\d+[a-z]+)', first_sheet)
+                core_level = match.group(1) if match else first_sheet
+
+            # Get plot limits for positioning
+            xlim = self.parent.ax.get_xlim()
+            ylim = self.parent.ax.get_ylim()
+
+            # Position at top right (adjust positioning as needed)
+            x_pos = xlim[1] - (xlim[1] - xlim[0]) * 0.02  # 2% from right edge
+            y_pos = ylim[1] - (ylim[1] - ylim[0]) * 0.02  # 2% from top
+
+            # Add core level text
+            self.parent.ax.text(x_pos, y_pos, core_level,
+                                fontsize=getattr(self.parent, 'core_level_text_size', 12),
+                                fontweight='bold',
+                                ha='right', va='top',  # Changed to 'right' alignment
+                                color='black',
+                                bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=2))
+
+        # Add peak color legend for filled peaks only
+        self.update_stacked_plot_legend()
+
         # Update the plot
         self.parent.canvas.draw_idle()
 
         # Restore the original residuals state in the manager
         self.parent.plot_manager.residuals_state = original_residuals_state
+
+
+    def get_display_text_for_sheet(self, sheet_name):
+        """Get sample name from SampleNames if available, otherwise return sheet name"""
+        try:
+            # Check if there's sample names data
+            if (hasattr(self.parent, 'Data') and
+                    'SampleNames' in self.parent.Data):
+
+                sample_names = self.parent.Data['SampleNames']
+
+                # Find which row this sheet corresponds to by looking through the grid
+                for row in range(self.grid.GetNumberRows()):
+                    for col in range(1, len(self.core_levels) + 1):
+                        if self.grid.GetCellValue(row, col) == sheet_name:
+                            # Found the sheet in this row, now get the sample name
+                            row_key = str(row)
+                            if row_key in sample_names:
+                                sample_name = sample_names[row_key]
+                                if sample_name and str(sample_name).strip():
+                                    return str(sample_name).strip()
+                            break
+
+            # Fallback to sheet name if no sample name found
+            return sheet_name
+
+        except Exception as e:
+            print(f"Error getting display text: {e}")
+            return sheet_name
 
     def plot_fitted_data_for_sheet(self, sheet_name, x_values, offset, base_color, sheet_index, norm_params=None):
         """Plot fitted data using the same styling as clear_and_replot"""
@@ -3348,7 +3410,8 @@ class FileManagerWindow(wx.Frame):
         # Add text label for this dataset (smaller and leftmost position)
         max_y_with_offset = (max(background_normalized) if len(background_normalized) > 0 else 0) + offset + 50
         text_x = max(x_values) - (max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (high BE side)
-        self.parent.ax.text(text_x, max_y_with_offset, sheet_name,
+        display_text = self.get_display_text_for_sheet(sheet_name)
+        self.parent.ax.text(text_x, max_y_with_offset, display_text,
                             fontsize=getattr(self.parent, 'label_font_size', 8),  # Use smaller font
                             ha='left', va='bottom',  # Left align
                             color='k')
@@ -3466,6 +3529,53 @@ class FileManagerWindow(wx.Frame):
                                 linestyle=self.parent.plot_manager.envelope_linestyle,
                                 linewidth=self.parent.plot_manager.envelope_thickness,
                                 label=f'{sheet_name} (Fit)')
+
+    def update_stacked_plot_legend(self):
+        """Update legend to show only filled peaks with their colors (no duplicates)"""
+        handles, labels = self.parent.ax.get_legend_handles_labels()
+
+        # Filter to get only filled peaks (avoiding duplicates)
+        filled_peak_handles = []
+        filled_peak_labels = []
+        seen_peak_names = set()  # Track peak names we've already added
+
+        for handle, label in zip(handles, labels):
+            # Skip non-peak labels
+            if any(x in label for x in ['(Raw)', '(Bkg)', 'Overall Fit', 'Residuals', 'Background']):
+                continue
+
+            # For stacked plots, peak labels are just the peak name
+            # Check if this is a peak by looking for it in current sheet data
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet and current_sheet in self.parent.Data['Core levels']:
+                fitting_data = self.parent.Data['Core levels'][current_sheet].get('Fitting', {})
+                if 'Peaks' in fitting_data:
+                    peaks = fitting_data['Peaks']
+
+                    # Check if this label matches any peak name
+                    for peak_idx, (peak_name, peak_data) in enumerate(peaks.items()):
+                        if peak_name == label:  # Direct match
+                            # Get peak fill type
+                            peak_fill_types = getattr(self.parent, 'peak_fill_types', ["Solid Fill"] * 15)
+                            peak_fill_type = peak_fill_types[peak_idx % len(peak_fill_types)]
+
+                            # Only add to legend if it's filled AND not already seen
+                            if peak_fill_type != "None" and peak_name not in seen_peak_names:
+                                filled_peak_handles.append(handle)
+                                filled_peak_labels.append(peak_name)
+                                seen_peak_names.add(peak_name)  # Mark as seen
+                            break
+
+        # Create legend with only filled peaks (no duplicates, no title)
+        if filled_peak_handles and self.parent.plot_manager.legend_visible != 0:
+            self.parent.ax.legend(filled_peak_handles, filled_peak_labels,
+                                  loc='upper left', frameon=True, fancybox=True,
+                                  framealpha=0.8, edgecolor='gray')
+        else:
+            # Hide legend if disabled
+            legend = self.parent.ax.get_legend()
+            if legend:
+                legend.set_visible(False)
 
     def is_part_of_doublet(self, current_label, next_label):
         """Check if two consecutive peaks form a doublet (same logic as clear_and_replot)"""
