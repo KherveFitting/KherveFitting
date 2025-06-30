@@ -290,6 +290,17 @@ class FileManagerWindow(wx.Frame):
                                                 "Press F3 or Ctrl+3 to plot with offset")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_offset, offset_plot_tool)
 
+        # Stacked plot button (F4)
+        stacked_plot_icon = os.path.join(icon_path, "Plot3-25.png")
+        if os.path.exists(stacked_plot_icon):
+            stacked_plot_bmp = wx.Bitmap(stacked_plot_icon)
+        else:
+            stacked_plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        stacked_plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot with Fitted Data", stacked_plot_bmp,
+                                                 "Plot selected core level(s) with fitted data\n"
+                                                 "Press F4 or Ctrl+4 to plot with fitted data")
+        self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_fitted_data, stacked_plot_tool)
+
         self.norm_check = wx.CheckBox(self.toolbar, label="Norm.")
         self.norm_check.SetToolTip("Normalise multiple plot data")
         self.norm_type = wx.ComboBox(self.toolbar, choices=["Auto", "Norm. @ BE", "Norm. to A"], style=wx.CB_READONLY)
