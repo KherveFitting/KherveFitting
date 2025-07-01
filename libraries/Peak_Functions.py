@@ -922,7 +922,7 @@ class BackgroundCalculations:
 
         return background[1:-1]  # Remove padding before returning
     @staticmethod
-    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=5, tol=1e-15, padding_factor=0.01,
+    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=50, tol=1e-10, padding_factor=0.01,
                                      num_points=5):
         """
         Calculate the Shirley background.
@@ -960,9 +960,9 @@ class BackgroundCalculations:
             background[0] = I0
             background[-1] = Iend
 
-            # # Check convergence
-            # if np.all(np.abs(background - prev_background) < tol):
-            #     break
+            # Check convergence
+            if np.all(np.abs(background - prev_background) < tol):
+                break
 
         return background
 
