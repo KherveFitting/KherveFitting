@@ -42,25 +42,53 @@ class MouseEventHandler:
 
                     if dist1 < dist2:
                         raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline1_x))]
+                        # if vline1_x == low_be_x:
+                        #     self.window.offset_l = event.ydata - raw_y
+                        #     self.window.Data['Core levels'][sheet_name]['Background'][
+                        #         'Bkg Offset Low'] = self.window.offset_l
+                        #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                        # else:
+                        #     self.window.offset_h = event.ydata - raw_y
+                        #     self.window.Data['Core levels'][sheet_name]['Background'][
+                        #         'Bkg Offset High'] = self.window.offset_h
+                        #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                         if vline1_x == low_be_x:
-                            self.window.offset_l = event.ydata - raw_y
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_l = min(calculated_offset, 0)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset Low'] = self.window.offset_l
                             self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
                         else:
-                            self.window.offset_h = event.ydata - raw_y
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_h = min(calculated_offset, 0)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset High'] = self.window.offset_h
                             self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                     else:
                         raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
+                        # if vline2_x == low_be_x:
+                        #     self.window.offset_l = event.ydata - raw_y
+                        #     self.window.Data['Core levels'][sheet_name]['Background'][
+                        #         'Bkg Offset Low'] = self.window.offset_l
+                        #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                        # else:
+                        #     self.window.offset_h = event.ydata - raw_y
+                        #     self.window.Data['Core levels'][sheet_name]['Background'][
+                        #         'Bkg Offset High'] = self.window.offset_h
+                        #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                         if vline2_x == low_be_x:
-                            self.window.offset_l = event.ydata - raw_y
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_l = min(calculated_offset, 0)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset Low'] = self.window.offset_l
                             self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
                         else:
-                            self.window.offset_h = event.ydata - raw_y
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_h = min(calculated_offset, 0)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset High'] = self.window.offset_h
                             self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
@@ -226,25 +254,53 @@ class MouseEventHandler:
 
                 if dist1 < dist2:
                     raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline1_x))]
+                    # if vline1_x == low_be_x:
+                    #     self.window.offset_l = event.ydata - raw_y
+                    #     self.window.Data['Core levels'][sheet_name]['Background'][
+                    #         'Bkg Offset Low'] = self.window.offset_l
+                    #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                    # else:
+                    #     self.window.offset_h = event.ydata - raw_y
+                    #     self.window.Data['Core levels'][sheet_name]['Background'][
+                    #         'Bkg Offset High'] = self.window.offset_h
+                    #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                     if vline1_x == low_be_x:
-                        self.window.offset_l = event.ydata - raw_y
+                        calculated_offset = event.ydata - raw_y
+                        # Ensure offset cannot be positive
+                        self.window.offset_l = min(calculated_offset, 0)
                         self.window.Data['Core levels'][sheet_name]['Background'][
                             'Bkg Offset Low'] = self.window.offset_l
                         self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
                     else:
-                        self.window.offset_h = event.ydata - raw_y
+                        calculated_offset = event.ydata - raw_y
+                        # Ensure offset cannot be positive
+                        self.window.offset_h = min(calculated_offset, 0)
                         self.window.Data['Core levels'][sheet_name]['Background'][
                             'Bkg Offset High'] = self.window.offset_h
                         self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                 else:
                     raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
+                    # if vline2_x == low_be_x:
+                    #     self.window.offset_l = event.ydata - raw_y
+                    #     self.window.Data['Core levels'][sheet_name]['Background'][
+                    #         'Bkg Offset Low'] = self.window.offset_l
+                    #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                    # else:
+                    #     self.window.offset_h = event.ydata - raw_y
+                    #     self.window.Data['Core levels'][sheet_name]['Background'][
+                    #         'Bkg Offset High'] = self.window.offset_h
+                    #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                     if vline2_x == low_be_x:
-                        self.window.offset_l = event.ydata - raw_y
+                        calculated_offset = event.ydata - raw_y
+                        # Ensure offset cannot be positive
+                        self.window.offset_l = min(calculated_offset, 0)
                         self.window.Data['Core levels'][sheet_name]['Background'][
                             'Bkg Offset Low'] = self.window.offset_l
                         self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
                     else:
-                        self.window.offset_h = event.ydata - raw_y
+                        calculated_offset = event.ydata - raw_y
+                        # Ensure offset cannot be positive
+                        self.window.offset_h = min(calculated_offset, 0)
                         self.window.Data['Core levels'][sheet_name]['Background'][
                             'Bkg Offset High'] = self.window.offset_h
                         self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')

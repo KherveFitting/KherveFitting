@@ -18,6 +18,8 @@ class FittingWindow(wx.Frame):
         super().__init__(parent, *args, **kw, style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
         self.parent = parent  # Store reference to MainFrame
 
+        self._updating_offsets = False
+
 
         self.SetTitle("Peak Fitting")
         if 'wxMac' in wx.PlatformInfo:
@@ -976,15 +978,55 @@ class FittingWindow(wx.Frame):
             save_state(self.parent)
 
 
-    def on_offset_h_change(self, event):
+    def on_offset_h_change_OLD(self, event):
         save_state(self.parent)
         offset_h_value = self.offset_h_text.GetValue()
         self.parent.set_offset_h(offset_h_value)
 
-    def on_offset_l_change(self, event):
+    def on_offset_l_chang_OLD(self, event):
         save_state(self.parent)
         offset_l_value = self.offset_l_text.GetValue()
         self.parent.set_offset_l(offset_l_value)
+
+    def on_offset_h_change(self, event):
+        if self._updating_offsets:  # Prevent recursion
+            return
+
+        self._updating_offsets = True
+        try:
+            save_state(self.parent)
+            try:
+                offset_h_value = float(self.offset_h_text.GetValue())
+                # Ensure offset cannot be positive
+                if offset_h_value > 0:
+                    offset_h_value = 0
+                    self.offset_h_text.SetValue(f'{offset_h_value:.1f}')
+                self.parent.set_offset_h(offset_h_value)
+            except ValueError:
+                self.parent.set_offset_h(0)
+                self.offset_h_text.SetValue('0.0')
+        finally:
+            self._updating_offsets = False
+
+    def on_offset_l_change(self, event):
+        if self._updating_offsets:  # Prevent recursion
+            return
+
+        self._updating_offsets = True
+        try:
+            save_state(self.parent)
+            try:
+                offset_l_value = float(self.offset_l_text.GetValue())
+                # Ensure offset cannot be positive
+                if offset_l_value > 0:
+                    offset_l_value = 0
+                    self.offset_l_text.SetValue(f'{offset_l_value:.1f}')
+                self.parent.set_offset_l(offset_l_value)
+            except ValueError:
+                self.parent.set_offset_l(0)
+                self.offset_l_text.SetValue('0.0')
+        finally:
+            self._updating_offsets = False
 
     def get_background_description(self, method):
         descriptions = {

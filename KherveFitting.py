@@ -2178,15 +2178,35 @@ class MyFrame(wx.Frame):
         self.background_method = method
 
     # Method to update Offset (H)
-    def set_offset_h(self, value):
+    def set_offset_h_OLD(self, value):
         try:
             self.offset_h = float(value)
         except ValueError:
             self.offset_h = 0
 
-    def set_offset_l(self, value):
+    def set_offset_l_OLD(self, value):
         try:
             self.offset_l = float(value)
+        except ValueError:
+            self.offset_l = 0
+
+    def set_offset_h(self, value):
+        try:
+            offset_value = float(value)
+            # Ensure offset cannot be positive
+            if offset_value > 0:
+                offset_value = 0
+            self.offset_h = offset_value
+        except ValueError:
+            self.offset_h = 0
+
+    def set_offset_l(self, value):
+        try:
+            offset_value = float(value)
+            # Ensure offset cannot be positive
+            if offset_value > 0:
+                offset_value = 0
+            self.offset_l = offset_value
         except ValueError:
             self.offset_l = 0
 
