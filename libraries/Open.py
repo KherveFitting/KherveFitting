@@ -253,48 +253,144 @@ class ExcelDropTarget(wx.FileDropTarget):
         return success
 
     def _import_multiple_khervefitting_direct(self, file_list):
-        """Import multiple KherveFitting files directly"""
+        """Import multiple KherveFitting files directly including their JSON peak fitting data"""
         try:
             import openpyxl
             import os
+            import json
             from libraries.Open import process_kfitting_file_with_sample_number
 
             # Sort files alphabetically
             file_list.sort(key=lambda x: os.path.basename(x))
+
+            # Prompt user to choose save location and filename
+            first_file_dir = os.path.dirname(file_list[0])
+            default_filename = "Combined_KherveFitting_Files.xlsx"
+
+            with wx.FileDialog(self.window, "Save combined KherveFitting file as...",
+                               defaultDir=first_file_dir,
+                               defaultFile=default_filename,
+                               wildcard="Excel files (*.xlsx)|*.xlsx",
+                               style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    return  # User cancelled
+
+                combined_file_path = fileDialog.GetPath()
+
+                # Ensure .xlsx extension
+                if not combined_file_path.lower().endswith('.xlsx'):
+                    combined_file_path += '.xlsx'
 
             # Create combined workbook
             combined_wb = openpyxl.Workbook()
             combined_wb.remove(combined_wb.active)
 
             sample_names_dict = {}
+            combined_json_data = {
+                'Core levels': {},
+                'SampleNames': {}
+            }
 
             # Process each file
             for sample_idx, file_path in enumerate(file_list):
                 sample_name = os.path.splitext(os.path.basename(file_path))[0]
                 sample_names_dict[str(sample_idx)] = sample_name
 
+                # Process Excel file
                 wb = openpyxl.load_workbook(file_path)
+
+                # Get original sheet names before processing
+                original_sheets = []
+                for sheet_name in wb.sheetnames:
+                    if sheet_name.lower() not in ["results table", "experimental description"]:
+                        original_sheets.append(sheet_name)
+
                 process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
                 wb.close()
 
-            # Save combined file
-            first_file_dir = os.path.dirname(file_list[0])
-            combined_file_path = os.path.join(first_file_dir, "Combined_KherveFitting_Files.xlsx")
+                # Load corresponding JSON file with peak fitting data
+                json_file_path = os.path.splitext(file_path)[0] + '.json'
+                if os.path.exists(json_file_path):
+                    try:
+                        with open(json_file_path, 'r') as json_file:
+                            individual_json_data = json.load(json_file)
+
+                        # Process each core level in the JSON data
+                        if 'Core levels' in individual_json_data:
+                            for original_sheet_name in original_sheets:
+                                if original_sheet_name in individual_json_data['Core levels']:
+                                    # Create new numbered sheet name
+                                    import re
+                                    base_name = re.sub(r'\d+$', '', original_sheet_name)
+                                    new_sheet_name = f"{base_name}{sample_idx}"
+
+                                    # Copy the fitting data to the combined JSON structure
+                                    combined_json_data['Core levels'][new_sheet_name] = \
+                                        individual_json_data['Core levels'][original_sheet_name].copy()
+
+                                    # Update peak names to include sample index
+                                    if ('Fitting' in combined_json_data['Core levels'][new_sheet_name] and
+                                            'Peaks' in combined_json_data['Core levels'][new_sheet_name]['Fitting']):
+
+                                        peaks_data = combined_json_data['Core levels'][new_sheet_name]['Fitting'][
+                                            'Peaks']
+                                        updated_peaks = {}
+
+                                        for peak_name, peak_data in peaks_data.items():
+                                            # Add sample index to peak names (e.g., "Peak 1" becomes "Peak 1_0")
+                                            new_peak_name = f"{peak_name}_{sample_idx}"
+                                            updated_peaks[new_peak_name] = peak_data
+
+                                        combined_json_data['Core levels'][new_sheet_name]['Fitting'][
+                                            'Peaks'] = updated_peaks
+
+                    except Exception as e:
+                        print(f"Warning: Could not load JSON file for {sample_name}: {e}")
+                else:
+                    print(f"Warning: No JSON file found for {sample_name}")
+
+            # Save combined Excel file
             combined_wb.save(combined_file_path)
             combined_wb.close()
+
+            # Save combined JSON file with all peak fitting data
+            combined_json_path = os.path.splitext(combined_file_path)[0] + '.json'
+            combined_json_data['SampleNames'] = sample_names_dict
+
+            # Add other necessary data structure
+            combined_json_data['Number of Core levels'] = len(combined_json_data['Core levels'])
+            combined_json_data['FilePath'] = combined_file_path
+
+            # Convert to serializable format and save
+            from libraries.Save import convert_to_serializable_and_round
+            serializable_data = convert_to_serializable_and_round(combined_json_data)
+
+            with open(combined_json_path, 'w') as json_file:
+                json.dump(serializable_data, json_file, indent=2)
 
             # Open the combined file
             from libraries.Open import open_xlsx_file
             open_xlsx_file(self.window, combined_file_path)
 
-            # Store sample names
+            # Update window.Data with the combined JSON data
             if 'SampleNames' not in self.window.Data:
                 self.window.Data['SampleNames'] = {}
             self.window.Data['SampleNames'].update(sample_names_dict)
 
-            self.window.show_popup_message2("Success", f"Combined {len(file_list)} KherveFitting files.")
+            # Merge the peak fitting data into window.Data
+            if 'Core levels' not in self.window.Data:
+                self.window.Data['Core levels'] = {}
+            self.window.Data['Core levels'].update(combined_json_data['Core levels'])
+
+            # Get just the filename for the success message
+            filename = os.path.basename(combined_file_path)
+            self.window.show_popup_message2("Success",
+                                            f"Combined {len(file_list)} KherveFitting files with peak fitting data.\nSaved as: {filename}")
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             wx.MessageBox(f"Error importing multiple KherveFitting files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
     def _import_multiple_avantage_direct(self, file_list):
@@ -5122,6 +5218,24 @@ def import_multiple_kfitting_files(window):
         if not excel_files:
             window.show_popup_message2("Information", "No Excel files found in the selected folder.")
             return
+
+        # Prompt user to choose save location and filename
+        default_filename = "Combined_KherveFitting_Files.xlsx"
+
+        with wx.FileDialog(window, "Save combined KherveFitting file as...",
+                           defaultDir=folder_path,
+                           defaultFile=default_filename,
+                           wildcard="Excel files (*.xlsx)|*.xlsx",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return  # User cancelled
+
+            combined_file_path = fileDialog.GetPath()
+
+            # Ensure .xlsx extension
+            if not combined_file_path.lower().endswith('.xlsx'):
+                combined_file_path += '.xlsx'
 
         # Sort files alphabetically
         excel_files.sort()

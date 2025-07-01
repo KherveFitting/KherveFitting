@@ -42,16 +42,6 @@ class MouseEventHandler:
 
                     if dist1 < dist2:
                         raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline1_x))]
-                        # if vline1_x == low_be_x:
-                        #     self.window.offset_l = event.ydata - raw_y
-                        #     self.window.Data['Core levels'][sheet_name]['Background'][
-                        #         'Bkg Offset Low'] = self.window.offset_l
-                        #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
-                        # else:
-                        #     self.window.offset_h = event.ydata - raw_y
-                        #     self.window.Data['Core levels'][sheet_name]['Background'][
-                        #         'Bkg Offset High'] = self.window.offset_h
-                        #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                         if vline1_x == low_be_x:
                             calculated_offset = event.ydata - raw_y
                             # Ensure offset cannot be positive
@@ -68,16 +58,6 @@ class MouseEventHandler:
                             self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                     else:
                         raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
-                        # if vline2_x == low_be_x:
-                        #     self.window.offset_l = event.ydata - raw_y
-                        #     self.window.Data['Core levels'][sheet_name]['Background'][
-                        #         'Bkg Offset Low'] = self.window.offset_l
-                        #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
-                        # else:
-                        #     self.window.offset_h = event.ydata - raw_y
-                        #     self.window.Data['Core levels'][sheet_name]['Background'][
-                        #         'Bkg Offset High'] = self.window.offset_h
-                        #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                         if vline2_x == low_be_x:
                             calculated_offset = event.ydata - raw_y
                             # Ensure offset cannot be positive
@@ -254,16 +234,6 @@ class MouseEventHandler:
 
                 if dist1 < dist2:
                     raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline1_x))]
-                    # if vline1_x == low_be_x:
-                    #     self.window.offset_l = event.ydata - raw_y
-                    #     self.window.Data['Core levels'][sheet_name]['Background'][
-                    #         'Bkg Offset Low'] = self.window.offset_l
-                    #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
-                    # else:
-                    #     self.window.offset_h = event.ydata - raw_y
-                    #     self.window.Data['Core levels'][sheet_name]['Background'][
-                    #         'Bkg Offset High'] = self.window.offset_h
-                    #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                     if vline1_x == low_be_x:
                         calculated_offset = event.ydata - raw_y
                         # Ensure offset cannot be positive
@@ -280,16 +250,6 @@ class MouseEventHandler:
                         self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                 else:
                     raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
-                    # if vline2_x == low_be_x:
-                    #     self.window.offset_l = event.ydata - raw_y
-                    #     self.window.Data['Core levels'][sheet_name]['Background'][
-                    #         'Bkg Offset Low'] = self.window.offset_l
-                    #     self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
-                    # else:
-                    #     self.window.offset_h = event.ydata - raw_y
-                    #     self.window.Data['Core levels'][sheet_name]['Background'][
-                    #         'Bkg Offset High'] = self.window.offset_h
-                    #     self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
                     if vline2_x == low_be_x:
                         calculated_offset = event.ydata - raw_y
                         # Ensure offset cannot be positive
@@ -338,14 +298,36 @@ class MouseEventHandler:
 
     def on_release(self, event):
         if self.window.moving_vline is not None:
-            if hasattr(self.window, 'motion_notify_id'):
-                self.window.canvas.mpl_disconnect(self.window.motion_notify_id)
-                delattr(self.window, 'motion_notify_id')
-            if hasattr(self.window, 'button_release_id'):
-                self.window.canvas.mpl_disconnect(self.window.button_release_id)
-                delattr(self.window, 'button_release_id')
+            # if hasattr(self.window, 'motion_notify_id'):
+            #     self.window.canvas.mpl_disconnect(self.window.motion_notify_id)
+            #     delattr(self.window, 'motion_notify_id')
+            # if hasattr(self.window, 'button_release_id'):
+            #     self.window.canvas.mpl_disconnect(self.window.button_release_id)
+            #     delattr(self.window, 'button_release_id')
 
+            # Use the correct variable names to disconnect events
+            if hasattr(self.window, 'motion_cid'):
+                self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                delattr(self.window, 'motion_cid')
+            if hasattr(self.window, 'release_cid'):
+                self.window.canvas.mpl_disconnect(self.window.release_cid)
+                delattr(self.window, 'release_cid')
+
+            # Reset the moving vline to None
             self.window.moving_vline = None
+
+            # # Rest of your existing code for updating background data...
+            # sheet_name = self.window.sheet_combobox.GetValue()
+            # if sheet_name in self.window.Data['Core levels']:
+            #     core_level_data = self.window.Data['Core levels'][sheet_name]
+            #     if 'Background' in core_level_data:
+            #         bg_low = core_level_data['Background']['Bkg Low']
+            #         bg_high = core_level_data['Background']['Bkg High']
+            #         # Update background if needed
+            #         if self.window.background_method == "Multi-Regions Smart":
+            #             self.window.plot_manager.plot_background(self.window)
+            #
+            # self.window.moving_vline = None
 
             sheet_name = self.window.sheet_combobox.GetValue()
             if sheet_name in self.window.Data['Core levels']:

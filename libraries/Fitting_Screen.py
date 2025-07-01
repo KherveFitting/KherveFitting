@@ -935,6 +935,18 @@ class FittingWindow(wx.Frame):
 
     def on_background(self, event):
         save_state(self.parent)
+
+        # # Clear any lingering vline dragging state before background creation
+        # if hasattr(self.parent, 'moving_vline'):
+        #     self.parent.moving_vline = None
+        # if hasattr(self.parent, 'motion_cid'):
+        #     self.parent.canvas.mpl_disconnect(self.parent.motion_cid)
+        #     delattr(self.parent, 'motion_cid')
+        # if hasattr(self.parent, 'release_cid'):
+        #     self.parent.canvas.mpl_disconnect(self.parent.release_cid)
+        #     delattr(self.parent, 'release_cid')
+
+
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             sheet_name = self.parent.sheet_combobox.GetValue()
             x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
