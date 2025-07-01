@@ -430,6 +430,7 @@ Version 1.505-1.590
 - Changed the icons of the toolbar
 - Improve the Label manager 
 - Improve Sample manager / double clicking
+- Improve Shirley background and offset 
 - Added import VG-MicroTech .1 files
 - Fix Constraint rows which were rewriting the user values
 - Improve the conversion of MRS files

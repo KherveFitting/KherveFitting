@@ -306,7 +306,7 @@ def create_peak_params_grid(window, parent):
 
 
     # Adjust individual column sizes
-    col_sizes = [20, 90, 80, 60, 60, 50, 70, 50, 50, 50, 40, 40, 40, 130, 130, 80, 80, 100, 100]
+    col_sizes = [20, 90, 80, 60, 60, 50, 70, 45, 45, 50, 40, 40, 40, 130, 130, 80, 80, 100, 100]
     for i, size in enumerate(col_sizes):
         window.peak_params_grid.SetColSize(i, size)
 
@@ -392,7 +392,7 @@ def create_results_grid(window, parent):
     # window.results_grid.SetDefaultCellBackgroundColour(wx.WHITE)
 
     # Adjust specific column sizes
-    col_sizes = [100, 60, 60, 50, 50, 80, 50, 20, 30, 30, 50, 80,120, 60, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
+    col_sizes = [100, 55, 55, 50, 50, 80, 50, 20, 30, 30, 50, 80,120, 60, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
                  120,70,70,70,50,45,40]
     for i, size in enumerate(col_sizes):
         window.results_grid.SetColSize(i, size)
