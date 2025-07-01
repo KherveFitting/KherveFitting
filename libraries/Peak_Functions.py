@@ -876,7 +876,7 @@ class BackgroundCalculations:
         return new_background
 
     @staticmethod
-    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=100, tol=1e-6, padding_factor=0.01,
+    def calculate_shirley_background_OLD(x, y, start_offset, end_offset, max_iter=100, tol=1e-6, padding_factor=0.01,
                                      num_points=5):
         """
         Calculate the Shirley background.
@@ -921,6 +921,50 @@ class BackgroundCalculations:
             #     break
 
         return background[1:-1]  # Remove padding before returning
+    @staticmethod
+    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=5, tol=1e-15, padding_factor=0.01,
+                                     num_points=5):
+        """
+        Calculate the Shirley background.
+        """
+        x, y = np.asarray(x), np.asarray(y)
+
+        # Calculate endpoint values
+        y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + start_offset
+        y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + end_offset
+
+        # CRITICAL FIX: Initialize background properly, not as zeros
+        background = np.linspace(y_start, y_end, len(y))
+
+        # Set fixed endpoints
+        I0, Iend = y_start, y_end
+
+        # Iterative calculation - NO PADDING
+        for iteration in range(max_iter):
+            prev_background = background.copy()
+
+            for i in range(1, len(y) - 1):
+                # Calculate areas using CURRENT background estimate
+                spectrum_corrected = y - background
+
+                # Areas on both sides of point i
+                A1 = np.trapz(spectrum_corrected[:i + 1], x[:i + 1])
+                A2 = np.trapz(spectrum_corrected[i:], x[i:])
+
+                # Avoid division by zero and negative areas
+                total_area = abs(A1) + abs(A2)
+                if total_area > 1e-10:  # Avoid numerical issues
+                    background[i] = Iend + (I0 - Iend) * abs(A2) / total_area
+
+            # Enforce endpoint constraints
+            background[0] = I0
+            background[-1] = Iend
+
+            # # Check convergence
+            # if np.all(np.abs(background - prev_background) < tol):
+            #     break
+
+        return background
 
     def calculate_tougaard_background(x, y, sheet_name, window):
         bg_data = window.Data['Core levels'][sheet_name]['Background']
