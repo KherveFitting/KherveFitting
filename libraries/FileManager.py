@@ -2083,6 +2083,47 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             print(f"Error in final update steps: {e}")
 
+        # UPDATE EXCEL FILE - Remove default empty sheet if it exists
+        try:
+            wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
+
+            # Check if default "Sheet" exists and remove it if it's empty
+            if "Sheet" in wb.sheetnames:
+                default_sheet = wb["Sheet"]
+                # Check if sheet is empty (only has default structure)
+                is_empty = True
+                for row in default_sheet.iter_rows():
+                    for cell in row:
+                        if cell.value is not None:
+                            is_empty = False
+                            break
+                    if not is_empty:
+                        break
+
+                # Remove the empty default sheet
+                if is_empty and len(wb.sheetnames) > 1:  # Don't remove if it's the only sheet
+                    wb.remove(default_sheet)
+                    wb.save(self.parent.Data['FilePath'])
+
+        except Exception as e:
+            print(f"Note: Could not remove default sheet: {e}")
+
+        # Refresh the grid
+        self.populate_grid()
+
+        # Update JSON file
+        try:
+            json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+            from libraries.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            self.save_be_corrections()
+            self.save_sample_names()
+        except Exception as e:
+            print(f"Error in final update steps: {e}")
+
         # Refresh sheets after pasting
         try:
             # Create console window for refresh operation

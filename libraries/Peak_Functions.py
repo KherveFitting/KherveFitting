@@ -917,8 +917,8 @@ class BackgroundCalculations:
                 A1 = np.trapz(y_padded[:i] - background[:i], x_padded[:i])
                 A2 = np.trapz(y_padded[i:] - background[i:], x_padded[i:])
                 background[i] = Iend + (I0 - Iend) * A2 / (A1 + A2)
-            if np.all(np.abs(background - prev_background) < tol):
-                break
+            # if np.all(np.abs(background - prev_background) < tol):
+            #     break
 
         return background[1:-1]  # Remove padding before returning
 
