@@ -1710,6 +1710,73 @@ class FileManagerWindow(wx.Frame):
             wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
             return
 
+        # CHECK IF NO FILE IS OPEN AND CREATE NEW FILES
+        if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+            # Ask user if they want to create new files
+            dlg = wx.MessageDialog(
+                self,
+                "No file is currently open. Do you want to create new .json and .xlsx files?",
+                "Create New Files",
+                wx.YES_NO | wx.ICON_QUESTION
+            )
+
+            if dlg.ShowModal() != wx.ID_YES:
+                dlg.Destroy()
+                return
+
+            dlg.Destroy()
+
+            # Show file dialog to create new files
+            with wx.FileDialog(
+                    self,
+                    "Create New KherveFitting File",
+                    wildcard="Excel files (*.xlsx)|*.xlsx",
+                    style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+            ) as fileDialog:
+
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    return
+
+                file_path = fileDialog.GetPath()
+                if not file_path.lower().endswith('.xlsx'):
+                    file_path += '.xlsx'
+
+                try:
+                    # Create empty Excel file
+                    import openpyxl
+                    wb = openpyxl.Workbook()
+                    wb.save(file_path)
+
+                    # Set the filepath in window.Data
+                    self.parent.Data['FilePath'] = file_path
+                    self.parent.SetStatusText(f"Selected File: {file_path}", 0)
+
+                    # Initialize Core levels if needed
+                    if 'Core levels' not in self.parent.Data:
+                        self.parent.Data['Core levels'] = {}
+                        self.parent.Data['Number of Core levels'] = 0
+
+                    # Create JSON file
+                    json_file_path = os.path.splitext(file_path)[0] + '.json'
+                    from libraries.Save import convert_to_serializable_and_round
+                    json_data = convert_to_serializable_and_round(self.parent.Data)
+                    with open(json_file_path, 'w') as json_file:
+                        json.dump(json_data, json_file, indent=2)
+
+                    # Update recent files if available
+                    if hasattr(self.parent, 'recent_files'):
+                        if file_path in self.parent.recent_files:
+                            self.parent.recent_files.remove(file_path)
+                        self.parent.recent_files.insert(0, file_path)
+                        self.parent.recent_files = self.parent.recent_files[:self.parent.max_recent_files]
+                        if hasattr(self.parent, 'save_config'):
+                            self.parent.save_config()
+
+                except Exception as e:
+                    wx.MessageBox(f"Error creating files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+                    return
+
+
         # Show preview dialog
         preview_dialog = CoreLevelPreviewDialog(self, "Paste Core Levels", clipboard_data, "paste")
         if preview_dialog.ShowModal() != wx.ID_OK:
