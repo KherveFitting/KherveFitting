@@ -375,125 +375,7 @@ class ExcelDropTarget(wx.FileDropTarget):
             wx.MessageBox(f"Error importing multiple VG-Microtech files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-def import_multiple_kfitting_files_from_dir(window, folder_path):
-    """Modified version that works with a provided directory path"""
-    try:
-        # Find all Excel files in the directory
-        excel_files = [f for f in os.listdir(folder_path)
-                       if f.lower().endswith('.xlsx') and not f.startswith('~')]
 
-        if not excel_files:
-            window.show_popup_message2("Information", "No Excel files found.")
-            return
-
-        # Sort files alphabetically
-        excel_files.sort()
-
-        # Create single combined workbook
-        combined_file_path = os.path.join(folder_path, "Combined_KherveFitting_Files.xlsx")
-        combined_wb = openpyxl.Workbook()
-        combined_wb.remove(combined_wb.active)
-
-        # Store sample names as dictionary for JSON
-        sample_names_dict = {}
-
-        # Process each file as a separate sample
-        for sample_idx, excel_file in enumerate(excel_files):
-            file_path = os.path.join(folder_path, excel_file)
-
-            # Remove file extension for cleaner sample names
-            sample_name = os.path.splitext(excel_file)[0]
-            sample_names_dict[str(sample_idx)] = sample_name
-
-            # Load the workbook
-            wb = openpyxl.load_workbook(file_path)
-            process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
-
-        # Save the combined file
-        combined_wb.save(combined_file_path)
-
-        window.show_popup_message2("Success",
-                                   f"Combined {len(excel_files)} KherveFitting files into single Excel file.")
-
-        # Load the combined file
-        open_xlsx_file(window, combined_file_path)
-
-        # Store sample names in Data
-        if 'SampleNames' not in window.Data:
-            window.Data['SampleNames'] = {}
-        window.Data['SampleNames'].update(sample_names_dict)
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        window.show_popup_message2("Error", f"Error combining KherveFitting files: {str(e)}")
-
-def import_multiple_avantage_files_from_dir(window, folder_path):
-    """Import multiple Avantage files from provided directory"""
-    try:
-        from libraries.Open import import_multiple_avantage_files
-
-        # Find all Excel files
-        excel_files = [f for f in os.listdir(folder_path)
-                       if f.lower().endswith(('.xlsx', '.xls')) and not f.startswith('~')]
-
-        if not excel_files:
-            window.show_popup_message2("Information", "No Avantage Excel files found.")
-            return
-
-        # Process each file
-        processed_count = 0
-        for excel_file in excel_files:
-            file_path = os.path.join(folder_path, excel_file)
-            try:
-                from libraries.Open import import_avantage_file
-                import_avantage_file(window, file_path)
-                processed_count += 1
-            except Exception as e:
-                print(f"Error processing {excel_file}: {e}")
-
-        window.show_popup_message2("Success",
-                                   f"Processed {processed_count} of {len(excel_files)} Avantage files.")
-
-    except Exception as e:
-        window.show_popup_message2("Error", f"Error processing Avantage files: {str(e)}")
-
-def import_multiple_mrs_files_from_dir(window, folder_path):
-    """Import multiple MRS files from provided directory"""
-    try:
-        # Find all MRS files in the directory
-        mrs_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.mrs')]
-
-        if not mrs_files:
-            window.show_popup_message2("Information", "No MRS files found.")
-            return
-
-        # Ask if user wants individual Excel files or one combined file
-        dlg = wx.MessageDialog(window,
-                               "Do you want to create individual Excel files for each MRS file or combine them into one Excel file?",
-                               "Import Options",
-                               wx.YES_NO | wx.ICON_QUESTION)
-        dlg.SetYesNoLabels("Individual Files", "One Combined File")
-
-        result = dlg.ShowModal()
-        individual_files = (result == wx.ID_YES)
-        dlg.Destroy()
-
-        if individual_files:
-            # Process each MRS file individually
-            processed_count = 0
-            for mrs_file in mrs_files:
-                mrs_path = os.path.join(folder_path, mrs_file)
-                if import_mrs_file_direct(window, mrs_path):
-                    processed_count += 1
-            window.show_popup_message2("Success", f"Processed {processed_count} of {len(mrs_files)} MRS files.")
-        else:
-            # Combine all files - implement similar to kfitting files
-            # This would need to be implemented based on your MRS combination logic
-            pass
-
-    except Exception as e:
-        window.show_popup_message2("Error", f"Error processing MRS files: {str(e)}")
 
 
 def load_library_data_WITHEXCEL():
@@ -2986,7 +2868,7 @@ def open_vamas_file_dialog(window):
 
 
 
-def open_vamas_file(window, file_path):
+def open_vamas_file_OLD(window, file_path):
     """
     Open and process a VAMAS file, converting it to an Excel file format.
     This function reads a VAMAS file, extracts its data and metadata,
@@ -3308,6 +3190,362 @@ def open_vamas_file(window, file_path):
     except Exception as e:
         wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+
+def extract_transmission_reference(block):
+    """Extract transmission reference value from VAMAS block"""
+    try:
+        # Check if the block has the transmission reference in its properties
+        # This might be in block attributes or in the block structure
+        if hasattr(block, 'additional_parameters'):
+            # Look for transmission reference in additional parameters
+            for param in block.additional_parameters:
+                if 'transmission' in str(param).lower():
+                    # Extract the number after transmission
+                    pass
+
+        # Alternative: parse from string representation or other block properties
+        # Since VAMAS structure can vary, we might need to check different attributes
+        if hasattr(block, 'block_identifier') or hasattr(block, 'comment'):
+            # Parse block information for transmission reference
+            pass
+
+        # For now, return None if we can't find it
+        return None
+
+    except Exception as e:
+        print(f"Error extracting transmission reference: {e}")
+        return None
+
+
+def open_vamas_file(window, file_path):
+    """
+    Open and process a VAMAS file, converting it to an Excel file format.
+    This function reads a VAMAS file, extracts its data and metadata,
+    and creates a new Excel file with multiple sheets for each data block
+    and an additional sheet for experimental description.
+
+    Args:
+    window: The main application window object.
+    file_path: The path to the VAMAS file to be opened.
+    """
+    try:
+        # Clear undo and redo history
+        window.history = []
+        window.redo_stack = []
+        update_undo_redo_state(window)
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"The file {file_path} does not exist.")
+
+        # Copy VAMAS file to current working directory
+        vamas_filename = os.path.basename(file_path)
+        destination_path = os.path.join(os.getcwd(), vamas_filename)
+        shutil.copy2(file_path, destination_path)
+
+        # Read VAMAS file
+        vamas_data = Vamas(vamas_filename)
+
+        # Check for Casa peak fitting information
+        has_casa_fitting = check_for_casa_fitting(vamas_data)
+        import_fitting = False
+
+        if has_casa_fitting:
+            dlg = wx.MessageDialog(window,
+                                   "Peak fitting information detected in VAMAS file.\n\nDo you want to import the "
+                                   "peak fitting data?\n"
+                                   "Note that this feature is still in beta testing and may not work perfectly.\n",
+                                   "Import Peak Fitting [Beta testing]",
+                                   wx.YES_NO | wx.ICON_QUESTION)
+            result = dlg.ShowModal()
+            import_fitting = (result == wx.ID_YES)
+            dlg.Destroy()
+
+        # Create new Excel workbook
+        wb = Workbook()
+        wb.remove(wb.active)
+
+        exp_data = []
+
+        # Create console window centered on parent
+        parent_pos = window.GetPosition()
+        parent_size = window.GetSize()
+        console_frame = wx.Frame(window, title="Processing VAMAS File", size=(300, 350))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 350) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        num_blocks = len(vamas_data.blocks)
+        update_console(f"Found {num_blocks} core levels to process...")
+        update_console("Starting conversion to Excel format...")
+
+        # Process each block
+        for i, block in enumerate(vamas_data.blocks, start=1):
+            if block.species_label.lower() == "wide" or block.transition_or_charge_state_label.lower() == "none":
+                raw_sheet_name = block.species_label
+            else:
+                raw_sheet_name = f"{block.species_label}{block.transition_or_charge_state_label}"
+            raw_sheet_name = raw_sheet_name.replace("/", "_")
+
+            sheet_name = normalize_sheet_name(raw_sheet_name)
+
+            if sheet_name in wb.sheetnames:
+                count = 1
+                while f"{sheet_name}{count}" in wb.sheetnames:
+                    count += 1
+                sheet_name = f"{sheet_name}{count}"
+
+            update_console(f"Processing {i}/{num_blocks}: {sheet_name}")
+
+            # Create new sheet with normalized name
+            ws = wb.create_sheet(title=sheet_name)
+
+            # Extract and process data
+            num_points = block.num_y_values
+            x_start = block.x_start
+            x_step = block.x_step
+            x_values = [x_start + i * x_step for i in range(num_points)]
+            y_values = block.corresponding_variables[0].y_values
+            y_unit = block.corresponding_variables[0].unit
+            num_scans = block.num_scans_to_compile_block
+
+            # # Convert counts to counts per second if necessary
+            # if y_unit != "c/s":
+            #     y_values = [y / num_scans for y in y_values]
+
+            # Convert counts to counts per second if necessary
+            collection_time = block.signal_collection_time
+            print(f"Collection time: {collection_time}, Num scans: {num_scans}, Y unit: {y_unit}")
+            print(f'Number of Scans: {num_scans}')
+            num_scan = num_scans  # To stop division by number of scan quickly if needed
+            if y_unit != "c/s" and collection_time > 0:
+                y_values = [y / (num_scan * collection_time) for y in y_values]
+                print(f'Maximum Y value after conversion: {max(y_values)}')
+            elif y_unit != "c/s":
+                y_values = [y / num_scan for y in y_values]
+
+            # Convert to Binding Energy if necessary
+            if block.x_label.lower() in ["kinetic energy", "ke"]:
+                x_values = [window.photons - x - window.workfunction for x in x_values]
+                x_label = "Binding Energy"
+            else:
+                x_label = block.x_label
+
+            # Write data to sheet
+            ws.append([x_label, "Corrected Data", "Raw Data", "Transmission"])
+
+            # Get transmission data and correct it by dividing by (num_scans * collection_time)
+            if hasattr(block, 'corresponding_variables') and len(block.corresponding_variables) > 1:
+                raw_transmission_data = block.corresponding_variables[1].y_values
+                # Simple correction: divide by num_scans * collection_time
+                if collection_time > 0:
+                    transmission_data = [t / (num_scans * collection_time) for t in raw_transmission_data]
+                    print(f"DEBUG: Transmission corrected by dividing by ({num_scans} * {collection_time}) = {num_scans * collection_time}")
+                else:
+                    transmission_data = [t / num_scans for t in raw_transmission_data]
+                    print(f"DEBUG: Transmission corrected by dividing by num_scans = {num_scans}")
+            else:
+                if collection_time > 0:
+                    transmission_data = [1.0 / (num_scans * collection_time)] * len(y_values)
+                else:
+                    transmission_data = [1.0 / num_scans] * len(y_values)
+
+            # Write data row by row
+            for j, (x, y) in enumerate(zip(x_values, y_values)):
+                trans = transmission_data[j] if j < len(transmission_data) else transmission_data[0]
+                corrected_y = y / abs(trans)
+                ws.append([x, corrected_y, y, trans])
+
+            if import_fitting:
+                if update_console:
+                    update_console(f"Processing fitting data for {sheet_name}...")
+
+                # Parse Casa fitting information
+                casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
+                                                    window.photons, transmission_data)
+
+                if import_fitting and casa_data:
+                    print(f"DEBUG: Casa data keys: {list(casa_data.keys())}")
+                    print(f"DEBUG: Background data: {casa_data.get('Background', 'No Background key')}")
+
+                    num_peaks = len(casa_data['Peaks'])
+                    if num_peaks > 0:
+                        peak_names = list(casa_data['Peaks'].keys())
+                        if update_console:
+                            update_console(f"  Found {num_peaks} peaks: {', '.join(peak_names)}")
+
+                    # Store fitting data in a way that will be transferred to window.Data
+                    if not hasattr(wb, '_fitting_data'):
+                        wb._fitting_data = {}
+
+                    wb._fitting_data[sheet_name] = {
+                        'Fitting': {
+                            'Peaks': casa_data['Peaks']
+                        }
+                    }
+
+                    if casa_data['Background']:
+                        print(f"DEBUG: Background exists, storing it")
+                        wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
+                        wb._fitting_data[sheet_name]['Background']['Bkg X'] = x_values
+
+                        # Calculate corrected_y (same as done in Excel writing loop)
+                        corrected_y_values = []
+                        for j, y in enumerate(y_values):
+                            trans = transmission_data[j] if j < len(transmission_data) else transmission_data[0]
+                            corrected_y_values.append(y / trans)
+
+                        wb._fitting_data[sheet_name]['Background']['Bkg Y'] = corrected_y_values
+                        # print(f"DEBUG: Stored background data: {wb._fitting_data[sheet_name]['Background']}")
+                        if update_console:
+                            update_console(
+                                f"  Background: {casa_data['Background'].get('Bkg Type')} from {casa_data['Background'].get('Bkg Low'):.1f} to {casa_data['Background'].get('Bkg High'):.1f} eV")
+                    else:
+                        print(f"DEBUG: No background data in casa_data or background is empty")
+                        print(f"DEBUG: casa_data['Background'] = {casa_data.get('Background', 'KEY NOT FOUND')}")
+                else:
+                    if update_console:
+                        update_console(f"  No Casa fitting data found for {sheet_name}")
+
+            # Store experimental setup data
+            block_exp_data = [
+                f"Block {i}",
+                block.sample_identifier,
+                f"{block.year}/{block.month}/{block.day}",
+                f"{block.hour}:{block.minute}:{block.second}",
+                block.technique,
+                f"{block.species_label} {block.transition_or_charge_state_label}",
+                block.num_scans_to_compile_block,
+                block.analysis_source_label,
+                block.analysis_source_characteristic_energy,
+                block.analysis_source_beam_width_x,
+                block.analysis_source_beam_width_y,
+                block.analyzer_pass_energy_or_retard_ratio_or_mass_res,
+                block.analyzer_work_function_or_acceptance_energy,
+                block.analyzer_mode,
+                block.sputtering_source_energy if hasattr(block, 'sputtering_source_energy') else 'N/A',
+                block.analyzer_axis_take_off_polar_angle,
+                block.analyzer_axis_take_off_azimuth,
+                block.target_bias,
+                block.analysis_width_x,
+                block.analysis_width_y,
+                block.x_label,
+                block.x_units,
+                block.x_start,
+                block.x_step,
+                block.num_y_values,
+                block.num_scans_to_compile_block,
+                block.signal_collection_time,
+                block.signal_time_correction,
+                y_unit,
+                block.num_lines_block_comment,
+                block.block_comment
+            ]
+            exp_data.append(block_exp_data)
+
+            # Add experimental description data to this sheet starting at column 50
+            exp_col = 50
+            ws.cell(row=1, column=exp_col, value="Experimental Description")
+
+            exp_labels = [
+                "Sample ID", "Date", "Time", "Technique", "Species & Transition", "Number of scans",
+                "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
+                "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+                "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
+                "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
+            ]
+
+            for j, (label, value) in enumerate(zip(exp_labels, block_exp_data[1:])):
+                ws.cell(row=j + 2, column=exp_col, value=label)
+                ws.cell(row=j + 2, column=exp_col + 1, value=value)
+
+            # Set column width for experimental data
+            ws.column_dimensions[chr(64 + exp_col)].width = 25
+            ws.column_dimensions[chr(64 + exp_col + 1)].width = 40
+
+        update_console("Creating experimental description sheet...")
+
+        # Create "Experimental description" sheet (keep this for backward compatibility)
+        exp_sheet = wb.create_sheet(title="Experimental description")
+        exp_sheet.column_dimensions['A'].width = 50
+        exp_sheet.column_dimensions['B'].width = 100
+        left_aligned = Alignment(horizontal='left')
+
+        # Add VAMAS header information
+        exp_sheet.append(["VAMAS Header Information"])
+        for item in [
+            ("Format Identifier", vamas_data.header.format_identifier),
+            ("Institution Identifier", vamas_data.header.institution_identifier),
+            ("Instrument Model", vamas_data.header.instrument_model_identifier),
+            ("Operator Identifier", vamas_data.header.operator_identifier),
+            ("Experiment Identifier", vamas_data.header.experiment_identifier),
+            ("Number of Comment Lines", vamas_data.header.num_lines_comment),
+            ("Comment", vamas_data.header.comment),
+            ("Experiment Mode", vamas_data.header.experiment_mode),
+            ("Scan Mode", vamas_data.header.scan_mode),
+            ("Number of Spectral Regions", vamas_data.header.num_spectral_regions),
+            ("Number of Analysis Positions", vamas_data.header.num_analysis_positions),
+            ("Number of Discrete X Coordinates", vamas_data.header.num_discrete_x_coords_in_full_map),
+            ("Number of Discrete Y Coordinates", vamas_data.header.num_discrete_y_coords_in_full_map)
+        ]:
+            exp_sheet.append(item)
+
+        exp_sheet.append([])  # Add a blank row for separation
+
+        # Define the order of block information
+        block_info_order = [
+            "Sample ID", "Year/Month/Day", "Time HH,MM,SS", "Technique", "Species & Transition", "Number of scans",
+            "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
+            "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+            "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
+            "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
+        ]
+
+        # Add block information
+        for i, block_data in enumerate(exp_data, start=1):
+            exp_sheet.append([f"Block {i}", ""])
+            for j, info in enumerate(block_info_order):
+                exp_sheet.append([info, block_data[j + 1]])
+            exp_sheet.append([])  # Add a blank row between blocks
+
+        # Set alignment for all cells in column B
+        for row in exp_sheet.iter_rows(min_row=1, max_row=exp_sheet.max_row, min_col=2, max_col=2):
+            for cell in row:
+                cell.alignment = left_aligned
+
+        update_console("Saving Excel file...")
+        excel_filename = os.path.splitext(vamas_filename)[0] + ".xlsx"
+        excel_path = os.path.join(os.path.dirname(file_path), excel_filename)
+        wb.save(excel_path)
+
+        # Save fitting data to JSON file immediately after Excel file is saved
+        if import_fitting and hasattr(wb, '_fitting_data'):
+            print(f"VAMAS: Saving fitting data for {len(wb._fitting_data)} sheets")
+            import json
+            fitting_file = excel_path.replace('.xlsx', '_fitting.json')
+            with open(fitting_file, 'w') as f:
+                json.dump(wb._fitting_data, f)
+            print(f"VAMAS: Fitting data saved to: {fitting_file}")
+
+        update_console("Excel file created successfully!")
+        update_console("Loading Excel file into KherveFitting...")
+
+        os.remove(destination_path)
+        window.Data = Init_Measurement_Data(window)
+        window.Data['FilePath'] = excel_path
+
+        # Pass console to next function
+        open_xlsx_file_vamas(window, excel_path, console_frame, update_console, import_fitting)
+
+    except Exception as e:
+        wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, transmission_data=None):
     """

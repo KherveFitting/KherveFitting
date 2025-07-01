@@ -689,7 +689,10 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     gamma_min = evaluate_constraint(gamma_min, peak_params_grid, 'gamma', gamma)
                     gamma_max = evaluate_constraint(gamma_max, peak_params_grid, 'gamma', gamma)
                     params.add(f'{prefix}amplitude', value=amplitude, min=area_min, max=area_max, vary=area_vary)
-                    params.add(f'{prefix}center', value=center, min=center_min, max=center_max, vary=center_vary)
+                    if center_min == center_max:
+                        params.add(f'{prefix}center', value=center, vary=False)
+                    else:
+                        params.add(f'{prefix}center', value=center, min=center_min, max=center_max, vary=center_vary)
                     params.add(f'{prefix}fwhm', value=fwhm, min=fwhm_min, max=fwhm_max, vary=fwhm_vary)
                     params.add(f'{prefix}gamma', value=gamma, min=gamma_min, max=gamma_max, vary=gamma_vary)
                     params.add(f'{prefix}fraction', value=lg_ratio, min=lg_ratio_min, max=lg_ratio_max,vary=lg_ratio_vary)
