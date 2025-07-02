@@ -4,6 +4,9 @@ import requests
 import re
 import os
 import json
+import locale
+
+
 
 # Replace with your actual Google Form URL
 GOOGLE_FORM_URL = 'https://docs.google.com/forms/u/0/d/1_PbjsaQGuhN5_K0-x90QIf75gcfCFiiv5snqju8nUBE/formResponse'
@@ -48,8 +51,8 @@ COUNTRIES = ["Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua 
 
 USAGES = ["Multiple times in a day", "Daily", "Weekly", "Monthly", "Yearly", "Rarely / One off"]
 
-DISCOVERY_OPTIONS = ["LinkedIn", "Internet Search", "ResearchGate", "Conference", "Colleagues", "Friends",
-                     "Publication", "Other"]
+DISCOVERY_OPTIONS = ["LinkedIn", "Internet Search", "ResearchGate", "Conference", "Colleagues", "Supervisor", "Friends",
+                     "Publication", "Creator", "Other"]
 
 # Add this to the top of your file with other constants
 XPS_SYSTEMS = [
@@ -57,7 +60,7 @@ XPS_SYSTEMS = [
     "Kratos - AXIS Ultra",
     "Kratos - AXIS 165",
     "Kratos - AXIS Supra",
-    "Kratos - Others"
+    "Kratos - Others",
     "Thermo Scientific - K-Alpha",
     "Thermo Scientific - K-Alpha+",
     "Thermo Scientific - Nexsa G2",
@@ -67,7 +70,7 @@ XPS_SYSTEMS = [
     "PHI - Quantes",
     "PHI - Genesis",
     "PHI - PHI 5600",
-    "PHI - Other"
+    "PHI - Other",
     "SPECS - FlexPS",
     "SPECS - PHOIBOS 150",
     "SPECS - PHOIBOS 100",
@@ -78,12 +81,12 @@ XPS_SYSTEMS = [
     "Scienta Omicron - ESCA 2SR",
     "Scienta Omicron - HAXPES-Lab",
     "Scienta Omicron - NanoESCA",
-    "Scienta Omicron - Other"
+    "Scienta Omicron - Other",
     "Prevac - XPS/UPS/ARPES System",
     "Prevac - 5 mbar XPS/UPS System",
     "Prevac - EA15-HP5",
     "Prevac - XANELS XPS",
-    "Prevac - Other"
+    "Prevac - Other",
     "Other"
 ]
 
@@ -963,6 +966,226 @@ class RegistrationForm(wx.Frame):
         self.restart_application()
 
 
+
+
+
+# Add automatic location detection function
+def get_user_location():
+    """Try to automatically detect user's detailed location"""
+    location_data = {'country': 'Unknown', 'city': 'Unknown', 'region': 'Unknown'}
+
+    try:
+        # Try IP geolocation first for detailed location
+        response = requests.get('http://ip-api.com/json/', timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success':
+                location_data['country'] = data.get('country', 'Unknown')
+                location_data['city'] = data.get('city', 'Unknown')
+                location_data['region'] = data.get('regionName', 'Unknown')
+                print(
+                    f"Location detection successful: {location_data['city']}, {location_data['region']}, {location_data['country']}")
+                return location_data
+    except:
+        pass
+
+    try:
+        # Fallback to system locale
+        system_locale = locale.getdefaultlocale()[0]
+        if system_locale:
+            country_code = system_locale.split('_')[-1]
+            # Basic country code to name mapping for common ones
+            country_map = {
+                'US': 'United States', 'UK': 'United Kingdom', 'GB': 'United Kingdom',
+                'CA': 'Canada', 'AU': 'Australia', 'DE': 'Germany', 'FR': 'France',
+                'IT': 'Italy', 'ES': 'Spain', 'NL': 'Netherlands', 'SE': 'Sweden',
+                'CH': 'Switzerland', 'JP': 'Japan', 'CN': 'China', 'IN': 'India'
+            }
+            country = country_map.get(country_code, 'Unknown')
+            if country != 'Unknown':
+                location_data['country'] = country
+                print(f"Location detection successful via locale: {country}")
+                return location_data
+    except:
+        pass
+
+    print("Location detection failed")
+    return location_data
+
+
+class MiniRegistrationForm(wx.Frame):
+    def __init__(self, parent):
+        custom_style = wx.CAPTION | wx.SYSTEM_MENU | wx.RESIZE_BORDER | wx.STAY_ON_TOP
+
+        super().__init__(parent=parent,
+                         title="KherveFitting Questionnaire",
+                         size=(450, 260),
+                         style=custom_style)
+
+        self.parent = parent
+        panel = wx.Panel(self)
+        vbox = wx.BoxSizer(wx.VERTICAL)
+
+        # Automatically detect detailed location (hidden from user)
+        self.location_data = get_user_location()
+
+        # Create form fields
+        self.fields = {}
+        field_width = 280
+
+        # XPS System dropdown
+        xps_hbox = wx.BoxSizer(wx.HORIZONTAL)
+        xps_label = wx.StaticText(panel, label="XPS System:")
+        self.xps_combo = wx.ComboBox(panel, choices=XPS_SYSTEMS, style=wx.CB_DROPDOWN, size=(field_width, -1))
+
+        # Set default to "Thermo Scientific - Other"
+        self.xps_combo.SetValue("Thermo Scientific - Other")
+
+        xps_hbox.Add(xps_label, proportion=0, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
+
+        xps_label_width = xps_label.GetSize().GetWidth()
+        xps_spacer_width = max(15, 140 - xps_label_width)
+        xps_hbox.Add((xps_spacer_width, 1))
+
+        xps_hbox.Add(self.xps_combo, proportion=0, flag=wx.ALL, border=5)
+        vbox.Add(xps_hbox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=5)
+        self.fields["Supplier Name"] = self.xps_combo
+
+        # Discovery checkboxes
+        discovery_label = wx.StaticText(panel,
+                                        label="How did you find out about KherveFitting? (Check all that apply):")
+        vbox.Add(discovery_label, flag=wx.ALL, border=5)
+
+        # Create checkboxes for discovery options in 4 columns
+        self.discovery_checkboxes = {}
+        checkbox_sizer = wx.FlexGridSizer(rows=0, cols=4, hgap=10, vgap=5)
+
+        for option in DISCOVERY_OPTIONS:
+            checkbox = wx.CheckBox(panel, label=option)
+            self.discovery_checkboxes[option] = checkbox
+            checkbox_sizer.Add(checkbox, flag=wx.ALL, border=2)
+
+        vbox.Add(checkbox_sizer, flag=wx.ALL | wx.EXPAND, border=15)
+
+        # Buttons
+        submit_btn = wx.Button(panel, label="Submit & Restart")
+        submit_btn.SetMinSize(wx.Size(110, 40))
+        submit_btn.SetMaxSize(wx.Size(110, 40))
+
+        close_btn = wx.Button(panel, label="Submit Later")
+        close_btn.SetMinSize(wx.Size(110, 40))
+        close_btn.SetMaxSize(wx.Size(110, 40))
+
+        buttons_hbox = wx.BoxSizer(wx.HORIZONTAL)
+        buttons_hbox.Add(close_btn, flag=wx.RIGHT, border=10)
+        buttons_hbox.Add(submit_btn)
+
+        vbox.Add(buttons_hbox, flag=wx.ALL | wx.CENTER, border=15)
+
+        submit_btn.Bind(wx.EVT_BUTTON, self.on_submit)
+        close_btn.Bind(wx.EVT_BUTTON, self.on_close)
+
+        panel.SetSizer(vbox)
+        self.Centre()
+        self.Show()
+
+    def on_close(self, event):
+        self.Close()
+
+    def on_submit(self, event):
+        # Get XPS system
+        xps_system = self.xps_combo.GetValue()
+        if not xps_system:
+            wx.MessageBox("Please select your XPS System.", "Missing Information", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get checked discovery options
+        checked_options = []
+        for option, checkbox in self.discovery_checkboxes.items():
+            if checkbox.GetValue():
+                checked_options.append(option)
+
+        if not checked_options:
+            wx.MessageBox("Please select at least one option for how you found out about KherveFitting.",
+                          "Missing Information", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Combine checked options with comma separator
+        discovery_value = ", ".join(checked_options)
+
+        # Create detailed location string for country field
+        detailed_location = f"{self.location_data['country']}"
+        detailed_uni = f"{self.location_data['region']} - {self.location_data['city']}"
+
+        # Create complete data with fake values for hidden fields
+        data = {
+            FORM_FIELDS['First name']: 'Robot',
+            FORM_FIELDS['Surname']: 'Robot',
+            FORM_FIELDS['Email']: 'robot@questionnaire.com',
+            FORM_FIELDS['University/Company']: detailed_uni,
+            FORM_FIELDS['Country']: detailed_location,  # Send detailed location in country field
+            FORM_FIELDS['Usage']: 'daily',
+            FORM_FIELDS['Supplier Name']: xps_system,
+            FORM_FIELDS['Discovery']: discovery_value
+        }
+
+        try:
+            response = requests.post(GOOGLE_FORM_URL, data=data)
+            if response.status_code == 200:
+                self.save_registration_state()
+            else:
+                wx.MessageBox(f"Failed to submit form. Status code: {response.status_code}", "Error",
+                              wx.OK | wx.ICON_ERROR)
+        except Exception as e:
+            wx.MessageBox(f"An error occurred:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def restart_application(self):
+        """Restart the entire application"""
+        import os
+        import sys
+
+        self.Close()
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+
+    def save_registration_state(self):
+        """Save registration state to config file"""
+        config_file = 'config.json'
+        config = {}
+
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+            except:
+                config = {}
+
+        config['registered'] = True
+
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+
+        wx.MessageBox(
+            "Thank you for registering!\nKherveFitting will now shutdown\n\nClose all error windows and restart the application",
+            "Registration Complete",
+            wx.OK | wx.ICON_INFORMATION)
+
+        self.restart_application()
+
+def show_mini_registration_form():
+    """Show the mini registration form"""
+    app = wx.App(False)
+    frame = MiniRegistrationForm(None)
+    app.MainLoop()
+
+def launch_mini_registration_form(parent=None):
+    """Launch the mini registration form"""
+    if parent:
+        dialog = MiniRegistrationForm(parent)
+        dialog.Show()
+    else:
+        show_mini_registration_form()
+
 def check_registration_needed():
     """Check if registration is needed by looking at config file"""
     config_file = 'config.json'
@@ -1002,4 +1225,5 @@ def launch_registration_form(parent=None):
 
 
 if __name__ == "__main__":
-    show_registration_form()
+    show_mini_registration_form()
+    # show_registration_form()
