@@ -21,7 +21,7 @@ class MouseEventHandler:
                 self.window.SetStatusText(f"BE: {x:.1f} eV, I: {int(y)} CPS", 1)
                 self.window.current_energy_value = x
 
-    def on_click(self, event):
+    def on_click_OLD(self, event):
         if event.inaxes:
             x_click = event.xdata
             if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
@@ -149,6 +149,258 @@ class MouseEventHandler:
                         self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
                                                                                  self.on_release)
                 elif self.window.peak_fitting_tab_selected:
+                    peak_index = self.window.peak_manipulation.get_peak_index_from_position(event.xdata, event.ydata)
+                    if peak_index is not None:
+                        self.window.selected_peak_index = peak_index
+                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
+                                                                                self.window.peak_manipulation.on_cross_drag)
+                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                 self.window.peak_manipulation.on_cross_release)
+                        self.window.peak_manipulation.highlight_selected_peak()
+                    else:
+                        self.window.peak_manipulation.deselect_all_peaks()
+                else:
+                    self.window.peak_manipulation.deselect_all_peaks()
+
+            self.window.show_hide_vlines()
+            self.window.canvas.draw()
+
+    def on_click(self, event):
+        if event.inaxes:
+            x_click = event.xdata
+            if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
+                # Clean up any existing handlers first
+                if hasattr(self.window, 'motion_cid'):
+                    self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                    delattr(self.window, 'motion_cid')
+                if hasattr(self.window, 'release_cid'):
+                    self.window.canvas.mpl_disconnect(self.window.release_cid)
+                    delattr(self.window, 'release_cid')
+
+                self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+
+                x_click = event.xdata
+                sheet_name = self.window.sheet_combobox.GetValue()
+                if self.window.vline1 is not None and self.window.vline2 is not None:
+                    vline1_x = self.window.vline1.get_xdata()[0]
+                    vline2_x = self.window.vline2.get_xdata()[0]
+
+                    low_be_x = min(vline1_x, vline2_x)
+                    high_be_x = max(vline1_x, vline2_x)
+
+                    dist1 = abs(x_click - vline1_x)
+                    dist2 = abs(x_click - vline2_x)
+
+                    if dist1 < dist2:
+                        raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline1_x))]
+                        if vline1_x == low_be_x:
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_l = min(calculated_offset, 0)
+                            self.window.Data['Core levels'][sheet_name]['Background'][
+                                'Bkg Offset Low'] = self.window.offset_l
+                            self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                        else:
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_h = min(calculated_offset, 0)
+                            self.window.Data['Core levels'][sheet_name]['Background'][
+                                'Bkg Offset High'] = self.window.offset_h
+                            self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
+                    else:
+                        raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
+                        if vline2_x == low_be_x:
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_l = min(calculated_offset, 0)
+                            self.window.Data['Core levels'][sheet_name]['Background'][
+                                'Bkg Offset Low'] = self.window.offset_l
+                            self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                        else:
+                            calculated_offset = event.ydata - raw_y
+                            # Ensure offset cannot be positive
+                            self.window.offset_h = min(calculated_offset, 0)
+                            self.window.Data['Core levels'][sheet_name]['Background'][
+                                'Bkg Offset High'] = self.window.offset_h
+                            self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
+                    self.window.plot_manager.plot_background(self.window)
+                    return
+            elif event.button == 1:
+                if event.key == 'shift':
+                    if self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None:
+                        row = self.window.selected_peak_index * 2
+                        self.window.initial_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
+                        self.window.initial_x = event.xdata
+
+                        # Clean up existing handlers
+                        if hasattr(self.window, 'motion_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                        if hasattr(self.window, 'release_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.release_cid)
+
+                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
+                                                                                self.window.peak_manipulation.on_cross_drag)
+                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                 self.window.peak_manipulation.on_cross_release)
+                elif self.window.background_tab_selected:
+                    # Clean up any existing handlers first
+                    if hasattr(self.window, 'motion_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                        delattr(self.window, 'motion_cid')
+                    if hasattr(self.window, 'release_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.release_cid)
+                        delattr(self.window, 'release_cid')
+
+                    # Reset moving vline state
+                    self.window.moving_vline = None
+
+                    self.window.peak_manipulation.deselect_all_peaks()
+                    sheet_name = self.window.sheet_combobox.GetValue()
+                    if sheet_name in self.window.Data['Core levels']:
+                        core_level_data = self.window.Data['Core levels'][sheet_name]
+
+                        if self.window.background_method == "Multi-Regions Smart":
+                            if self.window.vline1 is not None and self.window.vline2 is not None:
+                                vline1_x = self.window.vline1.get_xdata()[0]
+                                vline2_x = self.window.vline2.get_xdata()[0]
+
+                                dist1 = abs(x_click - vline1_x)
+                                dist2 = abs(x_click - vline2_x)
+
+                                # Calculate adaptive threshold based on plot width
+                                x_range = abs(max(self.window.x_values) - min(self.window.x_values))
+                                adaptive_threshold = max(self.window.some_threshold, x_range * 0.02)  # 2% of plot width
+
+                                if dist1 < dist2 and dist1 < adaptive_threshold:
+                                    self.window.moving_vline = self.window.vline1
+                                elif dist2 < adaptive_threshold:
+                                    self.window.moving_vline = self.window.vline2
+                                else:
+                                    self.window.moving_vline = None
+
+                                if self.window.moving_vline is not None:
+                                    self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
+                                                                                            self.on_motion)
+                                    self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                             self.on_release)
+                                    return
+                        else:
+                            # Standard background mode - improved vline selection logic
+                            if self.window.vline1 is not None and self.window.vline2 is not None:
+                                # Both vlines exist
+                                vline1_x = self.window.vline1.get_xdata()[0]
+                                vline2_x = self.window.vline2.get_xdata()[0]
+
+                                dist1 = abs(x_click - vline1_x)
+                                dist2 = abs(x_click - vline2_x)
+
+                                # Calculate adaptive threshold
+                                x_range = abs(max(self.window.x_values) - min(self.window.x_values))
+                                adaptive_threshold = max(self.window.some_threshold, x_range * 0.02)
+
+                                # Check if click is near either vline
+                                if dist1 <= adaptive_threshold or dist2 <= adaptive_threshold:
+                                    # Select the closest vline
+                                    if dist1 < dist2:
+                                        self.window.moving_vline = self.window.vline1
+                                    else:
+                                        self.window.moving_vline = self.window.vline2
+
+                                    self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
+                                                                                            self.on_motion)
+                                    self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                             self.on_release)
+                                    return
+                                else:
+                                    # Click not near any vline - move the closest one
+                                    if dist1 < dist2:
+                                        self.window.moving_vline = self.window.vline1
+                                        core_level_data['Background']['Bkg Low'] = float(x_click)
+                                    else:
+                                        self.window.moving_vline = self.window.vline2
+                                        core_level_data['Background']['Bkg High'] = float(x_click)
+
+                                    # Update the vline position immediately
+                                    self.window.moving_vline.set_xdata([x_click])
+
+                                    # Sort the background limits
+                                    bkg_low = core_level_data['Background']['Bkg Low']
+                                    bkg_high = core_level_data['Background']['Bkg High']
+                                    core_level_data['Background']['Bkg Low'] = min(bkg_low, bkg_high)
+                                    core_level_data['Background']['Bkg High'] = max(bkg_low, bkg_high)
+
+                                    self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
+                                                                                            self.on_motion)
+                                    self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                             self.on_release)
+                                    self.window.canvas.draw_idle()
+                                    return
+
+                        # Create vlines if they don't exist
+                        if self.window.vline1 is None:
+                            self.window.vline1 = self.window.ax.axvline(x_click, color='r', linestyle='--')
+                            core_level_data['Background']['Bkg Low'] = float(x_click)
+                            self.window.canvas.draw_idle()
+                        elif self.window.vline2 is None and abs(
+                                x_click - core_level_data['Background']['Bkg Low']) > self.window.some_threshold:
+                            self.window.vline2 = self.window.ax.axvline(x_click, color='r', linestyle='--')
+                            core_level_data['Background']['Bkg High'] = float(x_click)
+                            core_level_data['Background']['Bkg Low'], core_level_data['Background'][
+                                'Bkg High'] = sorted([
+                                core_level_data['Background']['Bkg Low'],
+                                core_level_data['Background']['Bkg High']
+                            ])
+                            self.window.canvas.draw_idle()
+                        else:
+                            # Both vlines exist but we're here somehow - select closest one
+                            if self.window.vline2 is not None:
+                                dist_to_low = abs(x_click - core_level_data['Background']['Bkg Low'])
+                                dist_to_high = abs(x_click - core_level_data['Background']['Bkg High'])
+
+                                if dist_to_low < dist_to_high:
+                                    self.window.moving_vline = self.window.vline1
+                                else:
+                                    self.window.moving_vline = self.window.vline2
+                            else:
+                                self.window.moving_vline = self.window.vline1
+
+                            self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
+                                                                                    self.on_motion)
+                            self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                     self.on_release)
+
+                elif self.window.noise_tab_selected:
+                    # Clean up existing handlers
+                    if hasattr(self.window, 'motion_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                    if hasattr(self.window, 'release_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.release_cid)
+
+                    if self.window.vline3 is None:
+                        self.window.vline3 = self.window.ax.axvline(x_click, color='b', linestyle='--')
+                        self.window.noise_min_energy = float(x_click)
+                    elif self.window.vline4 is None and abs(
+                            x_click - self.window.noise_min_energy) > self.window.some_threshold:
+                        self.window.vline4 = self.window.ax.axvline(x_click, color='b', linestyle='--')
+                        self.window.noise_max_energy = float(x_click)
+                        self.window.noise_min_energy, self.window.noise_max_energy = sorted(
+                            [self.window.noise_min_energy, self.window.noise_max_energy])
+                    else:
+                        self.window.moving_vline = self.window.vline3 if self.window.vline4 is None or abs(
+                            x_click - self.window.noise_min_energy) < abs(
+                            x_click - self.window.noise_max_energy) else self.window.vline4
+                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
+                                                                                 self.on_release)
+
+                elif self.window.peak_fitting_tab_selected:
+                    # Clean up existing handlers
+                    if hasattr(self.window, 'motion_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                    if hasattr(self.window, 'release_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.release_cid)
+
                     peak_index = self.window.peak_manipulation.get_peak_index_from_position(event.xdata, event.ydata)
                     if peak_index is not None:
                         self.window.selected_peak_index = peak_index
@@ -295,6 +547,18 @@ class MouseEventHandler:
                         [self.window.noise_min_energy, self.window.noise_max_energy])
 
             self.window.canvas.draw_idle()
+
+    def cleanup_vline_handlers(self):
+        """Clean up any existing vline event handlers"""
+        if hasattr(self.window, 'motion_cid'):
+            self.window.canvas.mpl_disconnect(self.window.motion_cid)
+            delattr(self.window, 'motion_cid')
+        if hasattr(self.window, 'release_cid'):
+            self.window.canvas.mpl_disconnect(self.window.release_cid)
+            delattr(self.window, 'release_cid')
+
+        # Reset moving vline state
+        self.window.moving_vline = None
 
     def on_release(self, event):
         if self.window.moving_vline is not None:
