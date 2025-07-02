@@ -401,6 +401,19 @@ class PreferenceWindow(wx.Frame):
         # Bind photon source selection
         self.photon_combo.Bind(wx.EVT_COMBOBOX, self.on_photon_source)
 
+        # Add library prefix explanations at the bottom
+        sizer.Add(wx.StaticText(self.instrument_tab, label="Library Prefixes:"), pos=(15, 0), span=(1, 2),
+                  flag=wx.EXPAND | wx.ALL, border=5)
+
+        sizer.Add(wx.StaticText(self.instrument_tab, label="A- : Avantage Library"), pos=(16, 0), span=(1, 2),
+                  flag=wx.EXPAND | wx.LEFT, border=15)
+
+        sizer.Add(wx.StaticText(self.instrument_tab, label="C- : Casa XPS Library"), pos=(17, 0), span=(1, 2),
+                  flag=wx.EXPAND | wx.LEFT, border=15)
+
+        sizer.Add(wx.StaticText(self.instrument_tab, label="O- : Other"), pos=(18, 0), span=(1, 2),
+                  flag=wx.EXPAND | wx.LEFT, border=15)
+
         self.instrument_tab.SetSizer(sizer)
 
     def on_instrument_change(self, event):
@@ -1241,37 +1254,62 @@ class PreferenceWindow(wx.Frame):
         self.parent.show_popup_message2("Success", "Library converted to Parquet")
 
     def on_view_library(self, evt):
+        import math  # Add this import at the top
+
         instrument = self.instrument_combo.GetValue()
         ds_instrument = "C-Al1486"  # Fixed instrument for DS
 
-        dlg = wx.Dialog(self, title=f"Library Data for {instrument}. Read only version", size=(800, 600))
+        dlg = wx.Dialog(self, title=f"Library Data for {instrument} - Read only version", size=(900, 600))
         grid = wx.grid.Grid(dlg)
-        grid.CreateGrid(len(self.parent.library_data), 5)
+
+        # Count how many entries we'll actually show
+        visible_entries = []
+        for element_orbital, data in sorted(self.parent.library_data.items()):
+            if instrument in data:  # Only require main instrument, not ds_instrument
+                visible_entries.append((element_orbital, data))
+
+        grid.CreateGrid(len(visible_entries), 6)  # Add one more column for Position
 
         grid.SetColLabelValue(0, "Element")
-        grid.SetColLabelValue(1, "RSF Library")
-        grid.SetColLabelValue(2, "RSF")
-        grid.SetColLabelValue(3, "DS Library")
-        grid.SetColLabelValue(4, "DS")
+        grid.SetColLabelValue(1, "Position (eV)")  # New column
+        grid.SetColLabelValue(2, "RSF Library")
+        grid.SetColLabelValue(3, "RSF")
+        grid.SetColLabelValue(4, "DS Library")
+        grid.SetColLabelValue(5, "DS")
 
         grid.SetColSize(0, 100)
-        grid.SetColSize(1, 150)
-        grid.SetColSize(2, 100)
-        grid.SetColSize(3, 150)
-        grid.SetColSize(4, 100)
+        grid.SetColSize(1, 100)  # Position column
+        grid.SetColSize(2, 150)
+        grid.SetColSize(3, 100)
+        grid.SetColSize(4, 150)
+        grid.SetColSize(5, 100)
 
         row = 0
-        for element_orbital, data in sorted(self.parent.library_data.items()):
-            if instrument in data and ds_instrument in data:
-                element, orbital = element_orbital
-                values = data[instrument]
+        for element_orbital, data in visible_entries:
+            element, orbital = element_orbital
+            values = data[instrument]
+
+            grid.SetCellValue(row, 0, f"{element} {orbital}")
+            grid.SetCellValue(row, 1, str(values['position']) if values['position'] is not None else "---")
+            grid.SetCellValue(row, 2, instrument)
+            grid.SetCellValue(row, 3, str(values['rsf']) if values['rsf'] is not None else "---")
+
+            # Check if DS data exists
+            if ds_instrument in data:
                 ds_values = data[ds_instrument]
-                grid.SetCellValue(row, 0, f"{element} {orbital}")
-                grid.SetCellValue(row, 1, instrument)
-                grid.SetCellValue(row, 2, str(values['rsf']))
-                grid.SetCellValue(row, 3, ds_instrument)
-                grid.SetCellValue(row, 4, "---" if ds_values['ds'] is None else str(ds_values['ds']))
-                row += 1
+                grid.SetCellValue(row, 4, ds_instrument)
+
+                # Handle DS value - check for None, NaN, or invalid values
+                ds_val = ds_values['ds']
+                if ds_val is None or (isinstance(ds_val, float) and math.isnan(ds_val)):
+                    grid.SetCellValue(row, 5, "---")
+                else:
+                    grid.SetCellValue(row, 5, str(ds_val))
+            else:
+                grid.SetCellValue(row, 4, "---")
+                grid.SetCellValue(row, 5, "---")
+
+            row += 1
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(grid, 1, wx.EXPAND | wx.ALL, 5)
