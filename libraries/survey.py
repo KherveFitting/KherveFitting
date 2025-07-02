@@ -211,6 +211,17 @@ class PeriodicTableWindow(wx.Frame):
         self.InitUI()
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
+        # ADD THESE DRAGGING STATE VARIABLES
+        self.selected_text = None
+        self.selection_box = None
+        self.drag_offset = None
+        self.is_dragging = False
+
+        # Connect mouse events directly to your own methods
+        self.canvas_click_id = self.parent_window.canvas.mpl_connect('button_press_event', self.on_canvas_click)
+        self.canvas_release_id = self.parent_window.canvas.mpl_connect('button_release_event', self.on_canvas_release)
+        self.canvas_motion_id = self.parent_window.canvas.mpl_connect('motion_notify_event', self.on_canvas_motion)
+
     def get_available_elements(self):
         """Get list of elements available in your library data"""
         elements = set()
@@ -1307,11 +1318,176 @@ class PeriodicTableWindow(wx.Frame):
             self.info_text2.SetLabelMarkup("")
         self.Layout()
 
+    def on_canvas_click(self, event):
+        if not event.inaxes:
+            self.clear_selection()
+            return
+
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+        if 'Labels' not in self.parent_window.Data['Core levels'][sheet_name]:
+            return
+
+        # Get axis ranges for clickable area calculation
+        xlim = self.parent_window.ax.get_xlim()
+        ylim = self.parent_window.ax.get_ylim()
+        x_range = abs(xlim[1] - xlim[0])
+        y_range = abs(ylim[1] - ylim[0])
+
+        # Find clicked text
+        clicked_text = None
+        clicked_index = None
+
+        for i, label_data in enumerate(self.parent_window.Data['Core levels'][sheet_name]['Labels']):
+            text_x = label_data['x']
+            text_y = label_data['y']
+
+            # Create clickable area (3% of axis range)
+            bbox_width = x_range * 0.03
+            bbox_height = y_range * 0.03
+
+            if (abs(event.xdata - text_x) < bbox_width and
+                    abs(event.ydata - text_y) < bbox_height):
+                clicked_text = label_data
+                clicked_index = i
+                break
+
+        if clicked_text:
+            self.select_text(clicked_text, clicked_index)
+            self.drag_offset = (event.xdata - clicked_text['x'], event.ydata - clicked_text['y'])
+            self.is_dragging = True
+
+    def on_canvas_motion(self, event):
+        if not self.is_dragging or not event.inaxes:
+            return
+
+        if self.selected_text:
+            # Update label position
+            new_x = event.xdata - self.drag_offset[0]
+            new_y = event.ydata - self.drag_offset[1]
+
+            self.selected_text['x'] = new_x
+            self.selected_text['y'] = new_y
+
+            # Update selection box position if it exists
+            if self.selection_box:
+                # Get axis ranges
+                xlim = self.parent_window.ax.get_xlim()
+                ylim = self.parent_window.ax.get_ylim()
+                x_range = abs(xlim[1] - xlim[0])
+                y_range = abs(ylim[1] - ylim[0])
+
+                # Triangle dimensions - same as select_text
+                triangle_width = x_range * 0.03  # 3% of x-axis range
+                triangle_height = y_range * 0.03  # 3% of y-axis range
+
+                # Triangle positioned slightly lower (BELOW the text)
+                triangle_y = new_y - y_range * 0.005  # 0.5% below text
+
+                triangle_points = [
+                    [new_x, triangle_y],  # Top point
+                    [new_x - triangle_width / 2, triangle_y - triangle_height],  # Bottom left
+                    [new_x + triangle_width / 2, triangle_y - triangle_height]  # Bottom right
+                ]
+                self.selection_box.set_xy(triangle_points)
+
+            # Redraw labels
+            self.redraw_labels()
+
+    def on_canvas_release(self, event):
+        self.is_dragging = False
+
+    def select_text(self, text_data, index):
+        self.selected_text = text_data
+        self.selected_index = index
+
+        # Remove previous selection box
+        if self.selection_box:
+            self.selection_box.remove()
+
+        # Create triangle selection indicator
+        x = text_data['x']
+        y = text_data['y']
+
+        # Get axis ranges
+        xlim = self.parent_window.ax.get_xlim()
+        ylim = self.parent_window.ax.get_ylim()
+        x_range = abs(xlim[1] - xlim[0])
+        y_range = abs(ylim[1] - ylim[0])
+
+        # Triangle dimensions - smaller and more consistent
+        triangle_width = x_range * 0.03  # 3% of x-axis range
+        triangle_height = y_range * 0.03  # 3% of y-axis range
+
+        # Triangle positioned slightly lower (BELOW the text, not above)
+        triangle_y = y - y_range * 0.005  # 0.5% below text
+
+        from matplotlib.patches import Polygon
+        triangle_points = [
+            [x, triangle_y],  # Top point
+            [x - triangle_width / 2, triangle_y - triangle_height],  # Bottom left
+            [x + triangle_width / 2, triangle_y - triangle_height]  # Bottom right
+        ]
+
+        self.selection_box = Polygon(
+            triangle_points,
+            linewidth=1,
+            edgecolor='black',
+            facecolor=(200 / 255, 245 / 255, 228 / 255),
+            linestyle='-'
+        )
+
+        self.parent_window.ax.add_patch(self.selection_box)
+        self.parent_window.canvas.draw_idle()
+
+    def clear_selection(self):
+        if self.selection_box:
+            self.selection_box.remove()
+            self.selection_box = None
+        self.selected_text = None
+        self.parent_window.canvas.draw_idle()
+
+    def redraw_labels(self):
+        # Clear existing text
+        for txt in self.parent_window.ax.texts[:]:
+            txt.remove()
+
+        # Redraw all labels
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+        if 'Labels' in self.parent_window.Data['Core levels'][sheet_name]:
+            for label_data in self.parent_window.Data['Core levels'][sheet_name]['Labels']:
+                self.parent_window.ax.text(
+                    label_data['x'],
+                    label_data['y'],
+                    label_data['text'],
+                    rotation=label_data.get('rotation', 90),
+                    fontsize=label_data.get('fontsize', 10),
+                    fontfamily=label_data.get('fontfamily', 'Arial'),
+                    va='bottom',
+                    ha='center'
+                )
+
+        self.parent_window.canvas.draw_idle()
+
+
+
+
     def Close(self, force=False):
         self.reset_all_buttons()
         super().Close(force)
 
     def OnClose(self, event):
+        # Disconnect mouse events
+        if hasattr(self, 'canvas_click_id'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_click_id)
+        if hasattr(self, 'canvas_release_id'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_release_id)
+        if hasattr(self, 'canvas_motion_id'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_motion_id)
+
+        # Clear selection
+        self.clear_selection()
+
+        # Reset all element buttons (your existing functionality)
         self.reset_all_buttons()
         self.Destroy()
 
