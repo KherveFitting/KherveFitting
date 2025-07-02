@@ -876,57 +876,12 @@ class BackgroundCalculations:
         return new_background
 
     @staticmethod
-    def calculate_shirley_background_OLD(x, y, start_offset, end_offset, max_iter=100, tol=1e-6, padding_factor=0.01,
-                                     num_points=5):
-        """
-        Calculate the Shirley background.
-
-        Args:
-            x (array): X-axis values
-            y (array): Y-axis values
-            start_offset (float): Offset to add to the start point
-            end_offset (float): Offset to add to the end point
-            max_iter (int): Maximum number of iterations
-            tol (float): Tolerance for convergence
-            padding_factor (float): Factor for padding the data
-            num_points (int): Number of points to average for endpoints
-
-        Returns:
-            array: Shirley background
-        """
-        x, y = np.asarray(x), np.asarray(y)
-        # print(f'Shirley X Check: {x[10]}')
-
-        # Add padding to the data
-        x_min, x_max = x[0], x[-1]
-        padding_width = padding_factor * (x_max - x_min)
-        x_padded = np.concatenate([[x_min - padding_width], x, [x_max + padding_width]])
-
-        # Calculate averaged endpoint values
-        y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + start_offset
-        y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + end_offset
-        y_padded = np.concatenate([[y_start], y, [y_end]])
-
-        background = np.zeros_like(y_padded)
-        I0, Iend = y_padded[0], y_padded[-1]
-
-        # Iterative calculation of Shirley background
-        for _ in range(max_iter):
-            prev_background = background.copy()
-            for i in range(1, len(y_padded) - 1):
-                A1 = np.trapz(y_padded[:i] - background[:i], x_padded[:i])
-                A2 = np.trapz(y_padded[i:] - background[i:], x_padded[i:])
-                background[i] = Iend + (I0 - Iend) * A2 / (A1 + A2)
-            # if np.all(np.abs(background - prev_background) < tol):
-            #     break
-
-        return background[1:-1]  # Remove padding before returning
-    @staticmethod
     def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=50, tol=1e-10, padding_factor=0.01,
                                      num_points=5):
         """
         Calculate the Shirley background.
         """
+        print("Create Shirley")
         x, y = np.asarray(x), np.asarray(y)
 
         # Calculate endpoint values
@@ -963,7 +918,6 @@ class BackgroundCalculations:
             # Check convergence
             if np.all(np.abs(background - prev_background) < tol):
                 break
-
         return background
 
     def calculate_tougaard_background(x, y, sheet_name, window):

@@ -950,8 +950,8 @@ class FittingWindow(wx.Frame):
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             sheet_name = self.parent.sheet_combobox.GetValue()
             x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
-            self.parent.bg_min_energy = min(x_values) + 0.2
-            self.parent.bg_max_energy = max(x_values) - 0.2
+            self.parent.bg_min_energy = min(x_values)
+            self.parent.bg_max_energy = max(x_values)
 
             if 'Background' in self.parent.Data['Core levels'][sheet_name]:
                 self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = self.parent.bg_min_energy
