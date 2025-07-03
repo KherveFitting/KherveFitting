@@ -881,7 +881,6 @@ class BackgroundCalculations:
         """
         Calculate the Shirley background.
         """
-        print("Create Shirley")
         x, y = np.asarray(x), np.asarray(y)
 
         # Calculate endpoint values
