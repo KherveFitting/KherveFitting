@@ -1070,7 +1070,6 @@ class PlotManager:
             return
 
         if x is None or y is None:
-            print("Error: x or y is None. Cannot update peak plot.")
             return
         if len(window.x_values) != len(window.background):
             print(f"Warning: x_values and background have different lengths. "
