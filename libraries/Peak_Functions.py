@@ -7,6 +7,7 @@ from scipy.optimize import minimize_scalar, brentq
 from scipy.signal import convolve
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
+from lmfitxps.backgrounds import shirley_calculate
 
 import numpy as np
 
@@ -896,7 +897,6 @@ class BackgroundCalculations:
         """
         x, y = np.asarray(x), np.asarray(y)
         # print(f'Shirley X Check: {x[10]}')
-
         # Add padding to the data
         x_min, x_max = x[0], x[-1]
         padding_width = padding_factor * (x_max - x_min)
@@ -922,7 +922,7 @@ class BackgroundCalculations:
 
         return background[1:-1]  # Remove padding before returning
     @staticmethod
-    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=50, tol=1e-10, padding_factor=0.01,
+    def calculate_shirley_background_OLD2(x, y, start_offset, end_offset, max_iter=50, tol=1e-10, padding_factor=0.01,
                                      num_points=5):
         """
         Calculate the Shirley background.
@@ -963,7 +963,15 @@ class BackgroundCalculations:
             # Check convergence
             if np.all(np.abs(background - prev_background) < tol):
                 break
-
+        return background
+    @staticmethod
+    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=100, tol=1e-2, padding_factor=0.01,
+                                     num_points=5):
+        """
+        Calculate the Shirley background using the lmfitxps package: lmfitxps.backgrounds-> shirley_calculate.
+        DOCS: https://lmfitxps.readthedocs.io/en/latest/_modules/lmfitxps/backgrounds.html#shirley_calculate
+        """
+        background=shirley_calculate(x,y,maxit=max_iter, tol=tol)
         return background
 
     def calculate_tougaard_background(x, y, sheet_name, window):
