@@ -1,5 +1,5 @@
 {
-  "FilePath": "/Users/gkerherv/Documents/PycharmProjects/KherveFitting/DATA/UKSAF/LaSrTiO3.xlsx",
+  "FilePath": "C:\\Users\\Julian Hochhaus\\github\\fitting\\KherveFitting\\DATA\\UKSAF\\LaSrTiO3.xlsx",
   "Number of Core levels": 6,
   "Core levels": {
     "Sr3d": {
@@ -676,14 +676,14 @@
             "Skew": 0.64,
             "Fitting Model": "SGL (Area)",
             "Constraints": {
-              "Position": "",
-              "Height": "",
-              "FWHM": "",
-              "L/G": "",
-              "Area": "",
-              "Sigma": "",
-              "Gamma": "",
-              "Skew": ""
+              "Position": "126.08:142.08",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.7",
+              "L/G": "5:80",
+              "Area": "1:1e7",
+              "Sigma": "0.3:3",
+              "Gamma": "0.3:3",
+              "Skew": "0.01:2"
             },
             "fwhm_g": 0.64
           },
@@ -703,8 +703,8 @@
               "FWHM": "A*1",
               "L/G": "A*1",
               "Area": "A*0.667#0.05",
-              "Sigma": "",
-              "Gamma": "",
+              "Sigma": "0.3:3",
+              "Gamma": "0.3:3",
               "Skew": "A*1"
             },
             "fwhm_g": 0.64
@@ -725,8 +725,8 @@
               "FWHM": "A*1",
               "L/G": "A*1",
               "Area": "1:1e7",
-              "Sigma": "",
-              "Gamma": "",
+              "Sigma": "0.3:3",
+              "Gamma": "0.3:3",
               "Skew": "0.01:2"
             },
             "fwhm_g": 0.64
@@ -747,8 +747,8 @@
               "FWHM": "C*1",
               "L/G": "C*1",
               "Area": "C*0.667#0.05",
-              "Sigma": "",
-              "Gamma": "",
+              "Sigma": "0.3:3",
+              "Gamma": "0.3:3",
               "Skew": "C*1"
             },
             "fwhm_g": 0.64
