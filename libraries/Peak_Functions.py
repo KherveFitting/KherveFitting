@@ -7,6 +7,7 @@ from scipy.optimize import minimize_scalar, brentq
 from scipy.signal import convolve
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
+from lmfitxps.backgrounds import shirley_calculate
 
 import numpy as np
 
@@ -876,7 +877,52 @@ class BackgroundCalculations:
         return new_background
 
     @staticmethod
-    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=50, tol=1e-10, padding_factor=0.01,
+    def calculate_shirley_background_OLD(x, y, start_offset, end_offset, max_iter=100, tol=1e-6, padding_factor=0.01,
+                                     num_points=5):
+        """
+        Calculate the Shirley background.
+
+        Args:
+            x (array): X-axis values
+            y (array): Y-axis values
+            start_offset (float): Offset to add to the start point
+            end_offset (float): Offset to add to the end point
+            max_iter (int): Maximum number of iterations
+            tol (float): Tolerance for convergence
+            padding_factor (float): Factor for padding the data
+            num_points (int): Number of points to average for endpoints
+
+        Returns:
+            array: Shirley background
+        """
+        x, y = np.asarray(x), np.asarray(y)
+        # print(f'Shirley X Check: {x[10]}')
+        # Add padding to the data
+        x_min, x_max = x[0], x[-1]
+        padding_width = padding_factor * (x_max - x_min)
+        x_padded = np.concatenate([[x_min - padding_width], x, [x_max + padding_width]])
+
+        # Calculate averaged endpoint values
+        y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + start_offset
+        y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + end_offset
+        y_padded = np.concatenate([[y_start], y, [y_end]])
+
+        background = np.zeros_like(y_padded)
+        I0, Iend = y_padded[0], y_padded[-1]
+
+        # Iterative calculation of Shirley background
+        for _ in range(max_iter):
+            prev_background = background.copy()
+            for i in range(1, len(y_padded) - 1):
+                A1 = np.trapz(y_padded[:i] - background[:i], x_padded[:i])
+                A2 = np.trapz(y_padded[i:] - background[i:], x_padded[i:])
+                background[i] = Iend + (I0 - Iend) * A2 / (A1 + A2)
+            # if np.all(np.abs(background - prev_background) < tol):
+            #     break
+
+        return background[1:-1]  # Remove padding before returning
+    @staticmethod
+    def calculate_shirley_background_OLD2(x, y, start_offset, end_offset, max_iter=50, tol=1e-10, padding_factor=0.01,
                                      num_points=5):
         """
         Calculate the Shirley background.
@@ -918,6 +964,32 @@ class BackgroundCalculations:
             if np.all(np.abs(background - prev_background) < tol):
                 break
         return background
+    @staticmethod
+    def calculate_shirley_background(x, y, start_offset, end_offset, max_iter=100, tol=1e-2, padding_factor=0.01,
+                                     num_points=5):
+        """
+        Calculate the Shirley background using the lmfitxps package: lmfitxps.backgrounds-> shirley_calculate.
+        DOCS: https://lmfitxps.readthedocs.io/en/latest/_modules/lmfitxps/backgrounds.html#shirley_calculate
+        """
+        x, y = np.asarray(x), np.asarray(y)
+
+        # Pad data with offset values to allow the user to calculate background including offsets.
+        # NOTE: Since offsets are applied to the padded array ends (not the original data),
+        # the resulting background will only approximate the specified offsets at the original boundaries.
+        # but that should be close enough.
+
+        x_delta=x[1]-x[0] # negative or positive, depending on binding/kinetic energy scale
+
+        x_padded = np.concatenate([[x[0] - x_delta], x, [x[-1]+x_delta]])
+
+        # Calculate averaged endpoint values
+        y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + start_offset
+        y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + end_offset
+
+        y_padded = np.concatenate([[y_start], y, [y_end]])
+
+        background=shirley_calculate(x_padded,y_padded,maxit=max_iter, tol=tol)
+        return background[1:-1]
 
     def calculate_tougaard_background(x, y, sheet_name, window):
         bg_data = window.Data['Core levels'][sheet_name]['Background']
