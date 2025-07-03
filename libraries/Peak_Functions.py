@@ -971,8 +971,16 @@ class BackgroundCalculations:
         Calculate the Shirley background using the lmfitxps package: lmfitxps.backgrounds-> shirley_calculate.
         DOCS: https://lmfitxps.readthedocs.io/en/latest/_modules/lmfitxps/backgrounds.html#shirley_calculate
         """
-        background=shirley_calculate(x,y,maxit=max_iter, tol=tol)
-        return background
+        x, y = np.asarray(x), np.asarray(y)
+        x_delta=x[1]-x[0] # negative or positive, depending on binding/kinetic energy scale
+        x_padded = np.concatenate([[x[0] - x_delta], x, [x[-1]+x_delta]])
+        # Calculate averaged endpoint values
+        y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + start_offset
+        y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + end_offset
+        y_padded = np.concatenate([[y_start], y, [y_end]])
+        print(num_points, start_offset, end_offset, y_start, y_end, y[0], y[-1])
+        background=shirley_calculate(x_padded,y_padded,maxit=max_iter, tol=tol)
+        return background[1:-1]
 
     def calculate_tougaard_background(x, y, sheet_name, window):
         bg_data = window.Data['Core levels'][sheet_name]['Background']
