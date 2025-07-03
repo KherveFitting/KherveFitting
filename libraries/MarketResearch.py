@@ -1172,8 +1172,8 @@ class MiniRegistrationForm(wx.Frame):
 
         self.restart_application()
 
-def show_mini_registration_form():
-    """Show the mini registration form"""
+def show_mini_registration():
+
     app = wx.App(False)
     frame = MiniRegistrationForm(None)
     app.MainLoop()
