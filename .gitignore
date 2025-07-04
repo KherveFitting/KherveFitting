@@ -3,6 +3,6 @@
 /DOCs/
 /.venv/
 /Backup/*
-__pycache__/
+/__pycache__/
 *.pyc
-config.json
+/config.json

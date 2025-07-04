@@ -5,12 +5,13 @@ import os
 class QuickSettings:
     def __init__(self, parent):
         self.parent = parent
+        # Quick settings options
         self.quick_options = [
             ("Al Kα + A-ALTHERMO1", 1486.67, "A-ALTHERMO1"),
-            ("Al Kα + KratosF1s-Al1486", 1486.67, "KratosF1s-Al1486"),
-            ("Al Kα + KratosC1s-Al1486", 1486.67, "KratosC1s-Al1486"),
-            ("Ag Lα + KratosC1s-Al1486", 2984.3, "KratosC1s-Al1486"),
-            ("Ga Kα + ScientaGCs-Ga", 9251, "ScientaGCs-Ga")
+            ("Al Kα + C-KratosF1s-Al1486", 1486.67, "C-KratosF1s-Al1486"),
+            ("Al Kα + C-KratosC1s-Al1486", 1486.67, "C-KratosC1s-Al1486"),
+            ("Ag Lα + C-KratosC1s-Al1486", 2984.3, "C-KratosC1s-Al1486"),
+            ("Ga Kα + O-ScientaGCs-Ga", 9251, "O-ScientaGCs-Ga")
         ]
 
     def create_quick_settings_tool(self, toolbar):
