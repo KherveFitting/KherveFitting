@@ -2,3 +2,7 @@
 /DATA/
 /DOCs/
 /.venv/
+/Backup/*
+__pycache__/
+*.pyc
+config.json
