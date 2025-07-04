@@ -5,6 +5,7 @@ import os
 class QuickSettings:
     def __init__(self, parent):
         self.parent = parent
+        # Quick settings options
         self.quick_options = [
             ("Al Kα + A-ALTHERMO1", 1486.67, "A-ALTHERMO1"),
             ("Al Kα + C-KratosF1s-Al1486", 1486.67, "C-KratosF1s-Al1486"),
