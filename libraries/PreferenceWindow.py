@@ -12,9 +12,18 @@ class PreferenceWindow(wx.Frame):
         self.parent = parent
 
         self.SetTitle("Preferences")
-        self.SetSize((495, 630))
-        self.SetMinSize((495, 630))
-        self.SetMaxSize((495, 630))
+        if 'wxMac' in wx.PlatformInfo: #Mac
+            self.SetSize((495, 630))
+            self.SetMinSize((495, 630))
+            self.SetMaxSize((495, 630))
+        elif 'wxGTK' in wx.PlatformInfo:  # Linux
+            self.SetSize((525, 825))
+            self.SetMinSize((525, 825))
+            self.SetMaxSize((525, 825))
+        else:
+            self.SetSize((495, 630))
+            self.SetMinSize((495, 630))
+            self.SetMaxSize((495, 630))
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -173,10 +182,16 @@ class PreferenceWindow(wx.Frame):
         excel_grid = wx.GridBagSizer(5, 5)
 
         # Core Level settings
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:# adapt borders for Linux:
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2),  flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else: #Windows/Mac
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.excel_width = wx.SpinCtrlDouble(self.save_tab, value='5.2', min=1, max=20, inc=0.1)
         self.excel_width.SetMinSize((100, -1))
@@ -185,15 +200,26 @@ class PreferenceWindow(wx.Frame):
         self.excel_dpi = wx.SpinCtrl(self.save_tab, value='100', min=50, max=1200)
         self.excel_dpi.SetMinSize((100, -1))
 
-        excel_grid.Add(self.excel_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(self.excel_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(self.excel_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            excel_grid.Add(self.excel_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(self.excel_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(self.excel_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            # Survey settings
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            excel_grid.Add(self.excel_width, pos=(1, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(self.excel_height, pos=(2, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(self.excel_dpi, pos=(3, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # Survey settings
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        # Survey settings
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
 
         self.survey_excel_width = wx.SpinCtrlDouble(self.save_tab, value='8', min=1, max=20, inc=0.1)
         self.survey_excel_width.SetMinSize((100, -1))
@@ -202,9 +228,14 @@ class PreferenceWindow(wx.Frame):
         self.survey_excel_dpi = wx.SpinCtrl(self.save_tab, value='100', min=50, max=1200)
         self.survey_excel_dpi.SetMinSize((100, -1))
 
-        excel_grid.Add(self.survey_excel_width, pos=(1, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(self.survey_excel_height, pos=(2, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        excel_grid.Add(self.survey_excel_dpi, pos=(3, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            excel_grid.Add(self.survey_excel_width, pos=(1, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(self.survey_excel_height, pos=(2, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            excel_grid.Add(self.survey_excel_dpi, pos=(3, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            excel_grid.Add(self.survey_excel_width, pos=(1, 5), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(self.survey_excel_height, pos=(2, 5), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            excel_grid.Add(self.survey_excel_dpi, pos=(3, 5), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         excel_sizer.Add(excel_grid, 5, wx.ALL, 5)
 
@@ -213,11 +244,18 @@ class PreferenceWindow(wx.Frame):
         word_sizer = wx.StaticBoxSizer(word_box, wx.VERTICAL)
         word_grid = wx.GridBagSizer(5, 5)
 
+
         # Core Level settings
-        word_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            word_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            word_grid.Add(wx.StaticText(self.save_tab, label="Core Level:"), pos=(0, 0), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.word_width = wx.SpinCtrlDouble(self.save_tab, value='5', min=1, max=20, inc=0.1)
         self.word_width.SetMinSize((100, -1))
@@ -226,15 +264,27 @@ class PreferenceWindow(wx.Frame):
         self.word_dpi = wx.SpinCtrl(self.save_tab, value='300', min=50, max=1200)
         self.word_dpi.SetMinSize((100, -1))
 
-        word_grid.Add(self.word_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(self.word_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(self.word_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            word_grid.Add(self.word_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(self.word_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(self.word_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
 
-        # Survey settings
-        word_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # Survey settings
+            word_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            word_grid.Add(self.word_width, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(self.word_height, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(self.word_dpi, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            # Survey settings
+            word_grid.Add(wx.StaticText(self.save_tab, label="Survey:"), pos=(0, 4), span=(1, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(1, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(2, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(3, 4), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
 
         self.survey_word_width = wx.SpinCtrlDouble(self.save_tab, value='8', min=1, max=20, inc=0.1)
         self.survey_word_width.SetMinSize((100, -1))
@@ -243,9 +293,14 @@ class PreferenceWindow(wx.Frame):
         self.survey_word_dpi = wx.SpinCtrl(self.save_tab, value='300', min=50, max=1200)
         self.survey_word_dpi.SetMinSize((100, -1))
 
-        word_grid.Add(self.survey_word_width, pos=(1, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(self.survey_word_height, pos=(2, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        word_grid.Add(self.survey_word_dpi, pos=(3, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            word_grid.Add(self.survey_word_width, pos=(1, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(self.survey_word_height, pos=(2, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            word_grid.Add(self.survey_word_dpi, pos=(3, 5), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            word_grid.Add(self.survey_word_width, pos=(1, 5), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(self.survey_word_height, pos=(2, 5), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            word_grid.Add(self.survey_word_dpi, pos=(3, 5), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         word_sizer.Add(word_grid, 5, wx.ALL, 5)
 
@@ -254,9 +309,14 @@ class PreferenceWindow(wx.Frame):
         other_sizer = wx.StaticBoxSizer(other_box, wx.VERTICAL)
         other_grid = wx.GridBagSizer(5, 5)
 
-        other_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        other_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        other_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            other_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            other_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            other_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            other_grid.Add(wx.StaticText(self.save_tab, label="Width (inches):     "), pos=(0, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            other_grid.Add(wx.StaticText(self.save_tab, label="Height (inches):"), pos=(1, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            other_grid.Add(wx.StaticText(self.save_tab, label="DPI:"), pos=(2, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.export_width = wx.SpinCtrlDouble(self.save_tab, value='8', min=1, max=20, inc=0.1)
         self.export_width.SetMinSize((100, -1))
@@ -264,10 +324,14 @@ class PreferenceWindow(wx.Frame):
         self.export_height.SetMinSize((100, -1))
         self.export_dpi = wx.SpinCtrl(self.save_tab, value='300', min=50, max=1200)
         self.export_dpi.SetMinSize((100, -1))
-
-        other_grid.Add(self.export_width, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        other_grid.Add(self.export_height, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-        other_grid.Add(self.export_dpi, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+        if 'wxGTK' in wx.PlatformInfo:  # adapt borders for Linux:
+            other_grid.Add(self.export_width, pos=(0, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            other_grid.Add(self.export_height, pos=(1, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+            other_grid.Add(self.export_dpi, pos=(2, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=3)
+        else:
+            other_grid.Add(self.export_width, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            other_grid.Add(self.export_height, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            other_grid.Add(self.export_dpi, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Auto Backup Settings
         auto_backup_box = wx.StaticBox(self.save_tab, label="Auto Backup Settings")
@@ -413,7 +477,9 @@ class PreferenceWindow(wx.Frame):
 
         sizer.Add(wx.StaticText(self.instrument_tab, label="O- : Other"), pos=(18, 0), span=(1, 2),
                   flag=wx.EXPAND | wx.LEFT, border=15)
-
+        for item in sizer.GetChildren():
+            if 'wxGTK' in wx.PlatformInfo: #adapt borders for Linux
+                item.SetBorder(3)
         self.instrument_tab.SetSizer(sizer)
 
     def on_instrument_change(self, event):
@@ -684,8 +750,9 @@ class PreferenceWindow(wx.Frame):
                                             style=wx.CB_READONLY)
         sizer.Add(residuals_label, pos=(17, 4), flag=wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.residuals_choice, pos=(17, 5), flag=wx.BOTTOM | wx.TOP, border=0)
-
-
+        for item in sizer.GetChildren():
+            if 'wxGTK' in wx.PlatformInfo: #adapt borders for Linux
+                item.SetBorder(3)
         # Bind the spin control to update the color picker
         self.peak_number_spin.Bind(wx.EVT_SPINCTRL, self.OnPeakNumberChange)
         self.peak_color_picker.Bind(wx.EVT_COLOURPICKER_CHANGED, self.OnColorChange)
