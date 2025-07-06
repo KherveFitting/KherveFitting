@@ -49,11 +49,11 @@ IS_MAC = platform.system() == 'Darwin'
 if not IS_MAC:
     try:
         print("Starting pygame as no macOS has been detected")
-        from libraries.Asteroid import main as asteroid_main
-        from libraries.Flappybird import main as flappybird_main
-        from libraries.TetrisGame import Tetris
-        from libraries.Solitaire import SolitaireGame
-        from libraries.ChemistryLab import ChemistryLabGame
+        from libraries.Games.Asteroid import main as asteroid_main
+        from libraries.Games.Flappybird import main as flappybird_main
+        from libraries.Games.TetrisGame import Tetris
+        from libraries.Games.Solitaire import SolitaireGame
+        from libraries.Games.ChemistryLab import ChemistryLabGame
     except ImportError:
         # Fallback if games can't be imported
         asteroid_main = None
@@ -76,7 +76,7 @@ def show_tetris_game(window):
                      "Not Available", wx.OK | wx.ICON_INFORMATION)
         return
     try:
-        from libraries.TetrisGame import Tetris
+        # from libraries.TetrisGame import Tetris
         game = Tetris()
         game.run()
     except Exception as e:
@@ -89,7 +89,7 @@ def show_chemistry_lab_game(window):
                      "Not Available", wx.OK | wx.ICON_INFORMATION)
         return
     try:
-        from libraries.ChemistryLab import ChemistryLabGame
+        # from libraries.ChemistryLab import ChemistryLabGame
         game = ChemistryLabGame()
         game.run()
     except Exception as e:
@@ -125,7 +125,7 @@ def launch_solitaire(window):
                      "Not Available", wx.OK | wx.ICON_INFORMATION)
         return
     try:
-        from libraries.Solitaire import SolitaireGame
+        # from libraries.Solitaire import SolitaireGame
         game = SolitaireGame()
         game.run()
     except Exception as e:
