@@ -737,32 +737,37 @@ class CropWindow(wx.Frame):
         self.vline_min = None
         self.vline_max = None
 
-        self.init_values()
+        #self.init_values()
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.min_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
         self.max_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
 
     def init_values(self):
         sheet_name = self.parent.sheet_combobox.GetValue()
-        x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
-        min_be = min(x_values) + 2
-        max_be = max(x_values) - 2
-        self.min_ctrl.SetValue(min_be)
-        self.max_ctrl.SetValue(max_be)
+        if sheet_name != '':
+            x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
+            min_be = min(x_values) + 2
+            max_be = max(x_values) - 2
+            self.min_ctrl.SetValue(min_be)
+            self.max_ctrl.SetValue(max_be)
 
-        # Extract base name from sheet_name
-        import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
-        if match:
-            base_name = match.group(1)
+            # Extract base name from sheet_name
+            import re
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            if match:
+                base_name = match.group(1)
+            else:
+                base_name = sheet_name
+
+            # Find the earliest available row name
+            new_name = self.get_earliest_row_name(base_name)
+            self.name_ctrl.SetValue(new_name)
+            self.show_vlines()
+            return True
         else:
-            base_name = sheet_name
-
-        # Find the earliest available row name
-        new_name = self.get_earliest_row_name(base_name)
-        self.name_ctrl.SetValue(new_name)
-        self.show_vlines()
-
+            wx.MessageBox("No data present in the plot to be cropped.\nPlease select a dataset first.",
+                          "No Data", style=wx.OK | wx.ICON_INFORMATION)
+            return False
     def get_earliest_row_name(self, base_name):
         """
         Find the earliest available row for a core level.
