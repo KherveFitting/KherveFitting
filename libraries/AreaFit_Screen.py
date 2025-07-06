@@ -13,6 +13,10 @@ class BackgroundWindow(wx.Frame):
             self.SetSize((260, 385))  # Increased height to accommodate new elements
             self.SetMinSize((260, 385))
             self.SetMaxSize((260, 385))
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.SetSize((260, 470))  # Increased height to accommodate new elements
+            self.SetMinSize((260, 470))
+            self.SetMaxSize((260, 470))
         else:
             self.SetSize((267, 400))
             self.SetMinSize((267, 400))
@@ -24,6 +28,8 @@ class BackgroundWindow(wx.Frame):
             if 'wxMac' in wx.PlatformInfo:  # Mac
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
             elif 'wxMSW' in wx.PlatformInfo:  # Windows
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxGTK' in wx.PlatformInfo:  # Linux
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
             return False
 
@@ -122,12 +128,12 @@ class BackgroundWindow(wx.Frame):
 
 
         # Layout with a GridBagSizer
-        if 'wxMac' in wx.PlatformInfo:
+        if 'wxMac' or "wxGTK" in wx.PlatformInfo:
             sizer = wx.GridBagSizer(hgap=1, vgap=1)
         else:
             sizer = wx.GridBagSizer(hgap=0, vgap=0)
 
-        if 'wxMac' in wx.PlatformInfo:
+        if 'wxMac' or "wxGTK" in wx.PlatformInfo:
             # First row: Method
             sizer.Add(method_label, pos=(0, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
