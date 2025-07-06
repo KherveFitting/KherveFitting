@@ -6,7 +6,7 @@
   "scatter_color": "#000000",
   "line_color": "#000000",
   "scatter_marker": "o",
-  "background_color": "#77767B",
+  "background_color": "#C0BFBC",
   "background_alpha": 0.5,
   "background_linestyle": "--",
   "envelope_color": "#0000FF",
@@ -125,6 +125,6 @@
   "enable_quick_settings": false,
   "enable_auto_backup": false,
   "backup_interval": 30,
-  "times_opened": 65,
+  "times_opened": 79,
   "registered": false
 }
