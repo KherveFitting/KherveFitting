@@ -42,6 +42,7 @@
   "peak_line_thickness": 1,
   "peak_line_pattern": "-",
   "recent_files": [
+    "/home/julian/github/KherveFitting/DATA/UKSAF/STO.xlsx",
     "C:\\Users\\Julian Hochhaus\\Desktop\\STO2.xlsx",
     "C:\\Users\\Julian Hochhaus\\github\\fitting\\KherveFitting\\DATA\\UKSAF\\STO.xlsx",
     "C:\\Users\\Julian Hochhaus\\github\\fitting\\KherveFitting\\DATA\\UKSAF\\LaSrTiO3.xlsx",
@@ -124,6 +125,6 @@
   "enable_quick_settings": false,
   "enable_auto_backup": false,
   "backup_interval": 30,
-  "times_opened": 20,
+  "times_opened": 23,
   "registered": false
 }
