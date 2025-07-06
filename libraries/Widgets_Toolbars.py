@@ -31,10 +31,7 @@ from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots
 from libraries.Utilities import add_draggable_text
 from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1, undo, redo
 from libraries.LibraryID import PeriodicTableXPS
-# from libraries.Asteroid import main as asteroid_main
-# from libraries.Solitaire import SolitaireGame
-# from libraries.Flappybird import main as flappybird_main
-# from libraries.ChemistryLab import ChemistryLabGame
+
 from libraries.Save import on_backup_main
 from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
