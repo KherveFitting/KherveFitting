@@ -408,97 +408,101 @@ def get_unique_sheet_name(base_name, existing_sheets):
 
 def copy_sheet(window):
     sheet_name = window.sheet_combobox.GetValue()
-
-    # Extract the base name and numeric suffix with more detailed pattern
-    import re
-    match = re.match(r'([A-Za-z]+\d+[spdfg]*)(\d*)$', sheet_name)
-    if match:
-        base_name = match.group(1)  # Ti2p
-        number_suffix = match.group(2)  # 8 or "" if none
-    else:
-        base_name = sheet_name
-        number_suffix = ""
-
-    # Find existing sheets with the same base name
-    existing_sheets = list(window.Data['Core levels'].keys())
-    existing_base_sheets = [s for s in existing_sheets if re.match(r'^' + re.escape(base_name) + r'\d*$', s)]
-
-    # Find the highest number suffix
-    max_suffix = 0
-    for s in existing_base_sheets:
-        # Extract just the numeric suffix at the end
-        suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
-        if suffix_match:
-            suffix_num = int(suffix_match.group(1))
-            max_suffix = max(max_suffix, suffix_num)
-        elif s == base_name:  # Handle base without suffix (equivalent to suffix 0)
-            max_suffix = max(max_suffix, 0)
-
-    # Create new sheet name with incremented suffix
-    if base_name in existing_sheets or f"{base_name}0" in existing_sheets or max_suffix > 0:
-        # Increment the highest suffix by 1
-        new_sheet_name = f"{base_name}{max_suffix + 1}"
-    else:
-        # First instance, don't add a suffix
-        new_sheet_name = base_name
-
-    # Final check to ensure uniqueness (prevents collisions)
-    while new_sheet_name in existing_sheets:
-        suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', new_sheet_name)
-        if suffix_match:
-            current_suffix = int(suffix_match.group(1))
-            new_sheet_name = f"{base_name}{current_suffix + 1}"
+    if sheet_name != '':
+        # Extract the base name and numeric suffix with more detailed pattern
+        import re
+        match = re.match(r'([A-Za-z]+\d+[spdfg]*)(\d*)$', sheet_name)
+        if match:
+            base_name = match.group(1)  # Ti2p
+            number_suffix = match.group(2)  # 8 or "" if none
         else:
-            new_sheet_name = f"{base_name}1"
+            base_name = sheet_name
+            number_suffix = ""
 
-    # Copy data to new sheet
-    window.Data['Core levels'][new_sheet_name] = window.Data['Core levels'][sheet_name].copy()
-    window.Data['Number of Core levels'] += 1
+        # Find existing sheets with the same base name
+        existing_sheets = list(window.Data['Core levels'].keys())
+        existing_base_sheets = [s for s in existing_sheets if re.match(r'^' + re.escape(base_name) + r'\d*$', s)]
 
-    # Create Excel sheet
-    import pandas as pd
-    import openpyxl
-    wb = openpyxl.load_workbook(window.Data['FilePath'])
-    df = pd.DataFrame({
-        'BE': window.Data['Core levels'][sheet_name]['B.E.'],
-        'Raw Data': window.Data['Core levels'][sheet_name]['Raw Data'],
-        'Background': window.Data['Core levels'][sheet_name]['Background']['Bkg Y'],
-        'Transmission': [1.0] * len(window.Data['Core levels'][sheet_name]['B.E.'])
-    })
+        # Find the highest number suffix
+        max_suffix = 0
+        for s in existing_base_sheets:
+            # Extract just the numeric suffix at the end
+            suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
+            if suffix_match:
+                suffix_num = int(suffix_match.group(1))
+                max_suffix = max(max_suffix, suffix_num)
+            elif s == base_name:  # Handle base without suffix (equivalent to suffix 0)
+                max_suffix = max(max_suffix, 0)
 
-    with pd.ExcelWriter(window.Data['FilePath'], engine='openpyxl', mode='a') as writer:
-        df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+        # Create new sheet name with incremented suffix
+        if base_name in existing_sheets or f"{base_name}0" in existing_sheets or max_suffix > 0:
+            # Increment the highest suffix by 1
+            new_sheet_name = f"{base_name}{max_suffix + 1}"
+        else:
+            # First instance, don't add a suffix
+            new_sheet_name = base_name
 
-    # Update JSON file
-    json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
-    if os.path.exists(json_file_path):
-        from libraries.Save import convert_to_serializable_and_round
-        json_data = convert_to_serializable_and_round(window.Data)
-        with open(json_file_path, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
+        # Final check to ensure uniqueness (prevents collisions)
+        while new_sheet_name in existing_sheets:
+            suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', new_sheet_name)
+            if suffix_match:
+                current_suffix = int(suffix_match.group(1))
+                new_sheet_name = f"{base_name}{current_suffix + 1}"
+            else:
+                new_sheet_name = f"{base_name}1"
 
-    # Update sheet list and display
-    window.sheet_combobox.Append(new_sheet_name)
-    window.sheet_combobox.SetValue(new_sheet_name)
-    from libraries.Sheet_Operations import on_sheet_selected
-    on_sheet_selected(window, new_sheet_name)
+        # Copy data to new sheet
+        window.Data['Core levels'][new_sheet_name] = window.Data['Core levels'][sheet_name].copy()
+        window.Data['Number of Core levels'] += 1
 
-    # Close and reopen the file manager if it exists
-    if hasattr(window, 'file_manager') and window.file_manager is not None:
-        try:
-            # Close existing file manager
-            window.file_manager.Close()
-            window.file_manager.Destroy()
-            window.file_manager = None
+        # Create Excel sheet
+        import pandas as pd
+        import openpyxl
+        wb = openpyxl.load_workbook(window.Data['FilePath'])
+        df = pd.DataFrame({
+            'BE': window.Data['Core levels'][sheet_name]['B.E.'],
+            'Raw Data': window.Data['Core levels'][sheet_name]['Raw Data'],
+            'Background': window.Data['Core levels'][sheet_name]['Background']['Bkg Y'],
+            'Transmission': [1.0] * len(window.Data['Core levels'][sheet_name]['B.E.'])
+        })
 
-            # Reopen file manager
-            import wx
-            wx.CallAfter(window.on_open_file_manager, None)
-        except Exception as e:
-            print(f"Error refreshing file manager: {e}")
-            pass
+        with pd.ExcelWriter(window.Data['FilePath'], engine='openpyxl', mode='a') as writer:
+            df.to_excel(writer, sheet_name=new_sheet_name, index=False)
 
-    return new_sheet_name
+        # Update JSON file
+        json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
+        if os.path.exists(json_file_path):
+            from libraries.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(window.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+        # Update sheet list and display
+        window.sheet_combobox.Append(new_sheet_name)
+        window.sheet_combobox.SetValue(new_sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(window, new_sheet_name)
+
+        # Close and reopen the file manager if it exists
+        if hasattr(window, 'file_manager') and window.file_manager is not None:
+            try:
+                # Close existing file manager
+                window.file_manager.Close()
+                window.file_manager.Destroy()
+                window.file_manager = None
+
+                # Reopen file manager
+                import wx
+                wx.CallAfter(window.on_open_file_manager, None)
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
+                pass
+
+        return new_sheet_name
+    else:
+        import wx
+        wx.MessageBox("No data present in the plot to be copied.\nPlease select a dataset first.",
+                      "No Data", style=wx.OK | wx.ICON_INFORMATION)
 
 def save_modified_data(self, x, y, sheet_name, operation_type):
     wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
