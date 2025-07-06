@@ -540,7 +540,7 @@ class MyFrame(wx.Frame):
                                              shortHelp="Open File\tCtrl+O")
 
             save_tool = self.toolbar.AddTool(wx.ID_ANY, 'Save',
-                                             wx.Bitmap(os.path.join(icon_path, "save-Excel-3.png"),
+                                             wx.Bitmap(os.path.join(icon_path, "Save-excel-3.png"),
                                                        wx.BITMAP_TYPE_PNG),
                                              shortHelp="Save")
 
