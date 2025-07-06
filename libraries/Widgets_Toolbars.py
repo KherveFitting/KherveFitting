@@ -1518,30 +1518,46 @@ def show_plot_limits_window(window):
 class ToggleToolbar(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
+        if 'wxGTK' in wx.PlatformInfo:  # adapted for Linux
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT| wx.TB_TEXT)
+            self.toolbar.SetToolBitmapSize(wx.Size(400, 25))
 
-        self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
-        self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+            # Add tools
+            self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot', wx.NullBitmap)
+            self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill', wx.NullBitmap)
+            self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis', wx.NullBitmap)
+            self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',wx.NullBitmap)
+            self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',wx.NullBitmap)
+            self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',wx.NullBitmap)
+        else:
 
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-        # Add tools
-        self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot',
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+
+            # Add tools
+            self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot',
                                               wx.Bitmap(os.path.join(icon_path, "scatter-plot-25.png"),
                                                         wx.BITMAP_TYPE_PNG))
-        self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill',
+            self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill',
                                                    wx.Bitmap(os.path.join(icon_path, "STO-25-2.png"),
                                                              wx.BITMAP_TYPE_PNG))
-        self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis',
+            self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis',
                                                 wx.Bitmap(os.path.join(icon_path, "Y-25.png"), wx.BITMAP_TYPE_PNG))
-        self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',
+            self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',
                                                 wx.Bitmap(os.path.join(icon_path, "Legend-25.png"), wx.BITMAP_TYPE_PNG))
-        self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',
+            self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',
                                              wx.Bitmap(os.path.join(icon_path, "ToggleFit-25.png"), wx.BITMAP_TYPE_PNG))
-        self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',
+            self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',
                                                    wx.Bitmap(os.path.join(icon_path, "Res-25.png"), wx.BITMAP_TYPE_PNG))
 
         self.toolbar.Realize()
-        self.SetSize(self.toolbar.GetBestSize())
+        if 'wxGTK' in wx.PlatformInfo:  # adapted for Linux
+            x, y = self.toolbar.GetBestSize()
+            self.SetSize(x + 40, y)
+        else:
+            self.SetSize(self.toolbar.GetBestSize())
 
         # Bind close event
         self.Bind(wx.EVT_KILL_FOCUS, self.on_lose_focus)
@@ -1561,7 +1577,7 @@ class DeleteToolbar(wx.Frame):
 
         if 'wxGTK' in wx.PlatformInfo: #adapt for Linux
             self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_TEXT)
-            self.toolbar.SetToolBitmapSize(wx.Size(390, 120))
+            self.toolbar.SetToolBitmapSize(wx.Size(390, 25))
             # Add tools
             self.delete_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete All Results', wx.NullBitmap,
                                                         shortHelp="Delete All Rows of the Results Grid")
