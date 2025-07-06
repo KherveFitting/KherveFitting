@@ -3455,8 +3455,12 @@ def open_vamas_file(window, file_path):
 
             # Write data row by row
             for j, (x, y) in enumerate(zip(x_values, y_values)):
-                trans = transmission_data[j] if j < len(transmission_data) else transmission_data[0]
-                corrected_y = y / abs(trans)
+                trans = transmission_data[j] if j < len(transmission_data) else 1.0
+                # Multiply by dwell time and number of scans for corrected data
+                if collection_time > 0:
+                    corrected_y = (y / abs(trans)) / (num_scans * collection_time)
+                else:
+                    corrected_y = (y / abs(trans)) / num_scans
                 ws.append([x, corrected_y, y, trans])
 
             if import_fitting:
