@@ -141,29 +141,30 @@ class FittingWindow(wx.Frame):
         self.cross_section3.Bind(wx.EVT_TEXT, self.on_cross_section3_change)
 
         sheet_name = self.parent.sheet_combobox.GetValue()
-        if 'Background' in self.parent.Data['Core levels'][sheet_name]:
-            bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
-            saved_values = [
-                bg_data.get('Tougaard_B', 2866),
-                bg_data.get('Tougaard_C', 1643),
-                bg_data.get('Tougaard_D', 1),
-                bg_data.get('Tougaard_T0', 0)
-            ]
-            saved_values2 = [
-                bg_data.get('Tougaard_B2', 2866),
-                bg_data.get('Tougaard_C2', 1643),
-                bg_data.get('Tougaard_D2', 1),
-                bg_data.get('Tougaard_T02', 0)
-            ]
-            saved_values3 = [
-                bg_data.get('Tougaard_B2', 2866),
-                bg_data.get('Tougaard_C2', 1643),
-                bg_data.get('Tougaard_D2', 1),
-                bg_data.get('Tougaard_T02', 0)
-            ]
-            self.cross_section.SetValue(','.join(map(str, saved_values)))
-            self.cross_section2.SetValue(','.join(map(str, saved_values2)))
-            self.cross_section2.SetValue(','.join(map(str, saved_values3)))
+        if sheet_name != '' :
+            if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+                bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
+                saved_values = [
+                    bg_data.get('Tougaard_B', 2866),
+                    bg_data.get('Tougaard_C', 1643),
+                    bg_data.get('Tougaard_D', 1),
+                    bg_data.get('Tougaard_T0', 0)
+                ]
+                saved_values2 = [
+                    bg_data.get('Tougaard_B2', 2866),
+                    bg_data.get('Tougaard_C2', 1643),
+                    bg_data.get('Tougaard_D2', 1),
+                    bg_data.get('Tougaard_T02', 0)
+                ]
+                saved_values3 = [
+                    bg_data.get('Tougaard_B2', 2866),
+                    bg_data.get('Tougaard_C2', 1643),
+                    bg_data.get('Tougaard_D2', 1),
+                    bg_data.get('Tougaard_T02', 0)
+                ]
+                self.cross_section.SetValue(','.join(map(str, saved_values)))
+                self.cross_section2.SetValue(','.join(map(str, saved_values2)))
+                self.cross_section2.SetValue(','.join(map(str, saved_values3)))
 
         background_button = wx.Button(self.background_panel, label="Create\nBackground")
         if 'wxMac' in wx.PlatformInfo:
