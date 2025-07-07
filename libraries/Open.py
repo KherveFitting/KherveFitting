@@ -2150,17 +2150,21 @@ def parse_avg_file(file_path):
     start_energy, width, num_points = map(float, re.search(r'\$SPACEAXES=1\s+0=\s+(\d+\.\d+),\s+(\d+\.\d+),\s+(\d+),',
                                                            content).groups())
 
+    # Extract acquisition time and periods for intensity correction
+    acq_time_match = re.search(r'DS_ACPROPID_ACQ_TIME\s+:\s+VT_R4\s+=\s+(\d+\.\d+)', content)
+    periods_match = re.search(r'DS_ACPROPID_PERIODS\s+:\s+VT_I4\s+=\s+(\d+)', content)
+
+    acq_time = float(acq_time_match.group(1)) if acq_time_match else 0.05
+    periods = int(periods_match.group(1)) if periods_match else 1
+
     # Extract all intensity values using a different approach
     y_values = []
     in_list_section = False
-    list_counter = 0
 
     for line in content.split('\n'):
         if line.strip().startswith('LIST@'):
             in_list_section = True
-            # Get values from the first line
             values_part = line.split('=', 1)[1].strip()
-            # Process values from this line
             for val in values_part.split(','):
                 if val.strip():
                     try:
@@ -2168,9 +2172,7 @@ def parse_avg_file(file_path):
                     except ValueError:
                         pass
         elif in_list_section:
-            # Check if this line likely contains data values
             if ',' in line and not line.strip().startswith('$') and not line.strip().startswith('DS_'):
-                # Process values from continuation lines
                 for val in line.split(','):
                     if val.strip():
                         try:
@@ -2178,18 +2180,20 @@ def parse_avg_file(file_path):
                         except ValueError:
                             pass
             else:
-                # If we hit a line that doesn't look like data, we're probably out of the LIST section
                 in_list_section = False
 
     # Ensure we have the correct number of points
     if len(y_values) > int(num_points):
         y_values = y_values[:int(num_points)]
 
-    # If we still don't have enough points, print warning
     if len(y_values) < int(num_points):
         print(f"Warning: Expected {int(num_points)} points but found only {len(y_values)}.")
-        # This is serious - don't silently pad with zeros as it would give misleading data
-        # Instead, let's just return what we have and make it known there's an issue
+
+    # Apply intensity correction: raw_intensity / (acq_time * periods)
+    correction_factor = acq_time * periods
+    if correction_factor > 0:
+        y_values = [y / correction_factor for y in y_values]
+        print(f"Applied intensity correction: divided by ({acq_time} * {periods}) = {correction_factor}")
 
     return photon_energy, start_energy, width, int(num_points), y_values
 
@@ -2297,7 +2301,17 @@ def extract_metadata_from_avg(file_path):
         'Y Unit': "d"
     }
 
-    # Extract values from file where available
+    # Extract acquisition time and periods
+    acq_time_match = re.search(r'DS_ACPROPID_ACQ_TIME\s+:\s+VT_R4\s+=\s+(\d+\.\d+)', content)
+    periods_match = re.search(r'DS_ACPROPID_PERIODS\s+:\s+VT_I4\s+=\s+(\d+)', content)
+
+    if acq_time_match:
+        metadata['Collection Time'] = acq_time_match.group(1)
+    if periods_match:
+        metadata['Num Scans'] = periods_match.group(1)
+        metadata['Number of scans'] = periods_match.group(1)
+
+    # Extract other values from file where available
     created_match = re.search(r'DS_EXT_SUPROPID_CREATED\s+:\s+VT_DATE\s+=\s+(\d+)/(\d+)/(\d+)\s+(\d+):(\d+):(\d+)',
                               content)
     if created_match:
@@ -2305,9 +2319,6 @@ def extract_metadata_from_avg(file_path):
         hour, minute, second = created_match.group(4), created_match.group(5), created_match.group(6)
         metadata['Date'] = f"{year}/{month}/{day}"
         metadata['Time'] = f"{hour}:{minute}:{second}"
-
-    # Update other metadata from file where patterns match
-    # Patterns already exist in the parse_avg_file function
 
     return metadata
 
@@ -3455,8 +3466,12 @@ def open_vamas_file(window, file_path):
 
             # Write data row by row
             for j, (x, y) in enumerate(zip(x_values, y_values)):
-                trans = transmission_data[j] if j < len(transmission_data) else transmission_data[0]
-                corrected_y = y / abs(trans)
+                trans = transmission_data[j] if j < len(transmission_data) else 1.0
+                # Multiply by dwell time and number of scans for corrected data
+                if collection_time > 0:
+                    corrected_y = (y / abs(trans)) / (num_scans * collection_time)
+                else:
+                    corrected_y = (y / abs(trans)) / num_scans
                 ws.append([x, corrected_y, y, trans])
 
             if import_fitting:

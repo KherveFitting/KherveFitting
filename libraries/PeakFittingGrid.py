@@ -22,6 +22,8 @@ class PeakFittingGrid:
         save_state(self.window)
         sheet_name = self.window.sheet_combobox.GetValue()
 
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
         if self.window.bg_min_energy is None or self.window.bg_max_energy is None:
             wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
             return None
@@ -76,13 +78,17 @@ class PeakFittingGrid:
         self.window.peak_params_grid.SetCellValue(row, 1, f"{sheet_name} p{self.window.peak_count}")
         self.window.peak_params_grid.SetCellValue(row, 2, f"{peak_x:.2f}")
         self.window.peak_params_grid.SetCellValue(row, 3, f"{peak_y:.2f}")
-        self.window.peak_params_grid.SetCellValue(row, 4, "1.6")
-        self.window.peak_params_grid.SetCellValue(row, 5, "20")
-        if self.window.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
-                                            "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
-            self.window.peak_params_grid.SetCellValue(row, 6, f"{peak_y * 1.6 * 1.064:.2f}")
+        if is_raman:
+            self.window.peak_params_grid.SetCellValue(row, 4, "15")
         else:
-            self.window.peak_params_grid.SetCellValue(row, 6, f"{peak_y * 1.6 * 1.064:.2f}")
+            self.window.peak_params_grid.SetCellValue(row, 4, "1.6")
+        self.window.peak_params_grid.SetCellValue(row, 5, "20")
+        fwhm_val = 15 if is_raman else 1.6
+        if self.window.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                                                   "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+            self.window.peak_params_grid.SetCellValue(row, 6, f"{peak_y * fwhm_val * 1.064:.2f}")
+        else:
+            self.window.peak_params_grid.SetCellValue(row, 6, f"{peak_y * fwhm_val * 1.064:.2f}")
         if self.window.selected_fitting_method == "ExpGauss.(Area, \u03c3, \u03b3)":
             self.window.peak_params_grid.SetCellValue(row, 7, "0.3")  # sigma
             self.window.peak_params_grid.SetCellValue(row, 8, '1.2')  # gamma
@@ -100,7 +106,10 @@ class PeakFittingGrid:
             self.window.peak_params_grid.SetCellValue(row, 9, '0')  # skew
         elif self.window.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             self.window.peak_params_grid.SetCellValue(row, 5, "20")
-            self.window.peak_params_grid.SetCellValue(row, 7, "1.2")  # sigma
+            if is_raman:
+                self.window.peak_params_grid.SetCellValue(row, 7, "10")  # sigma for Raman
+            else:
+                self.window.peak_params_grid.SetCellValue(row, 7, "1.2")  # sigma for XPS
             self.window.peak_params_grid.SetCellValue(row, 8, '0.4')  #
             self.window.peak_params_grid.SetCellValue(row, 9, '0.01')  # skew
         elif self.window.selected_fitting_method == "DS (A, \u03c3, \u03b3)":
@@ -148,10 +157,16 @@ class PeakFittingGrid:
         position_constraint = f"{self.window.bg_min_energy:.2f},{self.window.bg_max_energy:.2f}"
         self.window.peak_params_grid.SetCellValue(row + 1, 2, position_constraint)
         self.window.peak_params_grid.SetCellValue(row + 1, 3, "1:1e7")
-        self.window.peak_params_grid.SetCellValue(row + 1, 4, "0.3:3.5")
+        if is_raman:
+            self.window.peak_params_grid.SetCellValue(row + 1, 4, "5:50")
+        else:
+            self.window.peak_params_grid.SetCellValue(row + 1, 4, "0.3:3.5")
         self.window.peak_params_grid.SetCellValue(row + 1, 5, "2:80")
         self.window.peak_params_grid.SetCellValue(row + 1, 6, "1:1e7")
-        self.window.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
+        if is_raman:
+            self.window.peak_params_grid.SetCellValue(row + 1, 7, "5:50")
+        else:
+            self.window.peak_params_grid.SetCellValue(row + 1, 7, "0.3:3")
         self.window.peak_params_grid.SetCellValue(row + 1, 8, "0.3:3")
         self.window.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')
         if self.window.selected_fitting_method == "ExpGauss.(Area, \u03c3, \u03b3)":
@@ -166,7 +181,10 @@ class PeakFittingGrid:
             self.window.peak_params_grid.SetCellValue(row + 1, 9, '0.01:2')  # skew
         elif self.window.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
             self.window.peak_params_grid.SetCellValue(row + 1, 5, "15:85")
-            self.window.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")
+            if is_raman:
+                self.window.peak_params_grid.SetCellValue(row + 1, 7, "5:50")
+            else:
+                self.window.peak_params_grid.SetCellValue(row + 1, 7, "0.2:1.5")
             self.window.peak_params_grid.SetCellValue(row + 1, 8, "0.2:1.5")
             self.window.peak_params_grid.SetCellValue(row + 1, 9, '0.01:0.7')  # skew
         elif self.window.selected_fitting_method == "DS (A, \u03c3, \u03b3)":
@@ -314,16 +332,19 @@ class PeakFittingGrid:
         if 'Peaks' not in self.window.Data['Core levels'][sheet_name]['Fitting']:
             self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
 
-
-
         if self.window.selected_fitting_method in ["Voigt (Area, L/G, \u03c3, S)"]:
+            fwhm_val = 15 if is_raman else 1.6
+            sigma_val = 10 if is_raman else 1.2
+            fwhm_constraint = "5:50" if is_raman else "0.3:3.5"
+            sigma_constraint = "5:50" if is_raman else "0.3:3"
+
             peak_data = {
                 'Position': peak_x,
                 'Height': peak_y,
-                'FWHM': 1.6,
+                'FWHM': fwhm_val,
                 'L/G': 20,
-                'Area': peak_y * 1.6 * 1.064,
-                'Sigma': 1.2,
+                'Area': peak_y * fwhm_val * 1.064,
+                'Sigma': sigma_val,
                 'Gamma': 0.4,
                 'Skew': 0.01,
                 'Fitting Model': self.window.selected_fitting_method,
@@ -335,14 +356,15 @@ class PeakFittingGrid:
                 'Constraints': {
                     'Position': position_constraint,
                     'Height': "1:1e7",
-                    'FWHM': "0.3:3.5",
+                    'FWHM': fwhm_constraint,
                     'L/G': "2:80",
                     'Area': '1:1e7',
-                    'Sigma': "0.3:3",
+                    'Sigma': sigma_constraint,
                     'Gamma': "0.3:3",
                     'Skew': "0.01:2"
                 }
             }
+
         elif self.window.selected_fitting_method in ["DS (A, \u03c3, \u03b3)"]:
             peak_data = {
                 'Position': peak_x,
@@ -489,20 +511,25 @@ class PeakFittingGrid:
             })
         elif self.window.selected_fitting_method in ["SGL (Area)"]:
             # Value required to calculate area
-            fwhm = 1.6
+            fwhm = 15 if is_raman else 1.6
             fraction = 20
             sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
             gamma = fwhm / 2
             sgl_area = peak_y * ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
+
+            fwhm_constraint = "5:50" if is_raman else "0.3:3.5"
+            sigma_constraint = "5:50" if is_raman else "0.3:3"
+
             peak_data.update({
                 'Area': sgl_area,
+                'FWHM': fwhm,
                 'Constraints': {
                     'Position': position_constraint,
                     'Height': "1:1e7",
-                    'FWHM': "0.3:3.5",
-                    'L/G': "1:80",  # Full range for Voigt models
+                    'FWHM': fwhm_constraint,
+                    'L/G': "1:80",
                     'Area': '1:1e7',
-                    'Sigma': "0.3:3",
+                    'Sigma': sigma_constraint,
                     'Gamma': "0.3:3",
                     'Skew': "0.01:0.7"
                 }
