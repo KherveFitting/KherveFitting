@@ -424,6 +424,7 @@ Philosophy:
 Version 1.505-1.590
 - Added opening peak fitted CasaXPS files - Beta
 - Added export peak fitted CasaXPS files - Beta
+- Added Thickogram - Beta
 - v1.545 Fix wrong value for vamas corrected intensity with new transmission value
 - Added shirley bkg of lmfitXPS 
 - Added Add/Delete core level in the Peak Fitting Grid
