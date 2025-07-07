@@ -616,8 +616,12 @@ def create_menu(window):
     ID_item = tools_menu.Append(wx.NewId(), "Element ID\tCtrl+I")
     window.Bind(wx.EVT_MENU, window.open_periodic_table, ID_item)
 
-    Noise_item = tools_menu.Append(wx.NewId(), "Noise Analysis")
-    window.Bind(wx.EVT_MENU, lambda event: window.on_open_noise_analysis_window, Noise_item)
+    # Thickogram
+    thickogram_item = tools_menu.Append(wx.NewId(), "Thickogram Calculator - beta")
+    window.Bind(wx.EVT_MENU, lambda event: open_thickogram_window(window), thickogram_item)
+
+    # Noise_item = tools_menu.Append(wx.NewId(), "Noise Analysis")
+    # window.Bind(wx.EVT_MENU, lambda event: window.on_open_noise_analysis_window, Noise_item)
 
     # Help menu items
     # mini_help_item = help_menu.Append(wx.NewId(), "Help")
@@ -1510,6 +1514,12 @@ def show_plot_limits_window(window):
         window.plot_limits_window = PlotLimitsWindow(window)
     window.plot_limits_window.Show()
     window.plot_limits_window.Raise()
+
+def open_thickogram_window(parent_window):
+    """Open the thickogram calculator window"""
+    from libraries.Tools.ThickogramWindow import ThickogramWindow
+    thickogram_window = ThickogramWindow(parent_window)
+    thickogram_window.Show()
 
 
 class ToggleToolbar(wx.Frame):

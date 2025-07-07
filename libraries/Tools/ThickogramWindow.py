@@ -7,8 +7,22 @@ import matplotlib.patches as patches
 
 
 class ThickogramWindow(wx.Frame):
+    """
+    Thickogram XPS Thickness Calculator
+
+    This is a modification of the webvpython code as published at https://web.hallym.ac.kr/~jwlee/thickogram/
+    which was written by Prof. Jong Wan Lee (Hallym University, School of Nano Convergence Technology, Korea)
+    - Original paper (https://www.npsm-kps.org/journal/view.html?uid=7443)
+    The original webpage no longer is accessible but the online webvpython app can be found at:
+    https://www.glowscript.org/#/user/jwsslee/folder/Private/program/thickogram
+
+    This implementation adapts the thickogram method for XPS thickness calculations in wxPython,
+    integrating with KherveFitting's peak analysis results.
+    """
+
     def __init__(self, parent):
-        super().__init__(parent, title="Thickogram XPS Thickness Calculator", size=(1200, 800))
+        super().__init__(parent, title="Thickogram by Prof. Jong Wan Lee (Hallym University, Korea) and DaveXPS v0.1",
+                         size=(800, 610))
         self.parent = parent
         self.InitUI()
         self.Centre()
@@ -23,9 +37,9 @@ class ThickogramWindow(wx.Frame):
 
         # Title
         title = wx.StaticText(left_panel, label="Thickogram Calculator")
-        title_font = wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        title_font = wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         title.SetFont(title_font)
-        left_sizer.Add(title, 0, wx.ALL | wx.CENTER, 10)
+        left_sizer.Add(title, 0, wx.ALL | wx.CENTER, 5)
 
         # Create input fields
         self.create_input_fields(left_panel, left_sizer)
@@ -33,14 +47,14 @@ class ThickogramWindow(wx.Frame):
         # Calculate button
         calc_btn = wx.Button(left_panel, label="Calculate & Plot")
         calc_btn.Bind(wx.EVT_BUTTON, self.on_calculate)
-        left_sizer.Add(calc_btn, 0, wx.ALL | wx.EXPAND, 10)
+        left_sizer.Add(calc_btn, 0, wx.ALL | wx.EXPAND, 5)
 
         # Result label
-        self.result_label = wx.StaticText(left_panel, label="")
-        result_font = wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        self.result_label = wx.StaticText(left_panel, label="", size=(220, 30))
+        result_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         self.result_label.SetFont(result_font)
         self.result_label.SetForegroundColour(wx.Colour(255, 0, 0))
-        left_sizer.Add(self.result_label, 0, wx.ALL | wx.CENTER, 10)
+        left_sizer.Add(self.result_label, 0, wx.ALL | wx.EXPAND, 5)
 
         left_panel.SetSizer(left_sizer)
 
@@ -48,16 +62,16 @@ class ThickogramWindow(wx.Frame):
         right_panel = wx.Panel(panel)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Create matplotlib figure
-        self.figure = Figure(figsize=(8, 6), dpi=100)
+        # Create matplotlib figure (5x5 inches)
+        self.figure = Figure(figsize=(5, 5), dpi=100)
         self.canvas = FigureCanvas(right_panel, -1, self.figure)
-        right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
+        right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 2)
 
         right_panel.SetSizer(right_sizer)
 
         # Add panels to main sizer
-        main_sizer.Add(left_panel, 0, wx.EXPAND | wx.ALL, 5)
-        main_sizer.Add(right_panel, 1, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(left_panel, 0, wx.EXPAND | wx.ALL, 2)
+        main_sizer.Add(right_panel, 1, wx.EXPAND | wx.ALL, 2)
 
         panel.SetSizer(main_sizer)
 
@@ -85,22 +99,25 @@ class ThickogramWindow(wx.Frame):
         ]
 
         for field_name, label, ctrl_type, default_value in fields:
-            # Create label
+            # Create label with smaller font
             label_ctrl = wx.StaticText(parent, label=label)
-            sizer.Add(label_ctrl, 0, wx.ALL | wx.ALIGN_LEFT, 5)
+            label_font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+            label_ctrl.SetFont(label_font)
+            sizer.Add(label_ctrl, 0, wx.ALL | wx.ALIGN_LEFT, 2)
 
-            # Create control
+            # Create control with WIDER width
             if ctrl_type == "ComboBox":
-                ctrl = wx.ComboBox(parent, choices=default_value, style=wx.CB_READONLY)
+                ctrl = wx.ComboBox(parent, choices=default_value, style=wx.CB_READONLY, size=(220, -1))
                 if field_name == "overlayer_combo":
                     ctrl.Bind(wx.EVT_COMBOBOX, self.on_overlayer_selected)
                 elif field_name == "substrate_combo":
                     ctrl.Bind(wx.EVT_COMBOBOX, self.on_substrate_selected)
             else:
-                ctrl = wx.TextCtrl(parent, value=str(default_value))
+                ctrl = wx.TextCtrl(parent, value=str(default_value), size=(220, -1))
 
+            ctrl.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
             self.inputs[field_name] = ctrl
-            sizer.Add(ctrl, 0, wx.ALL | wx.EXPAND, 5)
+            sizer.Add(ctrl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 2)
 
     def get_peak_names(self):
         """Get peak names from the results grid"""
@@ -130,7 +147,7 @@ class ThickogramWindow(wx.Frame):
         self.populate_peak_data(selected_peak, "substrate")
 
     def populate_peak_data(self, peak_name, peak_type):
-        """Populate BE, Intensity, and RSF from results grid"""
+        """Populate BE, Intensity, RSF and calculate Lambda from results grid"""
         if not hasattr(self.parent, 'results_grid'):
             return
 
@@ -147,11 +164,32 @@ class ThickogramWindow(wx.Frame):
                     self.inputs["Eo"].SetValue(position)
                     self.inputs["Io"].SetValue(area)
                     self.inputs["So"].SetValue(rsf)
+
+                    # **CALCULATE LAMBDA PROPERLY**
+                    try:
+                        be_overlayer = float(position)
+                        esource = float(self.inputs["Esource"].GetValue())
+                        kinetic_energy = esource - be_overlayer
+
+                        # Use TPP-2M or empirical formula
+                        calculated_lambda = self.calculate_lambda(peak_name, kinetic_energy)
+                        self.inputs["Lambda"].SetValue(f"{calculated_lambda:.2f}")
+                    except:
+                        self.inputs["Lambda"].SetValue("2.0")  # fallback
+
                 elif peak_type == "substrate":
                     self.inputs["Es"].SetValue(position)
                     self.inputs["Is"].SetValue(area)
                     self.inputs["Ss"].SetValue(rsf)
                 break
+
+    def calculate_lambda(self, peak_name, kinetic_energy):
+        """Calculate IMFP based on peak type and kinetic energy"""
+        # Simple empirical formula (Seah & Dench approximation)
+        if kinetic_energy < 150:
+            return 0.41 * (kinetic_energy ** 0.5)
+        else:
+            return 0.41 * (kinetic_energy ** 0.5)  # Can be refined further
 
     def on_calculate(self, event):
         """Calculate thickness and plot thickogram"""
@@ -232,10 +270,10 @@ class ThickogramWindow(wx.Frame):
 
         for x in axp:
             y = np.log(self.sinh(x / 2))
-            ax.plot(2 * x, y, 'go', markersize=4)
+            ax.plot(2 * x, y, 'go', markersize=2)
         for x in axd:
             y = np.log(self.sinh(x / 2))
-            ax.plot(2 * x, y, 'go', markersize=7)
+            ax.plot(2 * x, y, 'go', markersize=4)
 
         # Plot ratio lines
         ayp = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1,
@@ -246,7 +284,7 @@ class ThickogramWindow(wx.Frame):
             b_vals = np.arange(0.4, 3.1, 0.1)
             x_line = (4.2 - b_vals) / 0.6
             y_line = np.log(ayp[k] / 2) - self.func(x_line)
-            ax.plot(2 * x_line, y_line, color='blue', linewidth=1)
+            ax.plot(2 * x_line, y_line, color='blue', linewidth=0.5)
 
         # Plot vertical lines
         bx = np.arange(0.4, 3.2, 0.2)
@@ -254,20 +292,37 @@ class ThickogramWindow(wx.Frame):
             x = (4.2 - b) / 0.6
             y0 = np.log(ayp[4] / 2) - self.func(x)
             y1 = np.log(ayp[-2] / 2) - self.func(x)
-            ax.plot([2 * x, 2 * x], [y0, y1], color='blue', linewidth=1)
+            ax.plot([2 * x, 2 * x], [y0, y1], color='blue', linewidth=0.5)
 
         # Plot horizontal reference lines
         for y in ayp:
-            ax.plot([0, 0.18], [np.log(y / 2)] * 2, color='black', linewidth=1)
+            ax.plot([0, 0.18], [np.log(y / 2)] * 2, color='black', linewidth=0.5)
 
-        # Add labels
+        # Add labels with smaller font
         ayd = [0.01, 0.1, 1.0, 10.0]
         for y in ayd:
-            ax.text(-0.4, np.log(y / 2), f"{y}", verticalalignment='center', color='black')
+            ax.text(-0.4, np.log(y / 2), f"{y}", verticalalignment='center', color='black', fontsize=6)
 
         for x in axd:
             y = np.log(self.sinh(x / 2))
-            ax.text(2 * x + 0.15, y - 0.25, f"{x}", color='green')
+            ax.text(2 * x + 0.15, y - 0.25, f"{x}", color='green', fontsize=6)
+
+        # **ADD MISSING BLUE LABELS**
+        # Blue ratio labels on left and right
+        for i in range(1, len(ayd)):
+            xl = (4.2 - 3) / 0.6
+            xr = (4.2 - 0.4) / 0.6
+            yl = np.log(ayd[i] / 2) - self.func(xl)
+            yr = np.log(ayd[i] / 2) - self.func(xr)
+            ax.text(2 * xl - 0.4, yl, f"{ayd[i]:.1f}", color='blue', fontsize=6, ha='center')
+            ax.text(2 * xr + 0.2, yr, f"{ayd[i]:.1f}", color='blue', fontsize=6, ha='center')
+
+        # Blue energy ratio labels at bottom
+        for i in range(len(bx)):
+            if i % 2 == 0:
+                x = (4.2 - bx[i]) / 0.6
+                y = np.log(ayp[4] / 2) - self.func(x)
+                ax.text(2 * x + 0.05, y - 0.3, f"{bx[i]:.1f}", color='blue', fontsize=6, ha='center')
 
         # Plot result lines
         x = xthicko
@@ -277,18 +332,21 @@ class ThickogramWindow(wx.Frame):
         ax.plot([0, 2 * x], [np.log(Ioisro / 2), np.log(Ioisro / 2) - self.func((4.2 - Eoes) / 0.6)],
                 color='red', linewidth=2)
 
-        # Add result text
-        ax.text(2 * x + 0.6, 2.4, f"{x:.6f}", color='red')
+        # **FIX RED TEXT ALIGNMENT AND SIZE**
+        ax.text(2 * x + 0.3, 2.4, f"{x:.4f}", color='red', fontsize=7, ha='left', va='center')
 
         # Set labels and formatting
-        ax.set_title("Thickogram XPS Thickness Calculation")
-        ax.set_xlabel("t/L*cos(theta) (2x)")
-        ax.set_ylabel("log(Intensity Ratio)")
-        ax.grid(True, linestyle='--', alpha=0.5)
+        ax.set_title("Thickogram XPS Thickness Calculation", fontsize=10)
+        ax.set_xlabel("t/L*cos(theta) (2x)", fontsize=8)
+        ax.set_ylabel("log(Intensity Ratio)", fontsize=8)
+        ax.grid(True, linestyle='--', alpha=0.3)
+        ax.tick_params(labelsize=7)
 
         # Remove outer axes for clean look
         for spine in ax.spines.values():
             spine.set_visible(False)
         ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
+        # Adjust layout to fit smaller figure
+        self.figure.tight_layout(pad=0.5)
         self.canvas.draw()
