@@ -345,7 +345,14 @@ class PlotLimitsWindow(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, title="Plot Limits", size=(280, 200),
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX))
-
+        if 'wxGTK' in wx.PlatformInfo:  # Linux
+            self.SetSize((400, 200))
+            self.SetMinSize((400, 200))
+            self.SetMaxSize((400, 200))
+        else:
+            self.SetSize((280, 200))
+            self.SetMinSize((280, 200))
+            self.SetMaxSize((280, 200))
         self.parent = parent
         panel = wx.Panel(self)
 
@@ -365,11 +372,18 @@ class PlotLimitsWindow(wx.Frame):
         be_sizer = wx.StaticBoxSizer(be_box, wx.HORIZONTAL)
 
         be_sizer.Add(wx.StaticText(panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.be_max_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(80, -1))
+        if 'wxGTK' in wx.PlatformInfo:  # Linux
+            self.be_max_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(120, 30))
+        else:
+            self.be_max_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(80, -1))
+
         be_sizer.Add(self.be_max_ctrl, 1, wx.RIGHT, 10)
 
         be_sizer.Add(wx.StaticText(panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.be_min_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(80, -1))
+        if 'wxGTK' in wx.PlatformInfo:  # Linux
+            self.be_min_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(120, 30))
+        else:
+            self.be_min_ctrl = wx.SpinCtrlDouble(panel, min=-1000, max=2000, inc=0.1, size=(80, -1))
         be_sizer.Add(self.be_min_ctrl, 1)
 
         # Intensity limits
@@ -377,11 +391,19 @@ class PlotLimitsWindow(wx.Frame):
         int_sizer = wx.StaticBoxSizer(int_box, wx.HORIZONTAL)
 
         int_sizer.Add(wx.StaticText(panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.int_max_ctrl = wx.SpinCtrlDouble(panel, min=0, max=1e10, inc=100, size=(80, -1))
+        if 'wxGTK' in wx.PlatformInfo:  # Linux
+            self.int_max_ctrl = wx.SpinCtrlDouble(panel, min=0, max=1e10, inc=100, size=(120, 30))
+        else:
+            self.int_max_ctrl = wx.SpinCtrlDouble(panel, min=0, max=1e10, inc=100, size=(80, -1))
         int_sizer.Add(self.int_max_ctrl, 1, wx.RIGHT, 10)
 
         int_sizer.Add(wx.StaticText(panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.int_min_ctrl = wx.SpinCtrlDouble(panel, min=-1e10, max=1e10, inc=100, size=(80, -1))
+
+        if 'wxGTK' in wx.PlatformInfo:  # Linux
+            self.int_min_ctrl = wx.SpinCtrlDouble(panel, min=-1e10, max=1e10, inc=100, size=(120, 30))
+        else:
+            self.int_min_ctrl = wx.SpinCtrlDouble(panel, min=-1e10, max=1e10, inc=100, size=(80, -1))
+
         int_sizer.Add(self.int_min_ctrl, 1)
 
         # Buttons

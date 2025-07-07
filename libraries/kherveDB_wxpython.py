@@ -30,7 +30,11 @@ class PeriodicTableXPS(wx.Frame):
             # Set minimum and maximum sizes
             self.SetMinSize((620, 660))
             self.SetMaxSize((620, 10000))
-
+        elif "wxGTK" in wx.PlatformInfo: # Linux
+            window_size = (785, 760)
+            # Set minimum and maximum sizes
+            self.SetMinSize((785, 760))
+            self.SetMaxSize((785, 760))
         else:
             window_size = (705, 720)
             # Set minimum and maximum sizes
@@ -171,7 +175,10 @@ Version: 1.1"""
         pt_panel.SetBackgroundColour(wx.Colour(230, 230, 230))
 
         # Use grid sizer for periodic table layout
-        self.pt_sizer = wx.GridBagSizer(1, 1)
+        if 'wxGTK' in wx.PlatformInfo: # Spacing Linux
+            self.pt_sizer = wx.GridBagSizer(2, 2)
+        else:
+            self.pt_sizer = wx.GridBagSizer(1, 1)
 
         # Define element positions
         self.element_positions = self.get_element_positions()
@@ -218,7 +225,12 @@ Version: 1.1"""
         self.pt_sizer.Add(label2, pos=(7, 2))
 
         pt_panel.SetSizer(self.pt_sizer)
-        self.main_sizer.Add(pt_panel, 0, wx.EXPAND, 0)
+        if 'wxGTK' in wx.PlatformInfo: # additional spacing on Linux
+            self.pt_sizer.Add(wx.Size(0, 3), pos=(10, 2), span=(1, 20), flag=wx.EXPAND)
+            self.main_sizer.Add(pt_panel, 0, wx.EXPAND | wx.ALL, 3)
+        else: # Windows/Mac
+            self.main_sizer.Add(pt_panel, 0, wx.EXPAND, 0)
+
 
     def get_atomic_number(self, element_symbol):
         """Get atomic number for an element"""
@@ -3346,6 +3358,10 @@ class ElementTile(wx.Panel):
 
     def __init__(self, parent, element, color, enabled=True, atomic_number=None, core_level=None, binding_energy=None):
         super().__init__(parent, size=(37, 37))
+        if 'wxGTK' in wx.PlatformInfo:
+            self.SetMinSize(wx.Size(41, 41))
+        else:
+            self.SetMinSize(wx.Size(37, 37))
         self.element = element
         self.color = color
         self.enabled = enabled

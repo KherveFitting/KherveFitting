@@ -178,7 +178,7 @@ class PeriodicTableWindow(wx.Frame):
         elif os_name == "Darwin":  # macOS
             window_size = (940, 430)
         elif os_name == "Linux":
-            window_size = (920, 440)
+            window_size = (990, 480)
         else:
             window_size = (940, 450)  # Default fallback
 

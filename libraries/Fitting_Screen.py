@@ -27,9 +27,9 @@ class FittingWindow(wx.Frame):
             self.SetMinSize((262, 380))
             self.SetMaxSize((262, 380))
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
-            self.SetSize((320, 400))  # Increased height to accommodate new elements
-            self.SetMinSize((320, 400))
-            self.SetMaxSize((320, 400))
+            self.SetSize((320, 470))  # Increased height to accommodate new elements
+            self.SetMinSize((320, 470))
+            self.SetMaxSize((320, 470))
         else:
             self.SetSize((275, 400))  # Increased height to accommodate new elements
             self.SetMinSize((275, 400))
@@ -38,7 +38,6 @@ class FittingWindow(wx.Frame):
         #305 480
 
         self.init_ui()
-
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.library_data = self.parent.library_data
         self.doublet_splittings = self.load_doublet_splittings(self.parent.library_data)
@@ -141,35 +140,36 @@ class FittingWindow(wx.Frame):
         self.cross_section3.Bind(wx.EVT_TEXT, self.on_cross_section3_change)
 
         sheet_name = self.parent.sheet_combobox.GetValue()
-        if 'Background' in self.parent.Data['Core levels'][sheet_name]:
-            bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
-            saved_values = [
-                bg_data.get('Tougaard_B', 2866),
-                bg_data.get('Tougaard_C', 1643),
-                bg_data.get('Tougaard_D', 1),
-                bg_data.get('Tougaard_T0', 0)
-            ]
-            saved_values2 = [
-                bg_data.get('Tougaard_B2', 2866),
-                bg_data.get('Tougaard_C2', 1643),
-                bg_data.get('Tougaard_D2', 1),
-                bg_data.get('Tougaard_T02', 0)
-            ]
-            saved_values3 = [
-                bg_data.get('Tougaard_B2', 2866),
-                bg_data.get('Tougaard_C2', 1643),
-                bg_data.get('Tougaard_D2', 1),
-                bg_data.get('Tougaard_T02', 0)
-            ]
-            self.cross_section.SetValue(','.join(map(str, saved_values)))
-            self.cross_section2.SetValue(','.join(map(str, saved_values2)))
-            self.cross_section2.SetValue(','.join(map(str, saved_values3)))
+        if sheet_name != '' :
+            if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+                bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
+                saved_values = [
+                    bg_data.get('Tougaard_B', 2866),
+                    bg_data.get('Tougaard_C', 1643),
+                    bg_data.get('Tougaard_D', 1),
+                    bg_data.get('Tougaard_T0', 0)
+                ]
+                saved_values2 = [
+                    bg_data.get('Tougaard_B2', 2866),
+                    bg_data.get('Tougaard_C2', 1643),
+                    bg_data.get('Tougaard_D2', 1),
+                    bg_data.get('Tougaard_T02', 0)
+                ]
+                saved_values3 = [
+                    bg_data.get('Tougaard_B2', 2866),
+                    bg_data.get('Tougaard_C2', 1643),
+                    bg_data.get('Tougaard_D2', 1),
+                    bg_data.get('Tougaard_T02', 0)
+                ]
+                self.cross_section.SetValue(','.join(map(str, saved_values)))
+                self.cross_section2.SetValue(','.join(map(str, saved_values2)))
+                self.cross_section2.SetValue(','.join(map(str, saved_values3)))
 
         background_button = wx.Button(self.background_panel, label="Create\nBackground")
         if 'wxMac' in wx.PlatformInfo:
             background_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
-            background_button.SetMinSize((125, 30))
+            background_button.SetMinSize((125, 35))
         else:
             background_button.SetMinSize((125, 35))
         background_button.Bind(wx.EVT_BUTTON, self.on_background)
@@ -178,7 +178,7 @@ class FittingWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             clear_background_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
-            clear_background_button.SetMinSize((125, 30))
+            clear_background_button.SetMinSize((125, 35))
         else:
             clear_background_button.SetMinSize((125, 35))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
@@ -187,7 +187,7 @@ class FittingWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             reset_vlines_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
-            reset_vlines_button.SetMinSize((125, 30))
+            reset_vlines_button.SetMinSize((125, 35))
         else:
             reset_vlines_button.SetMinSize((125, 35))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
@@ -195,6 +195,8 @@ class FittingWindow(wx.Frame):
         clear_between_vlines_button = wx.Button(self.background_panel, label="Clear Between\nVertical Lines")
         if 'wxMac' in wx.PlatformInfo:
             clear_between_vlines_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            clear_between_vlines_button.SetMinSize((125, 35))
         else:
             clear_between_vlines_button.SetMinSize((125, 35))
         clear_between_vlines_button.Bind(wx.EVT_BUTTON, self.on_clear_between_vlines)
@@ -202,6 +204,8 @@ class FittingWindow(wx.Frame):
         clear_background_only_button = wx.Button(self.background_panel, label="Clear\nBackground")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_only_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            clear_background_only_button.SetMinSize((125, 35))
         else:
             clear_background_only_button.SetMinSize((125, 35))
         clear_background_only_button.Bind(wx.EVT_BUTTON, self.on_clear_background_only)
@@ -209,11 +213,13 @@ class FittingWindow(wx.Frame):
         self.tougaard_fit_btn = wx.Button(self.background_panel, label="Tougaard / Raman\n Model")
         if 'wxMac' in wx.PlatformInfo:
             self.tougaard_fit_btn.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.tougaard_fit_btn.SetMinSize((125, 35))
         else:
             self.tougaard_fit_btn.SetMinSize((125, 35))
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, self.on_tougaard_raman_model)
 
-        if 'wxMac' in wx.PlatformInfo:
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
         # Layout Background Tab
             background_sizer.Add(method_label, pos=(0, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
@@ -391,6 +397,8 @@ class FittingWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             add_peak_button.SetMinSize((125, 30))
             pass
+        elif 'wxGTK' in wx.PlatformInfo:
+            add_peak_button.SetMinSize((125, 35))
         else:
             add_peak_button.SetMinSize((125, 35))
         add_peak_button.Bind(wx.EVT_BUTTON, self.on_add_peak)
@@ -398,6 +406,8 @@ class FittingWindow(wx.Frame):
         add_doublet_button = wx.Button(self.fitting_panel, label="Add 2 Peaks\nDoublet")
         if 'wxMac' in wx.PlatformInfo:
             add_doublet_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            add_doublet_button.SetMinSize((125, 35))
         else:
             add_doublet_button.SetMinSize((125, 35))
         add_doublet_button.Bind(wx.EVT_BUTTON, self.on_add_doublet)
@@ -405,6 +415,8 @@ class FittingWindow(wx.Frame):
         remove_peak_button = wx.Button(self.fitting_panel, label="Remove\nLast Peak")
         if 'wxMac' in wx.PlatformInfo:
             remove_peak_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            remove_peak_button.SetMinSize((125, 35))
         else:
             remove_peak_button.SetMinSize((125, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
@@ -412,6 +424,8 @@ class FittingWindow(wx.Frame):
         export_button = wx.Button(self.fitting_panel, label="Export to\nResults Grid")
         if 'wxMac' in wx.PlatformInfo:
             export_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            export_button.SetMinSize((125, 35))
         else:
            export_button.SetMinSize((125, 35))
         export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
@@ -419,6 +433,8 @@ class FittingWindow(wx.Frame):
         fit_button = wx.Button(self.fitting_panel, label="Fit \nOne Time")
         if 'wxMac' in wx.PlatformInfo:
             fit_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            fit_button.SetMinSize((125, 35))
         else:
             fit_button.SetMinSize((125, 35))
         fit_button.Bind(wx.EVT_BUTTON, self.on_fit_peaks)
@@ -426,11 +442,13 @@ class FittingWindow(wx.Frame):
         fit_multi_button = wx.Button(self.fitting_panel, label="Fit \nN# Times")
         if 'wxMac' in wx.PlatformInfo:
             fit_multi_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            fit_multi_button.SetMinSize((125, 35))
         else:
             fit_multi_button.SetMinSize((125, 35))
         fit_multi_button.Bind(wx.EVT_BUTTON, self.on_fit_multi)
 
-        if 'wxMac' in wx.PlatformInfo:
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
             fitting_sizer.Add(wx.StaticText(self.fitting_panel, label="Fitting Model:"), pos=(0, 0),
                               flag=wx.ALL | wx.EXPAND, border=1)
             fitting_sizer.Add(self.model_combobox, pos=(0, 1), flag=wx.ALL, border=0)
