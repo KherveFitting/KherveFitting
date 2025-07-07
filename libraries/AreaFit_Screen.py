@@ -128,12 +128,12 @@ class BackgroundWindow(wx.Frame):
 
 
         # Layout with a GridBagSizer
-        if 'wxMac' or "wxGTK" in wx.PlatformInfo:
+        if 'wxMac' in wx.PlatformInfo or 'wxGTK' in wx.PlatformInfo:
             sizer = wx.GridBagSizer(hgap=1, vgap=1)
         else:
             sizer = wx.GridBagSizer(hgap=0, vgap=0)
 
-        if 'wxMac' or "wxGTK" in wx.PlatformInfo:
+        if 'wxMac' in wx.PlatformInfo or 'wxGTK' in wx.PlatformInfo:
             # First row: Method
             sizer.Add(method_label, pos=(0, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
