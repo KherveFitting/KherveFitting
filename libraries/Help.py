@@ -54,7 +54,7 @@ License: HPND"""
 
 
 def on_about(self, event):
-    about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 470))
+    about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 480))
     panel = wx.Panel(about_dialog)
     sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -87,8 +87,9 @@ def on_about(self, event):
     website_sizer.Add(website2, 0)
 
     developers = wx.StaticText(panel,
-                               label="Developed by:\nG. Kerherve / g.kerherve@imperial.ac.uk")
-    Testers = wx.StaticText(panel, label="Tested by:\nWilliam Skinner, Julian A. Hochhaus, Hideki Nakajima, "
+                               label="Developed by:\nG. Kerherve / g.kerherve@imperial.ac.uk\n"
+                                     "Julian A. Hochhaus / Dortmund")
+    Testers = wx.StaticText(panel, label="Tested by:\nWilliam Skinner, Hideki Nakajima, "
                                          "Arthur Graf,"
                                          "\nDavid Morgan, Mark A. Isaacs, "
                                          "Benjamin Reed, David J. Payne")
