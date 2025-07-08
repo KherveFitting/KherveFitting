@@ -306,6 +306,7 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_offset, offset_plot_tool)
 
         # Stacked plot button (F4)
+        # Stacked plot button (F4)
         stacked_plot_icon = os.path.join(icon_path, "StackedPlot.png")
         if os.path.exists(stacked_plot_icon):
             stacked_plot_bmp = wx.Bitmap(stacked_plot_icon)
@@ -313,8 +314,12 @@ class FileManagerWindow(wx.Frame):
             stacked_plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
         stacked_plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot with Fitted Data", stacked_plot_bmp,
                                                  "Plot selected core level(s) with fitted data\n"
-                                                 "Press F4 or Ctrl+4 to plot with fitted data")
+                                                 "Press F4 or Ctrl+4 to plot with fitted data\n"
+                                                 "Left-click/F4: increase spacing\n"
+                                                 "Right-click/Shift+F4: decrease spacing")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_fitted_data, stacked_plot_tool)
+        # Add right-click binding to decrease spacing
+        self.Bind(wx.EVT_TOOL_RCLICKED, self.on_stacked_plot_right_click, stacked_plot_tool)
 
         self.norm_type = wx.ComboBox(self.toolbar, choices=["Norm. OFF", "Norm. Auto", "Norm. @ BE", "Norm. to A"],
                                      style=wx.CB_READONLY)
@@ -376,6 +381,31 @@ class FileManagerWindow(wx.Frame):
         self.is_collapsed = False
         self.expanded_height = 300  # Default expanded height
         self.collapsed_height = 70  # Collapsed height
+
+    def on_stacked_plot_right_click(self, event):
+        """Handle right-click on stacked plot tool to decrease spacing"""
+        sheet_names = self.get_selected_sheet_names()
+        if sheet_names and len(sheet_names) > 1:
+            # Initialize if not exists
+            if not hasattr(self, 'fitted_offset_multiplier'):
+                self.fitted_offset_multiplier = 1
+
+            # Decrease multiplier (allow going below 1 for tighter spacing)
+            self.fitted_offset_multiplier -= 1
+
+            # Set flag to prevent reset in main method
+            self._right_click_used = True
+
+            # Update the tracking variables to match current selection
+            self.last_fitted_offset_sheets = sheet_names.copy()
+            import time
+            self.last_fitted_keypress_time = time.time()
+
+            # Replot with decreased spacing
+            self.plot_multiple_sheets_with_offset_and_fitted_data(sheet_names)
+            self.parent.sheet_combobox.SetValue(sheet_names[0])
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()
 
     def on_toggle_size(self, event):
         """Toggle between normal and small window size"""
@@ -909,8 +939,13 @@ class FileManagerWindow(wx.Frame):
             self.on_plot_selected_with_offset(None)
             return  # Don't skip the event
         elif key_code == wx.WXK_F4:
-            # Call the offset plot with fitted data function
-            self.on_plot_selected_with_fitted_data(None)
+            # Check if Shift is held down for decrease spacing
+            if event.ShiftDown():
+                # Shift+F4: Decrease spacing (same as right-click)
+                self.on_stacked_plot_right_click(None)
+            else:
+                # F4: Normal increase spacing
+                self.on_plot_selected_with_fitted_data(None)
             return  # Don't skip the event
         elif event.ControlDown() and key_code == wx.WXK_F2:
             # CTRL+F2: Standard multiple plot
@@ -3230,14 +3265,25 @@ class FileManagerWindow(wx.Frame):
         if self.last_fitted_offset_sheets == sheet_names:
             # Check if the keypress was rapid (within threshold)
             if current_time - self.last_fitted_keypress_time < self.rapid_press_threshold:
-                # Increment the offset multiplier for rapid presses
-                self.fitted_offset_multiplier += 1
+                # Only increment if this is a left-click (not a right-click)
+                # Right-click handler sets its own multiplier value
+                if not hasattr(self, '_right_click_used'):
+                    self.fitted_offset_multiplier += 1
+                else:
+                    # Reset the right-click flag
+                    delattr(self, '_right_click_used')
             else:
-                # Reset multiplier if too much time has passed
-                self.fitted_offset_multiplier = 1
+                # Reset multiplier if too much time has passed (but not if right-click was used)
+                if not hasattr(self, '_right_click_used'):
+                    self.fitted_offset_multiplier = 1
+                else:
+                    delattr(self, '_right_click_used')
         else:
-            # Reset for new selection
-            self.fitted_offset_multiplier = 1
+            # Reset for new selection (but not if right-click was used)
+            if not hasattr(self, '_right_click_used'):
+                self.fitted_offset_multiplier = 1
+            else:
+                delattr(self, '_right_click_used')
             self.last_fitted_offset_sheets = sheet_names.copy()
 
         # Update last keypress time for F4
@@ -3361,8 +3407,8 @@ class FileManagerWindow(wx.Frame):
                             pass
 
             # Calculate offset: Initial 1.1*Max, then +0.2*Max for each additional press
-            base_spacing = 1.1  # Initial spacing
-            additional_spacing = 0.2 * (self.fitted_offset_multiplier - 1)  # Additional spacing per press
+            base_spacing = 1.05  # Initial spacing
+            additional_spacing = 0.05 * (self.fitted_offset_multiplier - 1)  # Additional spacing per press
             total_spacing = base_spacing + additional_spacing
             offset = i * total_spacing * reference_max
 
@@ -3417,33 +3463,23 @@ class FileManagerWindow(wx.Frame):
         # Apply text settings from preference window
         self.parent.plot_manager.apply_text_settings(self.parent)
 
-        # Add core level name at top left
+        # Add core level name at top right using plot coordinates
         if sheet_names:
             # Extract core level name from the first sheet
             first_sheet = sheet_names[0]
-            # Assuming sheet names are like "Sample_C1s" or "Sample_O1s", extract the core level part
             if '_' in first_sheet:
                 core_level = first_sheet.split('_')[-1]  # Get part after last underscore
             else:
-                # If no underscore, use the whole name or try to extract from the end
-                # Look for common core level patterns (C1s, O1s, N1s, etc.)
                 import re
                 match = re.search(r'([A-Z][a-z]?\d+[a-z]+)', first_sheet)
                 core_level = match.group(1) if match else first_sheet
 
-            # Get plot limits for positioning
-            xlim = self.parent.ax.get_xlim()
-            ylim = self.parent.ax.get_ylim()
-
-            # Position at top right (adjust positioning as needed)
-            x_pos = xlim[1] - (xlim[1] - xlim[0]) * 0.02  # 2% from right edge
-            y_pos = ylim[1] - (ylim[1] - ylim[0]) * 0.02  # 2% from top
-
-            # Add core level text
-            self.parent.ax.text(x_pos, y_pos, core_level,
+            # Use plot coordinates (0-1 range) for positioning
+            self.parent.ax.text(0.98, 0.98, core_level,  # 98% from left, 98% from bottom
+                                transform=self.parent.ax.transAxes,  # Use plot coordinates
                                 fontsize=getattr(self.parent, 'core_level_text_size', 12),
                                 fontweight='bold',
-                                ha='right', va='top',  # Changed to 'right' alignment
+                                ha='right', va='top',
                                 color='black',
                                 bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=2))
 
