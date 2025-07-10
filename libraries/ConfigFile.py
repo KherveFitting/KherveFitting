@@ -110,6 +110,16 @@ def add_core_level_Data(data, window, file_path, sheet_name):
     The sheet_name corresponds to the core level label.
     Uses the window.skip_rows_spinbox value to determine how many rows to skip.
     """
+    # # FIXED: Ensure required keys exist before incrementing
+    # if 'Number of Core levels' not in data:
+    #     data['Number of Core levels'] = 0
+    # if 'Core levels' not in data:
+    #     data['Core levels'] = {}
+    #
+    # # Only increment if this is a new sheet
+    # if sheet_name not in data['Core levels']:
+    #     data['Number of Core levels'] += 1
+
     if sheet_name.startswith('Sheet'):
         wx.MessageBox(f"Sheet names must be core level names (e.g., C1s, O1s).\nInvalid sheet name: '{sheet_name}'",
                       "Invalid Sheet Name", wx.OK | wx.ICON_WARNING)

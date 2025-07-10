@@ -258,7 +258,7 @@ class ExcelDropTarget(wx.FileDropTarget):
             import openpyxl
             import os
             import json
-            from libraries.Open import process_kfitting_file_with_sample_number
+            from libraries.Open import process_kfitting_file_with_sample_number_with_mapping
 
             # Sort files alphabetically
             file_list.sort(key=lambda x: os.path.basename(x))
@@ -286,16 +286,30 @@ class ExcelDropTarget(wx.FileDropTarget):
             combined_wb = openpyxl.Workbook()
             combined_wb.remove(combined_wb.active)
 
-            sample_names_dict = {}
             combined_json_data = {
                 'Core levels': {},
                 'SampleNames': {}
             }
 
-            # Process each file
+            # Process each file with proper row numbering and sample names
+            current_row = 0
+            combined_sample_names = {}
+            all_sheet_mappings = {}  # Track original -> new sheet name mappings
+
             for sample_idx, file_path in enumerate(file_list):
-                sample_name = os.path.splitext(os.path.basename(file_path))[0]
-                sample_names_dict[str(sample_idx)] = sample_name
+                filename = os.path.splitext(os.path.basename(file_path))[0]
+
+                # Load original JSON file to get existing sample names
+                original_sample_names = {}
+                json_file_path = os.path.splitext(file_path)[0] + '.json'
+                if os.path.exists(json_file_path):
+                    try:
+                        with open(json_file_path, 'r') as json_file:
+                            individual_json_data = json.load(json_file)
+                            if 'SampleNames' in individual_json_data:
+                                original_sample_names = individual_json_data['SampleNames']
+                    except Exception as e:
+                        print(f"Warning: Could not load sample names from {json_file_path}: {e}")
 
                 # Process Excel file
                 wb = openpyxl.load_workbook(file_path)
@@ -306,49 +320,60 @@ class ExcelDropTarget(wx.FileDropTarget):
                     if sheet_name.lower() not in ["results table", "experimental description"]:
                         original_sheets.append(sheet_name)
 
-                process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
+                # Modified function call to get sheet mappings
+                current_row, sample_names_for_rows, sheet_mappings = process_kfitting_file_with_sample_number_with_mapping(
+                    wb, combined_wb, current_row, original_sample_names, filename)
+
+                # Store sheet mappings for this file
+                all_sheet_mappings.update(sheet_mappings)
+
+                # Update combined sample names
+                combined_sample_names.update(sample_names_for_rows)
+
                 wb.close()
 
                 # Load corresponding JSON file with peak fitting data
-                json_file_path = os.path.splitext(file_path)[0] + '.json'
                 if os.path.exists(json_file_path):
                     try:
                         with open(json_file_path, 'r') as json_file:
                             individual_json_data = json.load(json_file)
 
-                        # Process each core level in the JSON data
+                        # Process each core level in the JSON data using proper mappings
                         if 'Core levels' in individual_json_data:
                             for original_sheet_name in original_sheets:
                                 if original_sheet_name in individual_json_data['Core levels']:
-                                    # Create new numbered sheet name
-                                    import re
-                                    base_name = re.sub(r'\d+$', '', original_sheet_name)
-                                    new_sheet_name = f"{base_name}{sample_idx}"
+                                    # Use the tracked mapping to get the correct new sheet name
+                                    if original_sheet_name in sheet_mappings:
+                                        new_sheet_name = sheet_mappings[original_sheet_name]
 
-                                    # Copy the fitting data to the combined JSON structure
-                                    combined_json_data['Core levels'][new_sheet_name] = \
-                                        individual_json_data['Core levels'][original_sheet_name].copy()
+                                        # Copy the fitting data to the combined JSON structure
+                                        combined_json_data['Core levels'][new_sheet_name] = \
+                                            individual_json_data['Core levels'][original_sheet_name].copy()
 
-                                    # Update peak names to include sample index
-                                    if ('Fitting' in combined_json_data['Core levels'][new_sheet_name] and
-                                            'Peaks' in combined_json_data['Core levels'][new_sheet_name]['Fitting']):
+                                        # Update peak names to include file index for uniqueness
+                                        if ('Fitting' in combined_json_data['Core levels'][new_sheet_name] and
+                                                'Peaks' in combined_json_data['Core levels'][new_sheet_name][
+                                                    'Fitting']):
 
-                                        peaks_data = combined_json_data['Core levels'][new_sheet_name]['Fitting'][
-                                            'Peaks']
-                                        updated_peaks = {}
+                                            peaks_data = combined_json_data['Core levels'][new_sheet_name]['Fitting'][
+                                                'Peaks']
+                                            updated_peaks = {}
 
-                                        for peak_name, peak_data in peaks_data.items():
-                                            # Add sample index to peak names (e.g., "Peak 1" becomes "Peak 1_0")
-                                            new_peak_name = f"{peak_name}_{sample_idx}"
-                                            updated_peaks[new_peak_name] = peak_data
+                                            for peak_name, peak_data in peaks_data.items():
+                                                # Add file index to peak names for uniqueness
+                                                new_peak_name = f"{peak_name}_f{sample_idx}"
+                                                updated_peaks[new_peak_name] = peak_data
 
-                                        combined_json_data['Core levels'][new_sheet_name]['Fitting'][
-                                            'Peaks'] = updated_peaks
+                                            combined_json_data['Core levels'][new_sheet_name]['Fitting'][
+                                                'Peaks'] = updated_peaks
 
                     except Exception as e:
-                        print(f"Warning: Could not load JSON file for {sample_name}: {e}")
+                        print(f"Warning: Could not load JSON file for {filename}: {e}")
                 else:
-                    print(f"Warning: No JSON file found for {sample_name}")
+                    print(f"Warning: No JSON file found for {filename}")
+
+            # Use the combined sample names
+            sample_names_dict = combined_sample_names
 
             # Save combined Excel file
             combined_wb.save(combined_file_path)
@@ -5304,8 +5329,10 @@ def import_multiple_kfitting_files(window):
         window.show_popup_message2("Error", f"Error processing KherveFitting files: {str(e)}")
 
 
-def process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx):
-    """Process KherveFitting Excel file and add numbered core levels to combined workbook"""
+
+def process_kfitting_file_with_sample_number_with_mapping(wb, combined_wb, starting_row, original_sample_names,
+                                                          filename):
+    """Process KherveFitting Excel file and return mapping of original to new sheet names"""
     import re
 
     # Get all sheet names except Results Table and Experimental description
@@ -5314,47 +5341,72 @@ def process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx):
         if sheet_name.lower() not in ["results table", "experimental description"]:
             sheets_to_process.append(sheet_name)
 
+    # Group sheets by their row number using simpler regex
+    sheet_groups = {}
     for sheet_name in sheets_to_process:
-        sheet = wb[sheet_name]
+        # Simple regex to extract trailing number
+        match = re.search(r'(\d+)$', sheet_name)
+        if match:
+            row_number = int(match.group(1))
+            base_name = sheet_name[:-len(match.group(1))]  # Remove the trailing number
+        else:
+            row_number = 0
+            base_name = sheet_name
 
-        # Extract base core level name (remove existing numbers)
-        base_name = re.sub(r'\d+$', '', sheet_name)  # Remove trailing numbers
+        if row_number not in sheet_groups:
+            sheet_groups[row_number] = []
+        sheet_groups[row_number].append((sheet_name, base_name))
 
-        # Create new sheet name with sample number
-        new_sheet_name = f"{base_name}{sample_idx}"
+    # Process each row group and return sample names mapping and sheet mappings
+    current_row = starting_row
+    sample_names_for_rows = {}
+    sheet_mappings = {}  # original_name -> new_name
 
-        # Create new sheet in combined workbook
-        new_sheet = combined_wb.create_sheet(new_sheet_name)
+    for row_number in sorted(sheet_groups.keys()):
+        # Determine sample name for this row
+        if str(row_number) in original_sample_names and original_sample_names[str(row_number)].strip():
+            # Use existing sample name from original file
+            sample_name = original_sample_names[str(row_number)]
+        else:
+            # Use filename if no existing sample name
+            sample_name = filename
 
-        # Copy headers from row 1
-        for col in range(1, sheet.max_column + 1):
-            header_value = sheet.cell(row=1, column=col).value
-            if header_value:
-                new_sheet.cell(row=1, column=col, value=header_value)
+        sample_names_for_rows[str(current_row)] = sample_name
 
-        # Copy data starting from row 2
-        for row in range(2, sheet.max_row + 1):
-            row_has_data = False
-            for col in range(1, min(sheet.max_column + 1, 5)):  # Copy first 4 columns typically
-                cell_value = sheet.cell(row=row, column=col).value
-                if cell_value is not None:
-                    row_has_data = True
-                new_sheet.cell(row=row, column=col, value=cell_value)
+        for sheet_name, base_name in sheet_groups[row_number]:
+            sheet = wb[sheet_name]
 
-            # Stop copying if we hit empty rows
-            if not row_has_data:
-                break
+            # Create new sheet name with current row number
+            new_sheet_name = f"{base_name}{current_row}"
 
-        # Copy experimental description data if it exists (starting from column 50)
-        exp_col = 50
-        for row in range(1, sheet.max_row + 1):
-            exp_desc_value = sheet.cell(row=row, column=exp_col).value
-            exp_data_value = sheet.cell(row=row, column=exp_col + 1).value
+            # Track the mapping
+            sheet_mappings[sheet_name] = new_sheet_name
 
-            if exp_desc_value or exp_data_value:
-                new_sheet.cell(row=row, column=exp_col, value=exp_desc_value)
-                new_sheet.cell(row=row, column=exp_col + 1, value=exp_data_value)
+            # Create new sheet in combined workbook
+            new_sheet = combined_wb.create_sheet(new_sheet_name)
 
+            # Copy headers from row 1
+            for col in range(1, sheet.max_column + 1):
+                header_value = sheet.cell(row=1, column=col).value
+                if header_value:
+                    new_sheet.cell(row=1, column=col, value=header_value)
+
+            # Copy data starting from row 2
+            for row in range(2, sheet.max_row + 1):
+                row_has_data = False
+                for col in range(1, min(sheet.max_column + 1, 5)):  # Copy first 4 columns typically
+                    cell_value = sheet.cell(row=row, column=col).value
+                    if cell_value is not None:
+                        row_has_data = True
+                    new_sheet.cell(row=row, column=col, value=cell_value)
+
+                # Stop copying if we hit empty rows
+                if not row_has_data:
+                    break
+
+        current_row += 1
+
+    return current_row, sample_names_for_rows, sheet_mappings
 
 def normalize_core_level_name(sheet_name):
     """
