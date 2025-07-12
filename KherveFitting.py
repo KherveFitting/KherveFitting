@@ -2775,7 +2775,7 @@ class MyFrame(wx.Frame):
 
     def open_dream_nist_OLD(self):
         """Open the Dream NIST periodic table window"""
-        from libraries.LibraryID import PeriodicTableXPS
+        from libraries.HelpMenu.LibraryID import PeriodicTableXPS
         nist_window = PeriodicTableXPS()
         nist_window.mainloop()
 

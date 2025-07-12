@@ -12,7 +12,7 @@ else:
 sys.path.insert(0, current_dir)
 
 # Import the main class
-from LibraryID import PeriodicTableXPS
+from libraries.HelpMenu.LibraryID import PeriodicTableXPS
 
 if __name__ == "__main__":
     app = PeriodicTableXPS()
