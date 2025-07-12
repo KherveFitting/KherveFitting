@@ -29,7 +29,7 @@ from libraries.ToolsMenu.AreaFit_Screen import *
 from libraries.Save import *
 from libraries.ToolsMenu.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
-from libraries.Export import export_results
+from libraries.FileMenu.Export import export_results
 from libraries.PlotConfig import PlotConfig
 from libraries.Utilities import check_first_time_use, DraggableText
 from libraries.Plot_Operations import PlotManager

@@ -7,24 +7,24 @@ import subprocess
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
-from libraries.Open import ExcelDropTarget, open_xlsx_file, import_multiple_mrs_files, open_vg_microtech_file_dialog
+from libraries.FileMenu.Open import ExcelDropTarget, open_xlsx_file, import_multiple_mrs_files, open_vg_microtech_file_dialog
 from libraries.Plot_Operations import PlotManager
 from libraries.Save import update_undo_redo_state
 from libraries.Save import save_state
 from libraries.Save import save_peaks_library, load_peaks_library
 from libraries.Save import on_save_as, save_plot_only_to_excel
 from libraries.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
-from libraries.Open import import_multiple_vg_microtech_files
-from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
-from libraries.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
-from libraries.Open import import_xps_csv_file, import_multiple_xps_csv_files
-from libraries.Export import export_word_report
+from libraries.FileMenu.Open import import_multiple_vg_microtech_files
+from libraries.FileMenu.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
+from libraries.FileMenu.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
+from libraries.FileMenu.Open import import_xps_csv_file, import_multiple_xps_csv_files
+from libraries.FileMenu.Export import export_word_report
 from libraries.Utilities import CropWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
 from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 from libraries.MarketResearch import launch_registration_form
 from libraries.HelpMenu.Help import report_bug
 from Functions import (on_save_plot_pdf, on_save_plot_svg, on_exit)
-from libraries.Open import import_avantage_file, open_avg_file, import_multiple_avantage_files, import_multiple_avg_files
+from libraries.FileMenu.Open import import_avantage_file, open_avg_file, import_multiple_avantage_files, import_multiple_avg_files
 from libraries.Save import save_all_sheets_with_plots, create_plot_script_from_excel, refresh_sheets, undo, redo
 from libraries.HelpMenu.Help import show_shortcuts, show_mini_game, on_about
 from libraries.Utilities import add_draggable_text
@@ -34,7 +34,7 @@ from libraries.Save import on_backup_main
 from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
 from libraries.HelpMenu.DownloadStats import show_download_stats_window
-from libraries.Open import import_multiple_kfitting_files
+from libraries.FileMenu.Open import import_multiple_kfitting_files
 from libraries.Save import save_vamas_file_dialog
 
 
