@@ -20,12 +20,11 @@ import wx.grid
 import wx.adv
 import sys
 import platform
-import re
 
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
 from libraries.Fitting_Screen import *
-from libraries.AreaFit_Screen import *
+from libraries.Tools.AreaFit_Screen import *
 from libraries.Save import *
 from libraries.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
@@ -38,28 +37,25 @@ from libraries.Peak_Functions import PeakFunctions
 # from libraries.Peak_Functions import AtomicConcentrations
 # from libraries.Peak_Functions import gauss_lorentz, S_gauss_lorentz
 
-from Functions import toggle_Col_1, update_sheet_names, rename_sheet, on_sheet_selected_wrapper
+from Functions import update_sheet_names, rename_sheet, on_sheet_selected_wrapper
 from libraries.PreferenceWindow import PreferenceWindow
 
 # from libraries.Sheet_Operations import on_sheet_selected
 
-from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
 from libraries.SplashScreen import show_splash
 from libraries.Save import save_state, undo, redo
 
 # from libraries.Open import ExcelDropTarget
 # from libraries.Utilities import copy_cell, paste_cell
 
-from Functions import on_save, on_exit
-from libraries.Open import load_recent_files_from_config, open_avg_file
+from libraries.Open import load_recent_files_from_config
 from libraries.survey import PeriodicTableWindow
 from libraries.Widgets_Toolbars import create_widgets, create_menu
-from libraries.Widgets_Toolbars import create_statusbar, update_statusbar
-from libraries.Open import open_xlsx_file
+from libraries.Widgets_Toolbars import create_statusbar
 
 # from libraries.Export import export_word_report
 
-from libraries.Peak_Functions import OtherCalc, AtomicConcentrations
+from libraries.Peak_Functions import AtomicConcentrations
 from libraries.Dpara_Screen import DParameterWindow
 from libraries.Update import UpdateChecker
 
@@ -70,8 +66,7 @@ from libraries.On_Mouse_Defs import setup_mouse_handlers
 
 from libraries.QuickSettings import QuickSettings
 
-from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES, calculate_weight_percentages
-
+from libraries.Area_Calculation import ATOMIC_MASSES
 
 
 class MyFrame(wx.Frame):
@@ -2525,8 +2520,7 @@ class MyFrame(wx.Frame):
         self.d_param_window.Raise()
 
     # Add to imports section
-    from libraries.On_BE_Corrections_Defs import on_be_correction_change, on_auto_be, apply_be_correction, \
-        calculate_c1s_correction
+    from libraries.On_BE_Corrections_Defs import on_be_correction_change, on_auto_be
 
     # Remove the existing function definitions and replace with:
     def on_be_correction_change(self, event):
