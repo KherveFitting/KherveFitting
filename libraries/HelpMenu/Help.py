@@ -473,7 +473,7 @@ Version 1.41-1.5 (March-Apr 2025)
 - Added File > Optimise File menu
 - Added Save Table in the main Save Sheet and remove it from the toolbar
 - Improve the refresh function to exclude the Results Table sheet
-- Remove the Noise Analysis from the toolbar. Only available in Tools menu
+- Remove the Noise Analysis from the toolbar. Only available in ToolsMenu menu
 - Move the Skewed Voigt in the non default as it was confusing for new users
 - Fix bugs that stop Fitting to continue
 - Fix bugs that shows the background equal to the data

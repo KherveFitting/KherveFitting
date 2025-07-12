@@ -20,7 +20,7 @@ from libraries.Open import import_raman_txt_file, import_multiple_raman_files, i
 from libraries.Open import import_xps_csv_file, import_multiple_xps_csv_files
 from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
-from libraries.Tools.PlotModWindow import PlotModWindow
+from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 from libraries.MarketResearch import launch_registration_form
 from libraries.HelpMenu.Help import report_bug
 from Functions import (on_save_plot_pdf, on_save_plot_svg, on_exit)
@@ -600,7 +600,7 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: window.toggle_energy_scale(), toggle_energy_item)
     window.toggle_energy_item = toggle_energy_item
 
-    # Tools menu items
+    # ToolsMenu menu items
     Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve\tCtrl+A")
     window.Bind(wx.EVT_MENU, lambda event: window.on_open_background_window(), Area_item)
 
@@ -772,7 +772,7 @@ def create_menu(window):
     menubar.Append(file_menu, "&File")
     menubar.Append(edit_menu, "&Edit")
     menubar.Append(view_menu, "&View")
-    menubar.Append(tools_menu, "&Tools")
+    menubar.Append(tools_menu, "&ToolsMenu")
     menubar.Append(help_menu, "&Help")
 
     window.SetMenuBar(menubar)
@@ -1473,7 +1473,7 @@ def show_plot_limits_window(window):
 
 def open_thickogram_window(parent_window):
     """Open the thickogram calculator window"""
-    from libraries.Tools.ThickogramWindow import ThickogramWindow
+    from libraries.ToolsMenu.ThickogramWindow import ThickogramWindow
     thickogram_window = ThickogramWindow(parent_window)
     thickogram_window.Show()
 

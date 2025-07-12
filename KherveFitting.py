@@ -25,9 +25,9 @@ import platform
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
 from libraries.Fitting_Screen import *
-from libraries.Tools.AreaFit_Screen import *
+from libraries.ToolsMenu.AreaFit_Screen import *
 from libraries.Save import *
-from libraries.Tools.NoiseAnalysis import NoiseAnalysisWindow
+from libraries.ToolsMenu.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
 from libraries.Export import export_results
 from libraries.PlotConfig import PlotConfig
@@ -57,7 +57,7 @@ from libraries.Widgets_Toolbars import create_statusbar
 # from libraries.Export import export_word_report
 
 from libraries.Peak_Functions import AtomicConcentrations
-from libraries.Tools.Dpara_Screen import DParameterWindow
+from libraries.ToolsMenu.Dpara_Screen import DParameterWindow
 from libraries.Update import UpdateChecker
 
 from libraries.PeakFittingGrid import PeakFittingGrid

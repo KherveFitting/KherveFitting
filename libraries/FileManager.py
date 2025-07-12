@@ -4375,7 +4375,7 @@ class FileManagerWindow(wx.Frame):
         try:
             from scipy.ndimage import gaussian_filter
             import re
-            from libraries.Tools.PlotModWindow import PlotModWindow
+            from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 
             for sheet_name in selected_sheets:
                 update_console(f"Smoothing: {sheet_name}")
@@ -4460,7 +4460,7 @@ class FileManagerWindow(wx.Frame):
 
         try:
             import re
-            from libraries.Tools.PlotModWindow import PlotModWindow
+            from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 
             for sheet_name in selected_sheets:
                 update_console(f"Multiplying: {sheet_name}")
