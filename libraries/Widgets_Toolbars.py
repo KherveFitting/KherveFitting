@@ -1480,24 +1480,33 @@ def open_thickogram_window(parent_window):
 
 class ToggleToolbar(wx.Frame):
     def __init__(self, parent):
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
         super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
         if 'wxGTK' in wx.PlatformInfo:  # adapted for Linux
-            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT| wx.TB_TEXT)
-            self.toolbar.SetToolBitmapSize(wx.Size(400, 25))
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.SetToolBar(self.toolbar)  # Required for GTK to behave nicely
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+            def safe_bitmap(filename):  # Load bitmaps safely
+                filepath = os.path.join(icon_path, filename)
+                if os.path.exists(filepath):
+                    bmp = wx.Bitmap(filepath, wx.BITMAP_TYPE_PNG)
+                    if bmp.IsOk():  # check that bmp loading worked, bmp loading might silently fail on GTK/Linux and Mac
+                        return bmp
 
             # Add tools
-            self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot', wx.NullBitmap)
-            self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill', wx.NullBitmap)
-            self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis', wx.NullBitmap)
-            self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',wx.NullBitmap)
-            self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',wx.NullBitmap)
-            self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',wx.NullBitmap)
+            self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot', safe_bitmap(os.path.join(icon_path, "scatter-plot-25.png")))
+            self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill', safe_bitmap(os.path.join(icon_path, "STO-25-2.png")))
+            self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis', safe_bitmap(os.path.join(icon_path, "Y-25.png")))
+            self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',safe_bitmap(os.path.join(icon_path, "Legend-25.png")))
+            self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',safe_bitmap(os.path.join(icon_path, "ToggleFit-25.png")))
+            self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',safe_bitmap(os.path.join(icon_path, "Res-25.png")))
         else:
 
             self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
             self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+
 
             # Add tools
             self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot',
@@ -1518,7 +1527,7 @@ class ToggleToolbar(wx.Frame):
         self.toolbar.Realize()
         if 'wxGTK' in wx.PlatformInfo:  # adapted for Linux
             x, y = self.toolbar.GetBestSize()
-            self.SetSize(x + 40, y)
+            self.SetSize(x, y)
         else:
             self.SetSize(self.toolbar.GetBestSize())
 
@@ -1539,15 +1548,31 @@ class DeleteToolbar(wx.Frame):
         super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
 
         if 'wxGTK' in wx.PlatformInfo: #adapt for Linux
-            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_TEXT)
-            self.toolbar.SetToolBitmapSize(wx.Size(390, 25))
-            # Add tools
-            self.delete_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete All Results', wx.NullBitmap,
-                                                        shortHelp="Delete All Rows of the Results Grid")
-            self.delete_last_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete Last Row', wx.NullBitmap,
-                                                         shortHelp="Delete Last Row of the Results Grid")
-            self.delete_first_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete First Row', wx.NullBitmap,
-                                                          shortHelp="Delete First Row of the Results Grid")
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.SetToolBar(self.toolbar)  # Required for GTK to behave nicely
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+            def safe_bitmap(filename): # Load bitmaps safely
+                filepath = os.path.join(icon_path, filename)
+                if os.path.exists(filepath):
+                    bmp = wx.Bitmap(filepath, wx.BITMAP_TYPE_PNG)
+                    if bmp.IsOk(): # check that bmp loading worked, bmp loading might silently fail on GTK/Linux and Mac
+                        return bmp
+
+            self.delete_all_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete All Results',
+                safe_bitmap(os.path.join(icon_path, "AllRow-25.png")),
+                shortHelp="Delete All Rows of the Results Grid")
+
+            self.delete_last_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete Last Row',
+                safe_bitmap(os.path.join(icon_path, "LastRow-25.png")),
+                shortHelp="Delete Last Row of the Results Grid")
+
+            self.delete_first_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete First Row',
+                safe_bitmap(os.path.join(icon_path, "TopRow-25.png")),
+                shortHelp="Delete First Row of the Results Grid")
         else:
             self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
             self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
@@ -1569,7 +1594,7 @@ class DeleteToolbar(wx.Frame):
         self.toolbar.Realize()
         if 'wxGTK' in wx.PlatformInfo:  # adapt for Linux
             x,y=self.toolbar.GetBestSize()
-            self.SetSize(x+40,y)
+            self.SetSize(x,y)
         else:
             self.SetSize(self.toolbar.GetBestSize())
 

@@ -2805,7 +2805,7 @@ if __name__ == '__main__':
     # app = wx.App(redirect=False, clearSigInt=False)
 
     # Create Splash Screen
-    splash = show_splash(duration=2000, delay=0)
+    splash = show_splash(duration=2000)
 
     # Detect OS
     os_name = platform.system()
@@ -2822,11 +2822,9 @@ if __name__ == '__main__':
         pref_window = PreferenceWindow(frame)
         pref_window.OnSave(None)  # Save settings without user interaction
         print("Preferences applied")
-
+    splash.Destroy()
     frame.Show(True)
 
-    if splash:
-        splash.Destroy()
 
     # Open and close preference window to ensure consistent styling
     def apply_preferences(window):
