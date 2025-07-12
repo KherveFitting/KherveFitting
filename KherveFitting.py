@@ -57,7 +57,7 @@ from libraries.Widgets_Toolbars import create_statusbar
 # from libraries.Export import export_word_report
 
 from libraries.Peak_Functions import AtomicConcentrations
-from libraries.Dpara_Screen import DParameterWindow
+from libraries.Tools.Dpara_Screen import DParameterWindow
 from libraries.Update import UpdateChecker
 
 from libraries.PeakFittingGrid import PeakFittingGrid
