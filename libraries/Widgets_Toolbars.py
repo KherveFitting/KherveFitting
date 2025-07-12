@@ -1591,15 +1591,32 @@ class DeleteToolbar(wx.Frame):
         super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
 
         if 'wxGTK' in wx.PlatformInfo: #adapt for Linux
-            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_TEXT)
-            self.toolbar.SetToolBitmapSize(wx.Size(390, 25))
-            # Add tools
-            self.delete_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete All Results', wx.NullBitmap,
-                                                        shortHelp="Delete All Rows of the Results Grid")
-            self.delete_last_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete Last Row', wx.NullBitmap,
-                                                         shortHelp="Delete Last Row of the Results Grid")
-            self.delete_first_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete First Row', wx.NullBitmap,
-                                                          shortHelp="Delete First Row of the Results Grid")
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.SetToolBar(self.toolbar)  # Required for GTK to behave nicely
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+            def safe_bitmap(filename, fallback_art): # Load bitmaps safely (use Fallback of ArtProvider if corrupted)
+                filepath = os.path.join(icon_path, filename)
+                if os.path.exists(filepath):
+                    bmp = wx.Bitmap(filepath, wx.BITMAP_TYPE_PNG)
+                    if bmp.IsOk(): # check that bmp loading worked, bmp loading might silently fail on GTK/Linux and Mac
+                        return bmp
+                return wx.ArtProvider.GetBitmap(fallback_art, wx.ART_TOOLBAR, (25, 25)) # fallback to art provider
+
+            self.delete_all_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete All Results',
+                safe_bitmap(os.path.join(icon_path, "AllRow-25.png"), wx.ART_DELETE),
+                shortHelp="Delete All Rows of the Results Grid")
+
+            self.delete_last_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete Last Row',
+                safe_bitmap(os.path.join(icon_path, "LastRow-25.png"), wx.ART_GO_DOWN),
+                shortHelp="Delete Last Row of the Results Grid")
+
+            self.delete_first_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete First Row',
+                safe_bitmap(os.path.join(icon_path, "TopRow-25.png"), wx.ART_GO_UP),
+                shortHelp="Delete First Row of the Results Grid")
         else:
             self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
             self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
@@ -1621,7 +1638,7 @@ class DeleteToolbar(wx.Frame):
         self.toolbar.Realize()
         if 'wxGTK' in wx.PlatformInfo:  # adapt for Linux
             x,y=self.toolbar.GetBestSize()
-            self.SetSize(x+40,y)
+            self.SetSize(x,y)
         else:
             self.SetSize(self.toolbar.GetBestSize())
 
