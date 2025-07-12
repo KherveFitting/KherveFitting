@@ -2659,7 +2659,7 @@ class MyFrame(wx.Frame):
             self.canvas.draw()
 
     def open_labels_window(self, event):
-        from libraries.Labels_Screen import LabelWindow
+        from libraries.ViewMenu.Labels_Screen import LabelWindow
         if not hasattr(self, 'labels_window') or not self.labels_window:
             self.labels_window = LabelWindow(self)
         self.labels_window.Show()
