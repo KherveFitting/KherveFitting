@@ -37,7 +37,6 @@ class SplashScreen:
             wx.CallLater(self.duration, self.Destroy)
 
     def Destroy(self):
-        print('destroy')
         if self.splash:
             self.splash.Destroy()
             self.splash = None
