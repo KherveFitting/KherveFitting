@@ -1,9 +1,9 @@
 import wx
 import wx.html
 import os
-import sys
 import webbrowser
-import urllib.parse
+
+
 # import pygame
 
 
@@ -375,7 +375,7 @@ def show_shortcuts(parent):
 
 
 def show_mini_game(parent):
-    from libraries.MiniGame import ParticleSimulation
+    from libraries.Games.MiniGame import ParticleSimulation
     import pygame
     pygame.init()
     sim = ParticleSimulation()
