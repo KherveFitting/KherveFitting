@@ -22,18 +22,18 @@ from libraries.Export import export_word_report
 from libraries.Utilities import CropWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
 from libraries.Tools.PlotModWindow import PlotModWindow
 from libraries.MarketResearch import launch_registration_form
-from libraries.Help import report_bug
-from Functions import (import_avantage_file, save_all_sheets_with_plots, open_avg_file,
-                       import_multiple_avg_files, create_plot_script_from_excel, on_save_plot_pdf, on_save_plot_svg, on_exit)
-from libraries.Help import show_shortcuts, show_mini_game, on_about
+from libraries.HelpMenu.Help import report_bug
+from Functions import (on_save_plot_pdf, on_save_plot_svg, on_exit)
+from libraries.Open import import_avantage_file, open_avg_file, import_multiple_avantage_files, import_multiple_avg_files
+from libraries.Save import save_all_sheets_with_plots, create_plot_script_from_excel, refresh_sheets, undo, redo
+from libraries.HelpMenu.Help import show_shortcuts, show_mini_game, on_about
 from libraries.Utilities import add_draggable_text
-from Functions import refresh_sheets, on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1, undo, redo
+from Functions import on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1
 
 from libraries.Save import on_backup_main
 from libraries.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
 from libraries.HelpMenu.DownloadStats import show_download_stats_window
-from libraries.Open import import_multiple_avantage_files
 from libraries.Open import import_multiple_kfitting_files
 from libraries.Save import save_vamas_file_dialog
 
