@@ -26,9 +26,9 @@ class ThickogramWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             window_size = (800, 540)  # Smaller for macOS
         elif 'wxGTK' in wx.PlatformInfo:  # Linux
-            window_size = (900, 640)
+            window_size = (920, 660)
         else:  # Windows
-            window_size = (900, 640)
+            window_size = (920, 660)
 
         super().__init__(parent, title="Cumpson-Lee Thickogram / Updated from DaveXPS v0.1",
                          size=window_size,
