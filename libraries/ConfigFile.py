@@ -5,88 +5,6 @@ import pandas as pd
 import wx
 import matplotlib.pyplot as plt
 
-# def Init_Measurement_Data2(window):
-#     Data = {
-#         'FilePath': '',
-#         'Number of Core levels': 1,
-#         'Core levels':{
-#             'Name': '',
-#             'B.E.': [],
-#             'Raw Data': [],
-#             'Background': {
-#                 'Bkg Type': 'Shirley',
-#                 'Bkg Low': 0,
-#                 'Bkg High': 1200,
-#                 'Bkg Offset Low': 0,
-#                 'Bkg Offset High': 0,
-#                 'Bkg x array': [],
-#                 'Bkg y array': []
-#             },
-#             'Fitting': {
-#                 'Peak': {
-#                     'Label':'A',
-#                     'Position': 529,
-#                     'Height': 1e3,
-#                     'FWHM': 1.3,
-#                     'L/G': 0.3,
-#                     'Area': '',
-#                     'at. %': '',
-#                     'RSF': 1.0,
-#                     'Fitting Model': 'GL',
-#                     'Rel. Area': 0,
-#                     'Sigma': 0.2,
-#                     'Gamma': 0.3,
-#                     'Pos. Constraint': '1,1.1e3',
-#                     'Height Constraint': '1,1e7',
-#                     'FWHM Constraint': '0.2,3.5',
-#                     'L/G Constraint': '0.1,0.5',
-#                     'Area Constraint':'1,1e7',
-#                     'Sigma Constraint': '0.01:2',
-#                     'Gamma Constraint': '0.01:1'
-#                 }
-#             }
-#         },
-#         'Results': {
-#             'Peak': {
-#                 'Label': 'A',
-#                 'Position': 529,
-#                 'Height': 1e3,
-#                 'FWHM': 1.3,
-#                 'L/G': 0.3,
-#                 'Area': '',
-#                 'at. %': '',
-#                 'RSF': 1.0,
-#                 'Fitting Model': 'GL',
-#                 'Rel. Area': 0,
-#                 'Sigma': 0.2,
-#                 'Gamma': 0.3,
-#                 'Pos. Constraint': '0,1e3',
-#                 'Height Constraint': '0,1e7',
-#                 'FWHM Constraint': '0.2,3.5',
-#                 'L/G Constraint': '0.1,0.5',
-#                 'Area Constraint': '1,1e7',
-#                 'Sigma Constraint': '0.01:2',
-#                 'Gamma Constraint': '0.01:1'
-#             }
-#         }
-#
-#
-#     }
-#     return(Data)
-
-# def Init_Measurement_Data_OLD(window):
-#     Data = {
-#         'FilePath': '',
-#         'Number of Core levels': 0,
-#         'Core levels':{
-#         },
-#         'Results': {
-#             'Peak': {
-#             }
-#         }
-#     }
-#     return(Data)
-
 
 def Init_Measurement_Data(window):
     Data = {
@@ -110,15 +28,6 @@ def add_core_level_Data(data, window, file_path, sheet_name):
     The sheet_name corresponds to the core level label.
     Uses the window.skip_rows_spinbox value to determine how many rows to skip.
     """
-    # # FIXED: Ensure required keys exist before incrementing
-    # if 'Number of Core levels' not in data:
-    #     data['Number of Core levels'] = 0
-    # if 'Core levels' not in data:
-    #     data['Core levels'] = {}
-    #
-    # # Only increment if this is a new sheet
-    # if sheet_name not in data['Core levels']:
-    #     data['Number of Core levels'] += 1
 
     if sheet_name.startswith('Sheet'):
         wx.MessageBox(f"Sheet names must be core level names (e.g., C1s, O1s).\nInvalid sheet name: '{sheet_name}'",
