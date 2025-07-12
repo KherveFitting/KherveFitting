@@ -65,7 +65,7 @@ from libraries.PeakManipulation import PeakManipulation
 from libraries.On_Key_Defs import setup_key_handlers
 from libraries.On_Mouse_Defs import setup_mouse_handlers
 
-from libraries.QuickSettings import QuickSettings
+from libraries.EditMenu.QuickSettings import QuickSettings
 
 from libraries.Area_Calculation import ATOMIC_MASSES
 
