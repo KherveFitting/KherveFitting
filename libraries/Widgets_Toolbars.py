@@ -22,7 +22,8 @@ from libraries.Open import open_vamas_file_dialog, open_kal_file_dialog, import_
 from libraries.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
 from libraries.Open import import_xps_csv_file, import_multiple_xps_csv_files
 from libraries.Export import export_word_report
-from libraries.Utilities import CropWindow, PlotModWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
+from libraries.Utilities import CropWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
+from libraries.Tools.PlotModWindow import PlotModWindow
 from libraries.MarketResearch import check_registration_needed, launch_registration_form
 from libraries.Help import show_libraries_used, show_version_log, report_bug
 from Functions import (import_avantage_file, on_save, save_all_sheets_with_plots, save_results_table, open_avg_file,
@@ -102,7 +103,7 @@ def show_flappybird_game(window):
                      "Not Available", wx.OK | wx.ICON_INFORMATION)
         return
     try:
-        from libraries.Flappybird import main as flappybird_main
+        from libraries.Games.Flappybird import main as flappybird_main
         flappybird_main()
     except Exception as e:
         print(f"Error launching Flappybird game: {e}")
