@@ -1,6 +1,3 @@
-
-
-from scipy import interpolate
 import json
 import numpy as np
 import wx
@@ -12,13 +9,14 @@ import pandas as pd
 from libraries.ConfigFile import add_core_level_Data
 import openpyxl
 from openpyxl.drawing.image import Image
-from openpyxl.styles import Font, Border, Side, PatternFill, Alignment
+from openpyxl.styles import Font, Alignment
 from openpyxl.styles import Border, Side, PatternFill, Font
-from openpyxl import load_workbook
 from libraries.Sheet_Operations import on_sheet_selected
 from copy import deepcopy
 import shutil
-import datetime
+import requests
+
+
 # from Functions import convert_to_serializable_and_round
 
 
@@ -515,222 +513,6 @@ def ensure_sliceable(data, length):
     else:
         # If data is a scalar (like a float), repeat it to create a list
         return [data] * length
-
-def save_to_excel_OLD(window, data, file_path, sheet_name):
-    # Add this function near the beginning of Save.py file
-    def safe_get(obj, key, default=None):
-        """Safely access dictionary keys or list indices without causing errors."""
-        if isinstance(obj, dict) and key in obj:
-            return obj[key]
-        elif isinstance(obj, (list, tuple, np.ndarray)) and isinstance(key, int) and 0 <= key < len(obj):
-            return obj[key]
-        return default
-
-    existing_df = pd.read_excel(file_path, sheet_name=sheet_name)
-
-    # Rename column if first column is "BE"
-    if existing_df.columns[0] == "BE":
-        existing_df.rename(columns={"BE": "Binding Energy (eV)"}, inplace=True)
-
-    # Determine the column containing experimental data (if present)
-    exp_data_col = None
-    exp_data_columns = []
-
-    for col_idx, col_name in enumerate(existing_df.columns):
-        if col_name == "Experimental Description":
-            exp_data_col = col_idx
-            # Collect all columns from this point to the end
-            for i in range(col_idx, len(existing_df.columns)):
-                exp_data_columns.append({
-                    'name': existing_df.columns[i],
-                    'data': existing_df.iloc[:, i]
-                })
-            break
-
-    # Remove previously fitted data if it exists
-    if existing_df.shape[1] > 5:
-        existing_df = existing_df.iloc[:, :5]
-
-    # Add columns if there aren't enough
-    while existing_df.shape[1] < 5:
-        existing_df[f'Column_{existing_df.shape[1] + 1}'] = ''
-
-    # Ensure there's an empty column E
-    if existing_df.shape[1] < 5:
-        existing_df.insert(4, '', np.nan)
-
-    if 'x_values' in data and data['x_values'] is not None:
-        x_values = data['x_values'].to_numpy() if isinstance(data['x_values'], pd.Series) else data['x_values']
-
-        # Create a new DataFrame with all data we want to add
-        new_columns = {'BE': x_values}
-
-        if data['background'] is not None and data['calculated_fit'] is not None:
-            mask = np.isin(data['x_values'], x_values)
-            y_values = data['y_values'][mask]
-
-            if len(y_values) == len(data['calculated_fit']):
-                new_columns['Residuals'] = y_values - data['calculated_fit']
-
-        new_columns['Background'] = data['background'] if data['background'] is not None else np.nan
-        new_columns['Calculated Fit'] = data['calculated_fit'] if data['calculated_fit'] is not None else np.nan
-
-        if data['individual_peak_fits']:
-            num_rows = len(x_values)
-            num_peaks = data['peak_params_grid'].GetNumberRows() // 2
-            for i in range(num_peaks):
-                row = i * 2
-                peak_label = data['peak_params_grid'].GetCellValue(row, 1)
-                if i < len(data['individual_peak_fits']):
-                    reversed_peak = np.array(data['individual_peak_fits'][i])[::-1]
-                    trimmed_peak = np.roll(reversed_peak, -1)[:num_rows]
-                    new_columns[peak_label] = trimmed_peak
-
-
-
-        # Now insert all columns at position 5
-        col_pos = 5
-        for col_name, col_data in new_columns.items():
-            # Ensure no duplicate column names
-            unique_name = col_name
-            counter = 1
-            while unique_name in existing_df.columns:
-                unique_name = f"{col_name}_{counter}"
-                counter += 1
-
-            # Insert column ensuring lengths match
-            # existing_df.insert(col_pos, unique_name, col_data[:len(existing_df)])
-            existing_df.insert(col_pos, unique_name, ensure_sliceable(col_data, len(existing_df)))
-            col_pos += 1
-
-        # Ensure there are at least 23 columns (A to W)
-        while existing_df.shape[1] < 23:
-            existing_df[f'Column_{existing_df.shape[1] + 1}'] = ''
-
-        # Rename columns starting with "Unnamed" or "Column" to empty string
-        existing_df.columns = ['' if col.startswith(('Unnamed', 'Column')) else col for col in existing_df.columns]
-
-        # Ensure column E is empty
-        if existing_df.columns[4] != '':
-            existing_df.rename(columns={existing_df.columns[4]: ''}, inplace=True)
-
-        # Create DataFrame for peak fitting parameters
-        peak_params_df = pd.DataFrame()
-        for col in range(window.peak_params_grid.GetNumberCols()):
-            col_name = window.peak_params_grid.GetColLabelValue(col)
-            col_data = [window.peak_params_grid.GetCellValue(row, col) for row in
-                        range(window.peak_params_grid.GetNumberRows())]
-            peak_params_df[col_name] = col_data
-
-        # Add peak_params_df to existing_df starting from column 23 (X)
-        for i, col in enumerate(peak_params_df.columns):
-            existing_df.insert(23 + i, col, peak_params_df[col])
-
-        # Handle D-parameter derivative data
-        if window.selected_fitting_method == "D-parameter":
-            if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in \
-                    window.Data['Core levels'][sheet_name][
-                        'Fitting']:
-                d_param_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks'].get(
-                    'D-parameter')
-                if d_param_data and 'Derivative' in d_param_data:
-                    filtered_data['Derivative'] = d_param_data['Derivative']
-                    existing_df.insert(7, 'Derivative', d_param_data['Derivative'])
-
-        # Restore experimental data columns if they were present
-        if exp_data_columns:
-            # Add three separator columns
-            existing_df[''] = ''  # First separator column
-            existing_df['  '] = ''  # Second separator column with two spaces
-            existing_df['   '] = ''  # Third separator column with three spaces
-
-            # Then append the experimental data columns
-            for col_info in exp_data_columns:
-                col_name = col_info['name']
-                # Ensure the column name is unique
-                suffix = 1
-                original_name = col_name
-                while col_name in existing_df.columns:
-                    col_name = f"{original_name}_{suffix}"
-                    suffix += 1
-
-                existing_df[col_name] = col_info['data']
-
-        with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-            existing_df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-            # Remove border from first row
-            workbook = writer.book
-            worksheet = workbook[sheet_name]
-            for cell in worksheet[1]:
-                cell.border = openpyxl.styles.Border(
-                    left=openpyxl.styles.Side(style=None),
-                    right=openpyxl.styles.Side(style=None),
-                    top=openpyxl.styles.Side(style=None),
-                    bottom=openpyxl.styles.Side(style=None)
-                )
-
-                # Define styles
-                thin_side = Side(style='thin')
-                thick_side = Side(style='medium')
-                green_fill = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")  # Light green
-                bold_font = Font(bold=True)
-
-                start_row = 2  # Assuming data starts from the second row
-                num_peak_rows = window.peak_params_grid.GetNumberRows()
-                end_row = start_row + num_peak_rows - 1
-                start_col = 24  # Column X (24th column)
-                end_col = min(start_col + window.peak_params_grid.GetNumberCols(), worksheet.max_column+1)
-                #print(f"start_col: {start_col}, end_col: {start_col + window.peak_params_grid.GetNumberCols() - 1}
-                # OR {worksheet.max_column}")
-
-                for row in range(start_row - 1, end_row + 1):  # Start from header row
-                    for col in range(start_col, end_col):
-                        if col >= worksheet.max_column+1:
-                            print(f"Skipping column {col} as it exceeds max_column {worksheet.max_column}")
-                            continue
-
-                        cell = worksheet.cell(row=row, column=col)
-
-                        # Default to thin borders
-                        left = right = top = bottom = thin_side
-
-                        # Header row
-                        if row == start_row - 1:
-                            cell.fill = green_fill
-                            cell.font = bold_font
-                            top = thick_side
-
-                        # Add thick borders for outer edges
-                        if row == start_row - 1 or row == end_row:
-                            bottom = thick_side
-                        if col == start_col:
-                            left = thick_side
-                        if col == end_col:
-                            right = thick_side
-
-                        # Add thick bottom border for every second row (constraints row)
-                        if (row - start_row + 1) % 2 == 0:
-                            bottom = thick_side
-
-                        cell.border = Border(left=left, right=right, top=top, bottom=bottom)
-
-                # Add citation row
-                citation_row = end_row + 1
-                citation_text = "Please cite KherveFitting software: Kerherve G. et al. Surface and Interface Analysis (2025) TBD"
-                citation_cell = worksheet.cell(row=citation_row, column=start_col, value=citation_text)
-                citation_cell.font = Font(italic=True)
-                # Merge cells across the width of the peak params table
-                worksheet.merge_cells(start_row=citation_row, start_column=start_col,
-                                      end_row=citation_row, end_column=end_col)
-
-        # After saving to Excel, update the plot with the current limits
-        if hasattr(window, 'plot_config'):
-            limits = window.plot_config.get_plot_limits(window, sheet_name)
-            window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
-            window.ax.set_ylim(limits['Ymin'], limits['Ymax'])
-            window.canvas.draw_idle()
-
 
 def save_to_excel(window, data, file_path, sheet_name, update_console=None):
     # Add this function near the beginning of Save.py file
@@ -2145,7 +1927,7 @@ def load_peaks_library(window):
     import wx
     import json
     from libraries.Sheet_Operations import on_sheet_selected
-    from libraries.Fitting_Screen import FittingWindow
+    from libraries.ToolsMenu.Fitting_Screen import FittingWindow
     import re
 
     with wx.FileDialog(window, "Load peaks library", wildcard="JSON files (*.json)|*.json",
@@ -2446,9 +2228,6 @@ def save_vamas_file(window, output_path=None):
         window: The main application window object containing the data
         output_path: Optional path for output file. If None, shows save dialog.
     """
-    import os
-    import json
-    import datetime
 
     try:
         if 'FilePath' not in window.Data or not window.Data['FilePath']:
@@ -2516,7 +2295,6 @@ def get_experimental_description_data(window):
     Returns:
         dict: Dictionary containing experimental parameters for each core level
     """
-    import pandas as pd
     import json
     import os
 
@@ -2828,7 +2606,6 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
     # Import existing libraries
     from libraries.Open import load_library_data
     from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES
-    import re
 
     # Load RSF library data and get current instrument
     library_data = load_library_data()
@@ -3683,8 +3460,28 @@ def paste_core_level(window):
 
         # Refresh sheets after pasting
         try:
+            # Create console window for refresh operation
+            parent_pos = window.GetPosition()
+            parent_size = window.GetSize()
+            console_frame = wx.Frame(window, title="Refreshing Sheets", size=(300, 200))
+            console_frame.SetPosition((
+                parent_pos.x + (parent_size.width - 300) // 2,
+                parent_pos.y + (parent_size.height - 200) // 2
+            ))
+            console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            console_frame.Show()
+
+            def update_console(message):
+                console_text.AppendText(message + '\n')
+                console_text.Update()
+                wx.SafeYield()
+
             from libraries.Sheet_Operations import on_sheet_selected
             refresh_sheets(window, on_sheet_selected, update_console)
+
+            # Close console after refresh
+            wx.CallLater(500, console_frame.Close)
+
         except Exception as refresh_err:
             print(f"Error refreshing sheets: {refresh_err}")
 

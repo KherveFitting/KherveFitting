@@ -1,5 +1,4 @@
 import wx
-from libraries.Plot_Operations import PlotManager
 from libraries.Save import save_state
 from Functions import remove_peak
 import numpy as np
@@ -501,7 +500,7 @@ class BackgroundWindow(wx.Frame):
             pass
 
     def on_tougaard_model(self, event):
-        from libraries.Fitting_Screen import TougaardFitWindow
+        from libraries.ToolsMenu.Fitting_Screen import TougaardFitWindow
         TougaardFitWindow(self).Show()
 
     def on_close(self, event):
