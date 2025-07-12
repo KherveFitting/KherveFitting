@@ -52,7 +52,7 @@ from libraries.Save import save_state, undo, redo
 # from libraries.Utilities import copy_cell, paste_cell
 
 from libraries.Open import load_recent_files_from_config
-from libraries.survey import PeriodicTableWindow
+from libraries.ToolsMenu.survey import PeriodicTableWindow
 from libraries.Widgets_Toolbars import create_widgets, create_menu
 from libraries.Widgets_Toolbars import create_statusbar
 
