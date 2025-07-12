@@ -1,4 +1,3 @@
-import wx
 import os
 import json
 import openpyxl
@@ -6,9 +5,6 @@ import xlrd
 import wx
 import re
 import sys
-import pandas as pd
-import struct
-from pathlib import Path
 import shutil
 from vamas import Vamas
 from openpyxl import Workbook
@@ -16,7 +12,6 @@ import numpy as np
 from scipy.interpolate import interp1d
 import pandas as pd
 from openpyxl.styles import Alignment
-from yadg.extractors.phi.spe import extract  # NOTE THIS LIBRARY HAS BEEN TRANSFORMED
 
 from libraries.ConfigFile import Init_Measurement_Data, add_core_level_Data
 from libraries.Save import update_undo_redo_state, save_state
@@ -83,9 +78,6 @@ class ExcelDropTarget(wx.FileDropTarget):
         return False
 
     def OnDropFiles(self, x, y, filenames):
-        from libraries.Open import (open_xlsx_file, open_vamas_file, open_kal_file,
-                                    open_avg_file_direct, open_spe_file, open_mrs_file,
-                                    open_vg_microtech_file)
 
         # Check all files are valid first
         for file in filenames:
@@ -1481,7 +1473,6 @@ def import_mrs_file(window):
     import wx
     import os
     import re
-    import numpy as np
     from openpyxl import Workbook
 
     with wx.FileDialog(window, "Open MRS file", wildcard="MRS files (*.mrs)|*.mrs",
@@ -1910,7 +1901,6 @@ def import_multiple_avantage_files(window):
 
 def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
     """Process xlsx Avantage file and add numbered core levels to combined workbook"""
-    import re
     from openpyxl.utils import get_column_letter  # ADDED
 
     sheets_to_process = []
@@ -2007,7 +1997,6 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
 
 def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
     """Process xls Avantage file and add numbered core levels to combined workbook"""
-    import re
     import openpyxl  # ADDED
     from openpyxl.utils import get_column_letter  # ADDED
 
@@ -2731,7 +2720,7 @@ def open_xlsx_file_OLD(window, file_path=None):
 
         # Reopen file manager if it was open
         if file_manager_was_open:
-            from libraries.FileManager import FileManagerWindow
+            from libraries.ViewMenu.FileManager import FileManagerWindow
             window.file_manager = FileManagerWindow(window)
             if file_manager_position:
                 window.file_manager.SetPosition(file_manager_position)
@@ -2890,7 +2879,7 @@ def open_xlsx_file(window, file_path=None):
 
         # Restore file manager
         if file_manager_was_open:
-            from libraries.FileManager import FileManagerWindow
+            from libraries.ViewMenu.FileManager import FileManagerWindow
             window.file_manager = FileManagerWindow(window)
             if file_manager_position:
                 window.file_manager.SetPosition(file_manager_position)
@@ -4407,7 +4396,6 @@ def open_kal_file(window, file_path):
 def import_raman_txt_file(window):
     import wx
     import os
-    import pandas as pd
     import openpyxl
     from libraries.Open import open_xlsx_file
 
@@ -4483,7 +4471,6 @@ def import_raman_txt_file(window):
 def import_multiple_raman_files(window):
     import wx
     import os
-    import pandas as pd
     import openpyxl
     from libraries.Open import open_xlsx_file
 
@@ -4571,7 +4558,6 @@ def import_multiple_raman_files(window):
 def import_xps_asc_file(window):
     import wx
     import os
-    import pandas as pd
     import openpyxl
     from libraries.Open import open_xlsx_file
 
@@ -4647,7 +4633,6 @@ def import_xps_asc_file(window):
 def import_multiple_xps_asc_files(window):
     import wx
     import os
-    import pandas as pd
     import openpyxl
     from libraries.Open import open_xlsx_file
 

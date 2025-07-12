@@ -2675,7 +2675,7 @@ class MyFrame(wx.Frame):
 
     def on_open_file_manager(self, event):
         """Open the file manager window"""
-        from libraries.FileManager import FileManagerWindow
+        from libraries.ViewMenu.FileManager import FileManagerWindow
         if not hasattr(self, 'file_manager') or not self.file_manager:
             self.file_manager = FileManagerWindow(self)
         self.file_manager.Show()
