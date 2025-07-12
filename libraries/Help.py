@@ -376,6 +376,7 @@ def show_shortcuts(parent):
 
 def show_mini_game(parent):
     from libraries.MiniGame import ParticleSimulation
+    import pygame
     pygame.init()
     sim = ParticleSimulation()
     sim.run()

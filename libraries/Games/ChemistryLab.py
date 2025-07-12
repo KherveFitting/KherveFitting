@@ -899,7 +899,7 @@ class ChemistryLabGame:
         overlay.fill(BLACK)
         self.screen.blit(overlay, (0, 0))
 
-        # Help panel
+        # HelpMenu panel
         panel_rect = pygame.Rect(20, 15, SCREEN_WIDTH - 40, SCREEN_HEIGHT - 30)
         pygame.draw.rect(self.screen, WHITE, panel_rect)
         pygame.draw.rect(self.screen, BLACK, panel_rect, 3)
@@ -1045,7 +1045,7 @@ class ChemistryLabGame:
         self.screen.blit(score_surface, (SCREEN_WIDTH - 150, 40))
         self.screen.blit(progress_surface, (SCREEN_WIDTH - 150, 60))
 
-        # Help button
+        # HelpMenu button
         pygame.draw.rect(self.screen, YELLOW, self.help_button)
         pygame.draw.rect(self.screen, BLACK, self.help_button, 2)
         help_text = self.tiny_font.render("HELP", True, BLACK)

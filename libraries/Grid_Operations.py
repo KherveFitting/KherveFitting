@@ -1,6 +1,7 @@
 # libraries/grid_operations.py
 
 import wx
+import wx.grid  # Add this line
 
 def populate_results_grid(window):
     # Get current sheet name and extract row number

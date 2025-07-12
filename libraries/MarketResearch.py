@@ -1184,7 +1184,7 @@ def launch_mini_registration_form(parent=None):
         dialog = MiniRegistrationForm(parent)
         dialog.Show()
     else:
-        show_mini_registration_form()
+        show_mini_registration()
 
 def check_registration_needed():
     """Check if registration is needed by looking at config file"""
@@ -1213,11 +1213,11 @@ def show_registration_form():
 
 
 # Function to be called on first run or from Help menu
-def launch_registration_form(parent=None):
+def launch_registration_form(window):
     """Launch the registration form, optionally as modal if parent is provided"""
-    if parent:
+    if window:
         # If called from Help menu with a parent window
-        dialog = RegistrationForm()
+        dialog = RegistrationForm(window)
         dialog.Show()
     else:
         # If called on first run
@@ -1225,5 +1225,5 @@ def launch_registration_form(parent=None):
 
 
 if __name__ == "__main__":
-    show_mini_registration_form()
+    show_mini_registration()
     # show_registration_form()

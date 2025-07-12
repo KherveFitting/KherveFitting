@@ -5,6 +5,7 @@
 import multiprocessing
 import os
 import psutil
+from libraries.Grid_Operations import on_results_grid_cell_changed
 
 os.environ['OMP_NUM_THREADS'] = str(multiprocessing.cpu_count())
 os.environ['MKL_NUM_THREADS'] = str(multiprocessing.cpu_count())
