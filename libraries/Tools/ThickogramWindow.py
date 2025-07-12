@@ -52,7 +52,7 @@ class ThickogramWindow(wx.Frame):
 
         # Create Help menu
         help_menu = wx.Menu()
-        about_item = help_menu.Append(wx.ID_ABOUT, "&About\tF1", "About Thickogram Calculator")
+        about_item = help_menu.Append(wx.ID_ABOUT, "&About", "About Thickogram Calculator")
 
         # Add menus to menu bar
         menubar.Append(file_menu, "&File")
