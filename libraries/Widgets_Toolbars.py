@@ -978,6 +978,14 @@ def create_horizontal_toolbar(parent, window):
     window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
     window.Bind(wx.EVT_TOOL, window.on_differentiate, diff_tool)
 
+    # Add thickogram tool using d-par icon and existing function
+    thickogram_tool = toolbar.AddTool(wx.ID_ANY, 'Thickogram',
+                                      wx.Bitmap(os.path.join(icon_path, "Thicko-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Open Thickogram Calculator")
+
+    window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: open_thickogram_window(window), thickogram_tool)
+
     toolbar.AddSeparator()
 
     # noise_analysis_tool = toolbar.AddTool(wx.ID_ANY, 'Noise Analysis',
