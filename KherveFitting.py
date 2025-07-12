@@ -2827,7 +2827,7 @@ if __name__ == '__main__':
         pref_window = PreferenceWindow(frame)
         pref_window.OnSave(None)  # Save settings without user interaction
         print("Preferences applied")
-
+    splash.Destroy()
     frame.Show(True)
 
 
