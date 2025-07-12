@@ -26,7 +26,7 @@ matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
 from libraries.Fitting_Screen import *
 from libraries.Tools.AreaFit_Screen import *
 from libraries.Save import *
-from libraries.NoiseAnalysis import NoiseAnalysisWindow
+from libraries.Tools.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
 from libraries.Export import export_results
 from libraries.PlotConfig import PlotConfig
