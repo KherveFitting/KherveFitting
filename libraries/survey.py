@@ -1,12 +1,11 @@
 import wx
 import numpy as np
-from libraries.Sheet_Operations import on_sheet_selected
 import os
 import sys
 
 # Import the ElementTile class and try to import KherveDB methods
 try:
-    from libraries.kherveDB_wxpython import ElementTile, PeriodicTableXPS
+    from libraries.HelpMenu.kherveDB_wxpython import ElementTile, PeriodicTableXPS
     KHERVE_AVAILABLE = True
 except ImportError:
     KHERVE_AVAILABLE = False

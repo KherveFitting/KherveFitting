@@ -2780,7 +2780,7 @@ class MyFrame(wx.Frame):
         nist_window.mainloop()
 
     def open_kherve_db(self, kherveDB_wxpython=None):
-        from libraries.kherveDB_wxpython import PeriodicTableXPS
+        from libraries.HelpMenu.kherveDB_wxpython import PeriodicTableXPS
         kherve_frame = PeriodicTableXPS()
         kherve_frame.Show()
 
