@@ -1595,7 +1595,7 @@ class DeleteToolbar(wx.Frame):
             self.SetToolBar(self.toolbar)  # Required for GTK to behave nicely
             self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-            def safe_bitmap(filename, fallback_art): # Load bitmaps safely
+            def safe_bitmap(filename): # Load bitmaps safely
                 filepath = os.path.join(icon_path, filename)
                 if os.path.exists(filepath):
                     bmp = wx.Bitmap(filepath, wx.BITMAP_TYPE_PNG)
