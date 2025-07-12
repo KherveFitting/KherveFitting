@@ -39,7 +39,7 @@ from libraries.Peak_Functions import PeakFunctions
 # from libraries.Peak_Functions import gauss_lorentz, S_gauss_lorentz
 
 from Functions import update_sheet_names, rename_sheet, on_sheet_selected_wrapper
-from libraries.PreferenceWindow import PreferenceWindow
+from libraries.EditMenu.PreferenceWindow import PreferenceWindow
 
 # from libraries.Sheet_Operations import on_sheet_selected
 

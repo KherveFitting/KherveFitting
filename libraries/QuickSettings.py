@@ -92,7 +92,7 @@ class QuickSettings:
 
     def update_preference_windows(self, photon_energy, instrument):
         """Update any open preference windows with new settings"""
-        from libraries.PreferenceWindow import PreferenceWindow
+        from libraries.EditMenu.PreferenceWindow import PreferenceWindow
 
         for window in wx.GetTopLevelWindows():
             if isinstance(window, PreferenceWindow):
