@@ -2,7 +2,7 @@ import wx
 import numpy as np
 import os
 from libraries.Sheet_Operations import on_sheet_selected
-from libraries.Save import save_state
+from libraries.FileMenu.Save import save_state
 import platform
 
 
@@ -637,7 +637,7 @@ class MouseEventHandler:
         if event.button == 3:
             import os
             import tempfile
-            from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters, copy_core_level, \
+            from libraries.FileMenu.Save import copy_all_peak_parameters, paste_all_peak_parameters, copy_core_level, \
                 paste_core_level
 
             menu = wx.Menu()
@@ -764,7 +764,7 @@ class MouseEventHandler:
         propagate_item.Enable(col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1)
 
         # Bind events
-        from libraries.Save import copy_all_peak_parameters, paste_all_peak_parameters
+        from libraries.FileMenu.Save import copy_all_peak_parameters, paste_all_peak_parameters
         from libraries.Utilities import propagate_constraint, propagate_fwhm_difference
 
         self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_item)

@@ -1,6 +1,5 @@
 import wx
 import numpy as np
-import re
 import os
 from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
@@ -211,7 +210,7 @@ class PlotModWindow(wx.Frame):
         # Update JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
         if os.path.exists(json_file_path):
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)

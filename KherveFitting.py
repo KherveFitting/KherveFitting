@@ -26,7 +26,7 @@ from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
 from libraries.ToolsMenu.Fitting_Screen import *
 from libraries.ToolsMenu.AreaFit_Screen import *
-from libraries.Save import *
+from libraries.FileMenu.Save import *
 from libraries.ToolsMenu.NoiseAnalysis import NoiseAnalysisWindow
 from libraries.ConfigFile import *
 from libraries.FileMenu.Export import export_results
@@ -46,7 +46,7 @@ from libraries.EditMenu.PreferenceWindow import PreferenceWindow
 # from libraries.Sheet_Operations import on_sheet_selected
 
 from libraries.SplashScreen import show_splash
-from libraries.Save import save_state, undo, redo
+from libraries.FileMenu.Save import save_state, undo, redo
 
 # from libraries.Open import ExcelDropTarget
 # from libraries.Utilities import copy_cell, paste_cell
@@ -421,7 +421,7 @@ class MyFrame(wx.Frame):
             clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
             paste_item.Enable(os.path.exists(clipboard_file))
 
-            from libraries.Save import copy_peak_parameters, paste_peak_parameters
+            from libraries.FileMenu.Save import copy_peak_parameters, paste_peak_parameters
             self.Bind(wx.EVT_MENU, lambda evt: copy_peak_parameters(self, peak_index), copy_item)
             self.Bind(wx.EVT_MENU, lambda evt: paste_peak_parameters(self, peak_index), paste_item)
 
@@ -2158,7 +2158,7 @@ class MyFrame(wx.Frame):
                 # Refresh and update
                 self.results_grid.ForceRefresh()
                 self.update_atomic_percentages()
-                from libraries.Save import save_state
+                from libraries.FileMenu.Save import save_state
                 save_state(self)
             else:
                 event.Skip()
@@ -2741,7 +2741,7 @@ class MyFrame(wx.Frame):
                     self.clear_and_replot()
 
                     # Save state for undo functionality
-                    from libraries.Save import save_state
+                    from libraries.FileMenu.Save import save_state
                     save_state(self)
 
                     self.after_checkbox_update()
@@ -2766,7 +2766,7 @@ class MyFrame(wx.Frame):
         self.canvas.draw_idle()
 
         # Save state
-        from libraries.Save import save_state
+        from libraries.FileMenu.Save import save_state
         save_state(self)
 
     def try_float(self, value, default=0.0):

@@ -8,13 +8,13 @@ import numpy as np
 import lmfit
 
 from libraries.Peak_Functions import PeakFunctions
-from libraries.Save import save_state
+from libraries.FileMenu.Save import save_state
 
 
 # -------------------------------------------------------------------------------
 
 def save_data_wrapper(window, data):
-    from libraries.Save import save_data
+    from libraries.FileMenu.Save import save_data
     save_data(window, data)
 
 def on_sheet_selected_wrapper(window, event):
@@ -176,29 +176,29 @@ def toggle_plot(window):
 
 
 def on_save_plot(window):
-    from libraries.Save import save_plot_as_png
+    from libraries.FileMenu.Save import save_plot_as_png
     save_plot_as_png(window)
 
 
 def on_save_plot_pdf(window):
-    from libraries.Save import save_plot_as_pdf
+    from libraries.FileMenu.Save import save_plot_as_pdf
     save_plot_as_pdf(window)
 
 
 def on_save_plot_svg(window):
-    from libraries.Save import save_plot_as_svg
+    from libraries.FileMenu.Save import save_plot_as_svg
     save_plot_as_svg(window)
 
 
 def on_save(window):
-    from libraries.Save import save_data
+    from libraries.FileMenu.Save import save_data
     data = window.get_data_for_save()
     save_data(window, data)
     # save_results_table(window)  # Add this line to also save results table
 
 
 def on_save_all_sheets(window, event):
-    from libraries.Save import save_all_sheets_with_plots
+    from libraries.FileMenu.Save import save_all_sheets_with_plots
     save_all_sheets_with_plots(window)
 
 def toggle_Col_1(window):

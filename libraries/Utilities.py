@@ -2,16 +2,12 @@
 import wx
 import numpy as np
 import openpyxl
-from openpyxl import load_workbook
 import os
 import sys
 import shutil
 import pandas as pd
-import libraries.Sheet_Operations
 import json
-from scipy.ndimage import gaussian_filter
-from scipy.signal import savgol_filter
-from scipy.integrate import cumtrapz
+
 
 # from KherveFitting import FIRST_TIME_USE
 
@@ -282,7 +278,7 @@ def on_delete_sheet(window, event):
 
         # Save JSON file
         json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
-        from libraries.Save import convert_to_serializable_and_round
+        from libraries.FileMenu.Save import convert_to_serializable_and_round
         json_data = convert_to_serializable_and_round(window.Data)
         with open(json_file_path, 'w') as json_file:
             json.dump(json_data, json_file, indent=2)
@@ -301,7 +297,7 @@ def on_delete_sheet(window, event):
 
         # Refresh sheets after deletion
         try:
-            from libraries.Save import refresh_sheets
+            from libraries.FileMenu.Save import refresh_sheets
             from libraries.Sheet_Operations import on_sheet_selected
             refresh_sheets(window, on_sheet_selected, update_console)
         except Exception as refresh_err:
@@ -358,14 +354,14 @@ def rename_sheet(window, new_sheet_name):
 
     # Save JSON file
     json_file_path = os.path.splitext(file_path)[0] + '.json'
-    from libraries.Save import convert_to_serializable_and_round
+    from libraries.FileMenu.Save import convert_to_serializable_and_round
     json_data = convert_to_serializable_and_round(window.Data)
     with open(json_file_path, 'w') as json_file:
         json.dump(json_data, json_file, indent=2)
 
     # Refresh sheets after renaming
     from libraries.Sheet_Operations import on_sheet_selected
-    from libraries.Save import refresh_sheets
+    from libraries.FileMenu.Save import refresh_sheets
     refresh_sheets(window, on_sheet_selected, None)
 
     # Close and reopen the file manager if it exists
@@ -472,7 +468,7 @@ def copy_sheet(window):
         # Update JSON file
         json_file_path = os.path.splitext(window.Data['FilePath'])[0] + '.json'
         if os.path.exists(json_file_path):
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(window.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
@@ -516,7 +512,7 @@ def save_modified_data(self, x, y, sheet_name, operation_type):
 def propagate_fwhm_difference(window, row, col):
     """Propagate FWHM differences from reference peak to all other peaks"""
     # Save state
-    from libraries.Save import save_state
+    from libraries.FileMenu.Save import save_state
     save_state(window)
 
     if col != 4 or row % 2 != 1:  # Only for FWHM constraint rows
@@ -565,7 +561,7 @@ def propagate_constraint(window, row, col):
     if row % 2 != 1 or col not in [2, 3, 4, 5, 6, 7, 8, 9]:
         return  # Only work on constraint rows and specific columns
 
-    from libraries.Save import save_state
+    from libraries.FileMenu.Save import save_state
     save_state(window)  # Save state for undo
 
     peak_index = row // 2
@@ -897,7 +893,7 @@ class CropWindow(wx.Frame):
         # Update JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
         if os.path.exists(json_file_path):
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
@@ -1057,7 +1053,7 @@ def perform_auto_backup(parent):
 
 def sort_excel_sheets(window):
     """Sort Excel sheets by sample group and element name without modifying data"""
-    from libraries.Save import save_state
+    from libraries.FileMenu.Save import save_state
     save_state(window)
 
     if not hasattr(window, 'Data') or 'Core levels' not in window.Data:

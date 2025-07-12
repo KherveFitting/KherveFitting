@@ -5,10 +5,9 @@ import re
 import numpy as np
 import json
 from matplotlib.ticker import ScalarFormatter
-from copy import deepcopy
 import shutil
 import sys
-from libraries.Save import save_state
+from libraries.FileMenu.Save import save_state
 
 
 class FileManagerWindow(wx.Frame):
@@ -1722,7 +1721,6 @@ class FileManagerWindow(wx.Frame):
         import tempfile
         import os
         import re
-        import numpy as np
         import pandas as pd
         from copy import deepcopy
 
@@ -1793,7 +1791,7 @@ class FileManagerWindow(wx.Frame):
 
                     # Create JSON file
                     json_file_path = os.path.splitext(file_path)[0] + '.json'
-                    from libraries.Save import convert_to_serializable_and_round
+                    from libraries.FileMenu.Save import convert_to_serializable_and_round
                     json_data = convert_to_serializable_and_round(self.parent.Data)
                     with open(json_file_path, 'w') as json_file:
                         json.dump(json_data, json_file, indent=2)
@@ -2108,7 +2106,7 @@ class FileManagerWindow(wx.Frame):
         # Update JSON file
         try:
             json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
@@ -2149,7 +2147,7 @@ class FileManagerWindow(wx.Frame):
         # Update JSON file
         try:
             json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
@@ -2178,7 +2176,7 @@ class FileManagerWindow(wx.Frame):
                 wx.SafeYield()
 
             from libraries.Sheet_Operations import on_sheet_selected
-            from libraries.Save import refresh_sheets
+            from libraries.FileMenu.Save import refresh_sheets
             refresh_sheets(self.parent, on_sheet_selected, update_console)
 
             # Close console after refresh
@@ -2284,7 +2282,7 @@ class FileManagerWindow(wx.Frame):
 
         # Save JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-        from libraries.Save import convert_to_serializable_and_round
+        from libraries.FileMenu.Save import convert_to_serializable_and_round
         json_data = convert_to_serializable_and_round(self.parent.Data)
         with open(json_file_path, 'w') as json_file:
             json.dump(json_data, json_file, indent=2)
@@ -2379,7 +2377,7 @@ class FileManagerWindow(wx.Frame):
 
         # Save JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-        from libraries.Save import convert_to_serializable_and_round
+        from libraries.FileMenu.Save import convert_to_serializable_and_round
         json_data = convert_to_serializable_and_round(self.parent.Data)
         with open(json_file_path, 'w') as json_file:
             json.dump(json_data, json_file, indent=2)
@@ -4159,7 +4157,7 @@ class FileManagerWindow(wx.Frame):
 
             # Save JSON file
             json_file_path = os.path.splitext(file_path)[0] + '.json'
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
@@ -4329,7 +4327,7 @@ class FileManagerWindow(wx.Frame):
 
             # Save JSON file
             json_file_path = os.path.splitext(file_path)[0] + '.json'
-            from libraries.Save import convert_to_serializable_and_round
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
             json_data = convert_to_serializable_and_round(self.parent.Data)
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)

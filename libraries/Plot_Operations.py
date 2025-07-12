@@ -7,16 +7,13 @@ import lmfit
 import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
-from matplotlib import colormaps
 from matplotlib.ticker import AutoMinorLocator, ScalarFormatter
 from itertools import cycle
-from PIL import Image, ImageDraw, ImageFont
-import matplotlib.colors as mcolors
+from PIL import Image
 from scipy.ndimage import gaussian_filter
 
 from libraries.Peak_Functions import PeakFunctions, BackgroundCalculations, OtherCalc
 
-from libraries.Save import save_state
 from libraries.PeakManipulation import PeakManipulation
 
 
