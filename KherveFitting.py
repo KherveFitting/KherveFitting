@@ -34,7 +34,7 @@ from libraries.PlotConfig import PlotConfig
 from libraries.Utilities import check_first_time_use, DraggableText
 from libraries.Plot_Operations import PlotManager
 from libraries.Peak_Functions import PeakFunctions
-from libraries.Open import load_library_data
+from libraries.FileMenu.Open import load_library_data
 
 
 # from libraries.Peak_Functions import AtomicConcentrations
@@ -51,7 +51,7 @@ from libraries.Save import save_state, undo, redo
 # from libraries.Open import ExcelDropTarget
 # from libraries.Utilities import copy_cell, paste_cell
 
-from libraries.Open import load_recent_files_from_config
+from libraries.FileMenu.Open import load_recent_files_from_config
 from libraries.ToolsMenu.survey import PeriodicTableWindow
 from libraries.Widgets_Toolbars import create_widgets, create_menu
 from libraries.Widgets_Toolbars import create_statusbar
@@ -640,7 +640,7 @@ class MyFrame(wx.Frame):
             toolbar_panel.Layout()
 
             # Rebind events
-            from libraries.Open import open_xlsx_file
+            from libraries.FileMenu.Open import open_xlsx_file
             from Functions import on_save, refresh_sheets, save_all_sheets_with_plots
             from libraries.Sheet_Operations import on_sheet_selected
             from libraries.Utilities import on_delete_sheet, copy_sheet, JoinSheetsWindow

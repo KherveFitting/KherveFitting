@@ -2199,7 +2199,7 @@ def on_save_as(window, event=None):
                 for i, file_path in enumerate(window.recent_files):
                     item = window.recent_files_menu.Append(wx.ID_ANY, os.path.basename(file_path))
                     # Late import for the open_xlsx_file function
-                    from libraries.Open import open_xlsx_file
+                    from libraries.FileMenu.Open import open_xlsx_file
                     window.Bind(wx.EVT_MENU, lambda evt, fp=file_path: open_xlsx_file(window, fp), item)
 
             window.save_config()
@@ -2604,7 +2604,7 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
         window: Main window object to access current_instrument
     """
     # Import existing libraries
-    from libraries.Open import load_library_data
+    from libraries.FileMenu.Open import load_library_data
     from libraries.Area_Calculation import extract_element_symbol, ATOMIC_MASSES
 
     # Load RSF library data and get current instrument

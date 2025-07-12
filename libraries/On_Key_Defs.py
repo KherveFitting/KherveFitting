@@ -1,7 +1,6 @@
 # libraries/On_Key_defs.py
 
 import wx
-import numpy as np
 
 
 class KeyEventHandlers:
@@ -217,7 +216,7 @@ class KeyEventHandlers:
             return True
         elif keycode == ord('O'):
             print("Opening")
-            from libraries.Open import open_xlsx_file
+            from libraries.FileMenu.Open import open_xlsx_file
             open_xlsx_file(self.main_frame)
             return True
         elif keycode == ord('Q'):

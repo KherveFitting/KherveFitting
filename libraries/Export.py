@@ -1,9 +1,7 @@
 import wx
-import numpy as np
 import re
-from libraries.Utilities import load_rsf_data
 from libraries.Save import save_state
-from libraries.Open import load_library_data
+from libraries.FileMenu.Open import load_library_data
 from libraries.Sheet_Operations import on_sheet_selected
 from libraries.Peak_Functions import AtomicConcentrations
 from libraries.Grid_Operations import CheckboxRenderer
@@ -503,10 +501,8 @@ def _bind_grid_events(window):
 
 def export_word_report(window):
     from docx import Document
-    from docx.shared import Inches, Pt
-    from docx.enum.section import WD_ORIENT
+    from docx.shared import Inches
     import os
-    from docx.shared import RGBColor
 
     file_path = window.Data['FilePath']
     base_path = os.path.splitext(file_path)[0]

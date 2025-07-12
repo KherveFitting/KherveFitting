@@ -2,7 +2,7 @@ import wx
 import json
 import os
 import openpyxl
-from libraries.Open import load_library_data
+from libraries.FileMenu.Open import load_library_data
 import platform
 
 class PreferenceWindow(wx.Frame):
