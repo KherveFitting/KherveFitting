@@ -22,12 +22,24 @@ class ThickogramWindow(wx.Frame):
     """
 
     def __init__(self, parent):
+        # Platform-specific window sizing
+        if 'wxMac' in wx.PlatformInfo:
+            window_size = (800, 540)  # Smaller for macOS
+        elif 'wxGTK' in wx.PlatformInfo:  # Linux
+            window_size = (900, 640)
+        else:  # Windows
+            window_size = (900, 640)
+
         super().__init__(parent, title="Cumpson-Lee Thickogram / Updated from DaveXPS v0.1",
-                         size=(900, 620),
+                         size=window_size,
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
         self.parent = parent
         self.InitUI()
         self.Centre()
+
+        # Add consistent font handling like other screens
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
 
     def InitUI(self):
         # Create menu bar
@@ -71,16 +83,21 @@ class ThickogramWindow(wx.Frame):
 
         # Calculate button
         calc_btn = wx.Button(left_panel, label="Calculate & Plot")
-        calc_btn.SetMinSize((-1, 50))
+        if 'wxMac' in wx.PlatformInfo:
+            calc_btn.SetMinSize((140, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            calc_btn.SetMinSize((160, 30))
+        else:
+            calc_btn.SetMinSize((160, 35))
         calc_btn.Bind(wx.EVT_BUTTON, self.on_calculate)
-        left_sizer.Add(calc_btn, 0, wx.ALL | wx.EXPAND, 3)
+        left_sizer.Add(calc_btn, 0, wx.ALL, 3)  # Removed wx.EXPAND
 
-        # Result label
-        self.result_label = wx.StaticText(left_panel, label="", size=(160, 30))
-        result_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-        self.result_label.SetFont(result_font)
-        self.result_label.SetForegroundColour(wx.Colour(255, 0, 0))
-        left_sizer.Add(self.result_label, 0, wx.ALL | wx.EXPAND, 3)
+        # # Result label
+        # self.result_label = wx.StaticText(left_panel, label="", size=(160, 30))
+        # result_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        # self.result_label.SetFont(result_font)
+        # self.result_label.SetForegroundColour(wx.Colour(255, 0, 0))
+        # left_sizer.Add(self.result_label, 0, wx.ALL | wx.EXPAND, 3)
 
         left_panel.SetSizer(left_sizer)
 
@@ -129,25 +146,43 @@ class ThickogramWindow(wx.Frame):
         ]
 
         for field_name, label, ctrl_type, default_value in fields:
-            # Create label with smaller font
+            # Create label with platform-specific font
             label_ctrl = wx.StaticText(parent, label=label)
-            label_font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-            label_ctrl.SetFont(label_font)
-            sizer.Add(label_ctrl, 0, wx.ALL | wx.ALIGN_LEFT, 2)
+            # Platform-specific font sizing like other screens
+            if 'wxMac' in wx.PlatformInfo:
+                label_font = wx.Font(11, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                                     faceName='Helvetica')
+            elif 'wxGTK' in wx.PlatformInfo:
+                label_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                                     faceName='DejaVu Sans')
+            else:
+                label_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL,
+                                     faceName='Calibri')
 
-            # Create control with WIDER width
+            label_ctrl.SetFont(label_font)
+            sizer.Add(label_ctrl, 0, wx.ALL | wx.ALIGN_LEFT, 4)
+
+            # Create control with platform-specific sizing
+            if 'wxMac' in wx.PlatformInfo:
+                control_size = (140, -1)  # Smaller for macOS
+            elif 'wxGTK' in wx.PlatformInfo:  # Linux
+                control_size = (160, -1)
+            else:  # Windows
+                control_size = (160, -1)
+
             if ctrl_type == "ComboBox":
-                ctrl = wx.ComboBox(parent, choices=default_value, style=wx.CB_READONLY, size=(160, -1))
+                ctrl = wx.ComboBox(parent, choices=default_value, style=wx.CB_READONLY, size=control_size)
                 if field_name == "overlayer_combo":
                     ctrl.Bind(wx.EVT_COMBOBOX, self.on_overlayer_selected)
                 elif field_name == "substrate_combo":
                     ctrl.Bind(wx.EVT_COMBOBOX, self.on_substrate_selected)
             else:
-                ctrl = wx.TextCtrl(parent, value=str(default_value), size=(160, -1))
+                ctrl = wx.TextCtrl(parent, value=str(default_value), size=control_size)
                 if field_name == "Z":
                     ctrl.Bind(wx.EVT_TEXT, self.on_z_changed)
 
-            ctrl.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+            # Apply same platform-specific font to controls
+            ctrl.SetFont(label_font)
             self.inputs[field_name] = ctrl
             sizer.Add(ctrl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 1)
 
