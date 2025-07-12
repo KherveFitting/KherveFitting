@@ -34,6 +34,8 @@ from libraries.PlotConfig import PlotConfig
 from libraries.Utilities import check_first_time_use, DraggableText
 from libraries.Plot_Operations import PlotManager
 from libraries.Peak_Functions import PeakFunctions
+from libraries.Open import load_library_data
+
 
 # from libraries.Peak_Functions import AtomicConcentrations
 # from libraries.Peak_Functions import gauss_lorentz, S_gauss_lorentz
@@ -363,7 +365,7 @@ class MyFrame(wx.Frame):
 
         # Add this line after creating window.results_grid
         self.results_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED,
-                                 lambda event: on_results_grid_cell_changed(window, event))
+                                 lambda event: on_results_grid_cell_changed(self, event))
 
         # Start Backup timer
         self.setup_backup_timer()

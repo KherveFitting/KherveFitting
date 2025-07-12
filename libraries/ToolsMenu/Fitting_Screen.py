@@ -7,11 +7,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import lmfit
-from libraries.Peak_Functions import BackgroundCalculations
 from libraries.Save import save_state
-from libraries.Plot_Operations import PlotManager
-from libraries.Open import load_library_data
-from libraries.TougaardRaman_Screen import TougaardRamanFitWindow
+from libraries.ToolsMenu.TougaardRaman_Screen import TougaardRamanFitWindow
 
 class FittingWindow(wx.Frame):
     def __init__(self, parent, *args, **kw):
