@@ -22,11 +22,20 @@ class FittingWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             self.SetSize((262, 380))  # Increased height to accommodate new elements
             self.SetMinSize((262, 380))
-            self.SetMaxSize((262, 380))
+            self.SetMaxSize((300, 580))
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
-            self.SetSize((320, 470))  # Increased height to accommodate new elements
-            self.SetMinSize((320, 470))
-            self.SetMaxSize((320, 470))
+            desktop = self.get_linux_desktop()
+            if desktop == 'gnome':
+                self.SetSize((280, 520))
+            elif desktop == 'kde':
+                self.SetSize((290, 430))
+            elif desktop == 'xfce':
+                print('linux xfce')
+                self.SetSize((270, 490))
+            else:  # Unknown or other
+                self.SetSize((280, 520))
+            print(f'GTK environment: {desktop}')
+            print('GTK environment')
         else:
             self.SetSize((275, 400))  # Increased height to accommodate new elements
             self.SetMinSize((275, 400))
@@ -1300,6 +1309,35 @@ class FittingWindow(wx.Frame):
             if isinstance(child, wx.Button) and "Fitting..." in child.GetLabel():
                 child.SetLabel("Fit \nN# Times")
                 break
+
+    def get_linux_desktop(self):
+        """Detect Linux desktop environment"""
+        import os
+
+        # Check environment variables
+        desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+        if desktop:
+            if 'gnome' in desktop:
+                return 'gnome'
+            elif 'kde' in desktop or 'plasma' in desktop:
+                return 'kde'
+            elif 'xfce' in desktop:
+                return 'xfce'
+            elif 'mate' in desktop:
+                return 'mate'
+            elif 'cinnamon' in desktop:
+                return 'cinnamon'
+
+        # Fallback checks
+        session = os.environ.get('DESKTOP_SESSION', '').lower()
+        if 'gnome' in session:
+            return 'gnome'
+        elif 'kde' in session:
+            return 'kde'
+        elif 'xfce' in session:
+            return 'xfce'
+
+        return 'unknown'
 
 
 class TougaardFitWindow(wx.Frame):
