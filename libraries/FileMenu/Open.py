@@ -3836,35 +3836,63 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
                     # Calculate L/G ratio from sigma and gamma
                     lg_value = 100 * sigma_value / (sigma_value + gamma_value)
                 else:
-                    # Check for single parameter LA(number) format
-                    single_param = re.search(r'LA\((\d+)\)', model_str)
-                    if single_param:
-                        ratio_value = int(single_param.group(1))
+                    # Check for two parameter format: LA(param1, param2)
+                    two_param = re.search(r'LA\(([\d.]+),\s*([\d.]+)\)', model_str)
+                    if two_param:
+                        param1 = float(two_param.group(1))
+                        param2 = float(two_param.group(2))
 
-                        # Mapping for gamma values based on sigma/gamma ratio
-                        gamma_mapping = {
-                            20: 2.7, 30: 2.4, 40: 2.2, 50: 2.0, 60: 1.8,
-                            70: 1.6, 80: 1.4, 90: 1.2, 100: 1.0
-                        }
-
-                        gamma_value = gamma_mapping.get(ratio_value, 2.0)  # Default to 2.0 if not found
-                        sigma_value = gamma_value  # sigma = (sigma/gamma) * gamma
-                        lg_value = ratio_value  # L/G ratio is the number itself
-                        model = "LA (Area, σ/γ, γ)"
+                        # If second parameter > 100, treat as LA*G with sigma=gamma=param1, w_g=param2
+                        if param2 > 100:
+                            sigma_value = param1  # 1.53
+                            gamma_value = param1  # 1.53 (same as sigma)
+                            w_g = param2  # 243
+                            model = "LA*G (Area, σ/γ, γ)"
+                            lg_value = 50  # 50% since sigma = gamma
+                            print(
+                                f"DEBUG: LA(2-param) large second -> LA*G: σ={sigma_value}, γ={gamma_value}, w_g={w_g}")
+                        else:
+                            # Standard two-parameter LA(sigma, gamma)
+                            sigma_value = param1
+                            gamma_value = param2
+                            model = "LA (Area, σ, γ)"
+                            lg_value = 100 * sigma_value / (sigma_value + gamma_value)
+                            print(f"DEBUG: LA(2-param) standard -> LA: σ={sigma_value}, γ={gamma_value}")
                     else:
-                        model = "LA (Area, σ, γ)"
-                        sigma_value = 0.6
-                        gamma_value = 0.4
-                        lg_value = 100 * sigma_value / (sigma_value + gamma_value)
+                        # Check for single parameter LA(number) format
+                        single_param = re.search(r'LA\((\d+)\)', model_str)
+                        if single_param:
+                            ratio_value = int(single_param.group(1))
+
+                            # Mapping for gamma values based on sigma/gamma ratio
+                            gamma_mapping = {
+                                20: 2.8, 30: 2.6, 40: 2.4, 50: 2.3, 60: 1.8,
+                                70: 1.6, 80: 1.4, 90: 1.2, 100: 1.0
+                            }
+
+                            gamma_value = gamma_mapping.get(ratio_value, 2.0)  # Default to 2.0 if not found
+                            sigma_value = gamma_value  # sigma = (sigma/gamma) * gamma
+                            lg_value = ratio_value  # L/G ratio is the number itself
+                            model = "LA (Area, σ/γ, γ)"
+                        else:
+                            model = "LA (Area, σ, γ)"
+                            sigma_value = 0.6
+                            gamma_value = 0.4
+                            lg_value = 100 * sigma_value / (sigma_value + gamma_value)
 
             # Extract parameters with constraints
             area_match = re.search(r'Area\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
             fwhm_match = re.search(r'MFWHM\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
             pos_match = re.search(r'Position\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)\s+(-?\d+)\s+([\d.e-]+)', line)
 
-            # Calculate area (divide by average transmission only)
-            area_value = float(area_match.group(1)) / avg_transmission if area_match else 1000
-            area_value = round(area_value,2)
+            # Calculate area (divide by transmission AND correction factor like raw data)
+            if collection_time > 0:
+                correction_factor = avg_transmission * num_scans * collection_time
+            else:
+                correction_factor = avg_transmission * num_scans
+
+            area_value = float(area_match.group(1)) / correction_factor if area_match else 1000
+            area_value = round(area_value, 2)
             # Handle area constraints
             if area_match:
                 area_constrained_peak = int(area_match.group(4))
