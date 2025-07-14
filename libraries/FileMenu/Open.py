@@ -3338,6 +3338,47 @@ def extract_transmission_reference(block):
         return None
 
 
+def normalize_auger_and_valence_names(sheet_name):
+    """
+    Normalize Auger transition names and valence band variations.
+
+    Examples:
+    - Fe LM2 -> Felmm
+    - C KL1 -> Ckll
+    - V.B. -> VB
+    - V.B -> VB
+    """
+    import re
+
+    # Handle valence band variations first
+    vb_pattern = r'^V\.?B\.?\s*$'
+    if re.match(vb_pattern, sheet_name.strip(), re.IGNORECASE):
+        return "VB"
+
+    # Handle Auger transitions
+    # Pattern: Element symbol + space + Auger notation (letters + numbers)
+    auger_pattern = r'^([A-Z][a-z]?)\s+([A-Z]+\d*)$'
+    match = re.match(auger_pattern, sheet_name.strip())
+
+    if match:
+        element = match.group(1)  # e.g., "Fe", "C"
+        auger_part = match.group(2)  # e.g., "LM2", "KL1"
+
+        # Remove numbers and convert letters to lowercase
+        auger_letters = re.sub(r'\d+', '', auger_part).lower()
+
+        # Duplicate letters based on the original notation
+        # For LM2 -> lm -> lmm (duplicate the last letter)
+        # For KL1 -> kl -> kll (duplicate the last letter)
+        if len(auger_letters) >= 2:
+            # Add extra letter (typically duplicate the last one)
+            auger_letters += auger_letters[-1]
+
+        return f"{element}{auger_letters}"
+
+    return sheet_name
+
+
 def open_vamas_file(window, file_path):
     """
     Open and process a VAMAS file, converting it to an Excel file format.
@@ -3409,11 +3450,18 @@ def open_vamas_file(window, file_path):
 
         # Process each block
         for i, block in enumerate(vamas_data.blocks, start=1):
+            # Skip blocks with 0 scans
+            if block.num_scans_to_compile_block == 0:
+                update_console(f"Skipping block {i}: {block.species_label} - 0 scans")
+                continue
             if block.species_label.lower() == "wide" or block.transition_or_charge_state_label.lower() == "none":
                 raw_sheet_name = block.species_label
             else:
                 raw_sheet_name = f"{block.species_label}{block.transition_or_charge_state_label}"
             raw_sheet_name = raw_sheet_name.replace("/", "_")
+
+            # Apply Auger and valence band normalization
+            raw_sheet_name = normalize_auger_and_valence_names(raw_sheet_name)
 
             sheet_name = normalize_sheet_name(raw_sheet_name)
 
