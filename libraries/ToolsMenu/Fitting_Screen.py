@@ -31,7 +31,7 @@ class FittingWindow(wx.Frame):
                 self.SetSize((290, 430))
             elif desktop == 'xfce':
                 print('linux xfce')
-                self.SetSize((270, 490))
+                self.SetSize((260, 490))
             else:  # Unknown or other
                 self.SetSize((280, 520))
             print(f'GTK environment: {desktop}')

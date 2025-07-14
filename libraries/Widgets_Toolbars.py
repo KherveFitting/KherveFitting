@@ -600,7 +600,7 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: window.toggle_energy_scale(), toggle_energy_item)
     window.toggle_energy_item = toggle_energy_item
 
-    # ToolsMenu menu items
+    # Tools menu items
     Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve\tCtrl+A")
     window.Bind(wx.EVT_MENU, lambda event: window.on_open_background_window(), Area_item)
 
@@ -772,7 +772,7 @@ def create_menu(window):
     menubar.Append(file_menu, "&File")
     menubar.Append(edit_menu, "&Edit")
     menubar.Append(view_menu, "&View")
-    menubar.Append(tools_menu, "&ToolsMenu")
+    menubar.Append(tools_menu, "&Tools")
     menubar.Append(help_menu, "&Help")
 
     window.SetMenuBar(menubar)
