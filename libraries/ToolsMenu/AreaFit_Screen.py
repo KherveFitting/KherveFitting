@@ -19,7 +19,7 @@ class BackgroundWindow(wx.Frame):
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
             desktop = self.get_linux_desktop()
             if desktop == 'gnome':
-                self.SetSize((260, 480))
+                self.SetSize((310, 560))
             elif desktop == 'kde':
                 self.SetSize((260, 480))
             elif desktop == 'xfce':

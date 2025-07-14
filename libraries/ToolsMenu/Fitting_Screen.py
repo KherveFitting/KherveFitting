@@ -26,7 +26,7 @@ class FittingWindow(wx.Frame):
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
             desktop = self.get_linux_desktop()
             if desktop == 'gnome':
-                self.SetSize((280, 520))
+                self.SetSize((320, 570))
             elif desktop == 'kde':
                 self.SetSize((290, 430))
             elif desktop == 'xfce':

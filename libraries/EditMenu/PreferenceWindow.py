@@ -23,11 +23,10 @@ class PreferenceWindow(wx.Frame):
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
             desktop = self.get_linux_desktop()
             if desktop == 'gnome':
-                self.SetSize((525, 835))
+                self.SetSize((585, 935))
             elif desktop == 'kde':
                 self.SetSize((525, 835))
             elif desktop == 'xfce':
-                print('linux xfce')
                 self.SetSize((525, 835))
             else:  # Unknown or other
                 self.SetSize((525, 835))
