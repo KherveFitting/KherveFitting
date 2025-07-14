@@ -12,10 +12,23 @@ class BackgroundWindow(wx.Frame):
             self.SetSize((260, 385))  # Increased height to accommodate new elements
             self.SetMinSize((260, 385))
             self.SetMaxSize((260, 385))
-        elif 'wxGTK' in wx.PlatformInfo:
-            self.SetSize((260, 470))  # Increased height to accommodate new elements
-            self.SetMinSize((260, 470))
-            self.SetMaxSize((260, 470))
+        # elif 'wxGTK' in wx.PlatformInfo:
+        #     self.SetSize((260, 470))  # Increased height to accommodate new elements
+        #     self.SetMinSize((260, 470))
+        #     self.SetMaxSize((260, 470))
+        elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
+            desktop = self.get_linux_desktop()
+            if desktop == 'gnome':
+                self.SetSize((280, 520))
+            elif desktop == 'kde':
+                self.SetSize((290, 430))
+            elif desktop == 'xfce':
+                print('linux xfce')
+                self.SetSize((260, 480))
+            else:  # Unknown or other
+                self.SetSize((280, 520))
+            print(f'GTK environment: {desktop}')
+            print('GTK environment')
         else:
             self.SetSize((267, 400))
             self.SetMinSize((267, 400))
@@ -660,3 +673,33 @@ class BackgroundWindow(wx.Frame):
             save_state(self.parent)
         except ValueError:
             print("Invalid offset value")
+
+
+    def get_linux_desktop(self):
+        """Detect Linux desktop environment"""
+        import os
+
+        # Check environment variables
+        desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+        if desktop:
+            if 'gnome' in desktop:
+                return 'gnome'
+            elif 'kde' in desktop or 'plasma' in desktop:
+                return 'kde'
+            elif 'xfce' in desktop:
+                return 'xfce'
+            elif 'mate' in desktop:
+                return 'mate'
+            elif 'cinnamon' in desktop:
+                return 'cinnamon'
+
+        # Fallback checks
+        session = os.environ.get('DESKTOP_SESSION', '').lower()
+        if 'gnome' in session:
+            return 'gnome'
+        elif 'kde' in session:
+            return 'kde'
+        elif 'xfce' in session:
+            return 'xfce'
+
+        return 'unknown'
