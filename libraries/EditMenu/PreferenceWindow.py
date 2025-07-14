@@ -16,10 +16,22 @@ class PreferenceWindow(wx.Frame):
             self.SetSize((495, 630))
             self.SetMinSize((495, 630))
             self.SetMaxSize((495, 630))
-        elif 'wxGTK' in wx.PlatformInfo:  # Linux
-            self.SetSize((525, 825))
-            self.SetMinSize((525, 825))
-            self.SetMaxSize((525, 825))
+        # elif 'wxGTK' in wx.PlatformInfo:  # Linux
+        #     self.SetSize((525, 825))
+        #     self.SetMinSize((525, 825))
+        #     self.SetMaxSize((525, 825))
+        elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
+            desktop = self.get_linux_desktop()
+            if desktop == 'gnome':
+                self.SetSize((525, 835))
+            elif desktop == 'kde':
+                self.SetSize((525, 835))
+            elif desktop == 'xfce':
+                print('linux xfce')
+                self.SetSize((525, 835))
+            else:  # Unknown or other
+                self.SetSize((525, 835))
+            print(f'GTK environment: {desktop}')
         else:
             self.SetSize((495, 630))
             self.SetMinSize((495, 630))
@@ -1459,6 +1471,35 @@ class PreferenceWindow(wx.Frame):
                         self.parent.sheet_combobox.SetValue(old_sheet_value)
 
             toolbar_panel.Layout()
+
+    def get_linux_desktop(self):
+        """Detect Linux desktop environment"""
+        import os
+
+        # Check environment variables
+        desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+        if desktop:
+            if 'gnome' in desktop:
+                return 'gnome'
+            elif 'kde' in desktop or 'plasma' in desktop:
+                return 'kde'
+            elif 'xfce' in desktop:
+                return 'xfce'
+            elif 'mate' in desktop:
+                return 'mate'
+            elif 'cinnamon' in desktop:
+                return 'cinnamon'
+
+        # Fallback checks
+        session = os.environ.get('DESKTOP_SESSION', '').lower()
+        if 'gnome' in session:
+            return 'gnome'
+        elif 'kde' in session:
+            return 'kde'
+        elif 'xfce' in session:
+            return 'xfce'
+
+        return 'unknown'
 
 
 
