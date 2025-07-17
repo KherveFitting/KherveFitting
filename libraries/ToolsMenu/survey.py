@@ -1190,11 +1190,30 @@ class PeriodicTableWindow(wx.Frame):
                     btn.SetBackgroundColour(original_color)
                     btn.Refresh()
 
+        # Safe removal of matplotlib objects
         for element, lines in self.element_lines.items():
             for line in lines:
-                line.remove()
+                try:
+                    # Check if the line is still in a valid axes
+                    if hasattr(line, 'axes') and line.axes is not None:
+                        line.remove()
+                except (ValueError, AttributeError):
+                    # Line already removed or axes changed
+                    pass
         self.element_lines.clear()
-        self.parent_window.canvas.draw_idle()
+
+    def clear_element_lines(self):
+        """Clear all element lines when changing sheets"""
+        self.element_lines.clear()
+        for element in self.button_states:
+            self.button_states[element] = False
+            btn = self.FindWindowByLabel(element)
+            if btn:
+                original_color = self.original_colors.get(element, wx.WHITE)
+                btn.SetBackgroundColour(original_color)
+                btn.Refresh()
+
+    # Get RSF values for the requested orbitals of an element
 
     def get_rsf_values(self, element, orbitals):
         rsf_values = []

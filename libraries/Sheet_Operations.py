@@ -17,6 +17,10 @@ def on_sheet_selected(window, event):
     else:
         selected_sheet = window.sheet_combobox.GetValue()
 
+    # Clear survey window element lines when changing sheets
+    if hasattr(window, 'survey_window') and window.survey_window:
+        window.survey_window.clear_element_lines()
+
     # Update BE correction from BEcorrections if available
     if 'BEcorrections' in window.Data:
         # Extract row number from sheet name
