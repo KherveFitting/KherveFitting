@@ -13,7 +13,7 @@ class PlotModWindow(wx.Frame):
                 wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
 
         self.SetTitle("Plot Modifications")
-        self.SetSize(340, 450)
+        self.SetSize(500, 395)
 
         self.parent = parent
         panel = wx.Panel(self)
@@ -47,6 +47,26 @@ class PlotModWindow(wx.Frame):
         smooth_btn.SetMinSize((125, 40))
         smooth_btn.Bind(wx.EVT_BUTTON, self.on_smooth)
         smooth_sizer.Add(smooth_btn, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Noise section
+        noise_box = wx.StaticBox(panel, label="Add Noise")
+        noise_sizer = wx.StaticBoxSizer(noise_box, wx.VERTICAL)
+
+        self.noise_type = wx.ComboBox(panel, choices=["Gaussian", "Uniform", "Poisson"],
+                                      style=wx.CB_READONLY)
+        self.noise_type.SetValue("Gaussian")
+        self.noise_amplitude = wx.SpinCtrlDouble(panel, min=0.0, max=10000.0, initial=1.0, inc=0.1)
+
+        noise_sizer.Add(wx.StaticText(panel, label="Type:"), 0, wx.ALL, 5)
+        noise_sizer.Add(self.noise_type, 0, wx.EXPAND | wx.ALL, 5)
+        noise_sizer.Add(wx.StaticText(panel, label="Amplitude:"), 0, wx.ALL, 5)
+        noise_sizer.Add(self.noise_amplitude, 0, wx.EXPAND | wx.ALL, 5)
+
+        noise_btn = wx.Button(panel, label="Add Noise")
+        noise_btn.SetMinSize((125, 40))
+        noise_btn.Bind(wx.EVT_BUTTON, self.on_add_noise)
+        noise_sizer.Add(noise_btn, 0, wx.EXPAND | wx.ALL, 5)
+
 
         # First row - Differentiation
         diff_box = wx.StaticBox(panel, label="Differentiation")
@@ -92,10 +112,11 @@ class PlotModWindow(wx.Frame):
         const_sizer.Add(const_btn, 0, wx.EXPAND | wx.ALL, 5)
 
         # Add to grid
-        grid_sizer.Add(smooth_sizer, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=5)
-        grid_sizer.Add(diff_sizer, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=5)
-        grid_sizer.Add(int_sizer, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=5)
-        grid_sizer.Add(const_sizer, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=5)
+        grid_sizer.Add(smooth_sizer, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(noise_sizer, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(diff_sizer, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(int_sizer, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(const_sizer, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
@@ -235,6 +256,34 @@ class PlotModWindow(wx.Frame):
         self.parent.sheet_combobox.SetValue(sheet_name)
         from libraries.Sheet_Operations import on_sheet_selected
         on_sheet_selected(self.parent, sheet_name)
+
+    def on_add_noise(self, event):
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        noise_type = self.noise_type.GetValue()
+        amplitude = self.noise_amplitude.GetValue()
+
+        x = self.parent.Data['Core levels'][sheet_name]['B.E.']
+        y = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+
+        if noise_type == "Gaussian":
+            noise = np.random.normal(0, amplitude, len(y))
+        elif noise_type == "Uniform":
+            noise = np.random.uniform(-amplitude, amplitude, len(y))
+        else:  # Poisson
+            # Scale data to avoid negative values for Poisson
+            scaled_y = np.abs(y) + 1
+            noise = np.random.poisson(scaled_y * amplitude / 100) - scaled_y * amplitude / 100
+
+        noisy_y = y + noise
+
+        # Get base name and create new sheet
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        base_name = match.group(1) if match else sheet_name
+        new_sheet_name = self.get_earliest_row_name(base_name)
+
+        # Save the noisy data
+        self.save_modified_data(x, noisy_y, new_sheet_name, "Noisy")
 
     def on_smooth(self, event):
         sheet_name = self.parent.sheet_combobox.GetValue()
