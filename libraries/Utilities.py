@@ -601,8 +601,12 @@ def propagate_constraint(window, row, col):
             # Calculate split (difference in position)
             target_pos = float(window.peak_params_grid.GetCellValue(data_row_i, col))
             split = target_pos - source_value
-            constraint_value = f"{peak_letter}+{split:.2f}#0.1"
-
+            print(f'split value: {split}')
+            # Fix the +- issue when split is negative
+            if split >= 0:
+                constraint_value = f"{peak_letter}+{split:.2f}#0.1"
+            else:
+                constraint_value = f"{peak_letter}{split:.2f}#0.1"  # split is already negative
         elif col == 6:  # Area
             # Calculate ratio
             target_area = float(window.peak_params_grid.GetCellValue(data_row_i, col))

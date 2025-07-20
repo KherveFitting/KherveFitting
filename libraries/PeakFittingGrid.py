@@ -812,8 +812,16 @@ class PeakFittingGrid:
                 print(f'Current split: {current_split}')
                 ref_split = float(self.window.peak_params_grid.GetCellValue(letter_index * 2, 12))
                 split_diff = current_split - ref_split
+                print(f'Split Diff: {split_diff}')
+
                 if split_diff != 0:
-                    new_value = f"{new_value.upper()}+{split_diff:.2f}#0.1"
+                    if split_diff >= 0:
+                        print('SPLIT POS')
+                        new_value = f"{new_value.upper()}+{split_diff:.2f}#0.1"
+                    else:
+                        print('SPLIT NEG')
+                        new_value = f"{new_value.upper()}{split_diff:.2f}#0.1"  # split_diff is already negative
+                        print(f'New value: {new_value}')
                 else:
                     new_value = new_value.upper() + '*1'
         elif col == 6 and new_value.upper() in 'ABCDEFGHIJKLMNOP':
@@ -852,11 +860,19 @@ class PeakFittingGrid:
             self.window.peak_params_grid.SetCellValue(row, col, new_value)
 
         # Convert lowercase to uppercase in expressions like a*0.5
-        if '*' in new_value or '+' in new_value:
-            parts = new_value.split('*' if '*' in new_value else '+')
+        if '*' in new_value or '+' in new_value or '-' in new_value:
+            # Determine the operator and split accordingly
+            if '*' in new_value:
+                operator = '*'
+            elif '+' in new_value:
+                operator = '+'
+            else:  # '-' in new_value
+                operator = '-'
+
+            parts = new_value.split(operator)
             if len(parts) == 2 and parts[0].lower() in 'abcdefghij':
                 parts[0] = parts[0].upper()
-                new_value = ('*' if '*' in new_value else '+').join(parts)
+                new_value = operator.join(parts)
                 self.window.peak_params_grid.SetCellValue(row, col, new_value)
 
         if sheet_name in self.window.Data['Core levels'] and 'Fitting' in self.window.Data['Core levels'][sheet_name] and 'Peaks' in \
