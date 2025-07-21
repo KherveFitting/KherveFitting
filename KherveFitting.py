@@ -867,7 +867,7 @@ class MyFrame(wx.Frame):
                 linked_peaks.append(i)
         return linked_peaks
 
-    def update_linked_peak(self, peak_index, new_x, new_height, area=None, original_peak_index=None):
+    def update_linked_peak_OLD(self, peak_index, new_x, new_height, area=None, original_peak_index=None):
         row = peak_index * 2
         constraint_row = row + 1
         position_constraint = self.peak_params_grid.GetCellValue(constraint_row, 2)
@@ -962,8 +962,217 @@ class MyFrame(wx.Frame):
         if not ("LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in fitting_model) and area_constraint.startswith(original_peak_letter):
             self.recalculate_peak_area(peak_index)
 
+    def update_linked_peak(self, peak_index, new_x, new_height, area=None, original_peak_index=None):
+        row = peak_index * 2
+        constraint_row = row + 1
+        position_constraint = self.peak_params_grid.GetCellValue(constraint_row, 2)
+        height_constraint = self.peak_params_grid.GetCellValue(constraint_row, 3)
+        area_constraint = self.peak_params_grid.GetCellValue(constraint_row, 6)
 
+        sheet_name = self.sheet_combobox.GetValue()
+        peak_label = self.peak_params_grid.GetCellValue(row, 1)
+        peaks = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        fitting_model = self.peak_params_grid.GetCellValue(row, 13)
 
+        original_peak_letter = chr(65 + original_peak_index)
+
+        # EXISTING CODE - Update position if constrained (same as original)
+        if position_constraint.startswith(original_peak_letter):
+            if '+' in position_constraint:
+                offset = float(position_constraint.split('+')[1].split('#')[0])
+                new_position = new_x + offset
+            elif '-' in position_constraint:
+                offset = float(position_constraint.split('-')[1].split('#')[0])
+                new_position = new_x - offset
+            elif '*' in position_constraint:
+                factor = float(position_constraint.split('*')[1].split('#')[0])
+                new_position = new_x * factor
+            elif '/' in position_constraint:
+                factor = float(position_constraint.split('/')[1].split('#')[0])
+                new_position = new_x / factor
+            else:
+                new_position = new_x
+
+            self.peak_params_grid.SetCellValue(row, 2, f"{new_position:.2f}")
+            if peak_label in peaks:
+                peaks[peak_label]['Position'] = new_position
+
+        # NEW CODE - Handle cross-core-level position constraints
+        elif '_' in position_constraint:
+            new_position = self.evaluate_cross_core_constraint(position_constraint, 'Position')
+            if new_position is not None:
+                self.peak_params_grid.SetCellValue(row, 2, f"{new_position:.2f}")
+                if peak_label in peaks:
+                    peaks[peak_label]['Position'] = new_position
+
+        # EXISTING CODE - Area constraints
+        if (("LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in
+             fitting_model) or "DS" in fitting_model) and area_constraint.startswith(
+            original_peak_letter):
+            current_area = float(self.peak_params_grid.GetCellValue(original_peak_index * 2, 6))
+            if '*' in area_constraint:
+                factor = float(area_constraint.split('*')[1].split('#')[0])
+                new_linked_area = current_area * factor
+            elif '/' in area_constraint:
+                factor = float(area_constraint.split('/')[1].split('#')[0])
+                new_linked_area = current_area / factor
+            elif '+' in area_constraint:
+                offset = float(area_constraint.split('+')[1].split('#')[0])
+                new_linked_area = current_area + offset
+            elif '-' in area_constraint:
+                offset = float(area_constraint.split('-')[1].split('#')[0])
+                new_linked_area = current_area - offset
+            else:
+                new_linked_area = current_area
+
+            self.peak_params_grid.SetCellValue(row, 6, f"{new_linked_area:.2f}")
+
+            # Recalculate height from area
+            fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+            new_linked_height = self.calculate_height_from_area(new_linked_area, fwhm, fitting_model, row)
+            self.peak_params_grid.SetCellValue(row, 3, f"{new_linked_height:.2f}")
+
+            if peak_label in peaks:
+                peaks[peak_label]['Area'] = new_linked_area
+                peaks[peak_label]['Height'] = new_linked_height
+
+        # NEW CODE - Handle cross-core-level area constraints
+        elif (("LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in
+               fitting_model) or "DS" in fitting_model) and '_' in area_constraint:
+            new_linked_area = self.evaluate_cross_core_constraint(area_constraint, 'Area')
+            if new_linked_area is not None:
+                self.peak_params_grid.SetCellValue(row, 6, f"{new_linked_area:.2f}")
+
+                # Recalculate height from area
+                fwhm = float(self.peak_params_grid.GetCellValue(row, 4))
+                new_linked_height = self.calculate_height_from_area(new_linked_area, fwhm, fitting_model, row)
+                self.peak_params_grid.SetCellValue(row, 3, f"{new_linked_height:.2f}")
+
+                if peak_label in peaks:
+                    peaks[peak_label]['Area'] = new_linked_area
+                    peaks[peak_label]['Height'] = new_linked_height
+
+        # EXISTING CODE - Height constraints
+        elif height_constraint.startswith(original_peak_letter):
+            # Check if model uses height as primary parameter
+            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter"]
+
+            if fitting_model in height_based_models:
+                # Only update height for height-based models
+                if '*' in height_constraint:
+                    factor = float(height_constraint.split('*')[1].split('#')[0])
+                    new_linked_height = new_height * factor
+                elif '/' in height_constraint:
+                    factor = float(height_constraint.split('/')[1].split('#')[0])
+                    new_linked_height = new_height / factor
+                elif '+' in height_constraint:
+                    offset = float(height_constraint.split('+')[1].split('#')[0])
+                    new_linked_height = new_height + offset
+                elif '-' in height_constraint:
+                    offset = float(height_constraint.split('-')[1].split('#')[0])
+                    new_linked_height = new_height - offset
+                else:
+                    new_linked_height = new_height
+
+                self.peak_params_grid.SetCellValue(row, 3, f"{new_linked_height:.2f}")
+                if peak_label in peaks:
+                    peaks[peak_label]['Height'] = new_linked_height
+
+        # NEW CODE - Handle cross-core-level height constraints
+        elif '_' in height_constraint:
+            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter"]
+            if fitting_model in height_based_models:
+                new_linked_height = self.evaluate_cross_core_constraint(height_constraint, 'Height')
+                if new_linked_height is not None:
+                    self.peak_params_grid.SetCellValue(row, 3, f"{new_linked_height:.2f}")
+                    if peak_label in peaks:
+                        peaks[peak_label]['Height'] = new_linked_height
+
+        # EXISTING CODE - Recalculate area if not LA model
+        # if not "LA" in fitting_model:
+        if not (
+                "LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in fitting_model) and area_constraint.startswith(
+                original_peak_letter):
+            self.recalculate_peak_area(peak_index)
+
+        # NEW CODE - Recalculate area for cross-core-level constraints
+        elif not (
+                "LA" in fitting_model or "GL (Area)" in fitting_model or "Voigt" in fitting_model or "ExpGauss" in fitting_model) and '_' in area_constraint:
+            self.recalculate_peak_area(peak_index)
+
+    def get_cross_core_level_value(self, core_level_ref, param_type):
+        """Get parameter value from another core level"""
+        try:
+            if '_' not in core_level_ref:
+                return None
+
+            core_level_name, peak_letter = core_level_ref.split('_', 1)
+            peak_index = ord(peak_letter) - ord('A')
+
+            if core_level_name not in self.Data['Core levels']:
+                return None
+
+            core_level_data = self.Data['Core levels'][core_level_name]
+
+            if 'Fitting' not in core_level_data or 'Peaks' not in core_level_data['Fitting']:
+                return None
+
+            peaks = core_level_data['Fitting']['Peaks']
+            peak_keys = list(peaks.keys())
+
+            if peak_index >= len(peak_keys):
+                return None
+
+            peak_key = peak_keys[peak_index]
+            peak_data = peaks[peak_key]
+
+            # ADD THIS MAPPING - same as Functions.py version
+            param_map = {
+                'center': 'Position', 'Position': 'Position',
+                'height': 'Height', 'Height': 'Height',
+                'area': 'Area', 'Area': 'Area',
+                'fwhm': 'FWHM', 'FWHM': 'FWHM',
+                'sigma': 'Sigma', 'Sigma': 'Sigma',
+                'gamma': 'Gamma', 'Gamma': 'Gamma',
+                'skew': 'Skew', 'Skew': 'Skew'
+            }
+
+            actual_param = param_map.get(param_type, param_type)
+            if actual_param in peak_data:
+                return float(peak_data[actual_param])
+
+            return None
+
+        except (ValueError, IndexError, KeyError):
+            return None
+
+    def evaluate_cross_core_constraint(self, constraint_str, param_type):
+        """Evaluate constraints that reference other core levels"""
+        import re
+
+        pattern = r'^([^_]+_[A-P])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
+        match = re.match(pattern, constraint_str)
+
+        if not match:
+            return None
+
+        core_level_ref, operator, value_str, error_str = match.groups()
+        value = float(value_str)
+
+        ref_value = self.get_cross_core_level_value(core_level_ref, param_type)
+        if ref_value is None:
+            return None
+
+        if operator == '*':
+            return ref_value * value
+        elif operator == '/':
+            return ref_value / value if value != 0 else ref_value
+        elif operator == '+':
+            return ref_value + value
+        elif operator == '-':
+            return ref_value - value
+
+        return None
 
     def calculate_height_from_area(self, area, fwhm, model, row=None):
         if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:

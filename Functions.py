@@ -321,6 +321,18 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 area_min, area_max, area_vary = parse_constraints(peak_params_grid.GetCellValue(row + 1, 6),
                                                                   area, peak_params_grid, i, "area")
 
+                # Resolve Cross_Core_constraint
+                center_min = resolve_cross_core_constraint(window, center_min, 'center')
+                center_max = resolve_cross_core_constraint(window, center_max, 'center')
+                height_min = resolve_cross_core_constraint(window, height_min, 'height')
+                height_max = resolve_cross_core_constraint(window, height_max, 'height')
+                area_min = resolve_cross_core_constraint(window, area_min, 'area')
+                area_max = resolve_cross_core_constraint(window, area_max, 'area')
+                fwhm_min = resolve_cross_core_constraint(window, fwhm_min, 'fwhm')
+                fwhm_max = resolve_cross_core_constraint(window, fwhm_max, 'fwhm')
+                lg_ratio_min = resolve_cross_core_constraint(window, lg_ratio_min, 'lg_ratio')
+                lg_ratio_max = resolve_cross_core_constraint(window, lg_ratio_max, 'lg_ratio')
+
                 center_min = evaluate_constraint(center_min, peak_params_grid, 'center', center)
                 center_max = evaluate_constraint(center_max, peak_params_grid, 'center', center)
                 height_min = evaluate_constraint(height_min, peak_params_grid, 'height', height)
@@ -1263,12 +1275,33 @@ def parse_constraints(constraint_str, current_value, peak_params_grid, peak_inde
     pattern_simple = r'^([A-P])([+\-*/])(\d+\.?\d*)$'
     match_simple = re.match(pattern_simple, constraint_str)
 
+    # NEW CODE - Pattern for cross-core-level constraints: C1s_A*1.5#0.1
+    pattern_cross_core = r'^([^_]+_[A-P])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
+    match_cross_core = re.match(pattern_cross_core, constraint_str)
+
     if constraint_str in ['Fixed']:
         small_error3 = 0.001
         if param_name in ["L/G", "fraction"]:
             return current_value - 0.5, current_value + 0.5, False
         else:
             return current_value - small_error3, current_value + small_error3, False
+
+        # NEW CODE - Handle cross-core-level constraints
+    elif match_cross_core:
+        core_level_ref, operator, value, delta = match_cross_core.groups()
+        value = float(value)
+        delta = float(delta) if delta else 0.1
+        if operator in ['+', '-']:
+            return (f"{core_level_ref}{operator}{value - delta}", f"{core_level_ref}{operator}{value + delta}", True)
+        elif operator in ['*', '/']:
+            if param_name in ['POSITION', 'FWHM', 'L/G', 'fwhm_g']:
+                delta_percent = delta
+                return (f"{core_level_ref}{operator}{value - delta_percent}",
+                        f"{core_level_ref}{operator}{value + delta_percent}", True)
+            else:
+                return (f"{core_level_ref}{operator}{value - delta}", f"{core_level_ref}{operator}{value + delta}",
+                        True)
+
     elif match:
         ref_peak, operator, value, delta = match.groups()
         value = float(value)
@@ -1344,6 +1377,89 @@ def evaluate_constraint(constraint, peak_params_grid, param_name, current_value)
         return current_value
 
 
+def get_cross_core_level_value(window, core_level_ref, param_type):
+    """Get parameter value from another core level"""
+    try:
+        if '_' not in core_level_ref:
+            return None
+
+        core_level_name, peak_letter = core_level_ref.split('_', 1)
+        peak_index = ord(peak_letter) - ord('A')
+
+        if core_level_name not in window.Data['Core levels']:
+            return None
+
+        core_level_data = window.Data['Core levels'][core_level_name]
+
+        if 'Fitting' not in core_level_data or 'Peaks' not in core_level_data['Fitting']:
+            return None
+
+        peaks = core_level_data['Fitting']['Peaks']
+        peak_keys = list(peaks.keys())
+
+        if peak_index >= len(peak_keys):
+            return None
+
+        peak_key = peak_keys[peak_index]
+        peak_data = peaks[peak_key]
+
+        # Map param_type to actual data keys
+        param_map = {
+            'center': 'Position',
+            'Position': 'Position',
+            'height': 'Height',
+            'Height': 'Height',
+            'area': 'Area',
+            'Area': 'Area',
+            'fwhm': 'FWHM',
+            'FWHM': 'FWHM',
+            'sigma': 'Sigma',
+            'Sigma': 'Sigma',
+            'gamma': 'Gamma',
+            'Gamma': 'Gamma',
+            'skew': 'Skew',
+            'Skew': 'Skew'
+        }
+
+        actual_param = param_map.get(param_type, param_type)
+        if actual_param in peak_data:
+            return float(peak_data[actual_param])
+
+        return None
+
+    except (ValueError, IndexError, KeyError):
+        return None
+
+
+def resolve_cross_core_constraint(window, constraint_str, param_name):
+    """Resolve cross-core-level constraint to actual numeric value"""
+    if not isinstance(constraint_str, str) or '_' not in constraint_str:
+        return constraint_str
+
+    import re
+    pattern = r'^([^_]+_[A-P])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
+    match = re.match(pattern, constraint_str)
+
+    if not match:
+        return constraint_str
+
+    core_level_ref, operator, value_str, error_str = match.groups()
+    value = float(value_str)
+
+    ref_value = get_cross_core_level_value(window, core_level_ref, param_name)
+    if ref_value is None:
+        return constraint_str  # Return original if can't resolve
+
+    if operator == '*':
+        return ref_value * value
+    elif operator == '/':
+        return ref_value / value if value != 0 else ref_value
+    elif operator == '+':
+        return ref_value + value
+    elif operator == '-':
+        return ref_value - value
+
+    return constraint_str
 
 # WHERE IS IT USED???
 def format_sheet_name2(sheet_name):

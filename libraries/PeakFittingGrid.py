@@ -859,6 +859,94 @@ class PeakFittingGrid:
                 new_value = new_value.upper() + '*1'
             self.window.peak_params_grid.SetCellValue(row, col, new_value)
 
+        # NEW CODE - Handle cross-core-level constraint auto-expansion with error checking
+        elif row % 2 == 1 and col in [2, 3, 4, 5, 6, 7, 8, 9]:
+            # Check if it matches cross-core-level pattern like "C1s_A", "sr3d_a", "Sr3d_A"
+            cross_core_pattern = r'^([^_]+)_([A-Pa-p])$'
+            match = re.match(cross_core_pattern, new_value, re.IGNORECASE)
+
+            if match:
+                core_level_name, peak_letter = match.groups()
+
+                # Normalize the peak letter to uppercase
+                peak_letter = peak_letter.upper()
+
+                # Find the core level with case-insensitive matching
+                actual_core_level_name = None
+                for existing_name in self.window.Data['Core levels'].keys():
+                    if existing_name.lower() == core_level_name.lower():
+                        actual_core_level_name = existing_name
+                        break
+
+                # Error: Core level doesn't exist
+                if not actual_core_level_name:
+                    wx.MessageBox(f"Core level '{core_level_name}' does not exist.",
+                                  "Invalid Core Level Reference", wx.OK | wx.ICON_ERROR)
+                    event.Veto()
+                    return
+
+                core_level_data = self.window.Data['Core levels'][actual_core_level_name]
+
+                # Error: Core level has no fitting data
+                if ('Fitting' not in core_level_data or
+                        'Peaks' not in core_level_data['Fitting']):
+                    wx.MessageBox(f"Core level '{actual_core_level_name}' has no fitted peaks.",
+                                  "Invalid Peak Reference", wx.OK | wx.ICON_ERROR)
+                    event.Veto()
+                    return
+
+                peaks = core_level_data['Fitting']['Peaks']
+                peak_keys = list(peaks.keys())
+                peak_index = ord(peak_letter) - ord('A')
+
+                # Error: Peak letter doesn't exist in that core level
+                if peak_index >= len(peak_keys):
+                    wx.MessageBox(f"Peak {peak_letter} does not exist in core level '{actual_core_level_name}'.",
+                                  "Invalid Peak Reference", wx.OK | wx.ICON_ERROR)
+                    event.Veto()
+                    return
+
+                # Success: Expand the constraint
+                peak_key = peak_keys[peak_index]
+                ref_peak_data = peaks[peak_key]
+
+                # Use the actual core level name in the constraint
+                normalized_ref = f"{actual_core_level_name}_{peak_letter}"
+
+                if col == 2:  # Position constraint
+                    # Get current position and reference position
+                    current_pos = float(self.window.peak_params_grid.GetCellValue(row - 1, col))
+                    ref_pos = float(ref_peak_data.get('Position', current_pos))
+
+                    # Calculate difference
+                    difference = current_pos - ref_pos
+
+                    # Create constraint string
+                    if difference >= 0:
+                        new_value = f"{normalized_ref}+{difference:.2f}#0.1"
+                    else:
+                        new_value = f"{normalized_ref}{difference:.2f}#0.1"  # difference is already negative
+
+                elif col == 6:  # Area constraint
+                    # Get current area and reference area for ratio calculation
+                    current_area = float(self.window.peak_params_grid.GetCellValue(row - 1, col))
+                    ref_area = float(ref_peak_data.get('Area', current_area))
+
+                    # Calculate ratio
+                    ratio = (current_area / ref_area) if ref_area != 0 else 1
+
+                    if ratio != 1:
+                        new_value = f"{normalized_ref}*{ratio:.2f}#0.01"
+                    else:
+                        new_value = f"{normalized_ref}*1"
+
+                else:  # FWHM, Sigma, Gamma, Height, L/G, Skew
+                    # For non-position/area parameters, just add *1
+                    new_value = f"{normalized_ref}*1"
+
+                # Update the cell with expanded constraint
+                self.window.peak_params_grid.SetCellValue(row, col, new_value)
+
         # Convert lowercase to uppercase in expressions like a*0.5
         if '*' in new_value or '+' in new_value or '-' in new_value:
             # Determine the operator and split accordingly
