@@ -869,10 +869,10 @@ class FittingWindow(wx.Frame):
 
             if current_model in area_based_models:
                 # For area-based models, constrain area and use default for height
-                area_constraint = f"{chr(65 + first_peak)}*{area_factor[orbital[-1]]}#0.05"
+                area_constraint = f"{chr(65 + first_peak)}*{area_factor[orbital[-1]]}#0.01"
             else:
                 # For height-based models, constrain height and use default for area
-                height_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[-1]]}#0.05"
+                height_constraint = f"{chr(65 + first_peak)}*{height_factor[orbital[-1]]}#0.01"
 
             # Apply constraints
             self.parent.peak_params_grid.SetCellValue(row2 + 1, 3, height_constraint)
