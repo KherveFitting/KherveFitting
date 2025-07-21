@@ -21,149 +21,97 @@ class MouseEventHandler:
                 self.window.SetStatusText(f"BE: {x:.1f} eV, I: {int(y)} CPS", 1)
                 self.window.current_energy_value = x
 
-    def on_click_OLD(self, event):
-        if event.inaxes:
-            x_click = event.xdata
-            if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
-                self.window.motion_notify_id = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                self.window.button_release_id = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+    def insert_cross_core_constraint(self, constraint_ref, row, col):
+        """Insert a cross-core-level constraint into the specified cell"""
+        # Save state for undo
+        from libraries.FileMenu.Save import save_state
+        save_state(self.window)
 
-                x_click = event.xdata
-                sheet_name = self.window.sheet_combobox.GetValue()
-                if self.window.vline1 is not None and self.window.vline2 is not None:
-                    vline1_x = self.window.vline1.get_xdata()[0]
-                    vline2_x = self.window.vline2.get_xdata()[0]
+        # Determine if we're on a parameter row or constraint row
+        if row % 2 == 0:  # Parameter row - insert into constraint row below
+            constraint_row = row + 1
+            parameter_row = row
+        else:  # Constraint row - use this row
+            constraint_row = row
+            parameter_row = row - 1
 
-                    low_be_x = min(vline1_x, vline2_x)
-                    high_be_x = max(vline1_x, vline2_x)
+        # Parse the constraint reference (e.g., "C1s_A")
+        core_level_name, peak_letter = constraint_ref.split('_')
 
-                    dist1 = abs(x_click - vline1_x)
-                    dist2 = abs(x_click - vline2_x)
+        # Get the referenced peak data
+        if core_level_name in self.window.Data['Core levels']:
+            core_level_data = self.window.Data['Core levels'][core_level_name]
 
-                    if dist1 < dist2:
-                        raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline1_x))]
-                        if vline1_x == low_be_x:
-                            calculated_offset = event.ydata - raw_y
-                            # Ensure offset cannot be positive
-                            self.window.offset_l = min(calculated_offset, 0)
-                            self.window.Data['Core levels'][sheet_name]['Background'][
-                                'Bkg Offset Low'] = self.window.offset_l
-                            self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+            if ('Fitting' in core_level_data and
+                    'Peaks' in core_level_data['Fitting']):
+
+                peaks = core_level_data['Fitting']['Peaks']
+                peak_keys = list(peaks.keys())
+                peak_index = ord(peak_letter) - ord('A')
+
+                if peak_index < len(peak_keys):
+                    peak_key = peak_keys[peak_index]
+                    ref_peak_data = peaks[peak_key]
+
+                    if col == 2:  # Position constraint
+                        # Get current position and reference position
+                        current_pos = float(self.window.peak_params_grid.GetCellValue(parameter_row, col))
+                        ref_pos = float(ref_peak_data.get('Position', current_pos))
+
+                        # Calculate difference
+                        difference = current_pos - ref_pos
+
+                        # Create constraint string
+                        if difference >= 0:
+                            constraint_value = f"{constraint_ref}+{difference:.2f}#0.1"
                         else:
-                            calculated_offset = event.ydata - raw_y
-                            # Ensure offset cannot be positive
-                            self.window.offset_h = min(calculated_offset, 0)
-                            self.window.Data['Core levels'][sheet_name]['Background'][
-                                'Bkg Offset High'] = self.window.offset_h
-                            self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
-                    else:
-                        raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
-                        if vline2_x == low_be_x:
-                            calculated_offset = event.ydata - raw_y
-                            # Ensure offset cannot be positive
-                            self.window.offset_l = min(calculated_offset, 0)
-                            self.window.Data['Core levels'][sheet_name]['Background'][
-                                'Bkg Offset Low'] = self.window.offset_l
-                            self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                            constraint_value = f"{constraint_ref}{difference:.2f}#0.1"  # difference is already negative
+
+                    elif col == 6:  # Area constraint
+                        # Get current area and reference area for ratio calculation
+                        current_area = float(self.window.peak_params_grid.GetCellValue(parameter_row, col))
+                        ref_area = float(ref_peak_data.get('Area', current_area))
+
+                        # Calculate ratio
+                        ratio = (current_area / ref_area) if ref_area != 0 else 1
+
+                        if ratio != 1:
+                            constraint_value = f"{constraint_ref}*{ratio:.2f}#0.01"
                         else:
-                            calculated_offset = event.ydata - raw_y
-                            # Ensure offset cannot be positive
-                            self.window.offset_h = min(calculated_offset, 0)
-                            self.window.Data['Core levels'][sheet_name]['Background'][
-                                'Bkg Offset High'] = self.window.offset_h
-                            self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
-                    self.window.plot_manager.plot_background(self.window)
-                    return
-            elif event.button == 1:
-                if event.key == 'shift':
-                    if self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None:
-                        row = self.window.selected_peak_index * 2
-                        self.window.initial_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
-                        self.window.initial_x = event.xdata
-                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
-                                                                                self.window.peak_manipulation.on_cross_drag)
-                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
-                                                                                 self.window.peak_manipulation.on_cross_release)
-                elif self.window.background_tab_selected:
-                    self.window.peak_manipulation.deselect_all_peaks()
+                            constraint_value = f"{constraint_ref}*1"
+
+                    else:  # FWHM, Sigma, Gamma, Height, L/G, Skew
+                        # For non-position/area parameters, just add *1
+                        constraint_value = f"{constraint_ref}*1"
+
+                    # Insert the constraint into the constraint cell
+                    self.window.peak_params_grid.SetCellValue(constraint_row, col, constraint_value)
+
+                    # Update the data structure
                     sheet_name = self.window.sheet_combobox.GetValue()
                     if sheet_name in self.window.Data['Core levels']:
-                        core_level_data = self.window.Data['Core levels'][sheet_name]
-                        if self.window.background_method == "Multi-Regions Smart":
-                            if self.window.vline1 is not None and self.window.vline2 is not None:
-                                vline1_x = self.window.vline1.get_xdata()[0]
-                                vline2_x = self.window.vline2.get_xdata()[0]
+                        fitting_data = self.window.Data['Core levels'][sheet_name].get('Fitting', {})
+                        peaks_data = fitting_data.get('Peaks', {})
 
-                                dist1 = abs(x_click - vline1_x)
-                                dist2 = abs(x_click - vline2_x)
+                        current_peak_index = constraint_row // 2  # Use constraint_row for peak index
+                        peak_keys_current = list(peaks_data.keys())
 
-                                if dist1 < dist2 and dist1 < self.window.some_threshold:
-                                    self.window.moving_vline = self.window.vline1
-                                elif dist2 < self.window.some_threshold:
-                                    self.window.moving_vline = self.window.vline2
-                                else:
-                                    self.window.moving_vline = None
+                        if current_peak_index < len(peak_keys_current):
+                            current_peak_key = peak_keys_current[current_peak_index]
 
-                                if self.window.moving_vline is not None:
-                                    self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
-                                                                                            self.on_motion)
-                                    self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
-                                                                                             self.on_release)
-                                    return
+                            if 'Constraints' not in peaks_data[current_peak_key]:
+                                peaks_data[current_peak_key]['Constraints'] = {}
 
-                        if self.window.vline1 is None:
-                            self.window.vline1 = self.window.ax.axvline(x_click, color='r', linestyle='--')
-                            core_level_data['Background']['Bkg Low'] = float(x_click)
-                        elif self.window.vline2 is None and abs(
-                                x_click - core_level_data['Background']['Bkg Low']) > self.window.some_threshold:
-                            self.window.vline2 = self.window.ax.axvline(x_click, color='r', linestyle='--')
-                            core_level_data['Background']['Bkg High'] = float(x_click)
-                            core_level_data['Background']['Bkg Low'], core_level_data['Background'][
-                                'Bkg High'] = sorted([
-                                core_level_data['Background']['Bkg Low'],
-                                core_level_data['Background']['Bkg High']
-                            ])
-                        else:
-                            self.window.moving_vline = self.window.vline1 if self.window.vline2 is None or abs(
-                                x_click - core_level_data['Background']['Bkg Low']) < abs(
-                                x_click - core_level_data['Background']['Bkg High']) else self.window.vline2
-                            self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
-                                                                                    self.on_motion)
-                            self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
-                                                                                     self.on_release)
-                elif self.window.noise_tab_selected:
-                    if self.window.vline3 is None:
-                        self.window.vline3 = self.window.ax.axvline(x_click, color='b', linestyle='--')
-                        self.window.noise_min_energy = float(x_click)
-                    elif self.window.vline4 is None and abs(
-                            x_click - self.window.noise_min_energy) > self.window.some_threshold:
-                        self.window.vline4 = self.window.ax.axvline(x_click, color='b', linestyle='--')
-                        self.window.noise_max_energy = float(x_click)
-                        self.window.noise_min_energy, self.window.noise_max_energy = sorted(
-                            [self.window.noise_min_energy, self.window.noise_max_energy])
-                    else:
-                        self.window.moving_vline = self.window.vline3 if self.window.vline4 is None or abs(
-                            x_click - self.window.noise_min_energy) < abs(
-                            x_click - self.window.noise_max_energy) else self.window.vline4
-                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
-                                                                                 self.on_release)
-                elif self.window.peak_fitting_tab_selected:
-                    peak_index = self.window.peak_manipulation.get_peak_index_from_position(event.xdata, event.ydata)
-                    if peak_index is not None:
-                        self.window.selected_peak_index = peak_index
-                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event',
-                                                                                self.window.peak_manipulation.on_cross_drag)
-                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
-                                                                                 self.window.peak_manipulation.on_cross_release)
-                        self.window.peak_manipulation.highlight_selected_peak()
-                    else:
-                        self.window.peak_manipulation.deselect_all_peaks()
-                else:
-                    self.window.peak_manipulation.deselect_all_peaks()
+                            constraint_names = {
+                                2: 'Position', 3: 'Height', 4: 'FWHM', 5: 'L/G',
+                                6: 'Area', 7: 'Sigma', 8: 'Gamma', 9: 'Skew'
+                            }
+                            constraint_name = constraint_names.get(col)
+                            if constraint_name:
+                                peaks_data[current_peak_key]['Constraints'][constraint_name] = constraint_value
 
-            self.window.show_hide_vlines()
-            self.window.canvas.draw()
+                    # Refresh the grid
+                    self.window.peak_params_grid.ForceRefresh()
 
     def on_click(self, event):
         if event.inaxes:
@@ -690,13 +638,16 @@ class MouseEventHandler:
 
         menu.AppendSeparator()
 
-        # New peak operations
-        if row % 2 == 0:  # Parameter row - can delete this peak
+        # New peak operations - available on both parameter and constraint rows
+        # Determine peak index and letter based on row type
+        if row % 2 == 0:  # Parameter row
             peak_index = row // 2
             peak_letter = self.window.peak_params_grid.GetCellValue(row, 0)
-            delete_item = menu.Append(wx.ID_ANY, f"Delete Peak {peak_letter}")
-        else:
-            delete_item = None
+        else:  # Constraint row
+            peak_index = row // 2  # Integer division gives us the peak index
+            peak_letter = self.window.peak_params_grid.GetCellValue(row - 1, 0)  # Get letter from parameter row above
+
+        delete_item = menu.Append(wx.ID_ANY, f"Delete Peak {peak_letter}")
 
         # Add peak submenu
         add_submenu = wx.Menu()
@@ -719,8 +670,12 @@ class MouseEventHandler:
         propagate_text = "Propagate to column"
         propagate_diff_text = "Propagate difference to column"
 
-        if col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1:
-            param_row = row - 1
+        if col in [2, 3, 4, 5, 6, 7, 8, 9]:  # Available on both parameter and constraint rows
+            # Determine parameter row based on whether we're on parameter row or constraint row
+            if row % 2 == 0:  # Parameter row
+                param_row = row
+            else:  # Constraint row
+                param_row = row - 1
             peak_letter = self.window.peak_params_grid.GetCellValue(param_row, 0)
             col_names = {
                 2: "Positions", 3: "Heights", 4: "FWHMs", 5: "L/G ratios",
@@ -752,6 +707,56 @@ class MouseEventHandler:
         if col == 4 and row % 2 == 1:
             propagate_diff_item = menu.Append(wx.ID_ANY, propagate_diff_text)
 
+        # NEW CODE - Add cross-core-level constraint menu
+        if col in [2, 3, 4, 5, 6, 7, 8, 9] :
+            menu.AppendSeparator()
+
+            # Create cross-core-level constraint submenu
+            cross_core_menu = wx.Menu()
+
+            # Get current sheet name for comparison
+            current_sheet_name = self.window.sheet_combobox.GetValue()
+
+            # Get all core levels that have fitting data
+            available_core_levels = {}
+            for core_level_name, core_level_data in self.window.Data['Core levels'].items():
+                if ('Fitting' in core_level_data and
+                        'Peaks' in core_level_data['Fitting'] and
+                        len(core_level_data['Fitting']['Peaks']) > 0):
+                    available_core_levels[core_level_name] = core_level_data['Fitting']['Peaks']
+
+            if available_core_levels:
+                # Create submenu for each core level
+                for core_level_name, peaks in available_core_levels.items():
+                    core_level_submenu = wx.Menu()
+
+                    # Add each peak as a menu item
+                    peak_keys = list(peaks.keys())
+                    for i, peak_key in enumerate(peak_keys):
+                        peak_letter = chr(65 + i)  # A, B, C, etc.
+                        constraint_ref = f"{core_level_name}_{peak_letter}"
+
+                        # Show just the letter if it's the same core level, otherwise show full reference
+                        if core_level_name == current_sheet_name:
+                            display_name = peak_letter  # Just "A", "B", "C"
+                        else:
+                            display_name = constraint_ref  # "C1s_A", "Sr3d_B", etc.
+
+                        # Create menu item for this peak
+                        peak_item = core_level_submenu.Append(wx.ID_ANY, display_name)
+
+                        # Bind the menu item to insert the constraint (always use full constraint_ref)
+                        self.window.Bind(wx.EVT_MENU,
+                                         lambda evt, ref=constraint_ref, r=row, c=col:
+                                         self.insert_cross_core_constraint(ref, r, c),
+                                         peak_item)
+
+                    # Add the core level submenu to the main cross-core menu
+                    cross_core_menu.AppendSubMenu(core_level_submenu, core_level_name)
+
+                # Add the main cross-core menu to the context menu
+                menu.AppendSubMenu(cross_core_menu, "Constraint to Other Core Levels")
+
         # Enable/disable items
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
         has_clipboard_data = os.path.exists(clipboard_file)
@@ -759,9 +764,8 @@ class MouseEventHandler:
 
         copy_item.Enable(has_rows)
         paste_item.Enable(has_clipboard_data)
-        if delete_item:
-            delete_item.Enable(has_rows)
-        propagate_item.Enable(col in [2, 3, 4, 5, 6, 7, 8, 9] and row % 2 == 1)
+        delete_item.Enable(has_rows)
+        propagate_item.Enable(col in [2, 3, 4, 5, 6, 7, 8, 9])
 
         # Bind events
         from libraries.FileMenu.Save import copy_all_peak_parameters, paste_all_peak_parameters
@@ -770,14 +774,17 @@ class MouseEventHandler:
         self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_item)
         self.window.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self.window), paste_item)
 
-        if delete_item:
-            self.window.Bind(wx.EVT_MENU, lambda evt: self.delete_peak_at_index(peak_index), delete_item)
+
+        self.window.Bind(wx.EVT_MENU, lambda evt: self.delete_peak_at_index(peak_index), delete_item)
 
         for i, add_item in enumerate(add_items):
             model = models[i]
             self.window.Bind(wx.EVT_MENU, lambda evt, m=model, r=row: self.add_peak_with_model(m, r), add_item)
 
-        self.window.Bind(wx.EVT_MENU, lambda evt: propagate_constraint(self.window, row, col), propagate_item)
+        # Always pass the constraint row to propagate_constraint
+        constraint_row = row + 1 if row % 2 == 0 else row
+        self.window.Bind(wx.EVT_MENU, lambda evt: propagate_constraint(self.window, constraint_row, col),
+                         propagate_item)
         if propagate_diff_item:
             self.window.Bind(wx.EVT_MENU, lambda evt: propagate_fwhm_difference(self.window, row, col),
                              propagate_diff_item)
