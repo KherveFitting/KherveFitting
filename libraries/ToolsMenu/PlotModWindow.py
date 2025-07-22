@@ -15,9 +15,12 @@ class PlotModWindow(wx.Frame):
                 wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
 
         self.SetTitle("Plot Modifications")
-        # self.SetSize(500, 395)
-        self.SetSize(660, 395)  # Increase width from 500 to 650
-
+        if 'wxMac' in wx.PlatformInfo:
+            self.SetSize(660, 395)
+        elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
+            self.SetSize(620, 465)
+        else:
+            self.SetSize(660, 395)
         self.parent = parent
         panel = wx.Panel(self)
 
