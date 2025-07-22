@@ -5,6 +5,7 @@ from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
 from scipy.integrate import cumtrapz
 import json
+import lmfit.models  # Add this if not already present
 
 
 class PlotModWindow(wx.Frame):
@@ -13,7 +14,8 @@ class PlotModWindow(wx.Frame):
                 wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
 
         self.SetTitle("Plot Modifications")
-        self.SetSize(500, 395)
+        # self.SetSize(500, 395)
+        self.SetSize(660, 395)  # Increase width from 500 to 650
 
         self.parent = parent
         panel = wx.Panel(self)
@@ -49,7 +51,7 @@ class PlotModWindow(wx.Frame):
         smooth_sizer.Add(smooth_btn, 0, wx.EXPAND | wx.ALL, 5)
 
         # Noise section
-        noise_box = wx.StaticBox(panel, label="Add Noise")
+        noise_box = wx.StaticBox(panel, label="Noise")
         noise_sizer = wx.StaticBoxSizer(noise_box, wx.VERTICAL)
 
         self.noise_type = wx.ComboBox(panel, choices=["Gaussian", "Uniform", "Poisson"],
@@ -98,6 +100,7 @@ class PlotModWindow(wx.Frame):
         const_box = wx.StaticBox(panel, label="Constant Operation")
         const_sizer = wx.StaticBoxSizer(const_box, wx.VERTICAL)
 
+        const_sizer.Add(wx.StaticText(panel, label="Type:"), 0, wx.ALL, 5)
         self.const_op = wx.ComboBox(panel, choices=["Multiply", "Divide", "Add", "Subtract"], style=wx.CB_READONLY)
         self.const_op.SetValue("Multiply")
         const_sizer.Add(self.const_op, 0, wx.EXPAND | wx.ALL, 5)
@@ -111,12 +114,71 @@ class PlotModWindow(wx.Frame):
         const_btn.Bind(wx.EVT_BUTTON, self.on_apply_constant)
         const_sizer.Add(const_btn, 0, wx.EXPAND | wx.ALL, 5)
 
+        # **BE Shift**
+        be_shift_box = wx.StaticBox(panel, label="BE Shift")
+        be_shift_sizer = wx.StaticBoxSizer(be_shift_box, wx.VERTICAL)
+
+        # Label above the control
+        be_shift_sizer.Add(wx.StaticText(panel, label="Shift (eV):"), 0, wx.ALL, 5)
+        self.be_shift_value = wx.SpinCtrlDouble(panel, value="0.0", min=-100.0, max=100.0, inc=0.1, size=(80, -1))
+        be_shift_sizer.Add(self.be_shift_value, 0, wx.EXPAND | wx.ALL, 5)
+
+        be_shift_btn = wx.Button(panel, label="Apply BE Shift")
+        be_shift_btn.SetMinSize((125, 40))
+        be_shift_btn.Bind(wx.EVT_BUTTON, self.on_apply_be_shift)
+        be_shift_sizer.Add(be_shift_btn, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Voigt Model Generator (expanded, less dense version)
+        voigt_box = wx.StaticBox(panel, label="Voigt Model Generator")
+        voigt_sizer = wx.StaticBoxSizer(voigt_box, wx.VERTICAL)
+
+        # Position control
+        voigt_sizer.Add(wx.StaticText(panel, label="Position (eV):"), 0, wx.ALL, 2)
+        self.voigt_position = wx.SpinCtrlDouble(panel, value="285.0", min=0.0, max=2000.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_position, 0, wx.EXPAND | wx.ALL, 5)
+
+        # FWHM control
+        voigt_sizer.Add(wx.StaticText(panel, label="FWHM (eV):"), 0, wx.ALL, 2)
+        self.voigt_fwhm = wx.SpinCtrlDouble(panel, value="1.5", min=0.1, max=10.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_fwhm, 0, wx.EXPAND | wx.ALL, 5)
+
+        # L/G Ratio control
+        voigt_sizer.Add(wx.StaticText(panel, label="L/G Ratio (%):"), 0, wx.ALL, 2)
+        self.voigt_lg_ratio = wx.SpinCtrlDouble(panel, value="30.0", min=0.0, max=100.0, inc=1.0)
+        voigt_sizer.Add(self.voigt_lg_ratio, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Height control
+        voigt_sizer.Add(wx.StaticText(panel, label="Height (CPS):"), 0, wx.ALL, 2)
+        self.voigt_height = wx.SpinCtrlDouble(panel, value="1000.0", min=1.0, max=1e7, inc=100.0)
+        voigt_sizer.Add(self.voigt_height, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Range Min control
+        voigt_sizer.Add(wx.StaticText(panel, label="Range Min (eV):"), 0, wx.ALL, 2)
+        self.voigt_min = wx.SpinCtrlDouble(panel, value="280.0", min=0.0, max=2000.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_min, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Range Max control
+        voigt_sizer.Add(wx.StaticText(panel, label="Range Max (eV):"), 0, wx.ALL, 2)
+        self.voigt_max = wx.SpinCtrlDouble(panel, value="290.0", min=0.0, max=2000.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_max, 0, wx.EXPAND | wx.ALL, 2)
+
+        # Create button
+        voigt_btn = wx.Button(panel, label="Create Voigt Model")
+        voigt_btn.SetMinSize((125, 40))
+        voigt_btn.Bind(wx.EVT_BUTTON, self.on_create_voigt)
+        voigt_sizer.Add(voigt_btn, 0, wx.EXPAND | wx.ALL, 5)
+
         # Add to grid
         grid_sizer.Add(smooth_sizer, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(noise_sizer, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(diff_sizer, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(diff_sizer, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(int_sizer, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(const_sizer, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(const_sizer, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(voigt_sizer, pos=(0, 3), span=(2, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(be_shift_sizer, pos=(1, 2), flag=wx.EXPAND | wx.ALL, border=1)
+
+        # Auto-populate Voigt parameters from current plot
+        self.auto_populate_voigt_from_plot()
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
@@ -206,8 +268,8 @@ class PlotModWindow(wx.Frame):
         # Create DataFrame with required columns
         df = pd.DataFrame({
             'BE': x,
-            'Raw Data': y,
-            'Background': y,
+            'Corrected Data': y,  # Modified data goes here
+            'Raw Data': y,  # Keep original reference
             'Transmission': [1.0] * len(x)
         })
 
@@ -374,3 +436,219 @@ class PlotModWindow(wx.Frame):
 
         # Save the data
         self.save_modified_data(x, smoothed_int, new_sheet_name, "Integrated")
+
+    def on_create_voigt(self, event):
+        """Create a new sheet with Voigt model data and save to Excel"""
+        import lmfit.models
+        import pandas as pd
+        import openpyxl
+
+        # Get current sheet for base name and x-axis
+        current_sheet = self.parent.sheet_combobox.GetValue()
+
+        # Get current x-axis data (use exact same x-values as original)
+        current_x = np.array(self.parent.Data['Core levels'][current_sheet]['B.E.'])
+
+        # Get parameters
+        position = self.voigt_position.GetValue()
+        fwhm = self.voigt_fwhm.GetValue()
+        lg_ratio = self.voigt_lg_ratio.GetValue()
+        height = self.voigt_height.GetValue()
+        x_min = self.voigt_min.GetValue()
+        x_max = self.voigt_max.GetValue()
+
+        # Validate range
+        if x_min >= x_max:
+            wx.MessageBox("Min value must be less than Max value", "Invalid Range", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Filter x_values to the specified range
+        mask = (current_x >= x_min) & (current_x <= x_max)
+        if not np.any(mask):
+            wx.MessageBox("No data points found in the specified range", "Invalid Range", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Use filtered x-values from original data (this ensures identical x-axis)
+        x_values = current_x[mask]
+
+        # Calculate Voigt parameters
+        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))  # Convert FWHM to sigma
+        gamma = (lg_ratio / 100) * sigma  # Calculate gamma from L/G ratio
+
+        # Create Voigt model
+        voigt_model = lmfit.models.VoigtModel()
+
+        # Calculate amplitude to achieve desired height
+        amplitude = height / voigt_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+
+        # Generate Voigt profile using the exact same x-values
+        y_values = voigt_model.eval(x=x_values, center=position, amplitude=amplitude, sigma=sigma, gamma=gamma)
+
+        # Create full arrays (same length as original data) with zeros outside range
+        full_x = current_x.copy()
+        full_y = np.zeros_like(current_x)
+        full_y[mask] = y_values  # Only fill the range where Voigt is defined
+
+        # Get base name for new sheet
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', current_sheet)
+        base_name = match.group(1) if match else "Voigt"
+
+        # Find earliest available row name
+        new_sheet_name = self.get_earliest_row_name(base_name)
+
+        # Create DataFrame with correct column names
+        df = pd.DataFrame({
+            'BE': full_x,
+            'Corrected Data': full_y,  # Voigt model data
+            'Raw Data': full_y,  # Same as corrected for Voigt
+            'Transmission': np.ones_like(full_x)
+        })
+
+        # Save to Excel file
+        try:
+            # Save DataFrame to Excel
+            with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+            # Create new core level data structure for memory
+            new_core_level_data = {
+                'B.E.': full_x.tolist(),
+                'Raw Data': full_y.tolist(),
+                'Background': {'Bkg Y': np.zeros_like(full_y).tolist()},
+                'Name': new_sheet_name
+            }
+
+            # Add to parent data
+            self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+            self.parent.Data['Number of Core levels'] += 1
+
+            # Update sheet combobox
+            self.parent.sheet_combobox.Append(new_sheet_name)
+
+            # Select the new sheet
+            self.parent.sheet_combobox.SetValue(new_sheet_name)
+
+            # Refresh the plot
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, new_sheet_name)
+
+            wx.MessageBox(f"Voigt model created: {new_sheet_name}\nPoints: {len(full_x)}",
+                          "Success", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error saving to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_apply_be_shift(self, event):
+        """Create a new sheet with BE-shifted data and save to Excel"""
+        import pandas as pd
+        import openpyxl
+
+        # Get current sheet and shift value
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        shift_value = self.be_shift_value.GetValue()
+
+        # Get current data
+        x = self.parent.Data['Core levels'][current_sheet]['B.E.']
+        y = self.parent.Data['Core levels'][current_sheet]['Raw Data']
+
+        # Apply BE shift (add shift to all BE values)
+        shifted_x = [val + shift_value for val in x]
+
+        # Get base name for new sheet
+        import re
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', current_sheet)
+        base_name = match.group(1) if match else current_sheet
+
+        # Find earliest available row name
+        new_sheet_name = self.get_earliest_row_name(base_name)
+
+        # Create DataFrame with correct column names
+        df = pd.DataFrame({
+            'BE': shifted_x,
+            'Corrected Data': y,  # Use Corrected Data instead of Raw Data
+            'Raw Data': y,  # Keep original as Raw Data
+            'Transmission': np.ones(len(y))  # Unit transmission
+        })
+
+        # Save to Excel file
+        try:
+            # Save DataFrame to Excel
+            with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+            # Create new core level data structure for memory
+            new_core_level_data = {
+                'B.E.': shifted_x,
+                'Raw Data': y if isinstance(y, list) else y.tolist(),
+                'Background': {'Bkg Y': np.zeros_like(y).tolist()},
+                'Name': new_sheet_name
+            }
+
+            # Add to parent data
+            self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+            self.parent.Data['Number of Core levels'] += 1
+
+            # Update sheet combobox
+            self.parent.sheet_combobox.Append(new_sheet_name)
+
+            # Select the new sheet
+            self.parent.sheet_combobox.SetValue(new_sheet_name)
+
+            # Refresh the plot
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, new_sheet_name)
+
+            wx.MessageBox(f"BE shifted by {shift_value} eV: {new_sheet_name}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error saving to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def auto_populate_voigt_from_plot(self):
+        """Auto-populate Voigt parameters from current plot limits"""
+        try:
+            sheet_name = self.parent.sheet_combobox.GetValue()
+
+            # Get plot limits from plot_config
+            if hasattr(self.parent, 'plot_config') and sheet_name in self.parent.plot_config.plot_limits:
+                limits = self.parent.plot_config.plot_limits[sheet_name]
+
+                # Get X range (BE range)
+                x_min = limits['Xmin']
+                x_max = limits['Xmax']
+                y_max = limits['Ymax']
+
+                # Set position to middle of plot range
+                middle_position = (x_min + x_max) / 2.0
+                self.voigt_position.SetValue(middle_position)
+
+                # Set range to plot limits
+                self.voigt_min.SetValue(x_min)
+                self.voigt_max.SetValue(x_max)
+
+                # Set reasonable height based on plot Y max (50% of max intensity)
+                reasonable_height = y_max * 0.5
+                self.voigt_height.SetValue(max(reasonable_height, 100.0))  # Minimum 100 CPS
+
+            else:
+                # Fallback: try to get from data directly
+                if sheet_name in self.parent.Data['Core levels']:
+                    x_data = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                    y_data = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+                    if len(x_data) > 0:
+                        x_min = min(x_data)
+                        x_max = max(x_data)
+                        y_max = max(y_data)
+
+                        middle_position = (x_min + x_max) / 2.0
+                        self.voigt_position.SetValue(middle_position)
+                        self.voigt_min.SetValue(x_min)
+                        self.voigt_max.SetValue(x_max)
+                        self.voigt_height.SetValue(max(y_max * 0.5, 100.0))
+
+        except Exception as e:
+            print(f"Could not auto-populate Voigt parameters: {e}")
+            # Keep default values if there's an error
