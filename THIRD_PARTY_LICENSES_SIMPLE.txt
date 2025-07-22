@@ -1,0 +1,16 @@
+Third-Party Software Licenses
+This application uses the following open-source libraries:
+
+• wxpython v4.2.2 - License not specified
+• matplotlib v3.8.4 - License not specified
+• numpy v1.26.4 - License not specified
+• pandas v2.2.1 - License not specified
+• openpyxl v3.1.2 - License not specified
+• scipy v1.13.0 - License not specified
+• pillow v10.3.0 - License not specified
+• lmfit v1.3.2 - License not specified
+• setuptools v78.1.0 - License not specified
+• wheel - License information not available
+
+Complete license texts are available in THIRD_PARTY_LICENSES.txt
+or from the respective project websites.

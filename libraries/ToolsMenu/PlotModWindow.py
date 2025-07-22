@@ -6,6 +6,7 @@ from scipy.signal import savgol_filter
 from scipy.integrate import cumtrapz
 import json
 import lmfit.models  # Add this if not already present
+import pandas as pd
 
 
 class PlotModWindow(wx.Frame):
@@ -307,7 +308,6 @@ class PlotModWindow(wx.Frame):
                 self.parent.file_manager = None
 
                 # Reopen file manager
-                import wx
                 wx.CallAfter(self.parent.on_open_file_manager, None)
             except Exception as e:
                 print(f"Error refreshing file manager: {e}")
@@ -439,8 +439,6 @@ class PlotModWindow(wx.Frame):
 
     def on_create_voigt(self, event):
         """Create a new sheet with Voigt model data and save to Excel"""
-        import lmfit.models
-        import pandas as pd
         import openpyxl
 
         # Get current sheet for base name and x-axis
@@ -527,6 +525,20 @@ class PlotModWindow(wx.Frame):
             # Update sheet combobox
             self.parent.sheet_combobox.Append(new_sheet_name)
 
+            # Close and reopen the file manager if it exists
+            if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
+                try:
+                    # Close existing file manager
+                    self.parent.file_manager.Close()
+                    self.parent.file_manager.Destroy()
+                    self.parent.file_manager = None
+
+                    # Reopen file manager
+                    wx.CallAfter(self.parent.on_open_file_manager, None)
+                except Exception as e:
+                    print(f"Error refreshing file manager: {e}")
+                    pass
+
             # Select the new sheet
             self.parent.sheet_combobox.SetValue(new_sheet_name)
 
@@ -534,8 +546,8 @@ class PlotModWindow(wx.Frame):
             from libraries.Sheet_Operations import on_sheet_selected
             on_sheet_selected(self.parent, new_sheet_name)
 
-            wx.MessageBox(f"Voigt model created: {new_sheet_name}\nPoints: {len(full_x)}",
-                          "Success", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox(f"Voigt model created: {new_sheet_name}\nPoints: {len(full_x)}",
+            #               "Success", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Error saving to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -594,6 +606,20 @@ class PlotModWindow(wx.Frame):
             # Update sheet combobox
             self.parent.sheet_combobox.Append(new_sheet_name)
 
+            # Close and reopen the file manager if it exists
+            if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
+                try:
+                    # Close existing file manager
+                    self.parent.file_manager.Close()
+                    self.parent.file_manager.Destroy()
+                    self.parent.file_manager = None
+
+                    # Reopen file manager
+                    wx.CallAfter(self.parent.on_open_file_manager, None)
+                except Exception as e:
+                    print(f"Error refreshing file manager: {e}")
+                    pass
+
             # Select the new sheet
             self.parent.sheet_combobox.SetValue(new_sheet_name)
 
@@ -601,7 +627,7 @@ class PlotModWindow(wx.Frame):
             from libraries.Sheet_Operations import on_sheet_selected
             on_sheet_selected(self.parent, new_sheet_name)
 
-            wx.MessageBox(f"BE shifted by {shift_value} eV: {new_sheet_name}", "Success", wx.OK | wx.ICON_INFORMATION)
+            # wx.MessageBox(f"BE shifted by {shift_value} eV: {new_sheet_name}", "Success", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Error saving to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
