@@ -16,7 +16,7 @@ class PlotModWindow(wx.Frame):
 
         self.SetTitle("Plot Modifications")
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize(660, 395)
+            self.SetSize(560, 345)
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
             self.SetSize(620, 465)
         else:
