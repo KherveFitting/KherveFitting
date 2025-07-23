@@ -407,7 +407,8 @@ def copy_sheet(window):
     if sheet_name != '':
         # Extract the base name and numeric suffix with more detailed pattern
         import re
-        match = re.match(r'([A-Za-z]+\d+[spdfg]*)(\d*)$', sheet_name)
+        # match = re.match(r'([A-Za-z]+\d+[spdfg]*)(\d*)$', sheet_name)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
         if match:
             base_name = match.group(1)  # Ti2p
             number_suffix = match.group(2)  # 8 or "" if none
@@ -835,6 +836,7 @@ class CropWindow(wx.Frame):
         # Extract base name and ensure we don't create a '0' suffix
         import re
         match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', suggested_name)
+        # match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', suggested_name)
         if match:
             base_name = match.group(1)  # Base name like C1s
             number_suffix = match.group(2)  # Numeric suffix or empty

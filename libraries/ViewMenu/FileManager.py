@@ -1567,56 +1567,6 @@ class FileManagerWindow(wx.Frame):
                 except ValueError:
                     pass  # Ignore invalid correction values
 
-    def on_copy_OLD(self, event):
-        """Copy the selected core levels with columns C and D preserved exactly"""
-        import os
-        import json
-        import tempfile
-        from copy import deepcopy
-
-        sheet_names = self.get_selected_sheet_names()
-        if not sheet_names:
-            return
-
-        clipboard_data = {}
-
-        for sheet_name in sheet_names:
-            if sheet_name in self.parent.Data['Core levels']:
-                clipboard_data[sheet_name] = deepcopy(self.parent.Data['Core levels'][sheet_name])
-
-                file_path = self.parent.Data.get('FilePath', '')
-                if file_path and os.path.exists(file_path):
-                    try:
-                        # Read all data including columns C and D
-                        import pandas as pd
-                        df = pd.read_excel(file_path, sheet_name=sheet_name)
-
-                        # Store column names
-                        column_names = df.columns.tolist()
-                        clipboard_data[sheet_name]['column_names'] = column_names
-
-                        # Store exact data from columns C and D (indices 2 and 3)
-                        if df.shape[1] > 3:
-                            clipboard_data[sheet_name]['column_C_data'] = df.iloc[:, 2].tolist()
-                            clipboard_data[sheet_name]['column_D_data'] = df.iloc[:, 3].tolist()
-
-                    except Exception as e:
-                        print(f"Error reading Excel data for {sheet_name}: {e}")
-
-        # Show preview dialog
-        preview_dialog = CoreLevelPreviewDialog(self, "Copy Core Levels", clipboard_data, "copy")
-        if preview_dialog.ShowModal() != wx.ID_OK:
-            preview_dialog.Destroy()
-            return
-        preview_dialog.Destroy()
-
-        # Save to clipboard file
-        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
-        with open(clipboard_file, 'w') as f:
-            json.dump(clipboard_data, f)
-
-        # self.parent.show_popup_message2("Copy Successful",
-        #                                 f"{len(clipboard_data)} core level(s) copied with exact C and D columns")
 
     def on_copy(self, event):
         """Copy the selected core levels with original uncorrected BE values"""
@@ -1850,7 +1800,8 @@ class FileManagerWindow(wx.Frame):
         core_level_groups = {}
         for sheet_name in clipboard_data.keys():
             # Extract the true base name (e.g., "C1s" from "C1s2")
-            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
             if match:
                 base_name = match.group(1)
                 if base_name not in core_level_groups:
@@ -1886,7 +1837,8 @@ class FileManagerWindow(wx.Frame):
             be_adjustment = source_correction - target_correction
 
             # Extract base name and determine which group it belongs to
-            match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            # match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            match_base = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
             if match_base:
                 base_name = match_base.group(1)
 
@@ -2005,7 +1957,7 @@ class FileManagerWindow(wx.Frame):
                     # Use original column names for Raman, standardized names for others
                     if is_raman:
                         column_names = core_level_data.get('column_names',
-                                                           ['BE', 'Raw Data', 'Background', 'Transmission'])
+                                                           ['BE','Corrected Data', 'Raw Data', 'Transmission'])
                     else:
                         # Force standard column names for all XPS core levels and surveys
                         column_names = ['Binding Energy (eV)', 'Corrected Data', 'Raw Data', 'Transmission']
@@ -2647,7 +2599,8 @@ class FileManagerWindow(wx.Frame):
                     sample_num = ""
             else:
                 # Regular core level
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
                 if match:
                     base_name, sample_num = match.groups()
                 else:
@@ -4055,7 +4008,8 @@ class FileManagerWindow(wx.Frame):
                     row_num = 0
             else:
                 # Regular core level parsing
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
                 if match:
                     base_name = match.group(1)
                     row_str = match.group(2)
@@ -4214,7 +4168,8 @@ class FileManagerWindow(wx.Frame):
                     row_num = 0
             else:
                 # Regular core level parsing
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
                 if match:
                     base_name = match.group(1)
                     row_str = match.group(2)
@@ -4386,7 +4341,8 @@ class FileManagerWindow(wx.Frame):
                 smoothed_y = gaussian_filter(y, sigma=1)
 
                 # Get base name for new sheet
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
                 base_name = match.group(1) if match else sheet_name
 
                 # Use existing utility method to find next available name
@@ -4471,7 +4427,8 @@ class FileManagerWindow(wx.Frame):
                 multiplied_y = [val * 1000 for val in y]
 
                 # Get base name for new sheet
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
                 base_name = match.group(1) if match else sheet_name
 
                 # Use existing utility method to find next available name
@@ -4506,7 +4463,8 @@ class FileManagerWindow(wx.Frame):
 
             # Select first new multiplied sheet with proper refresh
             if selected_sheets:
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', selected_sheets[0])
                 base_name = match.group(1) if match else selected_sheets[0]
                 plot_mod = PlotModWindow(self.parent)
                 new_name = plot_mod.get_earliest_row_name(base_name)

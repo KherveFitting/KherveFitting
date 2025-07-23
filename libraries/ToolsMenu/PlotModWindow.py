@@ -301,7 +301,7 @@ class PlotModWindow(wx.Frame):
 
         # Get the base name
         import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
         if match:
             base_name = match.group(1)
         else:
@@ -433,7 +433,8 @@ class PlotModWindow(wx.Frame):
 
         # Get base name and create new sheet
         import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
         base_name = match.group(1) if match else sheet_name
         new_sheet_name = self.get_earliest_row_name(base_name)
 
@@ -460,7 +461,7 @@ class PlotModWindow(wx.Frame):
 
         # Get the base name
         import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
         if match:
             base_name = match.group(1)
         else:
@@ -489,7 +490,8 @@ class PlotModWindow(wx.Frame):
 
         # Get the base name
         import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
         if match:
             base_name = match.group(1)
         else:
@@ -518,7 +520,8 @@ class PlotModWindow(wx.Frame):
 
         # Get the base name
         import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
         if match:
             base_name = match.group(1)
         else:
@@ -582,7 +585,8 @@ class PlotModWindow(wx.Frame):
 
         # Get base name for new sheet
         import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', current_sheet)
+        # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', current_sheet)
+        match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', current_sheet)
         base_name = match.group(1) if match else "Voigt"
 
         # Find earliest available row name
