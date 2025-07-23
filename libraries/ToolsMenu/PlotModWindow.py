@@ -20,7 +20,7 @@ class PlotModWindow(wx.Frame):
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
             self.SetSize(620, 465)
         else:
-            self.SetSize(660, 395)
+            self.SetSize(580, 390)
         self.parent = parent
         panel = wx.Panel(self)
 
@@ -35,151 +35,241 @@ class PlotModWindow(wx.Frame):
 
         grid_sizer = wx.GridBagSizer(5, 5)
 
-        # First row - Smoothing
-        smooth_box = wx.StaticBox(panel, label="Smoothing")
-        smooth_sizer = wx.StaticBoxSizer(smooth_box, wx.VERTICAL)
+        # Define the two green colors
+        light_green = wx.Colour(220, 240, 220)  # Light green
+        darker_green = wx.Colour(240, 255, 240)  # Darker green
 
-        self.smooth_method = wx.ComboBox(panel, choices=["Gaussian", "Savitzky-Golay", "Moving Average"],
+        # Create a panel instead of StaticBox
+        smooth_panel = wx.Panel(panel)
+        smooth_panel.SetBackgroundColour(light_green)
+
+        # Create sizer for the panel contents
+        smooth_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Add title text inside the panel
+        title_text = wx.StaticText(smooth_panel, label="Smoothing Mod.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        smooth_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        # Add a separator line (optional)
+        line = wx.StaticLine(smooth_panel, style=wx.LI_HORIZONTAL)
+        smooth_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        # Add your controls
+        self.smooth_method = wx.ComboBox(smooth_panel, choices=["Gaussian", "Savitzky-Golay", "Moving Average"],
                                          style=wx.CB_READONLY)
         self.smooth_method.SetValue("Gaussian")
-        self.smooth_width = wx.SpinCtrl(panel, min=1, max=100, initial=5)
+        self.smooth_width = wx.SpinCtrl(smooth_panel, min=1, max=100, initial=5)
 
-        smooth_sizer.Add(wx.StaticText(panel, label="Method:"), 0, wx.ALL, 5)
+        smooth_sizer.Add(wx.StaticText(smooth_panel, label="Method:"), 0, wx.ALL, 5)
         smooth_sizer.Add(self.smooth_method, 0, wx.EXPAND | wx.ALL, 5)
-        smooth_sizer.Add(wx.StaticText(panel, label="Width:"), 0, wx.ALL, 5)
+        smooth_sizer.Add(wx.StaticText(smooth_panel, label="Width:"), 0, wx.ALL, 5)
         smooth_sizer.Add(self.smooth_width, 0, wx.EXPAND | wx.ALL, 5)
 
-        smooth_btn = wx.Button(panel, label="Apply Smoothing")
+        smooth_btn = wx.Button(smooth_panel, label="Apply Smoothing")
         smooth_btn.SetMinSize((125, 40))
         smooth_btn.Bind(wx.EVT_BUTTON, self.on_smooth)
         smooth_sizer.Add(smooth_btn, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Noise section
-        noise_box = wx.StaticBox(panel, label="Noise")
-        noise_sizer = wx.StaticBoxSizer(noise_box, wx.VERTICAL)
+        # Set the sizer to the panel
+        smooth_panel.SetSizer(smooth_sizer)
 
-        self.noise_type = wx.ComboBox(panel, choices=["Gaussian", "Uniform", "Poisson"],
+        # Noise section
+        noise_panel = wx.Panel(panel)
+        noise_panel.SetBackgroundColour(darker_green)
+        noise_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        title_text = wx.StaticText(noise_panel, label="Noise Mod.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        noise_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        line = wx.StaticLine(noise_panel, style=wx.LI_HORIZONTAL)
+        noise_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        self.noise_type = wx.ComboBox(noise_panel, choices=["Gaussian", "Uniform", "Poisson"],
                                       style=wx.CB_READONLY)
         self.noise_type.SetValue("Gaussian")
-        self.noise_amplitude = wx.SpinCtrlDouble(panel, min=0.0, max=10000.0, initial=1.0, inc=0.1)
+        self.noise_amplitude = wx.SpinCtrlDouble(noise_panel, min=0.0, max=10000.0, initial=1.0, inc=0.1)
 
-        noise_sizer.Add(wx.StaticText(panel, label="Type:"), 0, wx.ALL, 5)
+        noise_sizer.Add(wx.StaticText(noise_panel, label="Type:"), 0, wx.ALL, 5)
         noise_sizer.Add(self.noise_type, 0, wx.EXPAND | wx.ALL, 5)
-        noise_sizer.Add(wx.StaticText(panel, label="Amplitude:"), 0, wx.ALL, 5)
+        noise_sizer.Add(wx.StaticText(noise_panel, label="Amplitude:"), 0, wx.ALL, 5)
         noise_sizer.Add(self.noise_amplitude, 0, wx.EXPAND | wx.ALL, 5)
 
-        noise_btn = wx.Button(panel, label="Add Noise")
+        noise_btn = wx.Button(noise_panel, label="Add Noise")
         noise_btn.SetMinSize((125, 40))
         noise_btn.Bind(wx.EVT_BUTTON, self.on_add_noise)
         noise_sizer.Add(noise_btn, 0, wx.EXPAND | wx.ALL, 5)
+        noise_panel.SetSizer(noise_sizer)
 
+        # Differentiation section
+        diff_panel = wx.Panel(panel)
+        diff_panel.SetBackgroundColour(light_green)
+        diff_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # First row - Differentiation
-        diff_box = wx.StaticBox(panel, label="Differentiation")
-        diff_sizer = wx.StaticBoxSizer(diff_box, wx.VERTICAL)
+        title_text = wx.StaticText(diff_panel, label="Differentiation Mod.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        diff_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
-        self.diff_width = wx.SpinCtrl(panel, min=1, max=100, initial=5)
-        diff_sizer.Add(wx.StaticText(panel, label="Width:"), 0, wx.ALL, 5)
+        line = wx.StaticLine(diff_panel, style=wx.LI_HORIZONTAL)
+        diff_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        self.diff_width = wx.SpinCtrl(diff_panel, min=1, max=100, initial=5)
+        diff_sizer.Add(wx.StaticText(diff_panel, label="Width:"), 0, wx.ALL, 5)
         diff_sizer.Add(self.diff_width, 0, wx.EXPAND | wx.ALL, 5)
 
-        diff_btn = wx.Button(panel, label="Apply Differentiation")
+        diff_btn = wx.Button(diff_panel, label="Apply Differentiation")
         diff_btn.SetMinSize((125, 40))
         diff_btn.Bind(wx.EVT_BUTTON, self.on_differentiate)
         diff_sizer.Add(diff_btn, 0, wx.EXPAND | wx.ALL, 5)
+        diff_panel.SetSizer(diff_sizer)
 
-        # Second row - Integration
-        int_box = wx.StaticBox(panel, label="Integration")
-        int_sizer = wx.StaticBoxSizer(int_box, wx.VERTICAL)
+        # Integration section
+        int_panel = wx.Panel(panel)
+        int_panel.SetBackgroundColour(darker_green)
+        int_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.int_width = wx.SpinCtrl(panel, min=1, max=100, initial=5)
-        int_sizer.Add(wx.StaticText(panel, label="Width:"), 0, wx.ALL, 5)
+        title_text = wx.StaticText(int_panel, label="Integration Mod.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        int_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        line = wx.StaticLine(int_panel, style=wx.LI_HORIZONTAL)
+        int_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        self.int_width = wx.SpinCtrl(int_panel, min=1, max=100, initial=5)
+        int_sizer.Add(wx.StaticText(int_panel, label="Width:"), 0, wx.ALL, 5)
         int_sizer.Add(self.int_width, 0, wx.EXPAND | wx.ALL, 5)
 
-        int_btn = wx.Button(panel, label="Apply Integration")
+        int_btn = wx.Button(int_panel, label="Apply Integration")
         int_btn.SetMinSize((125, 40))
         int_btn.Bind(wx.EVT_BUTTON, self.on_integrate)
         int_sizer.Add(int_btn, 0, wx.EXPAND | wx.ALL, 5)
+        int_panel.SetSizer(int_sizer)
 
-        # Constant Operation
-        const_box = wx.StaticBox(panel, label="Constant Operation")
-        const_sizer = wx.StaticBoxSizer(const_box, wx.VERTICAL)
+        # Constant Operation section
+        const_panel = wx.Panel(panel)
+        const_panel.SetBackgroundColour(light_green)
+        const_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        const_sizer.Add(wx.StaticText(panel, label="Type:"), 0, wx.ALL, 5)
-        self.const_op = wx.ComboBox(panel, choices=["Multiply", "Divide", "Add", "Subtract"], style=wx.CB_READONLY)
+        title_text = wx.StaticText(const_panel, label="Constant Mod.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        const_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        line = wx.StaticLine(const_panel, style=wx.LI_HORIZONTAL)
+        const_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        const_sizer.Add(wx.StaticText(const_panel, label="Type:"), 0, wx.ALL, 5)
+        self.const_op = wx.ComboBox(const_panel, choices=["Multiply", "Divide", "Add", "Subtract"],
+                                    style=wx.CB_READONLY)
         self.const_op.SetValue("Multiply")
         const_sizer.Add(self.const_op, 0, wx.EXPAND | wx.ALL, 5)
 
-        self.const_value = wx.SpinCtrlDouble(panel, value="1.0", min=0.001, max=10000000.0, inc=0.1)
-        const_sizer.Add(wx.StaticText(panel, label="Value:"), 0, wx.ALL, 5)
+        self.const_value = wx.SpinCtrlDouble(const_panel, value="1.0", min=0.001, max=10000000.0, inc=0.1)
+        const_sizer.Add(wx.StaticText(const_panel, label="Value:"), 0, wx.ALL, 5)
         const_sizer.Add(self.const_value, 0, wx.EXPAND | wx.ALL, 5)
 
-        const_btn = wx.Button(panel, label="Apply Operation")
+        const_btn = wx.Button(const_panel, label="Apply Operation")
         const_btn.SetMinSize((125, 40))
         const_btn.Bind(wx.EVT_BUTTON, self.on_apply_constant)
         const_sizer.Add(const_btn, 0, wx.EXPAND | wx.ALL, 5)
+        const_panel.SetSizer(const_sizer)
 
-        # **BE Shift**
-        be_shift_box = wx.StaticBox(panel, label="BE Shift")
-        be_shift_sizer = wx.StaticBoxSizer(be_shift_box, wx.VERTICAL)
+        # BE Shift section
+        be_shift_panel = wx.Panel(panel)
+        be_shift_panel.SetBackgroundColour(darker_green)
+        be_shift_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Label above the control
-        be_shift_sizer.Add(wx.StaticText(panel, label="Shift (eV):"), 0, wx.ALL, 5)
-        self.be_shift_value = wx.SpinCtrlDouble(panel, value="0.0", min=-100.0, max=100.0, inc=0.1, size=(80, -1))
+        title_text = wx.StaticText(be_shift_panel, label="BE Shift Mod.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        be_shift_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        line = wx.StaticLine(be_shift_panel, style=wx.LI_HORIZONTAL)
+        be_shift_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        be_shift_sizer.Add(wx.StaticText(be_shift_panel, label="Shift (eV):"), 0, wx.ALL, 5)
+        self.be_shift_value = wx.SpinCtrlDouble(be_shift_panel, value="0.0", min=-100.0, max=100.0, inc=0.1,
+                                                size=(80, -1))
         be_shift_sizer.Add(self.be_shift_value, 0, wx.EXPAND | wx.ALL, 5)
 
-        be_shift_btn = wx.Button(panel, label="Apply BE Shift")
+        be_shift_btn = wx.Button(be_shift_panel, label="Apply BE Shift")
         be_shift_btn.SetMinSize((125, 40))
         be_shift_btn.Bind(wx.EVT_BUTTON, self.on_apply_be_shift)
         be_shift_sizer.Add(be_shift_btn, 0, wx.EXPAND | wx.ALL, 5)
+        be_shift_panel.SetSizer(be_shift_sizer)
 
-        # Voigt Model Generator (expanded, less dense version)
-        voigt_box = wx.StaticBox(panel, label="Voigt Model Generator")
-        voigt_sizer = wx.StaticBoxSizer(voigt_box, wx.VERTICAL)
+        light_blue = wx.Colour(220, 240, 255)  # Light green
+
+        # Voigt Model Generator section
+        voigt_panel = wx.Panel(panel)
+        voigt_panel.SetBackgroundColour(light_blue)
+        voigt_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        title_text = wx.StaticText(voigt_panel, label="Create Voigt Model")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        voigt_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        line = wx.StaticLine(voigt_panel, style=wx.LI_HORIZONTAL)
+        voigt_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
 
         # Position control
-        voigt_sizer.Add(wx.StaticText(panel, label="Position (eV):"), 0, wx.ALL, 2)
-        self.voigt_position = wx.SpinCtrlDouble(panel, value="285.0", min=0.0, max=2000.0, inc=0.1)
-        voigt_sizer.Add(self.voigt_position, 0, wx.EXPAND | wx.ALL, 5)
+        voigt_sizer.Add(wx.StaticText(voigt_panel, label="Position (eV):"), 0, wx.ALL, 2)
+        self.voigt_position = wx.SpinCtrlDouble(voigt_panel, value="285.0", min=0.0, max=2000.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_position, 0, wx.EXPAND | wx.ALL, 2)
 
         # FWHM control
-        voigt_sizer.Add(wx.StaticText(panel, label="FWHM (eV):"), 0, wx.ALL, 2)
-        self.voigt_fwhm = wx.SpinCtrlDouble(panel, value="1.5", min=0.1, max=10.0, inc=0.1)
-        voigt_sizer.Add(self.voigt_fwhm, 0, wx.EXPAND | wx.ALL, 5)
+        voigt_sizer.Add(wx.StaticText(voigt_panel, label="FWHM (eV):"), 0, wx.ALL, 2)
+        self.voigt_fwhm = wx.SpinCtrlDouble(voigt_panel, value="1.5", min=0.1, max=10.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_fwhm, 0, wx.EXPAND | wx.ALL, 2)
 
         # L/G Ratio control
-        voigt_sizer.Add(wx.StaticText(panel, label="L/G Ratio (%):"), 0, wx.ALL, 2)
-        self.voigt_lg_ratio = wx.SpinCtrlDouble(panel, value="30.0", min=0.0, max=100.0, inc=1.0)
-        voigt_sizer.Add(self.voigt_lg_ratio, 0, wx.EXPAND | wx.ALL, 5)
+        voigt_sizer.Add(wx.StaticText(voigt_panel, label="L/G Ratio (%):"), 0, wx.ALL, 2)
+        self.voigt_lg_ratio = wx.SpinCtrlDouble(voigt_panel, value="30.0", min=0.0, max=100.0, inc=1.0)
+        voigt_sizer.Add(self.voigt_lg_ratio, 0, wx.EXPAND | wx.ALL, 2)
 
         # Height control
-        voigt_sizer.Add(wx.StaticText(panel, label="Height (CPS):"), 0, wx.ALL, 2)
-        self.voigt_height = wx.SpinCtrlDouble(panel, value="1000.0", min=1.0, max=1e7, inc=100.0)
-        voigt_sizer.Add(self.voigt_height, 0, wx.EXPAND | wx.ALL, 5)
+        voigt_sizer.Add(wx.StaticText(voigt_panel, label="Height (CPS):"), 0, wx.ALL, 2)
+        self.voigt_height = wx.SpinCtrlDouble(voigt_panel, value="1000.0", min=1.0, max=1e7, inc=100.0)
+        voigt_sizer.Add(self.voigt_height, 0, wx.EXPAND | wx.ALL, 2)
 
         # Range Min control
-        voigt_sizer.Add(wx.StaticText(panel, label="Range Min (eV):"), 0, wx.ALL, 2)
-        self.voigt_min = wx.SpinCtrlDouble(panel, value="280.0", min=0.0, max=2000.0, inc=0.1)
-        voigt_sizer.Add(self.voigt_min, 0, wx.EXPAND | wx.ALL, 5)
+        voigt_sizer.Add(wx.StaticText(voigt_panel, label="Range Min (eV):"), 0, wx.ALL, 2)
+        self.voigt_min = wx.SpinCtrlDouble(voigt_panel, value="280.0", min=0.0, max=2000.0, inc=0.1)
+        voigt_sizer.Add(self.voigt_min, 0, wx.EXPAND | wx.ALL, 2)
 
         # Range Max control
-        voigt_sizer.Add(wx.StaticText(panel, label="Range Max (eV):"), 0, wx.ALL, 2)
-        self.voigt_max = wx.SpinCtrlDouble(panel, value="290.0", min=0.0, max=2000.0, inc=0.1)
+        voigt_sizer.Add(wx.StaticText(voigt_panel, label="Range Max (eV):"), 0, wx.ALL, 2)
+        self.voigt_max = wx.SpinCtrlDouble(voigt_panel, value="290.0", min=0.0, max=2000.0, inc=0.1)
         voigt_sizer.Add(self.voigt_max, 0, wx.EXPAND | wx.ALL, 2)
 
         # Create button
-        voigt_btn = wx.Button(panel, label="Create Voigt Model")
+        voigt_btn = wx.Button(voigt_panel, label="Create Voigt Model")
         voigt_btn.SetMinSize((125, 40))
         voigt_btn.Bind(wx.EVT_BUTTON, self.on_create_voigt)
-        voigt_sizer.Add(voigt_btn, 0, wx.EXPAND | wx.ALL, 5)
+        voigt_sizer.Add(voigt_btn, 0, wx.EXPAND | wx.ALL, 2)
+        voigt_panel.SetSizer(voigt_sizer)
 
-        # Add to grid
-        grid_sizer.Add(smooth_sizer, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(noise_sizer, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(diff_sizer, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(int_sizer, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(const_sizer, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(voigt_sizer, pos=(0, 3), span=(2, 1), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(be_shift_sizer, pos=(1, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        # Add to grid - note all are now panels instead of sizers
+        grid_sizer.Add(smooth_panel, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(noise_panel, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(diff_panel, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(int_panel, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(const_panel, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(voigt_panel, pos=(0, 3), span=(2, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(be_shift_panel, pos=(1, 2), flag=wx.EXPAND | wx.ALL, border=1)
 
         # Auto-populate Voigt parameters from current plot
         self.auto_populate_voigt_from_plot()
