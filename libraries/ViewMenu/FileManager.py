@@ -3983,7 +3983,7 @@ class FileManagerWindow(wx.Frame):
         exp_window = ExperimentalDescriptionWindow(self, sheet_name)
         exp_window.Show()
 
-    def on_insert_row(self, target_row):
+    def on_insert_row_OLD(self, target_row):
         """Insert a new row above the target row, incrementing all higher row numbers"""
         if wx.MessageBox(f"Insert new row above row {target_row}?\nThis will increment all higher row numbers.",
                          "Confirm Insert Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
@@ -4125,7 +4125,125 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error inserting row: {str(e)}")
 
-    def on_delete_row(self, target_row):
+    def on_insert_row(self, target_row):
+        """Insert a new row above the target row, incrementing all higher row numbers"""
+
+        # Backup before operation
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Get all core levels and group by row number
+        sheets_to_rename = []
+
+        for sheet_name in list(self.parent.Data['Core levels'].keys()):
+            # Handle Raman files with underscore
+            if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                base_parts = sheet_name.split('_')
+                base_name = base_parts[0] + "_" + base_parts[1]
+                if len(base_parts) > 2 and base_parts[2].isdigit():
+                    row_num = int(base_parts[2])
+                else:
+                    row_num = 0
+            else:
+                # Regular core level parsing
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                    row_str = match.group(2)
+                    row_num = int(row_str) if row_str else 0
+                else:
+                    continue
+
+            if row_num >= target_row:
+                sheets_to_rename.append((sheet_name, base_name, row_num))
+
+        # Sort sheets to rename by row number (descending to avoid conflicts)
+        sheets_to_rename.sort(key=lambda x: x[2], reverse=True)
+
+        try:
+            import openpyxl
+
+            file_path = self.parent.Data['FilePath']
+
+            # Load workbook - do NOT read data content
+            wb = openpyxl.load_workbook(file_path)
+
+            # Rename sheets in reverse order (highest row numbers first)
+            renamed_sheets = {}
+            for old_name, base_name, old_row in sheets_to_rename:
+                new_row = old_row + 1
+
+                # Create new name
+                if "Raman_" in old_name or "Ra_" in old_name:
+                    new_name = f"{base_name}_{new_row}" if new_row > 0 else base_name
+                else:
+                    new_name = f"{base_name}{new_row}" if new_row > 0 else base_name
+
+                # Rename sheet tab only (not content)
+                if old_name in wb.sheetnames:
+                    sheet = wb[old_name]
+                    sheet.title = new_name
+                    renamed_sheets[old_name] = new_name
+
+                    # Update internal data structure
+                    if old_name in self.parent.Data['Core levels']:
+                        self.parent.Data['Core levels'][new_name] = self.parent.Data['Core levels'].pop(old_name)
+
+            # Save workbook with renamed tabs
+            wb.save(file_path)
+
+            # Update BE corrections - shift row numbers
+            if 'BEcorrections' in self.parent.Data:
+                new_be_corrections = {}
+                for row_str, correction in self.parent.Data['BEcorrections'].items():
+                    row_num = int(row_str)
+                    if row_num >= target_row:
+                        new_be_corrections[str(row_num + 1)] = correction
+                    else:
+                        new_be_corrections[row_str] = correction
+                self.parent.Data['BEcorrections'] = new_be_corrections
+
+            # Update sample names - shift row numbers
+            new_sample_names = {}
+            for row_str, name in self.sample_names.items():
+                row_num = int(row_str)
+                if row_num >= target_row:
+                    new_sample_names[str(row_num + 1)] = name
+                else:
+                    new_sample_names[row_str] = name
+            self.sample_names = new_sample_names
+            self.parent.Data['SampleNames'] = self.sample_names
+
+            # Update parent combobox
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet_name in sorted(self.parent.Data['Core levels'].keys()):
+                self.parent.sheet_combobox.Append(sheet_name)
+
+            # Update current selection
+            if current_sheet in renamed_sheets:
+                new_current = renamed_sheets[current_sheet]
+                self.parent.sheet_combobox.SetValue(new_current)
+            elif current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+
+            # Save JSON file
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Refresh grid
+            self.populate_grid()
+
+            # self.parent.show_popup_message2("Success", f"Inserted row above {target_row}. "
+            #                                            f"{len(sheets_to_rename)} sheets renamed.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error inserting row: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_delete_row_OLD(self, target_row):
         """Delete all core levels in the target row and decrement higher row numbers"""
         # Find sheets in target row
         sheets_in_row = []
@@ -4300,6 +4418,172 @@ class FileManagerWindow(wx.Frame):
 
         except Exception as e:
             self.parent.show_popup_message2("Error", f"Error deleting row: {str(e)}")
+
+    def on_delete_row(self, target_row):
+        """Delete all core levels in the target row and decrement higher row numbers"""
+        # Find sheets in target row
+        sheets_in_row = []
+        for col in range(1, len(self.core_levels) + 1):
+            cell_value = self.grid.GetCellValue(target_row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                sheets_in_row.append(cell_value)
+
+        # Handle empty row case
+        if not sheets_in_row:
+            if wx.MessageBox(f"Delete empty row {target_row}?\n"
+                             f"This will decrement all higher row numbers.",
+                             "Confirm Delete Empty Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+                return
+            sheets_to_delete = set()
+        else:
+            # Confirm deletion for non-empty row
+            if wx.MessageBox(f"Delete all {len(sheets_in_row)} core level(s) in row {target_row}?\n"
+                             f"This will decrement all higher row numbers.\n\n"
+                             f"Sheets to delete: {', '.join(sheets_in_row)}",
+                             "Confirm Delete Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+                return
+            sheets_to_delete = set(sheets_in_row)
+
+        # Backup before operation
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Get all core levels and identify sheets to rename
+        sheets_to_rename = []
+
+        for sheet_name in list(self.parent.Data['Core levels'].keys()):
+            # Handle Raman files with underscore
+            if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                base_parts = sheet_name.split('_')
+                base_name = base_parts[0] + "_" + base_parts[1]
+                if len(base_parts) > 2 and base_parts[2].isdigit():
+                    row_num = int(base_parts[2])
+                else:
+                    row_num = 0
+            else:
+                # Regular core level parsing
+                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                    row_str = match.group(2)
+                    row_num = int(row_str) if row_str else 0
+                else:
+                    continue
+
+            if row_num > target_row:
+                sheets_to_rename.append((sheet_name, base_name, row_num))
+
+        # Sort sheets to rename by row number (ascending to avoid conflicts)
+        sheets_to_rename.sort(key=lambda x: x[2])
+
+        try:
+            import openpyxl
+
+            file_path = self.parent.Data['FilePath']
+
+            # Load workbook - do NOT read data content
+            wb = openpyxl.load_workbook(file_path)
+
+            # Delete sheets from Excel file and Data structure
+            for sheet_name in sheets_to_delete:
+                if sheet_name in wb.sheetnames:
+                    del wb[sheet_name]
+                if sheet_name in self.parent.Data['Core levels']:
+                    del self.parent.Data['Core levels'][sheet_name]
+                    self.parent.Data['Number of Core levels'] -= 1
+
+            # Rename sheets with higher row numbers (decrement by 1)
+            renamed_sheets = {}
+            for old_name, base_name, old_row in sheets_to_rename:
+                new_row = old_row - 1
+
+                # Create new name
+                if "Raman_" in old_name or "Ra_" in old_name:
+                    new_name = f"{base_name}_{new_row}" if new_row > 0 else base_name
+                else:
+                    new_name = f"{base_name}{new_row}" if new_row > 0 else base_name
+
+                # Rename sheet tab only (not content)
+                if old_name in wb.sheetnames:
+                    sheet = wb[old_name]
+                    sheet.title = new_name
+                    renamed_sheets[old_name] = new_name
+
+                    # Update internal data structure
+                    if old_name in self.parent.Data['Core levels']:
+                        self.parent.Data['Core levels'][new_name] = self.parent.Data['Core levels'].pop(old_name)
+
+            # Save workbook with renamed tabs
+            wb.save(file_path)
+
+            # Update BE corrections - shift row numbers down by 1
+            if 'BEcorrections' in self.parent.Data:
+                new_be_corrections = {}
+                for row_str, correction in self.parent.Data['BEcorrections'].items():
+                    row_num = int(row_str)
+                    if row_num == target_row:
+                        # Skip the deleted row
+                        continue
+                    elif row_num > target_row:
+                        new_be_corrections[str(row_num - 1)] = correction
+                    else:
+                        new_be_corrections[row_str] = correction
+                self.parent.Data['BEcorrections'] = new_be_corrections
+
+            # Update sample names - shift row numbers down by 1
+            new_sample_names = {}
+            for row_str, name in self.sample_names.items():
+                row_num = int(row_str)
+                if row_num == target_row:
+                    # Skip the deleted row
+                    continue
+                elif row_num > target_row:
+                    new_sample_names[str(row_num - 1)] = name
+                else:
+                    new_sample_names[row_str] = name
+            self.sample_names = new_sample_names
+            self.parent.Data['SampleNames'] = self.sample_names
+
+            # Update parent combobox
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet_name in sorted(self.parent.Data['Core levels'].keys()):
+                self.parent.sheet_combobox.Append(sheet_name)
+
+            # Update current selection
+            if current_sheet in sheets_to_delete:
+                # Current sheet was deleted, select first available
+                if self.parent.sheet_combobox.GetCount() > 0:
+                    self.parent.sheet_combobox.SetSelection(0)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, self.parent.sheet_combobox.GetValue())
+            elif current_sheet in renamed_sheets:
+                # Current sheet was renamed
+                new_current = renamed_sheets[current_sheet]
+                self.parent.sheet_combobox.SetValue(new_current)
+            elif current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+
+            # Save JSON file
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Refresh grid
+            self.populate_grid()
+
+            # if sheets_to_delete:
+            #     self.parent.show_popup_message2("Success",
+            #                                     f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
+            #                                     f"{len(sheets_to_rename)} sheets renumbered.")
+            # else:
+            #     self.parent.show_popup_message2("Success", f"Deleted empty row {target_row}. "
+            #                                                f"{len(sheets_to_rename)} sheets renumbered.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error deleting row: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_smooth_default(self, event):
         """Apply default gaussian smoothing with width 1"""
