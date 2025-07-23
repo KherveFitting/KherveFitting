@@ -19,7 +19,7 @@ class PlotModWindow(wx.Frame):
         elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
             self.SetSize(620, 465)
         else:
-            self.SetSize(660, 395)
+            self.SetSize(630, 415)
         self.parent = parent
         panel = wx.Panel(self)
 
