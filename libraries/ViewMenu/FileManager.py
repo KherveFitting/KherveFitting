@@ -4612,6 +4612,7 @@ class FileManagerWindow(wx.Frame):
         try:
             from scipy.ndimage import gaussian_filter
             import re
+            import pandas as pd
             from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 
             for sheet_name in selected_sheets:
@@ -4621,11 +4622,10 @@ class FileManagerWindow(wx.Frame):
                 x = self.parent.Data['Core levels'][sheet_name]['B.E.']
                 y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
 
-                # Apply Gaussian smoothing with width 5
+                # Apply Gaussian smoothing with width 1
                 smoothed_y = gaussian_filter(y, sigma=1)
 
                 # Get base name for new sheet
-                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
                 match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
                 base_name = match.group(1) if match else sheet_name
 
@@ -4646,6 +4646,19 @@ class FileManagerWindow(wx.Frame):
                 # Add to parent data
                 self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
                 self.parent.Data['Number of Core levels'] += 1
+
+                # Save to Excel file
+                df = pd.DataFrame({
+                    'BE': x if isinstance(x, list) else x.tolist(),
+                    'Corrected Data': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y),
+                    'Raw Data': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y),
+                    'Transmission': [1.0] * len(x)
+                })
+
+                # Save DataFrame to Excel
+                with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                    if_sheet_exists='replace') as writer:
+                    df.to_excel(writer, sheet_name=new_sheet_name, index=False)
 
                 # Update sheet combobox
                 self.parent.sheet_combobox.Append(new_sheet_name)
@@ -4683,7 +4696,7 @@ class FileManagerWindow(wx.Frame):
         # Create console window
         parent_pos = self.parent.GetPosition()
         parent_size = self.parent.GetSize()
-        console_frame = wx.Frame(self.parent, title="Multiplying by 1000", size=(300, 200))
+        console_frame = wx.Frame(self.parent, title="Multiplying Core Levels by 1000", size=(300, 200))
         console_frame.SetPosition((
             parent_pos.x + (parent_size.width - 300) // 2,
             parent_pos.y + (parent_size.height - 200) // 2
@@ -4698,6 +4711,7 @@ class FileManagerWindow(wx.Frame):
 
         try:
             import re
+            import pandas as pd
             from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 
             for sheet_name in selected_sheets:
@@ -4711,7 +4725,6 @@ class FileManagerWindow(wx.Frame):
                 multiplied_y = [val * 1000 for val in y]
 
                 # Get base name for new sheet
-                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
                 match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
                 base_name = match.group(1) if match else sheet_name
 
@@ -4733,6 +4746,19 @@ class FileManagerWindow(wx.Frame):
                 self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
                 self.parent.Data['Number of Core levels'] += 1
 
+                # Save to Excel file
+                df = pd.DataFrame({
+                    'BE': x if isinstance(x, list) else x.tolist(),
+                    'Corrected Data': multiplied_y,
+                    'Raw Data': multiplied_y,
+                    'Transmission': [1.0] * len(x)
+                })
+
+                # Save DataFrame to Excel
+                with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                    if_sheet_exists='replace') as writer:
+                    df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
                 # Update sheet combobox
                 self.parent.sheet_combobox.Append(new_sheet_name)
 
@@ -4741,28 +4767,17 @@ class FileManagerWindow(wx.Frame):
             # Refresh grid
             self.populate_grid()
 
-            # Force clear plot limits before selecting new sheet
-            if hasattr(self.parent, 'plot_config') and hasattr(self.parent.plot_config, 'plot_limits'):
-                self.parent.plot_config.plot_limits.clear()
-
-            # Select first new multiplied sheet with proper refresh
+            # Select first new multiplied sheet
             if selected_sheets:
-                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', selected_sheets[0])
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
                 base_name = match.group(1) if match else selected_sheets[0]
                 plot_mod = PlotModWindow(self.parent)
                 new_name = plot_mod.get_earliest_row_name(base_name)
                 self.parent.sheet_combobox.SetValue(new_name)
-
-                # Force a complete refresh
                 from libraries.Sheet_Operations import on_sheet_selected
                 on_sheet_selected(self.parent, new_name)
 
-                # Additional plot refresh
-                if hasattr(self.parent, 'plot_manager'):
-                    self.parent.plot_manager.clear_and_replot(self.parent)
-
-            update_console("Multiplication completed!")
+            update_console("Multiplication by 1000 completed!")
             wx.CallLater(1000, console_frame.Close)
 
         except Exception as e:
