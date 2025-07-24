@@ -15,13 +15,25 @@ class PlotModWindow(wx.Frame):
                 wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
 
         self.SetTitle("Plot Modifications")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     self.SetSize(560, 345)
+        # elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
+        #     self.SetSize(620, 465)
+        # else:
+        #     self.SetSize(580, 390)
+
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize(560, 345)
-        elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
-            self.SetSize(620, 465)
+            self.SetSize(430, 345)
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.SetSize(420, 465)
         else:
-            self.SetSize(580, 390)
+            self.SetSize(450, 390)
         self.parent = parent
+
+        self.controls_hidden = True  # Start with controls hidden
+        self.noise_panel = None  # Will store reference to noise panel
+        self.voigt_panel = None  # Will store reference to voigt panel
+
         panel = wx.Panel(self)
 
         main_pos = parent.GetPosition()
@@ -78,7 +90,8 @@ class PlotModWindow(wx.Frame):
 
         # Noise section
         noise_panel = wx.Panel(panel)
-        noise_panel.SetBackgroundColour(darker_green)
+        self.noise_panel = noise_panel
+        noise_panel.SetBackgroundColour(light_green)
         noise_sizer = wx.BoxSizer(wx.VERTICAL)
 
         title_text = wx.StaticText(noise_panel, label="Noise Mod.")
@@ -156,7 +169,7 @@ class PlotModWindow(wx.Frame):
 
         # Constant Operation section
         const_panel = wx.Panel(panel)
-        const_panel.SetBackgroundColour(light_green)
+        const_panel.SetBackgroundColour(darker_green)
         const_sizer = wx.BoxSizer(wx.VERTICAL)
 
         title_text = wx.StaticText(const_panel, label="Constant Mod.")
@@ -169,7 +182,7 @@ class PlotModWindow(wx.Frame):
         const_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
 
         const_sizer.Add(wx.StaticText(const_panel, label="Type:"), 0, wx.ALL, 5)
-        self.const_op = wx.ComboBox(const_panel, choices=["Multiply", "Divide", "Add", "Subtract"],
+        self.const_op = wx.ComboBox(const_panel, choices=["Multiply", "Divide", "Add", "Subtract", "Special"],
                                     style=wx.CB_READONLY)
         self.const_op.SetValue("Multiply")
         const_sizer.Add(self.const_op, 0, wx.EXPAND | wx.ALL, 5)
@@ -213,6 +226,7 @@ class PlotModWindow(wx.Frame):
 
         # Voigt Model Generator section
         voigt_panel = wx.Panel(panel)
+        self.voigt_panel = voigt_panel
         voigt_panel.SetBackgroundColour(light_blue)
         voigt_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -264,10 +278,10 @@ class PlotModWindow(wx.Frame):
 
         # Add to grid - note all are now panels instead of sizers
         grid_sizer.Add(smooth_panel, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(noise_panel, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(noise_panel, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(diff_panel, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(int_panel, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(const_panel, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(const_panel, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(voigt_panel, pos=(0, 3), span=(2, 1), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(be_shift_panel, pos=(1, 2), flag=wx.EXPAND | wx.ALL, border=1)
 
@@ -277,6 +291,18 @@ class PlotModWindow(wx.Frame):
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
 
+        # Hide noise and voigt panels initially
+        if self.controls_hidden:
+            self.noise_panel.Hide()
+            self.voigt_panel.Hide()
+            # # Set smaller window size
+            # if 'wxMac' in wx.PlatformInfo:
+            #     self.SetSize(380, 345)  # Reduced from 560, 345
+            # elif 'wxGTK' in wx.PlatformInfo:
+            #     self.SetSize(420, 465)  # Reduced from 620, 465
+            # else:
+            #     self.SetSize(400, 390)  # Reduced from 580, 390
+
         panel.SetSizer(grid_sizer)
         self.Centre()
 
@@ -285,6 +311,11 @@ class PlotModWindow(wx.Frame):
         sheet_name = self.parent.sheet_combobox.GetValue()
         constant = self.const_value.GetValue()
         operation = self.const_op.GetValue()
+
+        # Check for special toggle operation
+        if operation == "Special" and constant == 1976:
+            self.toggle_hidden_controls()
+            return
 
         x = self.parent.Data['Core levels'][sheet_name]['B.E.']
         y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
@@ -775,3 +806,44 @@ class PlotModWindow(wx.Frame):
         except Exception as e:
             print(f"Could not auto-populate Voigt parameters: {e}")
             # Keep default values if there's an error
+
+    def toggle_hidden_controls(self):
+        """Toggle visibility of noise and voigt panels and resize window accordingly"""
+        self.controls_hidden = not self.controls_hidden
+
+        if self.controls_hidden:
+            # Hide panels
+            self.noise_panel.Hide()
+            self.voigt_panel.Hide()
+            # Set smaller window size
+            if 'wxMac' in wx.PlatformInfo:
+                self.SetSize(430, 345)
+            elif 'wxGTK' in wx.PlatformInfo:
+                self.SetSize(420, 465)
+            else:
+                self.SetSize(400, 390)
+        else:
+            # Show panels
+            self.noise_panel.Show()
+            self.voigt_panel.Show()
+            # Set larger window size (original sizes)
+            if 'wxMac' in wx.PlatformInfo:
+                self.SetSize(560, 345)
+            elif 'wxGTK' in wx.PlatformInfo:
+                self.SetSize(620, 465)
+            else:
+                self.SetSize(580, 390)
+
+        # Refresh the layout
+        self.Layout()
+        self.Refresh()
+
+        # Re-center the window on the parent
+        main_pos = self.parent.GetPosition()
+        main_size = self.parent.GetSize()
+        mod_size = self.GetSize()
+
+        x = main_pos.x + (main_size.width - mod_size.width) // 2
+        y = main_pos.y + (main_size.height - mod_size.height) // 2
+
+        self.SetPosition((x, y))
