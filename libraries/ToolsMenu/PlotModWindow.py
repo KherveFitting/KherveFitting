@@ -15,12 +15,6 @@ class PlotModWindow(wx.Frame):
                 wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
 
         self.SetTitle("Plot Modifications")
-        # if 'wxMac' in wx.PlatformInfo:
-        #     self.SetSize(560, 345)
-        # elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
-        #     self.SetSize(620, 465)
-        # else:
-        #     self.SetSize(580, 390)
 
         if 'wxMac' in wx.PlatformInfo:
             self.SetSize(430, 345)
@@ -31,8 +25,6 @@ class PlotModWindow(wx.Frame):
         self.parent = parent
 
         self.controls_hidden = True  # Start with controls hidden
-        self.noise_panel = None  # Will store reference to noise panel
-        self.voigt_panel = None  # Will store reference to voigt panel
 
         panel = wx.Panel(self)
 
@@ -88,36 +80,64 @@ class PlotModWindow(wx.Frame):
         # Set the sizer to the panel
         smooth_panel.SetSizer(smooth_sizer)
 
-        # Noise section
-        noise_panel = wx.Panel(panel)
-        self.noise_panel = noise_panel
-        noise_panel.SetBackgroundColour(light_green)
+        # Noise section - Create container panel that will hold both actual and placeholder panels
+        noise_container = wx.Panel(panel)
+        noise_container_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Create the actual noise panel
+        self.noise_panel = wx.Panel(noise_container)
+        self.noise_panel.SetBackgroundColour(light_green)
         noise_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        title_text = wx.StaticText(noise_panel, label="Noise Mod.")
+        title_text = wx.StaticText(self.noise_panel, label="Noise Mod.")
         title_font = title_text.GetFont()
         title_font.SetWeight(wx.FONTWEIGHT_BOLD)
         title_text.SetFont(title_font)
         noise_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
-        line = wx.StaticLine(noise_panel, style=wx.LI_HORIZONTAL)
+        line = wx.StaticLine(self.noise_panel, style=wx.LI_HORIZONTAL)
         noise_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
 
-        self.noise_type = wx.ComboBox(noise_panel, choices=["Gaussian", "Uniform", "Poisson"],
+        self.noise_type = wx.ComboBox(self.noise_panel, choices=["Gaussian", "Uniform", "Poisson"],
                                       style=wx.CB_READONLY)
         self.noise_type.SetValue("Gaussian")
-        self.noise_amplitude = wx.SpinCtrlDouble(noise_panel, min=0.0, max=10000.0, initial=1.0, inc=0.1)
+        self.noise_amplitude = wx.SpinCtrlDouble(self.noise_panel, min=0.0, max=10000.0, initial=1.0, inc=0.1)
 
-        noise_sizer.Add(wx.StaticText(noise_panel, label="Type:"), 0, wx.ALL, 5)
+        noise_sizer.Add(wx.StaticText(self.noise_panel, label="Type:"), 0, wx.ALL, 5)
         noise_sizer.Add(self.noise_type, 0, wx.EXPAND | wx.ALL, 5)
-        noise_sizer.Add(wx.StaticText(noise_panel, label="Amplitude:"), 0, wx.ALL, 5)
+        noise_sizer.Add(wx.StaticText(self.noise_panel, label="Amplitude:"), 0, wx.ALL, 5)
         noise_sizer.Add(self.noise_amplitude, 0, wx.EXPAND | wx.ALL, 5)
 
-        noise_btn = wx.Button(noise_panel, label="Add Noise")
+        noise_btn = wx.Button(self.noise_panel, label="Add Noise")
         noise_btn.SetMinSize((125, 40))
         noise_btn.Bind(wx.EVT_BUTTON, self.on_add_noise)
         noise_sizer.Add(noise_btn, 0, wx.EXPAND | wx.ALL, 5)
-        noise_panel.SetSizer(noise_sizer)
+        self.noise_panel.SetSizer(noise_sizer)
+
+        # Create placeholder panel for noise (same appearance)
+        self.noise_placeholder = wx.Panel(noise_container)
+        self.noise_placeholder.SetBackgroundColour(light_green)
+        placeholder_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        title_text = wx.StaticText(self.noise_placeholder, label="Other Mods.")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        placeholder_sizer.Add(title_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        line = wx.StaticLine(self.noise_placeholder, style=wx.LI_HORIZONTAL)
+        placeholder_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        hidden_text = wx.StaticText(self.noise_placeholder, label="Coming soon")
+        hidden_text.SetForegroundColour(wx.Colour(128, 128, 128))
+        placeholder_sizer.Add(hidden_text, 1, wx.ALL | wx.ALIGN_CENTER, 30)
+
+        self.noise_placeholder.SetSizer(placeholder_sizer)
+
+        # Add both panels to container (they'll stack, but only one will be visible)
+        noise_container_sizer.Add(self.noise_panel, 1, wx.EXPAND)
+        noise_container_sizer.Add(self.noise_placeholder, 1, wx.EXPAND)
+        noise_container.SetSizer(noise_container_sizer)
 
         # Differentiation section
         diff_panel = wx.Panel(panel)
@@ -278,7 +298,7 @@ class PlotModWindow(wx.Frame):
 
         # Add to grid - note all are now panels instead of sizers
         grid_sizer.Add(smooth_panel, pos=(0, 0), flag=wx.EXPAND | wx.ALL, border=1)
-        grid_sizer.Add(noise_panel, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
+        grid_sizer.Add(noise_container, pos=(0, 2), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(diff_panel, pos=(1, 1), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(int_panel, pos=(1, 0), flag=wx.EXPAND | wx.ALL, border=1)
         grid_sizer.Add(const_panel, pos=(0, 1), flag=wx.EXPAND | wx.ALL, border=1)
@@ -295,6 +315,7 @@ class PlotModWindow(wx.Frame):
         if self.controls_hidden:
             self.noise_panel.Hide()
             self.voigt_panel.Hide()
+            self.noise_placeholder.Show()  # Make sure placeholder is visible
             # # Set smaller window size
             # if 'wxMac' in wx.PlatformInfo:
             #     self.SetSize(380, 345)  # Reduced from 560, 345
@@ -812,10 +833,12 @@ class PlotModWindow(wx.Frame):
         self.controls_hidden = not self.controls_hidden
 
         if self.controls_hidden:
-            # Hide panels
+            # Hide actual panels and show placeholder for noise
             self.noise_panel.Hide()
             self.voigt_panel.Hide()
-            # Set smaller window size
+            self.noise_placeholder.Show()
+
+            # Set smaller window size (your specified sizes)
             if 'wxMac' in wx.PlatformInfo:
                 self.SetSize(430, 345)
             elif 'wxGTK' in wx.PlatformInfo:
@@ -823,10 +846,12 @@ class PlotModWindow(wx.Frame):
             else:
                 self.SetSize(400, 390)
         else:
-            # Show panels
+            # Show actual panels and hide placeholder
+            self.noise_placeholder.Hide()
             self.noise_panel.Show()
             self.voigt_panel.Show()
-            # Set larger window size (original sizes)
+
+            # Set larger window size (your specified original sizes)
             if 'wxMac' in wx.PlatformInfo:
                 self.SetSize(560, 345)
             elif 'wxGTK' in wx.PlatformInfo:
