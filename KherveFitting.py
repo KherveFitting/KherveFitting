@@ -446,7 +446,7 @@ class MyFrame(wx.Frame):
             new_sash_position = self.initial_sash_position
             new_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR)
             self.is_right_panel_hidden = False
-            self.SetMinSize((800, 600))  # Reset min size to allow resizing
+            self.SetMinSize((750, 600))  # Reset min size to allow resizing
             self.SetMaxSize((-1, -1))
             # Restore previous size
             if hasattr(self, 'previous_size'):
@@ -490,7 +490,8 @@ class MyFrame(wx.Frame):
 
             # Store current size and set to fixed width of 865
             self.previous_size = current_size
-            fixed_width = 865
+            # fixed_width = 865
+            fixed_width = 750
             fixed_height = current_size.height
 
             # Fix both width and height
@@ -641,7 +642,8 @@ class MyFrame(wx.Frame):
 
             # Rebind events
             from libraries.FileMenu.Open import open_xlsx_file
-            from Functions import on_save, refresh_sheets, save_all_sheets_with_plots
+            from Functions import on_save
+            from libraries.FileMenu.Save import refresh_sheets, save_all_sheets_with_plots
             from libraries.Sheet_Operations import on_sheet_selected
             from libraries.Utilities import on_delete_sheet, copy_sheet, JoinSheetsWindow
 
