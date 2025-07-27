@@ -1577,7 +1577,7 @@ class MyFrame(wx.Frame):
 
         return area
 
-    def show_hide_vlines(self):
+    def show_hide_vlines_OLD(self):
         # Hide vlines if zooming or dragging
         if self.zoom_mode or self.drag_mode:
             if self.vline1 is not None:
@@ -1605,22 +1605,129 @@ class MyFrame(wx.Frame):
 
         self.canvas.draw_idle()
 
+    def show_hide_vlines(self):
+        # Hide vlines if zooming or dragging
+        if self.zoom_mode or self.drag_mode:
+            if self.vline1 is not None:
+                self.vline1.set_visible(False)
+            if self.vline2 is not None:
+                self.vline2.set_visible(False)
+            if self.vline3 is not None:
+                self.vline3.set_visible(False)
+            if self.vline4 is not None:
+                self.vline4.set_visible(False)
+            return
+
+        # Background lines handling
+        background_lines_visible = (hasattr(self, 'fitting_window') and
+                                    self.fitting_window is not None and
+                                    self.background_tab_selected)
+
+        if background_lines_visible:
+            # Create/restore vlines if they don't exist
+            if self.vline1 is None or self.vline2 is None:
+                self.initialize_or_restore_background_vlines()
+            else:
+                # Make sure they're visible
+                self.vline1.set_visible(True)
+                self.vline2.set_visible(True)
+        else:
+            # Remove vlines completely when not in background tab
+            if self.vline1 is not None:
+                self.vline1.remove()
+                self.vline1 = None
+            if self.vline2 is not None:
+                self.vline2.remove()
+                self.vline2 = None
+
+        # Noise lines handling
+        noise_lines_visible = (self.noise_analysis_window is not None and
+                               self.noise_tab_selected)
+        if noise_lines_visible:
+            if self.vline3 is not None:
+                self.vline3.set_visible(True)
+            if self.vline4 is not None:
+                self.vline4.set_visible(True)
+        else:
+            if self.vline3 is not None:
+                self.vline3.set_visible(False)
+            if self.vline4 is not None:
+                self.vline4.set_visible(False)
+
+        self.canvas.draw_idle()
+
+    def initialize_or_restore_background_vlines(self):
+        """Initialize vertical lines at 1/6 and 5/6 of the plot for background fitting, or restore from saved positions."""
+        if len(self.x_values) > 0:
+            sheet_name = self.sheet_combobox.GetValue()
+
+            # Remove any existing vlines first to prevent duplicates
+            if self.vline1 is not None:
+                try:
+                    self.vline1.remove()
+                except:
+                    pass
+                self.vline1 = None
+            if self.vline2 is not None:
+                try:
+                    self.vline2.remove()
+                except:
+                    pass
+                self.vline2 = None
+
+            # Try to get saved positions first
+            saved_low = None
+            saved_high = None
+            if sheet_name in self.Data['Core levels'] and 'Background' in self.Data['Core levels'][sheet_name]:
+                bg_data = self.Data['Core levels'][sheet_name]['Background']
+                saved_low = bg_data.get('Bkg Low')
+                saved_high = bg_data.get('Bkg High')
+
+            # If no saved positions or invalid positions, use 1/6 and 5/6
+            if saved_low is None or saved_high is None or saved_low == saved_high:
+                x_min = min(self.x_values)
+                x_max = max(self.x_values)
+                x_range = x_max - x_min
+
+                vline1_pos = x_min + x_range / 12
+                vline2_pos = x_min + 11 * x_range / 12
+            else:
+                # Use saved positions
+                vline1_pos = float(saved_low)
+                vline2_pos = float(saved_high)
+
+            # Create new vlines
+            self.vline1 = self.ax.axvline(vline1_pos, color='r', linestyle='--', alpha=0.7)
+            self.vline2 = self.ax.axvline(vline2_pos, color='r', linestyle='--', alpha=0.7)
+
+            # Update data structure
+            if sheet_name in self.Data['Core levels']:
+                if 'Background' not in self.Data['Core levels'][sheet_name]:
+                    self.Data['Core levels'][sheet_name]['Background'] = {}
+                self.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(min(vline1_pos, vline2_pos))
+                self.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(max(vline1_pos, vline2_pos))
+
+    def remove_background_vlines(self):
+        """Completely remove background vlines from the plot"""
+        if self.vline1 is not None:
+            try:
+                self.vline1.remove()
+            except:
+                pass
+            self.vline1 = None
+        if self.vline2 is not None:
+            try:
+                self.vline2.remove()
+            except:
+                pass
+            self.vline2 = None
+
 
     def is_mouse_on_peak(self, event):
         if self.selected_peak_index is not None:
 
             return True
         return False
-
-
-
-
-
-
-
-
-
-
 
 
 

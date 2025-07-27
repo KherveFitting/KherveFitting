@@ -2019,7 +2019,17 @@ class PlotManager:
     def _calculate_adaptive_smart_background(self, window, x_values, y_values, offset_h, offset_l):
         """Helper method to calculate Multi-Regions Smart background."""
         sheet_name = window.sheet_combobox.GetValue()  # Get the current sheet name
-        bg_min_energy, bg_max_energy = min(x_values), max(x_values)
+
+        # Use vline positions instead of min/max of x_values
+        if window.vline1 is not None and window.vline2 is not None:
+            vline1_x = window.vline1.get_xdata()[0]
+            vline2_x = window.vline2.get_xdata()[0]
+            bg_min_energy = min(vline1_x, vline2_x)
+            bg_max_energy = max(vline1_x, vline2_x)
+        else:
+            # Fallback to full range only if no vlines
+            bg_min_energy, bg_max_energy = min(x_values), max(x_values)
+
         window.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = bg_min_energy
         window.Data['Core levels'][sheet_name]['Background']['Bkg High'] = bg_max_energy
 
@@ -2143,13 +2153,25 @@ class PlotManager:
 
     def _update_background_data(self, window, sheet_name, x_values, background, method, offset_h, offset_l):
         """Helper method to update the background data in window.Data."""
+
+        # Use vline positions instead of min/max of x_values
+        if window.vline1 is not None and window.vline2 is not None:
+            vline1_x = window.vline1.get_xdata()[0]
+            vline2_x = window.vline2.get_xdata()[0]
+            bg_low = min(vline1_x, vline2_x)
+            bg_high = max(vline1_x, vline2_x)
+        else:
+            # Fallback to full range only if no vlines
+            bg_low = min(x_values)
+            bg_high = max(x_values)
+
         window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = background.tolist()
         window.background = background
         window.Data['Core levels'][sheet_name]['Background'].update({
             'Bkg Y': background.tolist(),
             'Bkg Type': method,
-            'Bkg Low': min(x_values),
-            'Bkg High': max(x_values),
+            'Bkg Low': bg_low,
+            'Bkg High': bg_high,
             'Bkg Offset Low': offset_l,
             'Bkg Offset High': offset_h,
             'Bkg X': x_values.tolist()

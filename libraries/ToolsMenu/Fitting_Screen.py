@@ -85,10 +85,22 @@ class FittingWindow(wx.Frame):
 
         self.parent.background_tab_selected = True
         self.parent.peak_fitting_tab_selected = False
-        self.parent.show_hide_vlines()
         self.parent.peak_manipulation.deselect_all_peaks()
 
+        self.vline1_text = None
+        self.vline2_text = None
 
+        # Trick: Quickly switch to fitting tab and back to background tab to trigger proper vline initialization
+        wx.CallAfter(self._switch_tabs_trick, notebook)
+
+    def _switch_tabs_trick(self, notebook):
+        """Quick tab switching trick to ensure proper vline initialization"""
+        # Switch to peak fitting tab (index 1)
+        notebook.SetSelection(1)
+        # Process any pending events
+        wx.GetApp().Yield()
+        # Switch back to background tab (index 0)
+        notebook.SetSelection(0)
 
     def init_background_tab(self, notebook):
         """Initialize the background tab in the notebook."""
@@ -957,19 +969,8 @@ class FittingWindow(wx.Frame):
 
         self.parent.clear_and_replot()
 
-    def on_background(self, event):
+    def on_background_OLD(self, event):
         save_state(self.parent)
-
-        # # Clear any lingering vline dragging state before background creation
-        # if hasattr(self.parent, 'moving_vline'):
-        #     self.parent.moving_vline = None
-        # if hasattr(self.parent, 'motion_cid'):
-        #     self.parent.canvas.mpl_disconnect(self.parent.motion_cid)
-        #     delattr(self.parent, 'motion_cid')
-        # if hasattr(self.parent, 'release_cid'):
-        #     self.parent.canvas.mpl_disconnect(self.parent.release_cid)
-        #     delattr(self.parent, 'release_cid')
-
 
         if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             sheet_name = self.parent.sheet_combobox.GetValue()
@@ -994,6 +995,35 @@ class FittingWindow(wx.Frame):
                 self.parent.bg_min_energy = core_level_data['Background']['Bkg Low']
                 self.parent.bg_max_energy = core_level_data['Background']['Bkg High']
         save_state(self.parent)
+
+    def on_background(self, event):
+        save_state(self.parent)
+
+        # Get vline positions if they exist, otherwise use full range
+        if self.parent.vline1 is not None and self.parent.vline2 is not None:
+            # Use actual vline positions
+            vline1_pos = self.parent.vline1.get_xdata()[0]
+            vline2_pos = self.parent.vline2.get_xdata()[0]
+            self.parent.bg_min_energy = min(vline1_pos, vline2_pos)
+            self.parent.bg_max_energy = max(vline1_pos, vline2_pos)
+        elif self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
+            # Fallback to full range only if no vlines and no stored values
+            sheet_name = self.parent.sheet_combobox.GetValue()
+            x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
+            self.parent.bg_min_energy = min(x_values)
+            self.parent.bg_max_energy = max(x_values)
+
+        # Update the data structure with the correct values
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = self.parent.bg_min_energy
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = self.parent.bg_max_energy
+
+        # Get smooth checkbox state
+        use_smoothing = self.smooth_data_checkbox.GetValue()
+
+        # Call plot_background with the smoothing flag
+        self.parent.plot_manager.plot_background(self.parent, use_smoothing=use_smoothing)
 
     def on_clear_background(self, event):
         # Show confirmation dialog
@@ -1153,7 +1183,7 @@ class FittingWindow(wx.Frame):
                 child.SetToolTip(self.get_fitting_description(self.parent.selected_fitting_method))
                 break
 
-    def on_tab_change(self, event):
+    def on_tab_change_OLD(self, event):
         selected_page = event.GetSelection()
         self.parent.background_tab_selected = (selected_page == 0)
         self.parent.peak_fitting_tab_selected = (selected_page == 1)
@@ -1169,10 +1199,42 @@ class FittingWindow(wx.Frame):
 
         event.Skip()
 
+    def on_tab_change(self, event):
+        selected_page = event.GetSelection()
+
+        # Store previous state
+        was_background_tab = self.parent.background_tab_selected
+
+        # Update tab states
+        self.parent.background_tab_selected = (selected_page == 0)
+        self.parent.peak_fitting_tab_selected = (selected_page == 1)
+
+        # Handle background interaction
+        if self.parent.background_tab_selected:
+            self.parent.enable_background_interaction()
+            # Show vlines when entering background tab
+            self.parent.show_hide_vlines()
+        else:
+            self.parent.disable_background_interaction()
+            # Reset vlines when leaving background tab (same as Reset Vertical Lines button)
+            if was_background_tab:
+                self.on_reset_vlines(None)
+
+        # Handle peak selection
+        if not self.parent.peak_fitting_tab_selected:
+            self.parent.peak_manipulation.deselect_all_peaks()
+
+        event.Skip()
+
     def on_close(self, event):
+
+        # Reset vlines when closing (same as Reset Vertical Lines button)
+        self.on_reset_vlines(None)
+
         self.parent.background_tab_selected = False
         self.parent.peak_fitting_tab_selected = False
-        self.parent.show_hide_vlines()
+
+        # self.parent.show_hide_vlines()
         self.parent.peak_manipulation.deselect_all_peaks()
         self.Destroy()
 
