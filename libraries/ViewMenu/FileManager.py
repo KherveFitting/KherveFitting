@@ -219,6 +219,13 @@ class FileManagerWindow(wx.Frame):
                                              "Delete the last 2 rows from the grid")
         self.Bind(wx.EVT_TOOL, lambda evt: self.delete_single_row(), del_rows_tool)
 
+        # Add Files button (NEW)
+        add_files_tool = self.toolbar.AddTool(wx.ID_ANY, 'Add File(s)',
+                                              wx.Bitmap(os.path.join(icon_path, "open-folder-3.png"),
+                                                        wx.BITMAP_TYPE_PNG),
+                                              shortHelp="Add KherveFitting file(s) to current file")
+        self.Bind(wx.EVT_TOOL, self.on_add_files, add_files_tool)
+
         # Copy button
         copy_icon = os.path.join(icon_path, "copy-3.png")
         if os.path.exists(copy_icon):
@@ -386,6 +393,52 @@ class FileManagerWindow(wx.Frame):
         self.is_collapsed = False
         self.expanded_height = 300  # Default expanded height
         self.collapsed_height = 70  # Collapsed height
+
+    def on_add_files(self, event):
+        """Handle Add Files button click"""
+        # Check if we have a current file open
+        if not hasattr(self.parent, 'Data') or not self.parent.Data.get('FilePath'):
+            wx.MessageBox("No file is currently open to add data to.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Show file dialog for selecting files
+        wildcard = "KherveFitting files (*.xlsx)|*.xlsx"
+
+        with wx.FileDialog(self, "Select KherveFitting file(s) to add",
+                           wildcard=wildcard,
+                           style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+
+            file_paths = fileDialog.GetPaths()
+
+            # Process each selected file
+            for file_path in file_paths:
+                # Check if it's a KherveFitting file
+                if self._is_khervefitting_file(file_path):
+                    # Add the file using our existing logic
+                    wx.CallAfter(self._add_file_to_current, file_path)
+                else:
+                    wx.MessageBox(f"File {os.path.basename(file_path)} is not a KherveFitting file.",
+                                  "Invalid File", wx.OK | wx.ICON_WARNING)
+
+    def _is_khervefitting_file(self, file_path):
+        """Check if the Excel file is a KherveFitting file (not Avantage)"""
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            is_khervefitting = "Titles" not in wb.sheetnames
+            wb.close()
+            return is_khervefitting
+        except Exception:
+            return False
+
+    def _add_file_to_current(self, file_path):
+        """Add the selected file's data to the current file"""
+        # Use the existing FileManagerDropTarget logic
+        drop_target = FileManagerDropTarget(self)
+        drop_target._add_file_to_current(file_path)
 
     def on_stacked_plot_right_click(self, event):
         """Handle right-click on stacked plot tool to decrease spacing"""
@@ -5056,15 +5109,38 @@ class FileManagerDropTarget(wx.FileDropTarget):
 
         return True
 
+    def _copy_sample_name(self, json_data_to_add, original_sample_row, target_row, file_path):
+        """Copy SampleName from source file or use filename"""
+        target_row_str = str(target_row)
+
+        print(f"DEBUG: Processing sample row {original_sample_row} -> target row {target_row}")
+        print(f"DEBUG: Target row string: '{target_row_str}'")
+
+        # Check if source file has SampleNames data
+        if 'SampleNames' in json_data_to_add and str(original_sample_row) in json_data_to_add['SampleNames']:
+            # Copy the existing SampleName from the source file
+            source_sample_name = json_data_to_add['SampleNames'][str(original_sample_row)]
+            self.main_window.Data['SampleNames'][target_row_str] = source_sample_name
+            print(f"DEBUG: Copied SampleName: '{source_sample_name}' for row {target_row}")
+        else:
+            # Use filename as SampleName (without extension)
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+            self.main_window.Data['SampleNames'][target_row_str] = filename
+            print(f"DEBUG: Using filename as SampleName: '{filename}' for row {target_row}")
+
+        # Verify it was added
+        print(f"DEBUG: Current SampleNames: {self.main_window.Data['SampleNames']}")
+
     def _add_file_to_current(self, file_path):
         """Add the dropped file's data to the current file, keeping sample rows together"""
         try:
             import openpyxl
             import json
             import os
+            import wx
             from libraries.FileMenu.Save import convert_to_serializable_and_round
             from libraries.Sheet_Operations import on_sheet_selected
-            from libraries.FileMenu.Save import refresh_sheets
+            from libraries.FileMenu.Open import open_xlsx_file  # Use open_xlsx_file instead of refresh_sheets
 
             # Check if we have a current file open
             if not hasattr(self.main_window, 'Data') or not self.main_window.Data.get('FilePath'):
@@ -5072,6 +5148,7 @@ class FileManagerDropTarget(wx.FileDropTarget):
                 return
 
             current_file_path = self.main_window.Data['FilePath']
+            current_json_path = os.path.splitext(current_file_path)[0] + '.json'
 
             # Load the file to be added
             wb_to_add = openpyxl.load_workbook(file_path)
@@ -5089,11 +5166,27 @@ class FileManagerDropTarget(wx.FileDropTarget):
             # Group sheets by their original sample row
             sheets_by_sample = self._group_sheets_by_sample(wb_to_add.sheetnames)
 
-            # Find the first available empty row for each sample
+            # Process all sheets and add to Excel
             sheets_added = []
+            sample_names_to_add = {}  # Store new sample names to add later
+
             for sample_row, sheet_names in sheets_by_sample.items():
+                print(f"DEBUG: Processing sample_row {sample_row} with sheets: {sheet_names}")
+
                 # Find next available row that can accommodate all core levels from this sample
                 target_row = self._find_next_available_row(sheet_names)
+                print(f"DEBUG: Found target_row: {target_row}")
+
+                # Determine what SampleName to use for this target row
+                if 'SampleNames' in json_data_to_add and str(sample_row) in json_data_to_add['SampleNames']:
+                    sample_name = json_data_to_add['SampleNames'][str(sample_row)]
+                    print(f"DEBUG: Using SampleName from source file: '{sample_name}'")
+                else:
+                    sample_name = os.path.splitext(os.path.basename(file_path))[0]
+                    print(f"DEBUG: Using filename as SampleName: '{sample_name}'")
+
+                sample_names_to_add[str(target_row)] = sample_name
+                print(f"DEBUG: Will add SampleName '{sample_name}' for row {target_row}")
 
                 # Process each sheet in this sample row
                 for sheet_name in sheet_names:
@@ -5104,8 +5197,8 @@ class FileManagerDropTarget(wx.FileDropTarget):
                     source_sheet = wb_to_add[sheet_name]
                     self._copy_sheet_exactly(source_sheet, current_wb, new_sheet_name)
 
-                    # Add to window.Data
-                    self._add_sheet_to_data(sheet_name, new_sheet_name, source_sheet, json_data_to_add)
+                    # Add to window.Data with file_path parameter
+                    self._add_sheet_to_data(sheet_name, new_sheet_name, source_sheet, json_data_to_add, file_path)
                     sheets_added.append(new_sheet_name)
 
             # Save the updated Excel file
@@ -5113,37 +5206,49 @@ class FileManagerDropTarget(wx.FileDropTarget):
             current_wb.close()
             wb_to_add.close()
 
-            # Update JSON file
-            current_json_path = os.path.splitext(current_file_path)[0] + '.json'
+            print(f"DEBUG: About to update SampleNames and interface manually")
+
+            # Update SampleNames in window.Data
+            if 'SampleNames' not in self.main_window.Data:
+                self.main_window.Data['SampleNames'] = {}
+
+            self.main_window.Data['SampleNames'].update(sample_names_to_add)
+            print(f"DEBUG: SampleNames updated: {self.main_window.Data['SampleNames']}")
+
+            # Update interface manually (DON'T use open_xlsx_file)
+            # Update sheet combobox
+            current_sheet = self.main_window.sheet_combobox.GetValue()
+            all_sheets = list(self.main_window.Data['Core levels'].keys())
+            self.main_window.sheet_combobox.Clear()
+            self.main_window.sheet_combobox.AppendItems(all_sheets)
+
+            # Restore current sheet or set to first new sheet
+            if current_sheet in all_sheets:
+                self.main_window.sheet_combobox.SetValue(current_sheet)
+            elif sheets_added:
+                self.main_window.sheet_combobox.SetValue(sheets_added[0])
+                on_sheet_selected(self.main_window, sheets_added[0])
+
+            # Update number of core levels
+            self.main_window.Data['Number of Core levels'] = len(self.main_window.Data['Core levels'])
+
+            # Save JSON with final data
             json_data = convert_to_serializable_and_round(self.main_window.Data)
             with open(current_json_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
+            print(f"DEBUG: Final JSON saved with SampleNames: {json_data.get('SampleNames')}")
 
-            # Refresh the interface
-            refresh_sheets(self.main_window, on_sheet_selected)
-
-            # Close and reopen the file manager if it exists (PROPER REFRESH)
+            # Close and reopen the file manager if it exists
             if hasattr(self.main_window, 'file_manager') and self.main_window.file_manager is not None:
                 try:
-                    # Close existing file manager
                     self.main_window.file_manager.Close()
                     self.main_window.file_manager.Destroy()
                     self.main_window.file_manager = None
 
-                    # Reopen file manager with delay to ensure proper refresh
+                    import wx
                     wx.CallAfter(self.main_window.on_open_file_manager, None)
                 except Exception as e:
                     print(f"Error refreshing file manager: {e}")
-                    pass
-
-            # Show success message
-            file_name = os.path.basename(file_path)
-            wx.MessageBox(
-                f"Successfully added {len(sheets_added)} core levels from {file_name}\n"
-                f"New sheets: {', '.join(sheets_added)}",
-                "Success",
-                wx.OK | wx.ICON_INFORMATION
-            )
 
         except Exception as e:
             import traceback
@@ -5192,6 +5297,7 @@ class FileManagerDropTarget(wx.FileDropTarget):
     def _find_next_available_row(self, sheet_names_to_add):
         """Find the next completely empty row that can fit all the core levels"""
         existing_sheets = list(self.main_window.Data.get('Core levels', {}).keys())
+        print(f"DEBUG: Existing sheets: {existing_sheets}")
 
         # Extract base names from sheets to add (C1s2 -> C1s)
         base_names_to_add = []
@@ -5201,25 +5307,31 @@ class FileManagerDropTarget(wx.FileDropTarget):
             base_name = re.sub(r'\d+$', '', sheet_name)
             base_names_to_add.append(base_name)
 
+        print(f"DEBUG: Base names to add: {base_names_to_add}")
+
         # Check each row starting from 0
         row = 0
         while True:
             row_is_available = True
+            print(f"DEBUG: Checking row {row}")
 
             # Check if this row can accommodate all our core levels
             for base_name in base_names_to_add:
                 if row == 0:
                     # For row 0, check both "C1s" and "C1s0" formats
                     if base_name in existing_sheets or f"{base_name}0" in existing_sheets:
+                        print(f"DEBUG: Row {row} occupied by {base_name}")
                         row_is_available = False
                         break
                 else:
                     # For other rows, check "C1s1", "C1s2", etc.
                     if f"{base_name}{row}" in existing_sheets:
+                        print(f"DEBUG: Row {row} occupied by {base_name}{row}")
                         row_is_available = False
                         break
 
             if row_is_available:
+                print(f"DEBUG: Row {row} is available!")
                 return row
 
             row += 1
@@ -5251,8 +5363,8 @@ class FileManagerDropTarget(wx.FileDropTarget):
 
         return max_sample_num + 1
 
-    def _add_sheet_to_data(self, original_sheet_name, new_sheet_name, source_sheet, json_data):
-        """Add sheet data to window.Data structure with proper data type conversion"""
+    def _add_sheet_to_data(self, original_sheet_name, new_sheet_name, source_sheet, json_data, file_path):
+        """Add sheet data to window.Data structure without individual descriptions"""
         # Extract B.E. and Raw Data columns
         be_values = []
         raw_data = []
@@ -5281,12 +5393,13 @@ class FileManagerDropTarget(wx.FileDropTarget):
             print(f"Warning: No valid data found in sheet {original_sheet_name}")
             return
 
-        # Create the data structure with proper data types
+        # Create the data structure WITHOUT individual Description
         sheet_data = {
             'B.E.': be_values,
             'Raw Data': raw_data,
             'Background': {'Bkg Y': [0.0] * len(be_values)},
             'Name': new_sheet_name
+            # REMOVED: 'Description': f"Added from file: {os.path.basename(file_path)}"
         }
 
         # Copy peak fitting data from JSON if available
