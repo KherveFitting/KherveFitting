@@ -428,9 +428,11 @@ Version 1.505-1.590
 - Added export peak fitted CasaXPS files - Beta
 - Added Thickogram - Beta
 - Added possibility to constraint to other core levels
-- Improve right click Menu in the peak fitting grid
-_ Added noise creation in plotMod
-- Added voigt model creation in PlotMod
+- Improve right click Menu in the peak fitting grid with other core level constraints
+- Improve vLines in background creation
+- Added several ways to import multiple files
+- Added noise creation in plotMod - HIDDEN DANGEROUS
+- Added voigt model creation in PlotMod - HIDDEN DANGEROUS
 - v1.545 Fix wrong value for vamas corrected intensity with new transmission value
 - Added shirley bkg of lmfitXPS 
 - Added Add/Delete core level in the Peak Fitting Grid
