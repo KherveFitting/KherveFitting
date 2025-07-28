@@ -1792,23 +1792,31 @@ class PlotManager:
                                framealpha=0.1, edgecolor='gray')
         self.canvas.draw_idle()
 
-
     def update_legend(self, window):
         sheet_name = window.sheet_combobox.GetValue()
         handles, labels = self.ax.get_legend_handles_labels()
 
+        # Extract current core level name for compact legend
+        current_core_level = self.extract_core_level_name(sheet_name)
+
         num_peaks = window.peak_params_grid.GetNumberRows() // 2
         peak_labels = []
         filtered_peak_labels = []
+        compact_peak_labels = []  # Separate list for compact labels
 
         for i in range(num_peaks):
             label = window.peak_params_grid.GetCellValue(i * 2, 1)
             formatted_label = re.sub(r'(\d+/\d+)', r'$_{\1}$', label)
+
+            # Create compact version for peaks-only mode
+            compact_label = self.make_compact_legend_label(formatted_label, current_core_level)
+
             clean_label = re.sub(r'\$.*?\$', '', formatted_label)
             split_label = clean_label.split()
             if len(split_label) > 1 and split_label[1].strip():
                 peak_labels.append(label)
-                filtered_peak_labels.append(formatted_label)
+                filtered_peak_labels.append(formatted_label)  # Full name for full legend
+                compact_peak_labels.append(compact_label)  # Compact name for peaks-only
 
         if self.legend_visible == 2:
             ordered_handles = []
@@ -1817,8 +1825,8 @@ class PlotManager:
                     if label == l:
                         ordered_handles.append(handles[index])
                         break
-            if ordered_handles and filtered_peak_labels:
-                self.ax.legend(ordered_handles, filtered_peak_labels, loc='upper left', frameon=True, fancybox=True,
+            if ordered_handles and compact_peak_labels:
+                self.ax.legend(ordered_handles, compact_peak_labels, loc='upper left', frameon=True, fancybox=True,
                                framealpha=0.1, edgecolor='gray')
             else:
                 self.ax.legend().set_visible(False)
@@ -1839,7 +1847,7 @@ class PlotManager:
                 legend_order2.append("Overall Fit")
 
             legend_order += peak_labels
-            legend_order2 += filtered_peak_labels
+            legend_order2 += filtered_peak_labels  # Use full names for full legend
 
             if legend_order and self.legend_visible:
                 ordered_handles = []
@@ -1856,15 +1864,51 @@ class PlotManager:
 
         self.canvas.draw_idle()
 
-    @staticmethod
-    def format_sheet_name_OLD(sheet_name):
+    def extract_core_level_name(self, sheet_name):
+        """Extract core level name from sheet name (e.g., 'Sr3d1' -> 'Sr3d', 'C1s1' -> 'C1s')"""
         import re
-        match = re.match(r'([A-Z][a-z]*)(\d+[spdfg])', sheet_name)
+        # Match pattern like C1s, N1s, Sr3d, etc.
+        match = re.match(r'([A-Z][a-z]?\d+[spdf])', sheet_name)
         if match:
-            element, shell = match.groups()
-            return f"{element} {shell}"
-        else:
-            return sheet_name
+            return match.group(1)
+        return None
+
+    def make_compact_legend_label(self, original_label, current_core_level):
+        """
+        Make legend labels compact by removing core level prefix if it matches current core level.
+        Handles doublets for p, d, f orbitals.
+        Examples:
+        - If on C1s: "C1s C-C" becomes "C-C"
+        - If on Sr3d: "Sr3d5/2 SrO" becomes "SrO"
+        - If on Sr3d: "Sr3d$_{5/2}$ SrO" becomes "SrO"
+        """
+        import re
+
+        # Skip processing if no current core level
+        if not current_core_level:
+            return original_label
+
+        # For s orbitals (like C1s), check for exact match
+        if current_core_level.endswith('s'):
+            words = original_label.split()
+            if len(words) >= 2 and words[0] == current_core_level:
+                return ' '.join(words[1:])
+
+        # For p, d, f orbitals that can have doublets
+        elif current_core_level[-1] in ['p', 'd', 'f']:
+            # Pattern to match doublet notation: Sr3d5/2, Sr3d3/2, Sr3d$_{5/2}$, Sr3d$_{3/2}$, etc.
+            doublet_pattern = rf'^{re.escape(current_core_level)}(?:\d+/\d+|\$_{{[\d/]+}}\$)\s+(.+)$'
+            match = re.match(doublet_pattern, original_label)
+            if match:
+                return match.group(1)  # Return everything after the doublet part
+
+            # Also check for simple core level match (fallback)
+            words = original_label.split()
+            if len(words) >= 2 and words[0] == current_core_level:
+                return ' '.join(words[1:])
+
+        return original_label
+
 
     @staticmethod
     def format_sheet_name(sheet_name):
