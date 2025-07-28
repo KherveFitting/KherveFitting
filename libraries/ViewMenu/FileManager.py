@@ -5113,23 +5113,23 @@ class FileManagerDropTarget(wx.FileDropTarget):
         """Copy SampleName from source file or use filename"""
         target_row_str = str(target_row)
 
-        print(f"DEBUG: Processing sample row {original_sample_row} -> target row {target_row}")
-        print(f"DEBUG: Target row string: '{target_row_str}'")
+        # print(f"DEBUG: Processing sample row {original_sample_row} -> target row {target_row}")
+        # print(f"DEBUG: Target row string: '{target_row_str}'")
 
         # Check if source file has SampleNames data
         if 'SampleNames' in json_data_to_add and str(original_sample_row) in json_data_to_add['SampleNames']:
             # Copy the existing SampleName from the source file
             source_sample_name = json_data_to_add['SampleNames'][str(original_sample_row)]
             self.main_window.Data['SampleNames'][target_row_str] = source_sample_name
-            print(f"DEBUG: Copied SampleName: '{source_sample_name}' for row {target_row}")
+            # print(f"DEBUG: Copied SampleName: '{source_sample_name}' for row {target_row}")
         else:
             # Use filename as SampleName (without extension)
             filename = os.path.splitext(os.path.basename(file_path))[0]
             self.main_window.Data['SampleNames'][target_row_str] = filename
-            print(f"DEBUG: Using filename as SampleName: '{filename}' for row {target_row}")
+            # print(f"DEBUG: Using filename as SampleName: '{filename}' for row {target_row}")
 
         # Verify it was added
-        print(f"DEBUG: Current SampleNames: {self.main_window.Data['SampleNames']}")
+        # print(f"DEBUG: Current SampleNames: {self.main_window.Data['SampleNames']}")
 
     def _add_file_to_current(self, file_path):
         """Add the dropped file's data to the current file, keeping sample rows together"""
@@ -5171,22 +5171,22 @@ class FileManagerDropTarget(wx.FileDropTarget):
             sample_names_to_add = {}  # Store new sample names to add later
 
             for sample_row, sheet_names in sheets_by_sample.items():
-                print(f"DEBUG: Processing sample_row {sample_row} with sheets: {sheet_names}")
+                # print(f"DEBUG: Processing sample_row {sample_row} with sheets: {sheet_names}")
 
                 # Find next available row that can accommodate all core levels from this sample
                 target_row = self._find_next_available_row(sheet_names)
-                print(f"DEBUG: Found target_row: {target_row}")
+                # print(f"DEBUG: Found target_row: {target_row}")
 
                 # Determine what SampleName to use for this target row
                 if 'SampleNames' in json_data_to_add and str(sample_row) in json_data_to_add['SampleNames']:
                     sample_name = json_data_to_add['SampleNames'][str(sample_row)]
-                    print(f"DEBUG: Using SampleName from source file: '{sample_name}'")
+                    # print(f"DEBUG: Using SampleName from source file: '{sample_name}'")
                 else:
                     sample_name = os.path.splitext(os.path.basename(file_path))[0]
-                    print(f"DEBUG: Using filename as SampleName: '{sample_name}'")
+                    # print(f"DEBUG: Using filename as SampleName: '{sample_name}'")
 
                 sample_names_to_add[str(target_row)] = sample_name
-                print(f"DEBUG: Will add SampleName '{sample_name}' for row {target_row}")
+                # print(f"DEBUG: Will add SampleName '{sample_name}' for row {target_row}")
 
                 # Process each sheet in this sample row
                 for sheet_name in sheet_names:
@@ -5206,14 +5206,14 @@ class FileManagerDropTarget(wx.FileDropTarget):
             current_wb.close()
             wb_to_add.close()
 
-            print(f"DEBUG: About to update SampleNames and interface manually")
+            # print(f"DEBUG: About to update SampleNames and interface manually")
 
             # Update SampleNames in window.Data
             if 'SampleNames' not in self.main_window.Data:
                 self.main_window.Data['SampleNames'] = {}
 
             self.main_window.Data['SampleNames'].update(sample_names_to_add)
-            print(f"DEBUG: SampleNames updated: {self.main_window.Data['SampleNames']}")
+            # print(f"DEBUG: SampleNames updated: {self.main_window.Data['SampleNames']}")
 
             # Update interface manually (DON'T use open_xlsx_file)
             # Update sheet combobox
@@ -5236,7 +5236,7 @@ class FileManagerDropTarget(wx.FileDropTarget):
             json_data = convert_to_serializable_and_round(self.main_window.Data)
             with open(current_json_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
-            print(f"DEBUG: Final JSON saved with SampleNames: {json_data.get('SampleNames')}")
+            # print(f"DEBUG: Final JSON saved with SampleNames: {json_data.get('SampleNames')}")
 
             # Close and reopen the file manager if it exists
             if hasattr(self.main_window, 'file_manager') and self.main_window.file_manager is not None:

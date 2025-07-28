@@ -1647,7 +1647,7 @@ class MyFrame(wx.Frame):
 
         self.canvas.draw_idle()
 
-    def initialize_or_restore_background_vlines(self):
+    def initialize_or_restore_background_vlines_OLD(self):
         """Initialize vertical lines at 1/6 and 5/6 of the plot for background fitting, or restore from saved positions."""
         if len(self.x_values) > 0:
             sheet_name = self.sheet_combobox.GetValue()
@@ -1692,12 +1692,89 @@ class MyFrame(wx.Frame):
                 x_max = max(self.x_values)
                 x_range = x_max - x_min
 
-                vline1_pos = x_min + x_range / 6
-                vline2_pos = x_min + 5 * x_range / 6
+                vline1_pos = x_min + x_range / 15
+                vline2_pos = x_min + 14 * x_range / 15
             else:
                 # Use saved positions
                 vline1_pos = float(saved_low)
                 vline2_pos = float(saved_high)
+
+            # Create new vlines
+            self.vline1 = self.ax.axvline(vline1_pos, color='r', linestyle='--', alpha=0.7)
+            self.vline2 = self.ax.axvline(vline2_pos, color='r', linestyle='--', alpha=0.7)
+
+            # Add text labels for vlines
+            self.add_vline_text_labels()
+
+            # Update data structure
+            if sheet_name in self.Data['Core levels']:
+                if 'Background' not in self.Data['Core levels'][sheet_name]:
+                    self.Data['Core levels'][sheet_name]['Background'] = {}
+                self.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(min(vline1_pos, vline2_pos))
+                self.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(max(vline1_pos, vline2_pos))
+
+    def initialize_or_restore_background_vlines(self):
+        """Initialize vertical lines at 1/15 and 14/15 of the plot for background fitting, or restore from saved positions."""
+        if len(self.x_values) > 0:
+            sheet_name = self.sheet_combobox.GetValue()
+
+            # Remove any existing vlines and their text first to prevent duplicates
+            if self.vline1 is not None:
+                try:
+                    self.vline1.remove()
+                except:
+                    pass
+                self.vline1 = None
+            if self.vline2 is not None:
+                try:
+                    self.vline2.remove()
+                except:
+                    pass
+                self.vline2 = None
+            if self.vline1_text is not None:
+                try:
+                    self.vline1_text.remove()
+                except:
+                    pass
+                self.vline1_text = None
+            if self.vline2_text is not None:
+                try:
+                    self.vline2_text.remove()
+                except:
+                    pass
+                self.vline2_text = None
+
+            # Try to get saved positions first
+            saved_low = None
+            saved_high = None
+            if sheet_name in self.Data['Core levels'] and 'Background' in self.Data['Core levels'][sheet_name]:
+                bg_data = self.Data['Core levels'][sheet_name]['Background']
+                saved_low = bg_data.get('Bkg Low')
+                saved_high = bg_data.get('Bkg High')
+
+            # If no saved positions or invalid positions (including empty strings), use 1/15 and 14/15
+            if (saved_low is None or saved_high is None or
+                    saved_low == saved_high or
+                    saved_low == '' or saved_high == '' or
+                    str(saved_low).strip() == '' or str(saved_high).strip() == ''):
+                x_min = min(self.x_values)
+                x_max = max(self.x_values)
+                x_range = x_max - x_min
+
+                vline1_pos = x_min + x_range / 15
+                vline2_pos = x_min + 14 * x_range / 15
+            else:
+                # Use saved positions - safely convert to float
+                try:
+                    vline1_pos = float(saved_low)
+                    vline2_pos = float(saved_high)
+                except (ValueError, TypeError):
+                    # Fallback to default positions if conversion fails
+                    x_min = min(self.x_values)
+                    x_max = max(self.x_values)
+                    x_range = x_max - x_min
+                    vline1_pos = x_min + x_range / 15
+                    vline2_pos = x_min + 14 * x_range / 15
 
             # Create new vlines
             self.vline1 = self.ax.axvline(vline1_pos, color='r', linestyle='--', alpha=0.7)

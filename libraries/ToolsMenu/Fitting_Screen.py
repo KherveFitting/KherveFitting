@@ -1353,7 +1353,7 @@ class FittingWindow(wx.Frame):
             # Invalid input, ignore
             pass
 
-    def update_range_controls_from_data(self):
+    def update_range_controls_from_data_OLD(self):
         """Update min/max range controls from current sheet's background data or vline positions"""
         sheet_name = self.parent.sheet_combobox.GetValue()
 
@@ -1381,8 +1381,8 @@ class FittingWindow(wx.Frame):
                         x_min = min(self.parent.x_values)
                         x_max = max(self.parent.x_values)
                         x_range = x_max - x_min
-                        actual_min = x_min + x_range / 6
-                        actual_max = x_min + 5 * x_range / 6
+                        actual_min = x_min + x_range / 15
+                        actual_max = x_min + 14 * x_range / 15
                     else:
                         actual_min = 0
                         actual_max = 0
@@ -1398,8 +1398,8 @@ class FittingWindow(wx.Frame):
                     x_min = min(self.parent.x_values)
                     x_max = max(self.parent.x_values)
                     x_range = x_max - x_min
-                    actual_min = x_min + x_range / 6
-                    actual_max = x_min + 5 * x_range / 6
+                    actual_min = x_min + x_range / 15
+                    actual_max = x_min + 14 * x_range / 15
                 else:
                     actual_min = 0
                     actual_max = 0
@@ -1416,6 +1416,114 @@ class FittingWindow(wx.Frame):
             # Re-bind the events
             self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
             self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+
+    def update_range_controls_from_data(self):
+        """Update min/max range controls from current sheet's background data or vline positions"""
+        # Check if controls still exist before proceeding
+        if not hasattr(self, 'min_range_text') or not hasattr(self, 'max_range_text'):
+            return
+        if not self.min_range_text or not self.max_range_text:
+            return
+
+        try:
+            # Check if the controls are still valid (not destroyed)
+            self.min_range_text.GetValue()
+            self.max_range_text.GetValue()
+        except RuntimeError:
+            # Controls have been destroyed, exit gracefully
+            return
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Temporarily unbind events to prevent cascading updates
+        try:
+            self.min_range_text.Unbind(wx.EVT_TEXT)
+            self.max_range_text.Unbind(wx.EVT_TEXT)
+        except RuntimeError:
+            # Controls have been destroyed, exit gracefully
+            return
+
+        try:
+            # Try to get values from saved data FIRST (not from current vlines)
+            if (sheet_name in self.parent.Data['Core levels'] and
+                    'Background' in self.parent.Data['Core levels'][sheet_name]):
+                # Get from saved data
+                bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
+                min_val = bg_data.get('Bkg Low')
+                max_val = bg_data.get('Bkg High')
+
+                # If saved data exists and is valid (not None, not empty string), use it
+                if (min_val is not None and max_val is not None and
+                        min_val != max_val and min_val != '' and max_val != '' and
+                        str(min_val).strip() != '' and str(max_val).strip() != ''):
+                    try:
+                        # Ensure proper min/max ordering
+                        actual_min = min(float(min_val), float(max_val))
+                        actual_max = max(float(min_val), float(max_val))
+                    except (ValueError, TypeError):
+                        # Conversion failed, use default
+                        if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+                            x_min = min(self.parent.x_values)
+                            x_max = max(self.parent.x_values)
+                            x_range = x_max - x_min
+                            actual_min = x_min + x_range / 15
+                            actual_max = x_min + 14 * x_range / 15
+                        else:
+                            actual_min = 0
+                            actual_max = 0
+                else:
+                    # No valid saved positions, calculate 1/15 and 14/15
+                    if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+                        x_min = min(self.parent.x_values)
+                        x_max = max(self.parent.x_values)
+                        x_range = x_max - x_min
+                        actual_min = x_min + x_range / 15
+                        actual_max = x_min + 14 * x_range / 15
+                    else:
+                        actual_min = 0
+                        actual_max = 0
+            else:
+                # No background data exists, use default 1/15 and 14/15 or current vlines
+                if (hasattr(self.parent, 'vline1') and self.parent.vline1 is not None and
+                        hasattr(self.parent, 'vline2') and self.parent.vline2 is not None):
+                    vline1_pos = self.parent.vline1.get_xdata()[0]
+                    vline2_pos = self.parent.vline2.get_xdata()[0]
+                    actual_min = min(vline1_pos, vline2_pos)
+                    actual_max = max(vline1_pos, vline2_pos)
+                elif hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+                    x_min = min(self.parent.x_values)
+                    x_max = max(self.parent.x_values)
+                    x_range = x_max - x_min
+                    actual_min = x_min + x_range / 15
+                    actual_max = x_min + 14 * x_range / 15
+                else:
+                    actual_min = 0
+                    actual_max = 0
+
+            # Update the controls with 2 decimal places (with additional safety checks)
+            try:
+                self.min_range_text.SetValue(f"{float(actual_min):.2f}")
+                self.max_range_text.SetValue(f"{float(actual_max):.2f}")
+            except RuntimeError:
+                # Controls were destroyed during execution
+                return
+
+        except (ValueError, TypeError, RuntimeError):
+            try:
+                self.min_range_text.SetValue("0.00")
+                self.max_range_text.SetValue("0.00")
+            except RuntimeError:
+                # Controls were destroyed, just return
+                return
+
+        finally:
+            # Re-bind the events (with safety checks)
+            try:
+                self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
+                self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+            except RuntimeError:
+                # Controls have been destroyed, exit gracefully
+                pass
 
 
     def disable_fitting_ui(self):
