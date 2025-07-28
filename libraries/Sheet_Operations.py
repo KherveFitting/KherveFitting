@@ -402,6 +402,30 @@ def on_sheet_selected(window, event):
         except (RuntimeError, Exception):
             pass
 
+    # Update fitting screen range controls if fitting window is open
+    if (hasattr(window, 'fitting_window') and window.fitting_window is not None and
+            hasattr(window.fitting_window, 'update_range_controls_from_data')):
+        wx.CallAfter(window.fitting_window.update_range_controls_from_data)
+
+    # Use tab switching trick if fitting window is open and on background tab
+    if (hasattr(window, 'fitting_window') and window.fitting_window is not None and
+            hasattr(window, 'background_tab_selected') and window.background_tab_selected):
+
+        # Get the notebook from the fitting window
+        notebook = None
+        for child in window.fitting_window.GetChildren():
+            for grandchild in child.GetChildren():
+                if isinstance(grandchild, wx.Notebook):
+                    notebook = grandchild
+                    break
+            if notebook:
+                break
+
+        if notebook:
+            wx.CallAfter(window.fitting_window._switch_tabs_trick, notebook)
+
+    # window.plot_manager.clear_and_replot(window)
+
 def on_grid_left_click(window, event):
     if event.GetCol() == 7:  # Checkbox column
         row = event.GetRow()

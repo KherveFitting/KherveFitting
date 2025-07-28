@@ -1720,9 +1720,9 @@ class MyFrame(wx.Frame):
             y_min, y_max = self.ax.get_ylim()
             text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
 
-            # Get vline positions
-            vline1_x = self.vline1.get_xdata()[0]
-            vline2_x = self.vline2.get_xdata()[0]
+            # Get vline positions and round to 2 digits
+            vline1_x = round(self.vline1.get_xdata()[0], 2)
+            vline2_x = round(self.vline2.get_xdata()[0], 2)
 
             # Remove existing text if any
             if self.vline1_text is not None:
@@ -1736,13 +1736,13 @@ class MyFrame(wx.Frame):
                 except:
                     pass
 
-            # Create new text labels
-            self.vline1_text = self.ax.text(vline1_x, text_y, f'{vline1_x:.1f}',
+            # Create new text labels with 2 decimal places
+            self.vline1_text = self.ax.text(vline1_x, text_y, f'{vline1_x:.2f}',
                                             ha='center', va='center',
                                             color='grey', fontsize=10,
                                             bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
 
-            self.vline2_text = self.ax.text(vline2_x, text_y, f'{vline2_x:.1f}',
+            self.vline2_text = self.ax.text(vline2_x, text_y, f'{vline2_x:.2f}',
                                             ha='center', va='center',
                                             color='grey', fontsize=10,
                                             bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
@@ -1754,16 +1754,16 @@ class MyFrame(wx.Frame):
             y_min, y_max = self.ax.get_ylim()
             text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
 
-            # Get current vline positions
-            vline1_x = self.vline1.get_xdata()[0]
-            vline2_x = self.vline2.get_xdata()[0]
+            # Get current vline positions and round to 2 digits
+            vline1_x = round(self.vline1.get_xdata()[0], 2)
+            vline2_x = round(self.vline2.get_xdata()[0], 2)
 
             # Update text positions and values
             self.vline1_text.set_position((vline1_x, text_y))
-            self.vline1_text.set_text(f'{vline1_x:.1f}')
+            self.vline1_text.set_text(f'{vline1_x:.2f}')
 
             self.vline2_text.set_position((vline2_x, text_y))
-            self.vline2_text.set_text(f'{vline2_x:.1f}')
+            self.vline2_text.set_text(f'{vline2_x:.2f}')
 
     def remove_vline_text_labels(self):
         """Remove vline text labels."""
@@ -1807,6 +1807,12 @@ class MyFrame(wx.Frame):
             except:
                 pass
             self.vline2_text = None
+
+    def update_fitting_screen_range_controls(self):
+        """Update fitting screen range controls when vlines move"""
+        if (hasattr(self, 'fitting_window') and self.fitting_window is not None and
+                hasattr(self.fitting_window, 'update_range_controls_from_data')):
+            self.fitting_window.update_range_controls_from_data()
 
 
     def is_mouse_on_peak(self, event):

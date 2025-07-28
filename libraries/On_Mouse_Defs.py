@@ -488,6 +488,9 @@ class MouseEventHandler:
                     # Update text labels when vlines are moved
                     self.window.update_vline_text_labels()
 
+                    # Update fitting screen range controls
+                    self.window.update_fitting_screen_range_controls()
+
                 elif self.window.moving_vline in [self.window.vline3, self.window.vline4]:
                     if self.window.moving_vline == self.window.vline3:
                         self.window.noise_min_energy = float(x_click)

@@ -1005,6 +1005,12 @@ class PlotManager:
                 for label in self.ax.get_yticklabels():
                     label.set_visible(False)
 
+        # Restore vlines if fitting window is open and background tab is selected
+        if (hasattr(window, 'fitting_window') and window.fitting_window is not None and
+                hasattr(window, 'background_tab_selected') and window.background_tab_selected):
+            window.show_hide_vlines()
+
+
         # Draw the canvas
         self.canvas.draw_idle()
         # window.update_checkbox_visuals()
@@ -2158,12 +2164,12 @@ class PlotManager:
         if window.vline1 is not None and window.vline2 is not None:
             vline1_x = window.vline1.get_xdata()[0]
             vline2_x = window.vline2.get_xdata()[0]
-            bg_low = min(vline1_x, vline2_x)
-            bg_high = max(vline1_x, vline2_x)
+            bg_low = round(min(vline1_x, vline2_x),2)
+            bg_high = round(max(vline1_x, vline2_x),2)
         else:
             # Fallback to full range only if no vlines
-            bg_low = min(x_values)
-            bg_high = max(x_values)
+            bg_low = round(min(x_values),2)
+            bg_high = round(max(x_values),2)
 
         window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = background.tolist()
         window.background = background

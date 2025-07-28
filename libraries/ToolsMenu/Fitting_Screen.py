@@ -134,6 +134,17 @@ class FittingWindow(wx.Frame):
         self.offset_l_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_l))
         self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_l_change)
 
+        self.min_range_label = wx.StaticText(self.background_panel, label='Min Range:')
+        self.min_range_text = wx.TextCtrl(self.background_panel, value="0.00")
+        self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
+
+        self.max_range_label = wx.StaticText(self.background_panel, label='Max Range:')
+        self.max_range_text = wx.TextCtrl(self.background_panel, value="0.00")
+        self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+
+        # Initialize with current vline positions from data
+        self.update_range_controls_from_data()
+
         averaging_points_label = wx.StaticText(self.background_panel, label="Averaging Points:")
         self.averaging_points_text = wx.TextCtrl(self.background_panel, value="5")
         self.averaging_points_text.Bind(wx.EVT_TEXT, self.on_averaging_points_change)
@@ -147,15 +158,6 @@ class FittingWindow(wx.Frame):
         self.cross_section_label = wx.StaticText(self.background_panel, label = 'Tougaard1: B,C,D,T0')
         self.cross_section = wx.TextCtrl(self.background_panel, value="2866,1643,1,0")
         self.cross_section.Bind(wx.EVT_TEXT, self.on_cross_section_change)
-
-        # Add two more labels and TextCtrls
-        self.cross_section2_label = wx.StaticText(self.background_panel, label='Tougaard2: B,C,D,T0')
-        self.cross_section2 = wx.TextCtrl(self.background_panel, value="2866,1643,1,0")
-        self.cross_section2.Bind(wx.EVT_TEXT, self.on_cross_section2_change)
-
-        self.cross_section3_label = wx.StaticText(self.background_panel, label='Tougaard3: B,C,D,T0')
-        self.cross_section3 = wx.TextCtrl(self.background_panel, value="2866,1643,1,0")
-        self.cross_section3.Bind(wx.EVT_TEXT, self.on_cross_section3_change)
 
         sheet_name = self.parent.sheet_combobox.GetValue()
         if sheet_name != '' :
@@ -180,8 +182,8 @@ class FittingWindow(wx.Frame):
                     bg_data.get('Tougaard_T02', 0)
                 ]
                 self.cross_section.SetValue(','.join(map(str, saved_values)))
-                self.cross_section2.SetValue(','.join(map(str, saved_values2)))
-                self.cross_section2.SetValue(','.join(map(str, saved_values3)))
+                # self.cross_section2.SetValue(','.join(map(str, saved_values2)))
+                # self.cross_section2.SetValue(','.join(map(str, saved_values3)))
 
         background_button = wx.Button(self.background_panel, label="Create\nBackground")
         if 'wxMac' in wx.PlatformInfo:
@@ -246,16 +248,18 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.offset_h_text, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(offset_l_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.offset_l_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(averaging_points_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(smooth_data_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.smooth_data_checkbox, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.cross_section_label,  pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.cross_section, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.cross_section2_label,  pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.cross_section2, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.cross_section3_label,  pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.cross_section3, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+            background_sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.min_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.max_range_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.max_range_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+            background_sizer.Add(averaging_points_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.averaging_points_text, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(smooth_data_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.smooth_data_checkbox, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section_label,  pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.cross_section, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             background_sizer.Add(reset_vlines_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
@@ -271,16 +275,18 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.offset_h_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(offset_l_label, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.offset_l_text, pos=(3, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(averaging_points_label, pos=(4, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.averaging_points_text, pos=(4, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(smooth_data_label, pos=(5, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.smooth_data_checkbox, pos=(5, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.cross_section_label,  pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.cross_section, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.cross_section2_label,  pos=(8, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.cross_section2, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.cross_section3_label,  pos=(9, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.cross_section3, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            background_sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.min_range_text, pos=(4, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.max_range_label, pos=(5, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.max_range_text, pos=(5, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            background_sizer.Add(averaging_points_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.averaging_points_text, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(smooth_data_label, pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.smooth_data_checkbox, pos=(7, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section_label,  pos=(9, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.cross_section, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
             background_sizer.Add(reset_vlines_button, pos=(10, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -644,42 +650,14 @@ class FittingWindow(wx.Frame):
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
-            self.cross_section2.Enable(False)
-            self.cross_section2_label.Enable(False)
-            self.cross_section3.Enable(False)
-            self.cross_section3_label.Enable(False)
-        elif new_method.startswith("2x U4-Tougaard"):
-            self.cross_section.Enable(True)
-            self.cross_section_label.Enable(True)
-            self.tougaard_fit_btn.Enable(True)
-            self.cross_section2.Enable(True)
-            self.cross_section2_label.Enable(True)
-            self.cross_section3.Enable(False)
-            self.cross_section3_label.Enable(False)
-        elif new_method.startswith("3x U4-Tougaard"):
-            self.cross_section.Enable(True)
-            self.cross_section_label.Enable(True)
-            self.tougaard_fit_btn.Enable(True)
-            self.cross_section2.Enable(True)
-            self.cross_section2_label.Enable(True)
-            self.cross_section3.Enable(True)
-            self.cross_section3_label.Enable(True)
         elif new_method == "ALS-Raman":
             self.cross_section.Enable(False)
             self.cross_section_label.Enable(False)
             self.tougaard_fit_btn.Enable(True)
-            self.cross_section2.Enable(False)
-            self.cross_section2_label.Enable(False)
-            self.cross_section3.Enable(False)
-            self.cross_section3_label.Enable(False)
         else:
             self.cross_section.Enable(False)
             self.cross_section_label.Enable(False)
             self.tougaard_fit_btn.Enable(False)
-            self.cross_section2.Enable(False)
-            self.cross_section2_label.Enable(False)
-            self.cross_section3.Enable(False)
-            self.cross_section3_label.Enable(False)
         self.background_panel.Layout()
 
 
@@ -1302,6 +1280,143 @@ class FittingWindow(wx.Frame):
                     core_level_data['Background']['Bkg Y'] = background.tolist()
                     self.parent.background = background
                     self.parent.clear_and_replot()
+
+    def on_min_range_change(self, event):
+        """Handle min range change and update vline1 position"""
+        try:
+            new_min = float(self.min_range_text.GetValue())
+            max_val = float(self.max_range_text.GetValue())
+
+            # Round to 2 decimal places
+            new_min = round(new_min, 2)
+            max_val = round(max_val, 2)
+
+            # Ensure min is actually the smaller value
+            if new_min > max_val:
+                self.min_range_text.SetValue(f"{max_val:.2f}")
+                self.max_range_text.SetValue(f"{new_min:.2f}")
+                new_min = max_val
+
+            if hasattr(self.parent, 'vline1') and self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([new_min, new_min])
+
+                # Update data structure
+                sheet_name = self.parent.sheet_combobox.GetValue()
+                if sheet_name in self.parent.Data['Core levels']:
+                    if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                        self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+                    self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_min)
+
+                # Update text labels
+                if hasattr(self.parent, 'update_vline_text_labels'):
+                    self.parent.update_vline_text_labels()
+
+                self.parent.canvas.draw_idle()
+
+        except ValueError:
+            # Invalid input, ignore
+            pass
+
+    def on_max_range_change(self, event):
+        """Handle max range change and update vline2 position"""
+        try:
+            new_max = float(self.max_range_text.GetValue())
+            min_val = float(self.min_range_text.GetValue())
+
+            # Round to 2 decimal places
+            new_max = round(new_max, 2)
+            min_val = round(min_val, 2)
+
+            # Ensure max is actually the larger value
+            if new_max < min_val:
+                self.max_range_text.SetValue(f"{min_val:.2f}")
+                self.min_range_text.SetValue(f"{new_max:.2f}")
+                new_max = min_val
+
+            if hasattr(self.parent, 'vline2') and self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([new_max, new_max])
+
+                # Update data structure
+                sheet_name = self.parent.sheet_combobox.GetValue()
+                if sheet_name in self.parent.Data['Core levels']:
+                    if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                        self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+                    self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_max)
+
+                # Update text labels
+                if hasattr(self.parent, 'update_vline_text_labels'):
+                    self.parent.update_vline_text_labels()
+
+                self.parent.canvas.draw_idle()
+
+        except ValueError:
+            # Invalid input, ignore
+            pass
+
+    def update_range_controls_from_data(self):
+        """Update min/max range controls from current sheet's background data or vline positions"""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Temporarily unbind events to prevent cascading updates
+        self.min_range_text.Unbind(wx.EVT_TEXT)
+        self.max_range_text.Unbind(wx.EVT_TEXT)
+
+        try:
+            # Try to get values from saved data FIRST (not from current vlines)
+            if (sheet_name in self.parent.Data['Core levels'] and
+                    'Background' in self.parent.Data['Core levels'][sheet_name]):
+                # Get from saved data
+                bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
+                min_val = bg_data.get('Bkg Low')
+                max_val = bg_data.get('Bkg High')
+
+                # If saved data exists and is valid, use it
+                if min_val is not None and max_val is not None and min_val != max_val:
+                    # Ensure proper min/max ordering
+                    actual_min = min(float(min_val), float(max_val))
+                    actual_max = max(float(min_val), float(max_val))
+                else:
+                    # No valid saved positions, calculate 1/6 and 5/6
+                    if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+                        x_min = min(self.parent.x_values)
+                        x_max = max(self.parent.x_values)
+                        x_range = x_max - x_min
+                        actual_min = x_min + x_range / 6
+                        actual_max = x_min + 5 * x_range / 6
+                    else:
+                        actual_min = 0
+                        actual_max = 0
+            else:
+                # No background data exists, use default 1/6 and 5/6 or current vlines
+                if (hasattr(self.parent, 'vline1') and self.parent.vline1 is not None and
+                        hasattr(self.parent, 'vline2') and self.parent.vline2 is not None):
+                    vline1_pos = self.parent.vline1.get_xdata()[0]
+                    vline2_pos = self.parent.vline2.get_xdata()[0]
+                    actual_min = min(vline1_pos, vline2_pos)
+                    actual_max = max(vline1_pos, vline2_pos)
+                elif hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+                    x_min = min(self.parent.x_values)
+                    x_max = max(self.parent.x_values)
+                    x_range = x_max - x_min
+                    actual_min = x_min + x_range / 6
+                    actual_max = x_min + 5 * x_range / 6
+                else:
+                    actual_min = 0
+                    actual_max = 0
+
+            # Update the controls with 2 decimal places
+            self.min_range_text.SetValue(f"{float(actual_min):.2f}")
+            self.max_range_text.SetValue(f"{float(actual_max):.2f}")
+
+        except (ValueError, TypeError):
+            self.min_range_text.SetValue("0.00")
+            self.max_range_text.SetValue("0.00")
+
+        finally:
+            # Re-bind the events
+            self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
+            self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+
 
     def disable_fitting_ui(self):
         """Disable all UI controls during multiple fitting"""
