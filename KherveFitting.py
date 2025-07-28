@@ -166,6 +166,8 @@ class MyFrame(wx.Frame):
         # Initialize variables for vertical lines and background energy
         self.vline1 = None
         self.vline2 = None
+        self.vline1_text = None
+        self.vline2_text = None
         self.active_vline = None
         self.vline_drag_threshold = 5  # pixels
 
@@ -1612,47 +1614,36 @@ class MyFrame(wx.Frame):
                 self.vline1.set_visible(False)
             if self.vline2 is not None:
                 self.vline2.set_visible(False)
+            if self.vline1_text is not None:
+                self.vline1_text.set_visible(False)
+            if self.vline2_text is not None:
+                self.vline2_text.set_visible(False)
             if self.vline3 is not None:
                 self.vline3.set_visible(False)
             if self.vline4 is not None:
                 self.vline4.set_visible(False)
             return
 
-        # Background lines handling
-        background_lines_visible = (hasattr(self, 'fitting_window') and
-                                    self.fitting_window is not None and
-                                    self.background_tab_selected)
+        # Initialize or restore vlines if background tab is selected and they don't exist
+        if self.background_tab_selected and (self.vline1 is None or self.vline2 is None):
+            self.initialize_or_restore_background_vlines()
 
-        if background_lines_visible:
-            # Create/restore vlines if they don't exist
-            if self.vline1 is None or self.vline2 is None:
-                self.initialize_or_restore_background_vlines()
-            else:
-                # Make sure they're visible
-                self.vline1.set_visible(True)
-                self.vline2.set_visible(True)
-        else:
-            # Remove vlines completely when not in background tab
-            if self.vline1 is not None:
-                self.vline1.remove()
-                self.vline1 = None
-            if self.vline2 is not None:
-                self.vline2.remove()
-                self.vline2 = None
+        # Existing visibility logic
+        background_lines_visible = hasattr(self, 'fitting_window') and self.background_tab_selected
+        noise_lines_visible = self.noise_analysis_window is not None and self.noise_tab_selected
 
-        # Noise lines handling
-        noise_lines_visible = (self.noise_analysis_window is not None and
-                               self.noise_tab_selected)
-        if noise_lines_visible:
-            if self.vline3 is not None:
-                self.vline3.set_visible(True)
-            if self.vline4 is not None:
-                self.vline4.set_visible(True)
-        else:
-            if self.vline3 is not None:
-                self.vline3.set_visible(False)
-            if self.vline4 is not None:
-                self.vline4.set_visible(False)
+        if self.vline1 is not None:
+            self.vline1.set_visible(background_lines_visible)
+        if self.vline2 is not None:
+            self.vline2.set_visible(background_lines_visible)
+        if self.vline1_text is not None:
+            self.vline1_text.set_visible(background_lines_visible)
+        if self.vline2_text is not None:
+            self.vline2_text.set_visible(background_lines_visible)
+        if self.vline3 is not None:
+            self.vline3.set_visible(noise_lines_visible)
+        if self.vline4 is not None:
+            self.vline4.set_visible(noise_lines_visible)
 
         self.canvas.draw_idle()
 
@@ -1661,7 +1652,7 @@ class MyFrame(wx.Frame):
         if len(self.x_values) > 0:
             sheet_name = self.sheet_combobox.GetValue()
 
-            # Remove any existing vlines first to prevent duplicates
+            # Remove any existing vlines and their text first to prevent duplicates
             if self.vline1 is not None:
                 try:
                     self.vline1.remove()
@@ -1674,6 +1665,18 @@ class MyFrame(wx.Frame):
                 except:
                     pass
                 self.vline2 = None
+            if self.vline1_text is not None:
+                try:
+                    self.vline1_text.remove()
+                except:
+                    pass
+                self.vline1_text = None
+            if self.vline2_text is not None:
+                try:
+                    self.vline2_text.remove()
+                except:
+                    pass
+                self.vline2_text = None
 
             # Try to get saved positions first
             saved_low = None
@@ -1689,8 +1692,8 @@ class MyFrame(wx.Frame):
                 x_max = max(self.x_values)
                 x_range = x_max - x_min
 
-                vline1_pos = x_min + x_range / 12
-                vline2_pos = x_min + 11 * x_range / 12
+                vline1_pos = x_min + x_range / 6
+                vline2_pos = x_min + 5 * x_range / 6
             else:
                 # Use saved positions
                 vline1_pos = float(saved_low)
@@ -1700,12 +1703,82 @@ class MyFrame(wx.Frame):
             self.vline1 = self.ax.axvline(vline1_pos, color='r', linestyle='--', alpha=0.7)
             self.vline2 = self.ax.axvline(vline2_pos, color='r', linestyle='--', alpha=0.7)
 
+            # Add text labels for vlines
+            self.add_vline_text_labels()
+
             # Update data structure
             if sheet_name in self.Data['Core levels']:
                 if 'Background' not in self.Data['Core levels'][sheet_name]:
                     self.Data['Core levels'][sheet_name]['Background'] = {}
                 self.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(min(vline1_pos, vline2_pos))
                 self.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(max(vline1_pos, vline2_pos))
+
+    def add_vline_text_labels(self):
+        """Add text labels to vertical lines showing their BE values."""
+        if self.vline1 is not None and self.vline2 is not None:
+            # Get y-axis range for positioning
+            y_min, y_max = self.ax.get_ylim()
+            text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
+
+            # Get vline positions
+            vline1_x = self.vline1.get_xdata()[0]
+            vline2_x = self.vline2.get_xdata()[0]
+
+            # Remove existing text if any
+            if self.vline1_text is not None:
+                try:
+                    self.vline1_text.remove()
+                except:
+                    pass
+            if self.vline2_text is not None:
+                try:
+                    self.vline2_text.remove()
+                except:
+                    pass
+
+            # Create new text labels
+            self.vline1_text = self.ax.text(vline1_x, text_y, f'{vline1_x:.1f}',
+                                            ha='center', va='center',
+                                            color='grey', fontsize=10,
+                                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+
+            self.vline2_text = self.ax.text(vline2_x, text_y, f'{vline2_x:.1f}',
+                                            ha='center', va='center',
+                                            color='grey', fontsize=10,
+                                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+
+    def update_vline_text_labels(self):
+        """Update the text labels when vlines are moved."""
+        if self.vline1 is not None and self.vline2 is not None and self.vline1_text is not None and self.vline2_text is not None:
+            # Get y-axis range for positioning
+            y_min, y_max = self.ax.get_ylim()
+            text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
+
+            # Get current vline positions
+            vline1_x = self.vline1.get_xdata()[0]
+            vline2_x = self.vline2.get_xdata()[0]
+
+            # Update text positions and values
+            self.vline1_text.set_position((vline1_x, text_y))
+            self.vline1_text.set_text(f'{vline1_x:.1f}')
+
+            self.vline2_text.set_position((vline2_x, text_y))
+            self.vline2_text.set_text(f'{vline2_x:.1f}')
+
+    def remove_vline_text_labels(self):
+        """Remove vline text labels."""
+        if self.vline1_text is not None:
+            try:
+                self.vline1_text.remove()
+            except:
+                pass
+            self.vline1_text = None
+        if self.vline2_text is not None:
+            try:
+                self.vline2_text.remove()
+            except:
+                pass
+            self.vline2_text = None
 
     def remove_background_vlines(self):
         """Completely remove background vlines from the plot"""
@@ -1721,6 +1794,19 @@ class MyFrame(wx.Frame):
             except:
                 pass
             self.vline2 = None
+        # Add text removal
+        if hasattr(self, 'vline1_text') and self.vline1_text is not None:
+            try:
+                self.vline1_text.remove()
+            except:
+                pass
+            self.vline1_text = None
+        if hasattr(self, 'vline2_text') and self.vline2_text is not None:
+            try:
+                self.vline2_text.remove()
+            except:
+                pass
+            self.vline2_text = None
 
 
     def is_mouse_on_peak(self, event):

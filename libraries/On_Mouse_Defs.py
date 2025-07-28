@@ -485,6 +485,9 @@ class MouseEventHandler:
                     core_level_data['Background']['Bkg Low'] = min(bkg_low, bkg_high)
                     core_level_data['Background']['Bkg High'] = max(bkg_low, bkg_high)
 
+                    # Update text labels when vlines are moved
+                    self.window.update_vline_text_labels()
+
                 elif self.window.moving_vline in [self.window.vline3, self.window.vline4]:
                     if self.window.moving_vline == self.window.vline3:
                         self.window.noise_min_energy = float(x_click)
@@ -495,6 +498,10 @@ class MouseEventHandler:
                         [self.window.noise_min_energy, self.window.noise_max_energy])
 
             self.window.canvas.draw_idle()
+
+        # Update vline text labels when moving vlines
+        if self.window.moving_vline in [self.window.vline1, self.window.vline2]:
+            self.window.update_vline_text_labels()
 
     def cleanup_vline_handlers(self):
         """Clean up any existing vline event handlers"""
