@@ -80,7 +80,7 @@ def on_about(self, event):
     website = wx.adv.HyperlinkCtrl(panel, -1, "Imperial College Profile",
                                    "https://www.imperial.ac.uk/people/g.kerherve")
     website2 = wx.adv.HyperlinkCtrl(panel, -1, "LinkedIn Profile",
-                                    "https://www.linkedin.com/in/gkerherve/")
+                                    "https://www.linkedin.com/in/gwilherm-kerherve-3588b978/")
 
     # Add the websites to the horizontal sizer with some spacing
     website_sizer.Add(website, 0, wx.RIGHT, 10)
