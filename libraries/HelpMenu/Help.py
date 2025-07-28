@@ -419,7 +419,7 @@ Philosophy:
 -v1.3 Dec-24  - Towards true Atomic concentration (TPP-2M, IMFP, Transmission)
 -v1.4 Feb-25  - Towards Mac Version
 -v1.5 May-25  - Towards multi-samples 2D-Manager
--v1.6 Jun-25  - Towards opening/saving fitted CasaXPS data
+-v1.6 xxx-25  - Towards opening/saving fitted CasaXPS data
 -v1.7 xxx-25  - Automatic Survey identification
 -v1.8 xxx-25  - Towards Linux Version (Synchrotron)
 

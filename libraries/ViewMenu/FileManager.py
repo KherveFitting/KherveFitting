@@ -221,7 +221,7 @@ class FileManagerWindow(wx.Frame):
 
         # Add Files button (NEW)
         add_files_tool = self.toolbar.AddTool(wx.ID_ANY, 'Add File(s)',
-                                              wx.Bitmap(os.path.join(icon_path, "open-folder-3.png"),
+                                              wx.Bitmap(os.path.join(icon_path, "Add-Files-3.png"),
                                                         wx.BITMAP_TYPE_PNG),
                                               shortHelp="Add KherveFitting file(s) to current file")
         self.Bind(wx.EVT_TOOL, self.on_add_files, add_files_tool)
@@ -349,7 +349,7 @@ class FileManagerWindow(wx.Frame):
         self.toolbar.AddStretchableSpace()
 
         # Add experimental description info button
-        exp_info_icon = os.path.join(icon_path, "info-25.png")
+        exp_info_icon = os.path.join(icon_path, "Infos-3.png")
         if os.path.exists(exp_info_icon):
             exp_info_bmp = wx.Bitmap(exp_info_icon)
         else:
@@ -359,17 +359,9 @@ class FileManagerWindow(wx.Frame):
                                              "\nCurrently only upport .vms and .kal")
         self.Bind(wx.EVT_TOOL, self.on_view_exp_info, exp_info_tool)
 
-        # # Backup button
-        # backup_icon = os.path.join(icon_path, "backup-25.png")
-        # if os.path.exists(backup_icon):
-        #     backup_bmp = wx.Bitmap(backup_icon)
-        # else:
-        #     backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
-        # backup_tool = self.toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
-        # self.Bind(wx.EVT_TOOL, self.on_backup, backup_tool)
 
         # Add F2/Ctrl+2 info button
-        f2_icon = os.path.join(icon_path, "Find-25.png")  # Use existing plot icon or another appropriate one
+        f2_icon = os.path.join(icon_path, "Help-3.png")  # Use existing plot icon or another appropriate one
         if os.path.exists(f2_icon):
             f2_bmp = wx.Bitmap(f2_icon)
         else:

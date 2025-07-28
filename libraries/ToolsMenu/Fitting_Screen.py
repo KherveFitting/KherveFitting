@@ -161,7 +161,9 @@ class FittingWindow(wx.Frame):
 
         sheet_name = self.parent.sheet_combobox.GetValue()
         if sheet_name != '' :
-            if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+            # if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+            if sheet_name in self.parent.Data['Core levels'] and 'Background' in self.parent.Data['Core levels'][
+                sheet_name]:
                 bg_data = self.parent.Data['Core levels'][sheet_name]['Background']
                 saved_values = [
                     bg_data.get('Tougaard_B', 2866),
