@@ -2987,331 +2987,6 @@ def open_vamas_file_dialog(window):
         file_path = fileDialog.GetPath()
         open_vamas_file(window, file_path)
 
-
-
-def open_vamas_file_OLD(window, file_path):
-    """
-    Open and process a VAMAS file, converting it to an Excel file format.
-    This function reads a VAMAS file, extracts its data and metadata,
-    and creates a new Excel file with multiple sheets for each data block
-    and an additional sheet for experimental description.
-
-    Args:
-    window: The main application window object.
-    file_path: The path to the VAMAS file to be opened.
-    """
-    try:
-        # Clear undo and redo history
-        window.history = []
-        window.redo_stack = []
-        update_undo_redo_state(window)
-
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"The file {file_path} does not exist.")
-
-        # Copy VAMAS file to current working directory
-        vamas_filename = os.path.basename(file_path)
-        destination_path = os.path.join(os.getcwd(), vamas_filename)
-        shutil.copy2(file_path, destination_path)
-
-        # Read VAMAS file
-        vamas_data = Vamas(vamas_filename)
-
-        # Check for Casa peak fitting information
-        has_casa_fitting = check_for_casa_fitting(vamas_data)
-        import_fitting = False
-
-        if has_casa_fitting:
-            dlg = wx.MessageDialog(window,
-                                   "Peak fitting information detected in VAMAS file.\n\nDo you want to import the "
-                                   "peak fitting data?\n"
-                                   "Note that this feature is still in beta testing and may not work perfectly.\n",
-                                   "Import Peak Fitting [Beta testing]",
-                                   wx.YES_NO | wx.ICON_QUESTION)
-            result = dlg.ShowModal()
-            import_fitting = (result == wx.ID_YES)
-            dlg.Destroy()
-
-        # Create new Excel workbook
-        wb = Workbook()
-        wb.remove(wb.active)
-
-        exp_data = []
-
-        # Create console window centered on parent
-        parent_pos = window.GetPosition()
-        parent_size = window.GetSize()
-        console_frame = wx.Frame(window, title="Processing VAMAS File", size=(300, 350))
-        console_frame.SetPosition((
-            parent_pos.x + (parent_size.width - 300) // 2,
-            parent_pos.y + (parent_size.height - 350) // 2
-        ))
-        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        console_frame.Show()
-
-        def update_console(message):
-            console_text.AppendText(message + '\n')
-            console_text.Update()
-            wx.SafeYield()
-
-        num_blocks = len(vamas_data.blocks)
-        update_console(f"Found {num_blocks} core levels to process...")
-        update_console("Starting conversion to Excel format...")
-
-        # Process each block
-        for i, block in enumerate(vamas_data.blocks, start=1):
-            if block.species_label.lower() == "wide" or block.transition_or_charge_state_label.lower() == "none":
-                raw_sheet_name = block.species_label
-            else:
-                raw_sheet_name = f"{block.species_label}{block.transition_or_charge_state_label}"
-            raw_sheet_name = raw_sheet_name.replace("/", "_")
-
-            sheet_name = normalize_sheet_name(raw_sheet_name)
-
-            if sheet_name in wb.sheetnames:
-                count = 1
-                while f"{sheet_name}{count}" in wb.sheetnames:
-                    count += 1
-                sheet_name = f"{sheet_name}{count}"
-
-            update_console(f"Processing {i}/{num_blocks}: {sheet_name}")
-
-            # Create new sheet with normalized name
-            ws = wb.create_sheet(title=sheet_name)
-
-            # Extract and process data
-            num_points = block.num_y_values
-            x_start = block.x_start
-            x_step = block.x_step
-            x_values = [x_start + i * x_step for i in range(num_points)]
-            y_values = block.corresponding_variables[0].y_values
-            y_unit = block.corresponding_variables[0].unit
-            num_scans = block.num_scans_to_compile_block
-
-            # # Convert counts to counts per second if necessary
-            # if y_unit != "c/s":
-            #     y_values = [y / num_scans for y in y_values]
-
-            # Convert counts to counts per second if necessary
-            collection_time = block.signal_collection_time
-            print(f"Collection time: {collection_time}, Num scans: {num_scans}, Y unit: {y_unit}")
-            print(f'Number of Scans: {num_scans}')
-            num_scan=num_scans # To stop division by number of scan quickly if needed
-            if y_unit != "c/s" and collection_time > 0:
-                y_values = [y / (num_scan * collection_time) for y in y_values]
-                print(f'Maximum Y value after conversion: {max(y_values)}')
-            elif y_unit != "c/s":
-                y_values = [y / num_scan for y in y_values]
-
-            # Convert to Binding Energy if necessary
-            if block.x_label.lower() in ["kinetic energy", "ke"]:
-                x_values = [window.photons - x - window.workfunction for x in x_values]
-                x_label = "Binding Energy"
-            else:
-                x_label = block.x_label
-
-            # Write data to sheet
-            ws.append([x_label, "Corrected Data", "Raw Data", "Transmission"])
-
-            # Get transmission data if it exists
-            transmission_data = None
-            if hasattr(block, 'corresponding_variables') and len(block.corresponding_variables) > 1:
-                transmission_data = block.corresponding_variables[1].y_values
-            else:
-                transmission_data = [1.0] * len(y_values)
-
-            # Write data row by row
-            for j, (x, y) in enumerate(zip(x_values, y_values)):
-                trans = transmission_data[j] if j < len(transmission_data) else 1.0
-                corrected_y = y / abs(trans)
-                ws.append([x, corrected_y, y, trans])
-
-
-            if import_fitting:
-                if update_console:
-                    update_console(f"Processing fitting data for {sheet_name}...")
-
-                # Parse Casa fitting information
-                casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
-                                                    window.photons, transmission_data)
-
-                if import_fitting and casa_data:
-                    print(f"DEBUG: Casa data keys: {list(casa_data.keys())}")
-                    print(f"DEBUG: Background data: {casa_data.get('Background', 'No Background key')}")
-
-                    num_peaks = len(casa_data['Peaks'])
-                    if num_peaks > 0:
-                        peak_names = list(casa_data['Peaks'].keys())
-                        if update_console:
-                            update_console(f"  Found {num_peaks} peaks: {', '.join(peak_names)}")
-
-                    # Store fitting data in a way that will be transferred to window.Data
-                    if not hasattr(wb, '_fitting_data'):
-                        wb._fitting_data = {}
-
-                    wb._fitting_data[sheet_name] = {
-                        'Fitting': {
-                            'Peaks': casa_data['Peaks']
-                        }
-                    }
-
-                    if casa_data['Background']:
-                        print(f"DEBUG: Background exists, storing it")
-                        wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
-                        wb._fitting_data[sheet_name]['Background']['Bkg X'] = x_values
-
-                        # Calculate corrected_y (same as done in Excel writing loop)
-                        corrected_y_values = []
-                        for j, y in enumerate(y_values):
-                            trans = transmission_data[j] if j < len(transmission_data) else 1.0
-                            corrected_y_values.append(y / trans)
-
-                        wb._fitting_data[sheet_name]['Background']['Bkg Y'] = corrected_y_values
-                        # print(f"DEBUG: Stored background data: {wb._fitting_data[sheet_name]['Background']}")
-                        if update_console:
-                            update_console(
-                                f"  Background: {casa_data['Background'].get('Bkg Type')} from {casa_data['Background'].get('Bkg Low'):.1f} to {casa_data['Background'].get('Bkg High'):.1f} eV")
-                    else:
-                        print(f"DEBUG: No background data in casa_data or background is empty")
-                        print(f"DEBUG: casa_data['Background'] = {casa_data.get('Background', 'KEY NOT FOUND')}")
-                else:
-                    if update_console:
-                        update_console(f"  No Casa fitting data found for {sheet_name}")
-
-            # Store experimental setup data
-            block_exp_data = [
-                f"Block {i}",
-                block.sample_identifier,
-                f"{block.year}/{block.month}/{block.day}",
-                f"{block.hour}:{block.minute}:{block.second}",
-                block.technique,
-                f"{block.species_label} {block.transition_or_charge_state_label}",
-                block.num_scans_to_compile_block,
-                block.analysis_source_label,
-                block.analysis_source_characteristic_energy,
-                block.analysis_source_beam_width_x,
-                block.analysis_source_beam_width_y,
-                block.analyzer_pass_energy_or_retard_ratio_or_mass_res,
-                block.analyzer_work_function_or_acceptance_energy,
-                block.analyzer_mode,
-                block.sputtering_source_energy if hasattr(block, 'sputtering_source_energy') else 'N/A',
-                block.analyzer_axis_take_off_polar_angle,
-                block.analyzer_axis_take_off_azimuth,
-                block.target_bias,
-                block.analysis_width_x,
-                block.analysis_width_y,
-                block.x_label,
-                block.x_units,
-                block.x_start,
-                block.x_step,
-                block.num_y_values,
-                block.num_scans_to_compile_block,
-                block.signal_collection_time,
-                block.signal_time_correction,
-                y_unit,
-                block.num_lines_block_comment,
-                block.block_comment
-            ]
-            exp_data.append(block_exp_data)
-
-            # Add experimental description data to this sheet starting at column 50
-            exp_col = 50
-            ws.cell(row=1, column=exp_col, value="Experimental Description")
-
-            exp_labels = [
-                "Sample ID", "Date", "Time", "Technique", "Species & Transition", "Number of scans",
-                "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
-                "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
-                "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
-                "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
-            ]
-
-            for j, (label, value) in enumerate(zip(exp_labels, block_exp_data[1:])):
-                ws.cell(row=j + 2, column=exp_col, value=label)
-                ws.cell(row=j + 2, column=exp_col + 1, value=value)
-
-            # Set column width for experimental data
-            ws.column_dimensions[chr(64 + exp_col)].width = 25
-            ws.column_dimensions[chr(64 + exp_col + 1)].width = 40
-
-        update_console("Creating experimental description sheet...")
-
-        # Create "Experimental description" sheet (keep this for backward compatibility)
-        exp_sheet = wb.create_sheet(title="Experimental description")
-        exp_sheet.column_dimensions['A'].width = 50
-        exp_sheet.column_dimensions['B'].width = 100
-        left_aligned = Alignment(horizontal='left')
-
-        # Add VAMAS header information
-        exp_sheet.append(["VAMAS Header Information"])
-        for item in [
-            ("Format Identifier", vamas_data.header.format_identifier),
-            ("Institution Identifier", vamas_data.header.institution_identifier),
-            ("Instrument Model", vamas_data.header.instrument_model_identifier),
-            ("Operator Identifier", vamas_data.header.operator_identifier),
-            ("Experiment Identifier", vamas_data.header.experiment_identifier),
-            ("Number of Comment Lines", vamas_data.header.num_lines_comment),
-            ("Comment", vamas_data.header.comment),
-            ("Experiment Mode", vamas_data.header.experiment_mode),
-            ("Scan Mode", vamas_data.header.scan_mode),
-            ("Number of Spectral Regions", vamas_data.header.num_spectral_regions),
-            ("Number of Analysis Positions", vamas_data.header.num_analysis_positions),
-            ("Number of Discrete X Coordinates", vamas_data.header.num_discrete_x_coords_in_full_map),
-            ("Number of Discrete Y Coordinates", vamas_data.header.num_discrete_y_coords_in_full_map)
-        ]:
-            exp_sheet.append(item)
-
-        exp_sheet.append([])  # Add a blank row for separation
-
-        # Define the order of block information
-        block_info_order = [
-            "Sample ID", "Year/Month/Day", "Time HH,MM,SS", "Technique", "Species & Transition", "Number of scans",
-            "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
-            "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
-            "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
-            "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
-        ]
-
-        # Add block information
-        for i, block_data in enumerate(exp_data, start=1):
-            exp_sheet.append([f"Block {i}", ""])
-            for j, info in enumerate(block_info_order):
-                exp_sheet.append([info, block_data[j + 1]])
-            exp_sheet.append([])  # Add a blank row between blocks
-
-        # Set alignment for all cells in column B
-        for row in exp_sheet.iter_rows(min_row=1, max_row=exp_sheet.max_row, min_col=2, max_col=2):
-            for cell in row:
-                cell.alignment = left_aligned
-
-        update_console("Saving Excel file...")
-        excel_filename = os.path.splitext(vamas_filename)[0] + ".xlsx"
-        excel_path = os.path.join(os.path.dirname(file_path), excel_filename)
-        wb.save(excel_path)
-
-        # Save fitting data to JSON file immediately after Excel file is saved
-        if import_fitting and hasattr(wb, '_fitting_data'):
-            print(f"VAMAS: Saving fitting data for {len(wb._fitting_data)} sheets")
-            import json
-            fitting_file = excel_path.replace('.xlsx', '_fitting.json')
-            with open(fitting_file, 'w') as f:
-                json.dump(wb._fitting_data, f)
-            print(f"VAMAS: Fitting data saved to: {fitting_file}")
-
-        update_console("Excel file created successfully!")
-        update_console("Loading Excel file into KherveFitting...")
-
-        os.remove(destination_path)
-        window.Data = Init_Measurement_Data(window)
-        window.Data['FilePath'] = excel_path
-
-        # Pass console to next function
-        open_xlsx_file_vamas(window, excel_path, console_frame, update_console, import_fitting)
-
-    except Exception as e:
-        wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
-
 def extract_transmission_reference(block):
     """Extract transmission reference value from VAMAS block"""
     try:
@@ -3485,12 +3160,15 @@ def open_vamas_file(window, file_path):
             y_unit = block.corresponding_variables[0].unit
             num_scans = block.num_scans_to_compile_block
 
-            # # Convert counts to counts per second if necessary
-            # if y_unit != "c/s":
-            #     y_values = [y / num_scans for y in y_values]
 
-            # Convert counts to counts per second if necessary
-            collection_time = block.signal_collection_time
+            try:
+                collection_time = getattr(block, 'signal_collection_time', None)
+                if collection_time is None:
+                    collection_time = getattr(block, 'dwell_time', None)
+                if collection_time is None:
+                    collection_time = 1.0  # Default fallback
+            except (AttributeError, TypeError):
+                collection_time = 1.0  # Default fallback
             print(f"Collection time: {collection_time}, Num scans: {num_scans}, Y unit: {y_unit}")
             print(f'Number of Scans: {num_scans}')
             num_scan = num_scans  # To stop division by number of scan quickly if needed
@@ -3542,7 +3220,7 @@ def open_vamas_file(window, file_path):
 
                 # Parse Casa fitting information
                 casa_data = parse_casa_peak_fitting(block.block_comment, block.num_scans_to_compile_block,
-                                                    window.photons, transmission_data)
+                                                    window.photons, transmission_data, collection_time, sheet_name)
 
                 if import_fitting and casa_data:
                     print(f"DEBUG: Casa data keys: {list(casa_data.keys())}")
@@ -3567,16 +3245,27 @@ def open_vamas_file(window, file_path):
                     if casa_data['Background']:
                         print(f"DEBUG: Background exists, storing it")
                         wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
-                        wb._fitting_data[sheet_name]['Background']['Bkg X'] = x_values
+                        wb._fitting_data[sheet_name]['Background']['Bkg X'] = x_values  # Full length X data
 
-                        # Calculate corrected_y (same as done in Excel writing loop)
+                        # DEBUG: Print array lengths
+                        print(f"DEBUG: x_values length: {len(x_values)}")
+                        print(f"DEBUG: y_values length: {len(y_values)}")
+                        print(
+                            f"DEBUG: transmission_data length: {len(transmission_data) if transmission_data else 'None'}")
+
+                        # Calculate corrected_y for FULL LENGTH
                         corrected_y_values = []
                         for j, y in enumerate(y_values):
-                            trans = transmission_data[j] if j < len(transmission_data) else transmission_data[0]
-                            corrected_y_values.append(y / trans)
+                            trans = transmission_data[j] if j < len(transmission_data) else 1.0
+                            if collection_time > 0:
+                                corrected_y = (y / abs(trans)) / (num_scans * collection_time)
+                            else:
+                                corrected_y = (y / abs(trans)) / num_scans
+                            corrected_y_values.append(corrected_y)
 
+                        print(f"DEBUG: corrected_y_values length: {len(corrected_y_values)}")
                         wb._fitting_data[sheet_name]['Background']['Bkg Y'] = corrected_y_values
-                        # print(f"DEBUG: Stored background data: {wb._fitting_data[sheet_name]['Background']}")
+
                         if update_console:
                             update_console(
                                 f"  Background: {casa_data['Background'].get('Bkg Type')} from {casa_data['Background'].get('Bkg Low'):.1f} to {casa_data['Background'].get('Bkg High'):.1f} eV")
@@ -3720,7 +3409,8 @@ def open_vamas_file(window, file_path):
     except Exception as e:
         wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, transmission_data=None):
+def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, transmission_data=None,
+                           collection_time=1.0, core_level_name=None):
     """
     Parse Casa XPS peak fitting information from VAMAS block comment.
 
@@ -3758,6 +3448,9 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
         'Peaks': {}
     }
 
+    # Track peak names for numbering duplicates
+    peak_name_counts = {}
+
     # Parse the lines after "Casa Info Follows"
     i = casa_start
     while i < len(lines):
@@ -3788,20 +3481,43 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
                     fitting_data['Background'] = {
                         'Bkg Type': kf_bg_type,
-                        'Bkg Low': low_energy,
-                        'Bkg High': high_energy,
+                        'Bkg Low': round(low_energy,3),
+                        'Bkg High': round(high_energy,3),
                         'Bkg Offset Low': '0',
                         'Bkg Offset High': '0',
                         'Bkg Y': []
                     }
                 except (ValueError, IndexError):
                     pass
-
         elif line.startswith('CASA comp'):
             # Parse peak information
             # Extract peak name (first pattern)
             peak_matches = re.findall(r'\(\*([^*]+)\*\)', line)
-            peak_name = peak_matches[0] if peak_matches else f"Peak_{len(fitting_data['Peaks']) + 1}"
+            raw_peak_name = peak_matches[0] if peak_matches else f"Peak_{len(fitting_data['Peaks']) + 1}"
+
+            # Remove spaces from core level names (e.g., "C 1s" -> "C1s", "Fe 2p" -> "Fe2p")
+            if raw_peak_name:
+                # Pattern matches: Element (1-2 letters) + space + orbital (number + letter)
+                core_level_pattern = r'([A-Z][a-z]?)\s+(\d+[spdfghi])'
+                raw_peak_name = re.sub(core_level_pattern, r'\1\2', raw_peak_name)
+
+            # Handle duplicate peak names, especially when peak name equals core level name
+            if core_level_name and raw_peak_name == core_level_name:
+                # If peak name equals core level name, number them as p1, p2, etc.
+                if raw_peak_name not in peak_name_counts:
+                    peak_name_counts[raw_peak_name] = 0
+                peak_name_counts[raw_peak_name] += 1
+                peak_name = f"{raw_peak_name} p{peak_name_counts[raw_peak_name]}"
+            else:
+                # For other cases, check if name already exists
+                if raw_peak_name in fitting_data['Peaks']:
+                    if raw_peak_name not in peak_name_counts:
+                        peak_name_counts[raw_peak_name] = 1
+                    peak_name_counts[raw_peak_name] += 1
+                    peak_name = f"{raw_peak_name} p{peak_name_counts[raw_peak_name]}"
+                else:
+                    peak_name = raw_peak_name
+
 
             # Extract model (second pattern)
             model_str = peak_matches[1] if len(peak_matches) > 1 else "GL(30)"
@@ -3866,8 +3582,8 @@ def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, t
 
                             # Mapping for gamma values based on sigma/gamma ratio
                             gamma_mapping = {
-                                20: 2.8, 30: 2.6, 40: 2.4, 50: 2.3, 60: 1.8,
-                                70: 1.6, 80: 1.4, 90: 1.2, 100: 1.0
+                                20: 15, 30: 12, 40: 10, 50: 8, 60: 5,
+                                70: 3, 80: 2.5, 90: 1.7, 100: 1.0
                             }
 
                             gamma_value = gamma_mapping.get(ratio_value, 2.0)  # Default to 2.0 if not found
@@ -4007,53 +3723,6 @@ def check_for_casa_fitting(vamas_data):
             return True
     return False
 
-def open_xlsx_file_vamas_OLD(window, file_path, console_frame=None, update_console=None):
-    """
-    Open and process an Excel file created from a VAMAS file.
-
-    This function initializes the data structure, reads the Excel file,
-    populates the window.Data dictionary with core level information,
-    updates the GUI elements, and plots the data for the first sheet.
-
-    Args:
-    window: The main application window object.
-    file_path: The path to the Excel file to be opened.
-    """
-    try:
-        if update_console:
-            update_console("Reading Excel file structure...")
-
-        window.SetStatusText(f"Selected File: {file_path}", 0)
-        window.Data = Init_Measurement_Data(window)
-        window.Data['FilePath'] = file_path
-
-        excel_file = pd.ExcelFile(file_path)
-        sheet_names = [name for name in excel_file.sheet_names if name != "Experimental description"]
-        window.Data['Number of Core levels'] = 0
-
-        if update_console:
-            update_console(f"Found {len(sheet_names)} sheets to load...")
-
-        for i, sheet_name in enumerate(sheet_names, 1):
-            if update_console:
-                update_console(f"Loading sheet {i}/{len(sheet_names)}: {sheet_name}")
-            window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
-
-        if update_console:
-            update_console("Updating interface...")
-
-        window.sheet_combobox.Clear()
-        window.sheet_combobox.AppendItems(sheet_names)
-        window.sheet_combobox.SetValue(sheet_names[0])
-        window.plot_manager.plot_data(window)
-
-        if update_console:
-            update_console("Loading complete!")
-            wx.CallLater(500, console_frame.Close)
-
-    except Exception as e:
-        wx.MessageBox(f"Error reading Excel file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
 
 def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=None, has_fitting=False):
     """
@@ -4103,6 +3772,16 @@ def open_xlsx_file_vamas(window, file_path, console_frame=None, update_console=N
         excel_file = pd.ExcelFile(file_path)
         sheet_names = [name for name in excel_file.sheet_names if name != "Experimental description"]
         window.Data['Number of Core levels'] = 0
+
+        # After loading JSON fitting data, add this debug:
+        if hasattr(window, 'Data') and 'Core levels' in window.Data:
+            for core_level, data in window.Data['Core levels'].items():
+                if 'Background' in data:
+                    bg_y = data['Background'].get('Bkg Y', [])
+                    print(f"DEBUG: Core level {core_level} background length: {len(bg_y)}")
+                if 'B.E.' in data:
+                    be_data = data['B.E.']
+                    print(f"DEBUG: Core level {core_level} B.E. length: {len(be_data)}")
 
         if update_console:
             update_console(f"Found {len(sheet_names)} sheets to load...")

@@ -2062,9 +2062,9 @@ class PlotManager:
 
         except Exception as e:
             print("Error in plot_background:", str(e))
-            import traceback
-            traceback.print_exc()
-            wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
+            # import traceback
+            # traceback.print_exc()
+            # wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
 
     def _calculate_adaptive_smart_background(self, window, x_values, y_values, offset_h, offset_l):
         """Helper method to calculate Multi-Regions Smart background."""
