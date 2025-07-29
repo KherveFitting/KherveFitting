@@ -291,14 +291,14 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.cross_section, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-            background_sizer.Add(reset_vlines_button, pos=(10, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_between_vlines_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
+            background_sizer.Add(reset_vlines_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_between_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
                                  border=0)
-            background_sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_background_only_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
+            background_sizer.Add(self.tougaard_fit_btn, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_only_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
                                  border=0)
-            background_sizer.Add(background_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(background_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         self.background_panel.SetSizer(background_sizer)
         notebook.AddPage(self.background_panel, "Background")
@@ -672,12 +672,59 @@ class FittingWindow(wx.Frame):
         except ValueError:
             pass
 
-    def on_reset_vlines(self, event):
+    def on_reset_vlines_OLD(self, event):
         self.parent.vline1 = None
         self.parent.vline2 = None
         self.parent.show_hide_vlines()
         self.parent.plot_manager.clear_and_replot(self.parent)
 
+    def on_reset_vlines(self, event):
+        # Calculate 1/15 and 14/15 positions
+        if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+            x_min = min(self.parent.x_values)
+            x_max = max(self.parent.x_values)
+            x_range = x_max - x_min
+
+            new_low = x_min + x_range / 15
+            new_high = x_min + 14 * x_range / 15
+
+            # Update the data structure
+            sheet_name = self.parent.sheet_combobox.GetValue()
+            if sheet_name in self.parent.Data['Core levels']:
+                if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                    self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_low)
+                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_high)
+
+            # Update bg_min_energy and bg_max_energy
+            self.parent.bg_min_energy = new_low
+            self.parent.bg_max_energy = new_high
+
+        # Reset vlines to None first
+        self.parent.vline1 = None
+        self.parent.vline2 = None
+        if hasattr(self.parent, 'vline1_text'):
+            self.parent.vline1_text = None
+        if hasattr(self.parent, 'vline2_text'):
+            self.parent.vline2_text = None
+
+        # Use tab switching trick to properly recreate vlines at new positions
+        if self.parent.background_tab_selected:
+            # Find the notebook
+            notebook = None
+            for child in self.GetChildren():
+                for grandchild in child.GetChildren():
+                    if isinstance(grandchild, wx.Notebook):
+                        notebook = grandchild
+                        break
+                if notebook:
+                    break
+
+            if notebook:
+                wx.CallAfter(self._switch_tabs_trick, notebook)
+        else:
+            # If not on background tab, just clear and replot
+            self.parent.plot_manager.clear_and_replot(self.parent)
 
     def on_add_peak(self, event):
         current_model = self.model_combobox.GetValue()
@@ -1306,6 +1353,21 @@ class FittingWindow(wx.Frame):
                     core_level_data['Background']['Bkg Y'] = background.tolist()
                     self.parent.background = background
                     self.parent.clear_and_replot()
+
+            # Use tab switching trick to properly recreate vlines at new positions
+            if self.parent.background_tab_selected:
+                # Find the notebook
+                notebook = None
+                for child in self.GetChildren():
+                    for grandchild in child.GetChildren():
+                        if isinstance(grandchild, wx.Notebook):
+                            notebook = grandchild
+                            break
+                    if notebook:
+                        break
+
+                if notebook:
+                    wx.CallAfter(self._switch_tabs_trick, notebook)
 
     def on_min_range_change(self, event):
         """Handle min range change and update vline1 position"""
