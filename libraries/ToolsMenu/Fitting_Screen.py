@@ -949,33 +949,6 @@ class FittingWindow(wx.Frame):
 
         self.parent.clear_and_replot()
 
-    def on_background_OLD(self, event):
-        save_state(self.parent)
-
-        if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
-            self.parent.bg_min_energy = min(x_values)
-            self.parent.bg_max_energy = max(x_values)
-
-            if 'Background' in self.parent.Data['Core levels'][sheet_name]:
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = self.parent.bg_min_energy
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = self.parent.bg_max_energy
-
-        # Get smooth checkbox state
-        use_smoothing = self.smooth_data_checkbox.GetValue()
-
-        # Call plot_background with the smoothing flag
-        self.parent.plot_manager.plot_background(self.parent, use_smoothing=use_smoothing)
-
-        sheet_name = self.parent.sheet_combobox.GetValue()
-        if sheet_name in self.parent.Data['Core levels']:
-            core_level_data = self.parent.Data['Core levels'][sheet_name]
-            if 'Background' in core_level_data:
-                self.parent.bg_min_energy = core_level_data['Background']['Bkg Low']
-                self.parent.bg_max_energy = core_level_data['Background']['Bkg High']
-        save_state(self.parent)
-
     def on_background(self, event):
         save_state(self.parent)
 
@@ -1004,6 +977,57 @@ class FittingWindow(wx.Frame):
 
         # Call plot_background with the smoothing flag
         self.parent.plot_manager.plot_background(self.parent, use_smoothing=use_smoothing)
+
+        # Update all peaks with new background information
+        self.update_all_peaks_background_info()
+
+        # Use tab switching trick to ensure vlines are properly displayed
+        if self.parent.background_tab_selected:
+            # Find the notebook
+            notebook = None
+            for child in self.GetChildren():
+                for grandchild in child.GetChildren():
+                    if isinstance(grandchild, wx.Notebook):
+                        notebook = grandchild
+                        break
+                if notebook:
+                    break
+
+            if notebook:
+                wx.CallAfter(self._switch_tabs_trick, notebook)
+
+    def update_all_peaks_background_info(self):
+        """Update background information for all peaks in the current core level"""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Get current background information
+        current_bg_type = self.parent.background_method
+        current_bg_low = self.parent.bg_min_energy
+        current_bg_high = self.parent.bg_max_energy
+
+        # Update peak fitting grid
+        if hasattr(self.parent, 'peak_params_grid') and self.parent.peak_params_grid.GetNumberRows() > 0:
+            num_peaks = self.parent.peak_params_grid.GetNumberRows() // 2
+
+            for i in range(num_peaks):
+                row = i * 2  # Each peak takes 2 rows (data + constraints)
+
+                # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
+                self.parent.peak_params_grid.SetCellValue(row, 14, current_bg_type)
+                self.parent.peak_params_grid.SetCellValue(row, 15, f"{current_bg_low:.2f}")
+                self.parent.peak_params_grid.SetCellValue(row, 16, f"{current_bg_high:.2f}")
+
+        # Update window.Data structure
+        if (sheet_name in self.parent.Data['Core levels'] and
+                'Fitting' in self.parent.Data['Core levels'][sheet_name] and
+                'Peaks' in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+
+            peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+            for peak_label, peak_data in peaks.items():
+                peak_data['Bkg Type'] = current_bg_type
+                peak_data['Bkg Low'] = current_bg_low
+                peak_data['Bkg High'] = current_bg_high
 
     def on_clear_background(self, event):
         # Show confirmation dialog
