@@ -1253,22 +1253,6 @@ class FittingWindow(wx.Frame):
                 child.SetToolTip(self.get_fitting_description(self.parent.selected_fitting_method))
                 break
 
-    def on_tab_change_OLD(self, event):
-        selected_page = event.GetSelection()
-        self.parent.background_tab_selected = (selected_page == 0)
-        self.parent.peak_fitting_tab_selected = (selected_page == 1)
-        self.parent.show_hide_vlines()
-
-        if selected_page == 0:
-            self.parent.enable_background_interaction()
-        else:
-            self.parent.disable_background_interaction()
-
-        if not self.parent.peak_fitting_tab_selected:
-            self.parent.peak_manipulation.deselect_all_peaks()
-
-        event.Skip()
-
     def on_tab_change(self, event):
         selected_page = event.GetSelection()
 
@@ -1297,6 +1281,9 @@ class FittingWindow(wx.Frame):
         event.Skip()
 
     def on_close(self, event):
+        # Store previous state
+        was_background_tab = self.parent.background_tab_selected
+
         # Cancel any pending wx.CallAfter calls by setting a flag
         self._is_closing = True
 
@@ -1307,7 +1294,11 @@ class FittingWindow(wx.Frame):
         self.parent.peak_fitting_tab_selected = False
 
         # self.parent.show_hide_vlines()
-        self.parent.peak_manipulation.deselect_all_peaks()
+        # self.parent.peak_manipulation.deselect_all_peaks()
+        self.parent.disable_background_interaction()
+        # Reset vlines when leaving background tab (same as Reset Vertical Lines button)
+        if was_background_tab:
+            self.on_reset_vlines(None)
 
         # Small delay to ensure all pending operations complete
         wx.CallLater(10, self.Destroy)

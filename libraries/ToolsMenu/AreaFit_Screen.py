@@ -564,7 +564,7 @@ class BackgroundWindow(wx.Frame):
         grid.SetCellValue(row, 2, f"{peak_position:.2f}")
         grid.SetCellValue(row, 3, f"{peak_height:.2f}")
         grid.SetCellValue(row, 4, f"{fwhm:.2f}")
-        grid.SetCellValue(row, 5, "")
+        grid.SetCellValue(row, 5, "0")
         grid.SetCellValue(row, 6, f"{area:.2f}")
         grid.SetCellValue(row, 7, "")
         grid.SetCellValue(row, 8, "")
@@ -604,11 +604,15 @@ class BackgroundWindow(wx.Frame):
             'Gamma': 0,
             'Skew': 0,
             'Fitting Model': "Unfitted",
+            'Bkg Type': selected_method,
+            'Bkg Low': range_min,
+            'Bkg High': range_max,
             'Constraints': {
                 'Position': "Fixed",
                 'Height': "Fixed",
                 'FWHM': "Fixed",
                 'L/G': "Fixed",
+                'Area': "Fixed",
                 'Sigma': "Fixed",
                 'Gamma': "Fixed",
                 'Skew': "Fixed"
@@ -620,10 +624,8 @@ class BackgroundWindow(wx.Frame):
         self.parent.ax.fill_between(x_range, bg_range, y_range,
                                     facecolor='lightgreen', alpha=0.5,
                                     label=area_name)
-        self.parent.clear_and_replot()
 
-        self.parent.plot_manager.update_legend(self.parent)
-        self.parent.peak_params_grid.ForceRefresh()
+
 
         # RESTORE VLINES AND MOUSE INTERACTION - THIS IS THE KEY FIX!
         # The plot_background method calls clear_and_replot which removes vlines AND disconnects mouse handlers
@@ -642,9 +644,34 @@ class BackgroundWindow(wx.Frame):
         if hasattr(self, 'update_range_controls_from_data'):
             self.update_range_controls_from_data()
 
-        # Force canvas update
-        self.parent.canvas.draw_idle()
+        # Use the same plotting sequence as sheet change for proper display
+        # Apply choice editors to the fitting model column
+        self.parent.set_model_choice_editors(self.parent)
 
+        self.parent.plot_manager.plot_data(self.parent)  # Always plot raw data first
+        if self.parent.show_fit and self.parent.peak_params_grid.GetNumberRows() > 0:
+            self.parent.clear_and_replot()  # Add fit and residuals if show_fit is True
+
+        # self.parent.disable_area_interaction()
+        # self.parent.enable_area_interaction()
+
+
+        self.parent.plot_config.update_plot_limits(self.parent, sheet_name)
+        self.parent.plot_manager.update_legend(self.parent)
+
+        # Restore vlines at their original positions (they were destroyed by clear_and_replot)
+        if hasattr(self.parent, 'vline1') and hasattr(self.parent, 'vline2'):
+            # Recreate vlines at stored positions (vline1_x and vline2_x were stored earlier)
+            self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+            self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+            # Add text labels back
+            self.add_vline_text_labels()
+
+            # Update area tab selection state so vlines stay visible
+            self.parent.area_tab_selected = True
+
+        # Print results to console
         print(f"Results for {sheet_name}:")
         print(f"Peak Name: {area_name}")
         print(f"Peak Position: {peak_position:.2f} eV")
