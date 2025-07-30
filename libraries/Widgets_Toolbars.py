@@ -601,7 +601,7 @@ def create_menu(window):
     window.toggle_energy_item = toggle_energy_item
 
     # Tools menu items
-    Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve\tCtrl+A")
+    Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve")
     window.Bind(wx.EVT_MENU, lambda event: window.on_open_background_window(), Area_item)
 
     Fitting_item = tools_menu.Append(wx.NewId(), "Create Peak Model\tCtrl+P")

@@ -342,7 +342,6 @@ def show_shortcuts(parent):
     <li><b>Ctrl+Y:</b> Redo</li>
     <li><b>Ctrl+S:</b> Save. Only works on the grid and not on the figure canvas</li>
     <li><b>Ctrl+P:</b> Open peak fitting window</li>
-    <li><b>Ctrl+A:</b> Open Area window</li>
     <li><b>Ctrl+K:</b> Show Keyboard shortcut</li>
     <li><b>Alt+Up:</b> Increase peak intensity</li>
     <li><b>Alt+Down:</b> Decrease peak intensity</li>
@@ -430,6 +429,7 @@ Version 1.505-1.590
 - Added possibility to constraint to other core levels
 - Improve right click Menu in the peak fitting grid with other core level constraints
 - Improve vLines in background creation
+- Improve the AreaFit window 
 - Added several ways to import multiple files
 - Added noise creation in plotMod - HIDDEN DANGEROUS
 - Added voigt model creation in PlotMod - HIDDEN DANGEROUS

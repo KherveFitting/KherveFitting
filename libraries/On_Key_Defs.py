@@ -251,10 +251,7 @@ class KeyEventHandlers:
                                                 "-Alt+Right: Move peak to Low BE\n"
                                                 )
             return True
-        elif keycode == ord('A'):
-            print("Opening Area Window")
-            self.main_frame.on_open_background_window()
-            return True
+
         elif keycode == ord('P'):
             print("Opening Fitting Window")
             self.main_frame.on_open_fitting_window()
