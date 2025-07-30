@@ -95,12 +95,31 @@ class FittingWindow(wx.Frame):
 
     def _switch_tabs_trick(self, notebook):
         """Quick tab switching trick to ensure proper vline initialization"""
-        # Switch to peak fitting tab (index 1)
-        notebook.SetSelection(1)
-        # Process any pending events
-        wx.GetApp().Yield()
-        # Switch back to background tab (index 0)
-        notebook.SetSelection(0)
+        # Safety check: make sure the window and notebook still exist
+        try:
+            if not self or not notebook:
+                return
+
+            # Check if the window is being destroyed
+            if not self.IsShown() or self.IsBeingDeleted():
+                return
+
+            # Check if notebook is still valid
+            notebook.GetSelection()  # This will raise an exception if notebook is deleted
+
+            # Switch to peak fitting tab (index 1)
+            notebook.SetSelection(1)
+            # Process any pending events
+            wx.GetApp().Yield()
+            # Switch back to background tab (index 0)
+            notebook.SetSelection(0)
+
+        except (RuntimeError, AttributeError, TypeError):
+            # Window or notebook has been destroyed, silently return
+            return
+        except:
+            # Catch any other unexpected exceptions
+            return
 
     def init_background_tab(self, notebook):
         """Initialize the background tab in the notebook."""
@@ -1278,6 +1297,8 @@ class FittingWindow(wx.Frame):
         event.Skip()
 
     def on_close(self, event):
+        # Cancel any pending wx.CallAfter calls by setting a flag
+        self._is_closing = True
 
         # Reset vlines when closing (same as Reset Vertical Lines button)
         self.on_reset_vlines(None)
@@ -1287,7 +1308,9 @@ class FittingWindow(wx.Frame):
 
         # self.parent.show_hide_vlines()
         self.parent.peak_manipulation.deselect_all_peaks()
-        self.Destroy()
+
+        # Small delay to ensure all pending operations complete
+        wx.CallLater(10, self.Destroy)
 
     def parse_cross_section(self, text):
         try:

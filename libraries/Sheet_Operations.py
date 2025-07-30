@@ -113,17 +113,6 @@ def on_sheet_selected(window, event):
                     window.peak_params_grid.SetCellValue(row, 17, f"{peak_data.get('Bkg Offset Low', '0')}")
                     window.peak_params_grid.SetCellValue(row, 18, f"{peak_data.get('Bkg Offset High', '0')}")
 
-                    # Set constraints if available
-                    # if 'Constraints' in peak_data:
-                    #     constraints = peak_data['Constraints']
-                    #     window.peak_params_grid.SetCellValue(row + 1, 2, str(constraints.get('Position', '1:1200')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 3, str(constraints.get('Height', '1:1e7')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 4, str(constraints.get('FWHM', '0.3:3.5')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 5, str(constraints.get('L/G', '2:80')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 6, str(constraints.get('Area', '1:1e7')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 7, str(constraints.get('Sigma', '0.3:2')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 8, str(constraints.get('Gamma', '0.3:2')))
-                    #     window.peak_params_grid.SetCellValue(row + 1, 9, str(constraints.get('Skew', '0.01:2')))
                     if 'Constraints' in peak_data:
                         constraints = peak_data['Constraints']
 

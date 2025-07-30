@@ -191,7 +191,9 @@ class MouseEventHandler:
                                                                                 self.window.peak_manipulation.on_cross_drag)
                         self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
                                                                                  self.window.peak_manipulation.on_cross_release)
-                elif self.window.background_tab_selected:
+                        # Check if either fitting screen background tab OR area screen is active for vline interaction
+                if (self.window.background_tab_selected or
+                        (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected)):
                     # Clean up any existing handlers first
                     if hasattr(self.window, 'motion_cid'):
                         self.window.canvas.mpl_disconnect(self.window.motion_cid)
@@ -490,6 +492,15 @@ class MouseEventHandler:
 
                     # Update fitting screen range controls
                     self.window.update_fitting_screen_range_controls()
+
+                    # Update area screen range controls when vlines move
+                    if (hasattr(self.window, 'background_window') and self.window.background_window is not None and
+                            hasattr(self.window.background_window, 'update_vline_text_labels') and
+                            hasattr(self.window.background_window, 'update_range_controls_from_data')):
+                        if self.window.moving_vline in [self.window.vline1, self.window.vline2]:
+                            self.window.background_window.update_vline_text_labels()
+                            self.window.background_window.update_range_controls_from_data()
+                            self.window.update_area_screen_range_controls()
 
                 elif self.window.moving_vline in [self.window.vline3, self.window.vline4]:
                     if self.window.moving_vline == self.window.vline3:

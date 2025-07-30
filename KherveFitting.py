@@ -124,6 +124,9 @@ class MyFrame(wx.Frame):
         self.peak_fitting_tab_selected = False
         self.fitting_window = None
 
+        # Area selected
+        self.area_tab_selected = False
+
         self.noise_analysis_window = None
         self.noise_tab_selected = False
 
@@ -713,7 +716,6 @@ class MyFrame(wx.Frame):
     def number_to_letter(n):
         return chr(65 + n)  # 65 is the ASCII value for 'A'
 
-
     def on_open_background_window(self):
         if not hasattr(self, 'background_window') or not self.background_window:
             self.background_window = BackgroundWindow(self)
@@ -727,18 +729,92 @@ class MyFrame(wx.Frame):
             y = main_pos.y + (main_size.height - bg_size.height) // 2
 
             self.background_window.SetPosition((x, y))
-
-            self.background_tab_selected = True
             self.background_window.Bind(wx.EVT_CLOSE, self.on_background_window_close)
+
+        # Enable area interaction (similar to how fitting screen works)
+        self.enable_area_interaction()
+
         self.background_window.Show()
         self.background_window.Raise()
 
-    def on_background_window_close(self, event):
+    def on_background_window_close_OLD(self, event):
         save_state(self)
         self.background_tab_selected = False
         self.show_hide_vlines()
         self.background_window = None
         event.Skip()
+
+    def on_background_window_close(self, event):
+        """Handle area screen window closing - robust cleanup."""
+        save_state(self)
+
+        # Disable area interaction (similar to how fitting screen works)
+        self.disable_area_interaction()
+
+        # Clear window reference
+        self.background_window = None
+        event.Skip()
+
+    def cleanup_area_vlines(self):
+        """Completely clean up all area screen vlines and text - only when closing."""
+        # Only clean up if area screen is actually being closed
+        if not (hasattr(self, 'area_tab_selected') and self.area_tab_selected):
+            # Remove vlines from plot
+            if self.vline1 is not None:
+                try:
+                    self.vline1.remove()
+                except:
+                    pass
+                self.vline1 = None
+
+            if self.vline2 is not None:
+                try:
+                    self.vline2.remove()
+                except:
+                    pass
+                self.vline2 = None
+
+            # Remove text labels
+            if hasattr(self, 'vline1_text') and self.vline1_text is not None:
+                try:
+                    self.vline1_text.remove()
+                except:
+                    pass
+                self.vline1_text = None
+
+            if hasattr(self, 'vline2_text') and self.vline2_text is not None:
+                try:
+                    self.vline2_text.remove()
+                except:
+                    pass
+                self.vline2_text = None
+
+    def ensure_area_vlines_visible(self):
+        """Ensure area screen vlines are visible and properly initialized."""
+        if (hasattr(self, 'background_window') and self.background_window is not None and
+                hasattr(self, 'area_tab_selected') and self.area_tab_selected):
+
+            # Force recreation of vlines
+            if hasattr(self.background_window, 'initialize_or_restore_area_vlines'):
+                self.background_window.initialize_or_restore_area_vlines()
+
+            # Force canvas update
+            self.canvas.draw_idle()
+
+            # Update range controls
+            if hasattr(self.background_window, 'update_range_controls_from_data'):
+                wx.CallAfter(self.background_window.update_range_controls_from_data)
+
+    def enable_area_interaction(self):
+        """Enable area screen interaction - similar to enable_background_interaction."""
+        self.area_tab_selected = True
+        self.show_hide_vlines()
+
+    def disable_area_interaction(self):
+        """Disable area screen interaction - similar to disable_background_interaction."""
+        self.cleanup_area_vlines()
+        self.area_tab_selected = False
+        self.show_hide_vlines()
 
     def enable_background_interaction(self):
         self.background_tab_selected = True
@@ -1607,7 +1683,7 @@ class MyFrame(wx.Frame):
 
         self.canvas.draw_idle()
 
-    def show_hide_vlines(self):
+    def show_hide_vlines_OLD(self):
         # Hide vlines if zooming or dragging
         if self.zoom_mode or self.drag_mode:
             if self.vline1 is not None:
@@ -1646,6 +1722,74 @@ class MyFrame(wx.Frame):
             self.vline4.set_visible(noise_lines_visible)
 
         self.canvas.draw_idle()
+
+    def show_hide_vlines(self):
+        """Show/hide vlines based on current screen state and zoom/drag modes."""
+        # Hide vlines if zooming or dragging
+        if self.zoom_mode or self.drag_mode:
+            if self.vline1 is not None:
+                self.vline1.set_visible(False)
+            if self.vline2 is not None:
+                self.vline2.set_visible(False)
+            if hasattr(self, 'vline1_text') and self.vline1_text is not None:
+                self.vline1_text.set_visible(False)
+            if hasattr(self, 'vline2_text') and self.vline2_text is not None:
+                self.vline2_text.set_visible(False)
+            if self.vline3 is not None:
+                self.vline3.set_visible(False)
+            if self.vline4 is not None:
+                self.vline4.set_visible(False)
+            return
+
+        # Check if either fitting screen OR area screen is open and active
+        fitting_screen_active = (hasattr(self, 'fitting_window') and
+                                 self.fitting_window is not None and
+                                 hasattr(self, 'background_tab_selected') and
+                                 self.background_tab_selected)
+
+        area_screen_active = (hasattr(self, 'background_window') and
+                              self.background_window is not None and
+                              hasattr(self, 'area_tab_selected') and
+                              self.area_tab_selected)
+
+        # Background lines (vline1, vline2) should be visible if EITHER screen is active
+        background_lines_visible = fitting_screen_active or area_screen_active
+
+        # RESTORE INITIALIZATION LOGIC FOR DRAGGING TO WORK:
+        # Initialize or restore vlines if fitting screen background tab is selected and they don't exist
+        if fitting_screen_active and (self.vline1 is None or self.vline2 is None):
+            self.initialize_or_restore_background_vlines()
+        # Initialize or restore vlines if area screen is open and they don't exist
+        elif area_screen_active and (self.vline1 is None or self.vline2 is None):
+            if hasattr(self.background_window, 'initialize_or_restore_area_vlines'):
+                self.background_window.initialize_or_restore_area_vlines()
+
+        # Set visibility for background vlines (vline1 and vline2)
+        if self.vline1 is not None:
+            self.vline1.set_visible(background_lines_visible)
+        if self.vline2 is not None:
+            self.vline2.set_visible(background_lines_visible)
+        if hasattr(self, 'vline1_text') and self.vline1_text is not None:
+            self.vline1_text.set_visible(background_lines_visible)
+        if hasattr(self, 'vline2_text') and self.vline2_text is not None:
+            self.vline2_text.set_visible(background_lines_visible)
+
+        # Noise lines visibility (only for fitting screen)
+        noise_lines_visible = (self.noise_analysis_window is not None and
+                               hasattr(self, 'noise_tab_selected') and
+                               self.noise_tab_selected)
+        if self.vline3 is not None:
+            self.vline3.set_visible(noise_lines_visible)
+        if self.vline4 is not None:
+            self.vline4.set_visible(noise_lines_visible)
+
+        self.canvas.draw_idle()
+
+    def update_area_screen_range_controls(self):
+        """Update area screen range controls when vlines move."""
+        if (hasattr(self, 'background_window') and self.background_window is not None and
+                hasattr(self.background_window, 'update_range_controls_from_data')):
+            self.background_window.update_range_controls_from_data()
 
     def initialize_or_restore_background_vlines(self):
         """Initialize vertical lines at 1/15 and 14/15 of the plot for background fitting, or restore from saved positions."""
