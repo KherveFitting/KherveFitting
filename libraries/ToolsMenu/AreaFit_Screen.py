@@ -271,8 +271,11 @@ class BackgroundWindow(wx.Frame):
         self.tougaard_fit_btn.Enable(False)
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
-
         self.method_combobox.Bind(wx.EVT_COMBOBOX, self.on_bkg_method_change)
+
+        # Add key event handling for TAB functionality
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
+        self.current_peak_index = 0  # Track current peak selection
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
@@ -718,13 +721,15 @@ class BackgroundWindow(wx.Frame):
 
     def on_close(self, event):
         """Close area screen and ensure complete cleanup."""
+        # Clear peak highlighting before closing
+        self.clear_peak_grid_highlights()
+
         # Use the proper disable method
         self.parent.disable_area_interaction()
 
         # Save state and destroy window
         save_state(self.parent)
         self.Destroy()
-
 
 
     def on_background(self, event):
@@ -1241,6 +1246,249 @@ class BackgroundWindow(wx.Frame):
         if best_match:
             self.peak_label_text.SetValue(best_match)
 
+    def on_key_press(self, event):
+        """Handle key press events, TAB for next peak, Q for previous peak."""
+        keycode = event.GetKeyCode()
+
+        if keycode == wx.WXK_TAB:
+            self.switch_to_next_peak()
+            return  # Don't skip - we handled it
+        elif keycode == ord('Q'):
+            self.switch_to_previous_peak()
+            return  # Don't skip - we handled it
+
+        event.Skip()  # Let other keys pass through
+
+    def switch_to_next_peak(self):
+        """Switch to next peak and move vlines to its background range."""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Check if we have peaks in the fitting data
+        if (sheet_name not in self.parent.Data['Core levels'] or
+                'Fitting' not in self.parent.Data['Core levels'][sheet_name] or
+                'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+            return
+
+        peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        peak_keys = list(peaks.keys())
+
+        if not peak_keys:
+            return
+
+        # Cycle through peaks (fix for last peak)
+        if not hasattr(self, 'current_peak_index'):
+            self.current_peak_index = 0
+
+        self.current_peak_index = (self.current_peak_index + 1) % len(peak_keys)
+        current_peak_key = peak_keys[self.current_peak_index]
+        current_peak = peaks[current_peak_key]
+
+        # Get background range for this peak
+        if 'Bkg Low' in current_peak and 'Bkg High' in current_peak:
+            bkg_low = float(current_peak['Bkg Low'])
+            bkg_high = float(current_peak['Bkg High'])
+
+            # Move vlines to the background range
+            self.move_vlines_to_range(bkg_low, bkg_high)
+
+            # Update the range controls WITHOUT triggering events
+            self.update_range_controls_silent(bkg_low, bkg_high)
+
+            # Show visual feedback
+            self.show_peak_selection_feedback(current_peak_key, bkg_low, bkg_high)
+
+    def switch_to_previous_peak(self):
+        """Switch to previous peak and move vlines to its background range."""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Check if we have peaks in the fitting data
+        if (sheet_name not in self.parent.Data['Core levels'] or
+                'Fitting' not in self.parent.Data['Core levels'][sheet_name] or
+                'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+            return
+
+        peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        peak_keys = list(peaks.keys())
+
+        if not peak_keys:
+            return
+
+        # Cycle through peaks backwards (fix for going to previous peak)
+        if not hasattr(self, 'current_peak_index'):
+            self.current_peak_index = 0
+
+        self.current_peak_index = (self.current_peak_index - 1) % len(peak_keys)
+        current_peak_key = peak_keys[self.current_peak_index]
+        current_peak = peaks[current_peak_key]
+
+        # Get background range for this peak
+        if 'Bkg Low' in current_peak and 'Bkg High' in current_peak:
+            bkg_low = float(current_peak['Bkg Low'])
+            bkg_high = float(current_peak['Bkg High'])
+
+            # Move vlines to the background range
+            self.move_vlines_to_range(bkg_low, bkg_high)
+
+            # Update the range controls WITHOUT triggering events
+            self.update_range_controls_silent(bkg_low, bkg_high)
+
+            # Show visual feedback
+            self.show_peak_selection_feedback(current_peak_key, bkg_low, bkg_high)
+
+    def move_vlines_to_range(self, bkg_low, bkg_high):
+        """Move vlines to specified background range."""
+        # Ensure proper min/max order
+        min_val = min(bkg_low, bkg_high)
+        max_val = max(bkg_low, bkg_high)
+
+        # Update vlines positions
+        if self.parent.vline1 is not None:
+            self.parent.vline1.set_xdata([min_val, min_val])
+        if self.parent.vline2 is not None:
+            self.parent.vline2.set_xdata([max_val, max_val])
+
+        # Update parent's background range variables
+        self.parent.bg_min_energy = min_val
+        self.parent.bg_max_energy = max_val
+
+        # Update data structure
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if sheet_name in self.parent.Data['Core levels']:
+            if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = min_val
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = max_val
+
+        # Update text labels
+        if hasattr(self.parent, 'update_vline_text_labels'):
+            self.parent.update_vline_text_labels()
+
+        # Redraw canvas
+        self.parent.canvas.draw_idle()
+
+    def update_range_controls_silent(self, bkg_low, bkg_high):
+        """Update min/max range text controls WITHOUT triggering events."""
+        if not (hasattr(self, 'min_range_text') and hasattr(self, 'max_range_text')):
+            return
+        if not (self.min_range_text and self.max_range_text):
+            return
+
+        try:
+            # Temporarily unbind events to prevent recursive updates
+            self.min_range_text.Unbind(wx.EVT_TEXT)
+            self.max_range_text.Unbind(wx.EVT_TEXT)
+
+            # Update values using ChangeValue (doesn't trigger events)
+            min_val = min(bkg_low, bkg_high)
+            max_val = max(bkg_low, bkg_high)
+
+            self.min_range_text.ChangeValue(f"{min_val:.2f}")
+            self.max_range_text.ChangeValue(f"{max_val:.2f}")
+
+            # Rebind events
+            self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
+            self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+
+        except (RuntimeError, AttributeError):
+            # Controls may have been destroyed, ignore silently
+            pass
+
+    def update_range_controls(self, bkg_low, bkg_high):
+        """Update min/max range text controls."""
+        if hasattr(self, 'min_range_text') and hasattr(self, 'max_range_text'):
+            self.min_range_text.SetValue(f"{min(bkg_low, bkg_high):.2f}")
+            self.max_range_text.SetValue(f"{max(bkg_low, bkg_high):.2f}")
+
+    def show_peak_selection_feedback(self, peak_key, bkg_low, bkg_high):
+        """Show visual feedback for peak selection."""
+        # Update window title to show current peak
+        min_val = min(bkg_low, bkg_high)
+        max_val = max(bkg_low, bkg_high)
+        self.SetTitle(f"Measure Area - {peak_key}")
+
+        # Highlight the corresponding peak in the grid
+        self.highlight_peak_in_grid(peak_key)
+
+    def Show(self, show=True):
+        """Override Show to reset peak selection when window opens."""
+        if show:
+            self.current_peak_index = 0  # Reset to first peak when opening
+            self.clear_peak_grid_highlights()  # Clear any existing highlights
+        super().Show(show)
+
+    def highlight_peak_in_grid(self, peak_key):
+        """Highlight the corresponding peak rows in the peak fitting grid."""
+        if not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        # Clear existing highlights first
+        self.clear_peak_grid_highlights()
+
+        # Find the peak index from the peak key
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if (sheet_name not in self.parent.Data['Core levels'] or
+                'Fitting' not in self.parent.Data['Core levels'][sheet_name] or
+                'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+            return
+
+        peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        peak_keys = list(peaks.keys())
+
+        if peak_key not in peak_keys:
+            return
+
+        peak_index = peak_keys.index(peak_key)
+
+        # Each peak uses 2 rows (data row and constraint row)
+        data_row = peak_index * 2
+        constraint_row = data_row + 1
+
+        # Set grey background for both rows of the selected peak
+        grey_color = wx.Colour(220, 220, 220)  # Light grey
+
+        try:
+            num_cols = self.parent.peak_params_grid.GetNumberCols()
+
+            # Highlight data row
+            for col in range(num_cols):
+                self.parent.peak_params_grid.SetCellBackgroundColour(data_row, col, grey_color)
+
+            # Highlight constraint row
+            for col in range(num_cols):
+                self.parent.peak_params_grid.SetCellBackgroundColour(constraint_row, col, grey_color)
+
+            # Make the highlighted rows visible
+            self.parent.peak_params_grid.MakeCellVisible(data_row, 0)
+
+            # Force refresh to show changes
+            self.parent.peak_params_grid.ForceRefresh()
+
+        except (RuntimeError, AttributeError):
+            # Grid may not be accessible, ignore silently
+            pass
+
+    def clear_peak_grid_highlights(self):
+        """Clear all peak highlighting in the peak fitting grid."""
+        if not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        try:
+            num_rows = self.parent.peak_params_grid.GetNumberRows()
+            num_cols = self.parent.peak_params_grid.GetNumberCols()
+
+            # Reset all backgrounds to default colors
+            for row in range(num_rows):
+                for col in range(num_cols):
+                    if row % 2 == 0:  # Data rows (even rows)
+                        self.parent.peak_params_grid.SetCellBackgroundColour(row, col, wx.WHITE)
+                    else:  # Constraint rows (odd rows)
+                        self.parent.peak_params_grid.SetCellBackgroundColour(row, col, wx.Colour(200, 245, 228))
+
+            self.parent.peak_params_grid.ForceRefresh()
+
+        except (RuntimeError, AttributeError):
+            # Grid may not be accessible, ignore silently
+            pass
 
 
     def get_linux_desktop(self):

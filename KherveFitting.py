@@ -707,16 +707,14 @@ class MyFrame(wx.Frame):
 
 
 
-
-
-
-
-
-
     def number_to_letter(n):
         return chr(65 + n)  # 65 is the ASCII value for 'A'
 
     def on_open_background_window(self):
+        # Close fitting window if it's open (using exact same pattern)
+        if hasattr(self, 'fitting_window') and self.fitting_window is not None:
+            self.fitting_window.Close()
+
         if not hasattr(self, 'background_window') or not self.background_window:
             self.background_window = BackgroundWindow(self)
 
@@ -737,12 +735,6 @@ class MyFrame(wx.Frame):
         self.background_window.Show()
         self.background_window.Raise()
 
-    def on_background_window_close_OLD(self, event):
-        save_state(self)
-        self.background_tab_selected = False
-        self.show_hide_vlines()
-        self.background_window = None
-        event.Skip()
 
     def on_background_window_close(self, event):
         """Handle area screen window closing - robust cleanup."""
@@ -829,6 +821,10 @@ class MyFrame(wx.Frame):
         self.show_hide_vlines()
 
     def on_open_fitting_window(self):
+        # Close background window if it's open (using exact same pattern)
+        if hasattr(self, 'background_window') and self.background_window is not None:
+            self.background_window.Close()
+
         save_state(self)
         if self.fitting_window is None or not self.fitting_window:
             self.fitting_window = FittingWindow(self)
@@ -846,11 +842,27 @@ class MyFrame(wx.Frame):
 
             self.fitting_window.SetPosition((x, y))
 
+            # Bind the close event (missing from original code)
+            self.fitting_window.Bind(wx.EVT_CLOSE, self.on_fitting_window_close)
+
             self.show_hide_vlines()
             self.peak_manipulation.deselect_all_peaks()
 
         self.fitting_window.Show()
         self.fitting_window.Raise()  # Bring the window to the front
+
+    def on_fitting_window_close(self, event):
+        """Handle fitting screen window closing - robust cleanup."""
+        save_state(self)
+
+        # Reset fitting states
+        self.background_tab_selected = False
+        self.peak_fitting_tab_selected = False
+        self.peak_manipulation.deselect_all_peaks()
+
+        # Clear window reference
+        self.fitting_window = None
+        event.Skip()
 
     def on_open_noise_analysis_window(self, event):
         if self.noise_analysis_window is None or not self.noise_analysis_window:
