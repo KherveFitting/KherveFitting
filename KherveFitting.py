@@ -2841,8 +2841,34 @@ class MyFrame(wx.Frame):
                 selected_rows.append(row)
         return selected_rows
 
+    def refresh_area_screen(self):
+        """Refresh area screen when sheet changes - quick open/close effect"""
+        if not (hasattr(self, 'background_window') and self.background_window is not None):
+            return
 
+        try:
+            # Update area screen vlines for new sheet
+            if hasattr(self.background_window, 'initialize_or_restore_area_vlines'):
+                self.background_window.initialize_or_restore_area_vlines()
 
+            # Update range controls to reflect new sheet data
+            if hasattr(self.background_window, 'update_range_controls_from_data'):
+                self.background_window.update_range_controls_from_data()
+
+            # Update background method combobox if needed
+            if hasattr(self.background_window, 'method_combobox'):
+                current_method = getattr(self, 'background_method', 'Multi-Regions Smart')
+                self.background_window.method_combobox.SetValue(current_method)
+
+            # Ensure vlines are visible
+            self.ensure_area_vlines_visible()
+
+            # Force canvas refresh
+            self.canvas.draw_idle()
+
+        except (RuntimeError, AttributeError):
+            # Window might be closing, ignore errors
+            pass
 
     def set_max_iterations(self, value):
         self.max_iterations = value

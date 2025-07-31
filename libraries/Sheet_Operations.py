@@ -413,6 +413,10 @@ def on_sheet_selected(window, event):
         if notebook:
             wx.CallAfter(window.fitting_window._switch_tabs_trick, notebook)
 
+    if (hasattr(window, 'background_window') and window.background_window is not None and
+            hasattr(window, 'area_tab_selected') and window.area_tab_selected):
+        wx.CallAfter(window.refresh_area_screen)
+
     # window.plot_manager.clear_and_replot(window)
 
 def on_grid_left_click(window, event):
