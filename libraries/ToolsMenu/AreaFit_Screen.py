@@ -123,12 +123,6 @@ class BackgroundWindow(wx.Frame):
         switch_vlines_button.SetToolTip(
             "Switch between plot range (10%-90%) and peak background ranges\nSame as pressing TAB key")
 
-        # reset_vlines_button = wx.Button(panel, label="Switch \nRegions")
-        # if 'wxMac' in wx.PlatformInfo:
-        #     reset_vlines_button.SetMinSize((125, 30))
-        # else:
-        #     reset_vlines_button.SetMinSize((125, 35))
-        # reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
 
         background_only_button = wx.Button(panel, label="Create\nBackground / Area")
@@ -138,12 +132,12 @@ class BackgroundWindow(wx.Frame):
             background_only_button.SetMinSize((125, 35))
         background_only_button.Bind(wx.EVT_BUTTON, self.on_background_only)
 
-        area_button = wx.Button(panel, label="Calculate\nArea")
-        if 'wxMac' in wx.PlatformInfo:
-            area_button.SetMinSize((90, 30))
-        else:
-            area_button.SetMinSize((90, 35))
-        area_button.Bind(wx.EVT_BUTTON, self.on_area)
+        # area_button = wx.Button(panel, label="Calculate\nArea")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     area_button.SetMinSize((90, 30))
+        # else:
+        #     area_button.SetMinSize((90, 35))
+        # area_button.Bind(wx.EVT_BUTTON, self.on_area)
 
         peak_label_text_label = wx.StaticText(panel, label="Area Name      ")
         self.peak_label_text = wx.TextCtrl(panel, value="")
@@ -181,38 +175,25 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.cross_section_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.cross_section, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            # Area row
-            area_box = wx.StaticBox(panel, label="Area Calculation")
-            area_sizer = wx.StaticBoxSizer(area_box, wx.VERTICAL)
 
+            sizer.Add(peak_label_text_label, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.peak_label_text, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            text_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            text_sizer.Add(peak_label_text_label, 0, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
-            # 5) # | wx.ALIGN_CENTER_VERTICAL, 5)
-            text_sizer.Add(self.peak_label_text, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
-            # 5) #| wx.EXPAND, 5)
+            # Export to result button and Remove Peak button
+            export_button = wx.Button(panel, label="Export to\nResult")
+            export_button.SetMinSize((90, 30))
+            export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
-            button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            button_sizer.Add(area_button, 1, flag=wx.ALL | wx.EXPAND, border=1)
-            button_sizer.Add(remove_peak_button, 1, flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(export_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            area_sizer.Add(text_sizer, 0, wx.EXPAND)
-            area_sizer.Add(button_sizer, 1, wx.EXPAND)
-
-            sizer.Add(area_sizer, pos=(9, 0), span=(2, 2), flag=wx.ALL | wx.EXPAND, border=1)
-
-            # sizer.Add(area_button, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            # sizer.Add(remove_peak_button, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(switch_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
+            sizer.Add(self.tougaard_fit_btn, pos=(13, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(switch_vlines_button, pos=(13, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            # Sixth row: Background and Clear Background buttons
-            # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            sizer.Add(background_only_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(clear_background_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(background_only_button, pos=(14, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(clear_background_button, pos=(14, 1), flag=wx.ALL | wx.EXPAND, border=1)
         else:  # For Windows
             # First row: Method
             sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -239,35 +220,27 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.cross_section, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
-            # Area row
-            area_box = wx.StaticBox(panel, label="Area Calculation")
-            area_sizer = wx.StaticBoxSizer(area_box, wx.VERTICAL)
+            sizer.Add(peak_label_text_label, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=0)
+            sizer.Add(self.peak_label_text, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
+            # Export to result button and Remove Peak button
+            export_button = wx.Button(panel, label="Export to\nResult")
+            export_button.SetMinSize((90, 35))
+            export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
-            text_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            text_sizer.Add(peak_label_text_label, 0, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
-            text_sizer.Add(self.peak_label_text, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=5)
-
-
-            button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            button_sizer.Add(area_button, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            button_sizer.Add(remove_peak_button, 1, flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-
-            area_sizer.Add(text_sizer, 0, wx.EXPAND)
-            area_sizer.Add(button_sizer, 1, wx.EXPAND)
-
-            sizer.Add(area_sizer, pos=(9, 0), span=(2, 2), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(export_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=0)
+            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(switch_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.tougaard_fit_btn, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(switch_vlines_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
             # Sixth row: Background and Clear Background buttons
             # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            sizer.Add(background_only_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(background_only_button, pos=(14, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(clear_background_button, pos=(14, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         # Initially disable all Tougaard controls
@@ -909,8 +882,9 @@ class BackgroundWindow(wx.Frame):
         save_state(self.parent)
 
     def on_export_results(self, event):
-        self.parent.export_results()
+        """Export results to main results grid"""
         save_state(self.parent)
+        self.parent.export_results()
 
     def on_offset_changed(self, event):
         try:
