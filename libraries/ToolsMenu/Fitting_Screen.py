@@ -707,13 +707,13 @@ class FittingWindow(wx.Frame):
             new_low = x_min + x_range / 15
             new_high = x_min + 14 * x_range / 15
 
-            # Update the data structure
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            if sheet_name in self.parent.Data['Core levels']:
-                if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
-                    self.parent.Data['Core levels'][sheet_name]['Background'] = {}
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_low)
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_high)
+            # # Update the data structure
+            # sheet_name = self.parent.sheet_combobox.GetValue()
+            # if sheet_name in self.parent.Data['Core levels']:
+            #     if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+            #         self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+            #     self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_low)
+            #     self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_high)
 
             # Update bg_min_energy and bg_max_energy
             self.parent.bg_min_energy = new_low
