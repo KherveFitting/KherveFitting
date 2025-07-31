@@ -113,17 +113,22 @@ class BackgroundWindow(wx.Frame):
             clear_background_button.SetMinSize((110, 35))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
-        # export_button = wx.Button(panel, label="Export to\nResults Grid")
-        # export_button.SetMinSize((60, 40))
-        # export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
-
-
-        reset_vlines_button = wx.Button(panel, label="Reset \nVertical Lines")
+        # Change the reset button to switch positions button
+        switch_vlines_button = wx.Button(panel, label="Switch \nRegions")
         if 'wxMac' in wx.PlatformInfo:
-            reset_vlines_button.SetMinSize((125, 30))
+            switch_vlines_button.SetMinSize((125, 30))
         else:
-            reset_vlines_button.SetMinSize((125, 35))
-        reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
+            switch_vlines_button.SetMinSize((125, 35))
+        switch_vlines_button.Bind(wx.EVT_BUTTON, self.on_switch_vlines)
+        switch_vlines_button.SetToolTip(
+            "Switch between plot range (10%-90%) and peak background ranges\nSame as pressing TAB key")
+
+        # reset_vlines_button = wx.Button(panel, label="Switch \nRegions")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     reset_vlines_button.SetMinSize((125, 30))
+        # else:
+        #     reset_vlines_button.SetMinSize((125, 35))
+        # reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
 
         background_only_button = wx.Button(panel, label="Create\nBackground / Area")
@@ -201,7 +206,7 @@ class BackgroundWindow(wx.Frame):
 
             # Seventh row: Remove peak and Export buttons
             sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(reset_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(switch_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
             # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
             # Sixth row: Background and Clear Background buttons
@@ -256,7 +261,7 @@ class BackgroundWindow(wx.Frame):
 
             # Seventh row: Remove peak and Export buttons
             sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(reset_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(switch_vlines_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
 
             # Sixth row: Background and Clear Background buttons
@@ -402,38 +407,42 @@ class BackgroundWindow(wx.Frame):
         self.on_reset_vlines(self)
         save_state(self.parent)
 
-    def on_reset_vlines(self, event):
-        # Calculate 1/15 and 14/15 positions
-        if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
-            x_min = min(self.parent.x_values)
-            x_max = max(self.parent.x_values)
-            x_range = x_max - x_min
+    def on_switch_vlines(self, event):
+        """Switch to next vertical line position - same as TAB key functionality."""
+        self.switch_to_next_peak()
 
-            new_low = x_min + x_range / 15
-            new_high = x_min + 14 * x_range / 15
-
-            # Update data structure
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            if sheet_name in self.parent.Data['Core levels']:
-                if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
-                    self.parent.Data['Core levels'][sheet_name]['Background'] = {}
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_low)
-                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_high)
-
-            self.parent.bg_min_energy = new_low
-            self.parent.bg_max_energy = new_high
-
-        # Reset vlines and recreate them
-        self.parent.vline1 = None
-        self.parent.vline2 = None
-        if hasattr(self.parent, 'vline1_text'):
-            self.parent.vline1_text = None
-        if hasattr(self.parent, 'vline2_text'):
-            self.parent.vline2_text = None
-
-        # Recreate vlines
-        self.initialize_or_restore_area_vlines()
-        self.parent.canvas.draw_idle()
+    # def on_reset_vlines(self, event):
+    #     # Calculate 1/15 and 14/15 positions
+    #     if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+    #         x_min = min(self.parent.x_values)
+    #         x_max = max(self.parent.x_values)
+    #         x_range = x_max - x_min
+    #
+    #         new_low = x_min + x_range / 15
+    #         new_high = x_min + 14 * x_range / 15
+    #
+    #         # Update data structure
+    #         sheet_name = self.parent.sheet_combobox.GetValue()
+    #         if sheet_name in self.parent.Data['Core levels']:
+    #             if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+    #                 self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+    #             self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_low)
+    #             self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_high)
+    #
+    #         self.parent.bg_min_energy = new_low
+    #         self.parent.bg_max_energy = new_high
+    #
+    #     # Reset vlines and recreate them
+    #     self.parent.vline1 = None
+    #     self.parent.vline2 = None
+    #     if hasattr(self.parent, 'vline1_text'):
+    #         self.parent.vline1_text = None
+    #     if hasattr(self.parent, 'vline2_text'):
+    #         self.parent.vline2_text = None
+    #
+    #     # Recreate vlines
+    #     self.initialize_or_restore_area_vlines()
+    #     self.parent.canvas.draw_idle()
 
         # Update range controls
         self.update_range_controls_from_data()
@@ -445,6 +454,29 @@ class BackgroundWindow(wx.Frame):
             self.parent.vline2.set_visible(not self.parent.vline2.get_visible())
         self.parent.canvas.draw_idle()
 
+    def clear_background_between_range(self, bg_low, bg_high):
+        """Clear background between specified range - same logic as Fitting_Screen."""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if sheet_name in self.parent.Data['Core levels']:
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+            if 'Background' in core_level_data and 'Bkg Y' in core_level_data['Background']:
+                # Use the exact same logic as on_clear_between_vlines from Fitting_Screen
+                x_values = np.array(self.parent.x_values)
+                raw_data = np.array(core_level_data['Raw Data'])
+                background = np.array(core_level_data['Background']['Bkg Y'])
+
+                # Create mask for the range to clear
+                mask = (x_values >= min(bg_low, bg_high)) & (x_values <= max(bg_low, bg_high))
+
+                # Set background equal to raw data in the specified range (clears the background)
+                background[mask] = raw_data[mask]
+
+                # Update the data structure
+                core_level_data['Background']['Bkg Y'] = background.tolist()
+                self.parent.background = background
+
+                # Replot to show the cleared background
+                self.parent.clear_and_replot()
 
     def on_background_only(self, event):
         """Create background and calculate area - combines both functionalities."""
@@ -465,6 +497,53 @@ class BackgroundWindow(wx.Frame):
         # Store vline positions BEFORE plotting background (they will get destroyed)
         vline1_x = self.parent.vline1.get_xdata()[0]
         vline2_x = self.parent.vline2.get_xdata()[0]
+
+        # Generate area name from text field or auto-detect (moved up to check early)
+        # Check if this is Survey data
+        sheet_name_lower = sheet_name.lower()
+        is_survey = any(x in sheet_name_lower for x in ['survey', 'wide'])
+
+        area_name = self.peak_label_text.GetValue().strip()
+        if not area_name:
+            # Auto-detect from sheet name
+            if is_survey:
+                # For Survey: use format "C1s ." instead of "C1s p1"
+                base_name = sheet_name.replace('Survey', '').replace('Wide', '').strip()
+                if not base_name:
+                    # If no base name, try to detect from vline positions
+                    center_position = (vline1_x + vline2_x) / 2
+                    # You could add element detection logic here based on BE position
+                    area_name = f"Unknown ."
+                else:
+                    area_name = f"{base_name} ."
+            else:
+                # For regular core levels: use existing format
+                grid = self.parent.peak_params_grid
+                num_peaks = grid.GetNumberRows() // 2
+                area_name = f"{sheet_name} p{num_peaks + 1}"
+        else:
+            # Use the area name from text field
+            if is_survey and not area_name.endswith(' .'):
+                area_name = f"{area_name} ."
+
+        # CHECK IF AREA ALREADY EXISTS AND CLEAR PREVIOUS RANGE
+        grid = self.parent.peak_params_grid
+        existing_row = -1
+        for row in range(0, grid.GetNumberRows(), 2):
+            if grid.GetCellValue(row, 1) == area_name:
+                existing_row = row
+                break
+
+        if existing_row >= 0:
+            # Area exists - get previous range and clear background there
+            prev_bg_low = float(grid.GetCellValue(existing_row, 15))  # Bkg Low
+            prev_bg_high = float(grid.GetCellValue(existing_row, 16))  # Bkg High
+
+            print(
+                f"Area '{area_name}' already exists. Clearing previous background range {prev_bg_low:.2f} - {prev_bg_high:.2f}")
+
+            # Clear background between previous range using the same logic as Fitting_Screen
+            self.clear_background_between_range(prev_bg_low, prev_bg_high)
 
         # Calculate background first using plot_manager
         self.parent.plot_manager.plot_background(self.parent)
@@ -508,46 +587,7 @@ class BackgroundWindow(wx.Frame):
         peak_height = round(peak_height, 2)
         fwhm = round(fwhm, 2)
 
-        # Find next available peak letter
-        grid = self.parent.peak_params_grid
-        num_peaks = grid.GetNumberRows() // 2
-        # peak_letter = chr(65 + num_peaks)
-
-        # Check if this is Survey data
-        sheet_name_lower = sheet_name.lower()
-        is_survey = any(x in sheet_name_lower for x in ['survey', 'wide'])
-
-        # Generate area name from text field or auto-detect
-        area_name = self.peak_label_text.GetValue().strip()
-        if not area_name:
-            # Auto-detect from sheet name
-            if is_survey:
-                # For Survey: use format "C1s ." instead of "C1s p1"
-                base_name = sheet_name.replace('Survey', '').replace('Wide', '').strip()
-                if not base_name:
-                    # If no base name, try to detect from vline positions
-                    center_position = (vline1_x + vline2_x) / 2
-                    # You could add element detection logic here based on BE position
-                    area_name = f"Unknown ."
-                else:
-                    area_name = f"{base_name} ."
-            else:
-                # For regular core levels: use existing format
-                num_peaks = grid.GetNumberRows() // 2
-                area_name = f"{sheet_name} p{num_peaks + 1}"
-        else:
-            # Use the area name from text field
-            if is_survey and not area_name.endswith(' .'):
-                area_name = f"{area_name} ."
-
-        # Check if peak with this name already exists and overwrite
-        grid = self.parent.peak_params_grid
-        existing_row = -1
-        for row in range(0, grid.GetNumberRows(), 2):
-            if grid.GetCellValue(row, 1) == area_name:
-                existing_row = row
-                break
-
+        # Use existing logic for peak creation/overwriting
         if existing_row >= 0:
             # Overwrite existing peak
             row = existing_row
@@ -622,13 +662,10 @@ class BackgroundWindow(wx.Frame):
             }
         }
 
-
         # Fill area between curves
         self.parent.ax.fill_between(x_range, bg_range, y_range,
                                     facecolor='lightgreen', alpha=0.5,
                                     label=area_name)
-
-
 
         # RESTORE VLINES AND MOUSE INTERACTION - THIS IS THE KEY FIX!
         # The plot_background method calls clear_and_replot which removes vlines AND disconnects mouse handlers
@@ -655,10 +692,6 @@ class BackgroundWindow(wx.Frame):
         if self.parent.show_fit and self.parent.peak_params_grid.GetNumberRows() > 0:
             self.parent.clear_and_replot()  # Add fit and residuals if show_fit is True
 
-        # self.parent.disable_area_interaction()
-        # self.parent.enable_area_interaction()
-
-
         self.parent.plot_config.update_plot_limits(self.parent, sheet_name)
         self.parent.plot_manager.update_legend(self.parent)
 
@@ -683,6 +716,8 @@ class BackgroundWindow(wx.Frame):
         print(f"Area: {area:.2f}")
         print(f"Background Type: {selected_method}")
         print(f"Range: {range_min:.2f} - {range_max:.2f} eV")
+
+        save_state(self.parent)
 
 
     def on_bkg_method_change(self, event):
@@ -976,11 +1011,24 @@ class BackgroundWindow(wx.Frame):
         if self.parent.vline1 is not None and self.parent.vline2 is not None:
             # Get y-axis range for positioning
             y_min, y_max = self.parent.ax.get_ylim()
-            text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
+            y_range = y_max - y_min
 
             # Get vline positions and round to 2 digits
             vline1_x = round(self.parent.vline1.get_xdata()[0], 2)
             vline2_x = round(self.parent.vline2.get_xdata()[0], 2)
+
+            # Determine which is high BE and which is low BE
+            if vline1_x > vline2_x:
+                high_be_x, low_be_x = vline1_x, vline2_x
+                high_be_vline, low_be_vline = 'vline1', 'vline2'
+            else:
+                high_be_x, low_be_x = vline2_x, vline1_x
+                high_be_vline, low_be_vline = 'vline2', 'vline1'
+
+            # Position high BE text at 90% of Y axis
+            high_be_text_y = y_min + 0.9 * y_range
+            # Position low BE text 10% lower (80% of Y axis)
+            low_be_text_y = y_min + 0.8 * y_range
 
             # Remove existing text if any
             if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text is not None:
@@ -994,18 +1042,29 @@ class BackgroundWindow(wx.Frame):
                 except:
                     pass
 
-            # Create new text labels with 2 decimal places
-            self.parent.vline1_text = self.parent.ax.text(vline1_x, text_y, f'{vline1_x:.2f}',
-                                                          ha='center', va='center',
-                                                          color='grey', fontsize=10,
-                                                          bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                                                    alpha=0.8))
-
-            self.parent.vline2_text = self.parent.ax.text(vline2_x, text_y, f'{vline2_x:.2f}',
-                                                          ha='center', va='center',
-                                                          color='grey', fontsize=10,
-                                                          bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                                                    alpha=0.8))
+            # Create text labels with appropriate heights
+            if high_be_vline == 'vline1':
+                self.parent.vline1_text = self.parent.ax.text(vline1_x, high_be_text_y, f'{vline1_x:.2f}',
+                                                              ha='center', va='center',
+                                                              color='grey', fontsize=10,
+                                                              bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                                                        alpha=0.8))
+                self.parent.vline2_text = self.parent.ax.text(vline2_x, low_be_text_y, f'{vline2_x:.2f}',
+                                                              ha='center', va='center',
+                                                              color='grey', fontsize=10,
+                                                              bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                                                        alpha=0.8))
+            else:
+                self.parent.vline1_text = self.parent.ax.text(vline1_x, low_be_text_y, f'{vline1_x:.2f}',
+                                                              ha='center', va='center',
+                                                              color='grey', fontsize=10,
+                                                              bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                                                        alpha=0.8))
+                self.parent.vline2_text = self.parent.ax.text(vline2_x, high_be_text_y, f'{vline2_x:.2f}',
+                                                              ha='center', va='center',
+                                                              color='grey', fontsize=10,
+                                                              bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                                                        alpha=0.8))
 
     def update_vline_text_labels(self):
         """Update the text labels when vlines are moved."""
@@ -1014,18 +1073,31 @@ class BackgroundWindow(wx.Frame):
                 hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None):
             # Get y-axis range for positioning
             y_min, y_max = self.parent.ax.get_ylim()
-            text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
+            y_range = y_max - y_min
 
             # Get current vline positions and round to 2 digits
             vline1_x = round(self.parent.vline1.get_xdata()[0], 2)
             vline2_x = round(self.parent.vline2.get_xdata()[0], 2)
 
-            # Update text positions and values
-            self.parent.vline1_text.set_position((vline1_x, text_y))
-            self.parent.vline1_text.set_text(f'{vline1_x:.2f}')
+            # Determine which is high BE and which is low BE
+            if vline1_x > vline2_x:
+                high_be_text_y = y_min + 0.9 * y_range  # High BE at 90%
+                low_be_text_y = y_min + 0.8 * y_range  # Low BE at 80%
 
-            self.parent.vline2_text.set_position((vline2_x, text_y))
-            self.parent.vline2_text.set_text(f'{vline2_x:.2f}')
+                # vline1 is high BE, vline2 is low BE
+                self.parent.vline1_text.set_position((vline1_x, high_be_text_y))
+                self.parent.vline1_text.set_text(f'{vline1_x:.2f}')
+                self.parent.vline2_text.set_position((vline2_x, low_be_text_y))
+                self.parent.vline2_text.set_text(f'{vline2_x:.2f}')
+            else:
+                high_be_text_y = y_min + 0.9 * y_range  # High BE at 90%
+                low_be_text_y = y_min + 0.8 * y_range  # Low BE at 80%
+
+                # vline2 is high BE, vline1 is low BE
+                self.parent.vline1_text.set_position((vline1_x, low_be_text_y))
+                self.parent.vline1_text.set_text(f'{vline1_x:.2f}')
+                self.parent.vline2_text.set_position((vline2_x, high_be_text_y))
+                self.parent.vline2_text.set_text(f'{vline2_x:.2f}')
 
             # Auto-detect area name when vlines move
             self.auto_detect_area_name(vline1_x, vline2_x)
@@ -1260,7 +1332,7 @@ class BackgroundWindow(wx.Frame):
         event.Skip()  # Let other keys pass through
 
     def switch_to_next_peak(self):
-        """Switch to next peak and move vlines to its background range."""
+        """Switch to next position: 0=plot range 10%-90%, then peak background ranges."""
         sheet_name = self.parent.sheet_combobox.GetValue()
 
         # Check if we have peaks in the fitting data
@@ -1272,33 +1344,42 @@ class BackgroundWindow(wx.Frame):
         peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
         peak_keys = list(peaks.keys())
 
-        if not peak_keys:
-            return
+        # Initialize position index if not exists
+        if not hasattr(self, 'current_position_index'):
+            self.current_position_index = -1  # Start at -1 so first press goes to position 0
 
-        # Cycle through peaks (fix for last peak)
-        if not hasattr(self, 'current_peak_index'):
-            self.current_peak_index = 0
+        # Total positions = 1 (plot range) + number of peaks
+        total_positions = 1 + len(peak_keys)
 
-        self.current_peak_index = (self.current_peak_index + 1) % len(peak_keys)
-        current_peak_key = peak_keys[self.current_peak_index]
-        current_peak = peaks[current_peak_key]
+        # Move to next position
+        self.current_position_index = (self.current_position_index + 1) % total_positions
 
-        # Get background range for this peak
-        if 'Bkg Low' in current_peak and 'Bkg High' in current_peak:
-            bkg_low = float(current_peak['Bkg Low'])
-            bkg_high = float(current_peak['Bkg High'])
+        if self.current_position_index == 0:
+            # Position 0: Use 10%-90% of current plot range
+            plot_range = self.get_plot_range_positions()
+            if plot_range:
+                low_pos, high_pos = plot_range
+                self.move_vlines_to_range(low_pos, high_pos)
+                self.update_range_controls_silent(low_pos, high_pos)
+                self.show_position_feedback("Plot Range (10%-90%)", low_pos, high_pos)
+        else:
+            # Position 1+: Use peak background ranges
+            peak_index = self.current_position_index - 1
+            if peak_index < len(peak_keys):
+                current_peak_key = peak_keys[peak_index]
+                current_peak = peaks[current_peak_key]
 
-            # Move vlines to the background range
-            self.move_vlines_to_range(bkg_low, bkg_high)
+                if 'Bkg Low' in current_peak and 'Bkg High' in current_peak:
+                    bkg_low = float(current_peak['Bkg Low'])
+                    bkg_high = float(current_peak['Bkg High'])
 
-            # Update the range controls WITHOUT triggering events
-            self.update_range_controls_silent(bkg_low, bkg_high)
-
-            # Show visual feedback
-            self.show_peak_selection_feedback(current_peak_key, bkg_low, bkg_high)
+                    self.move_vlines_to_range(bkg_low, bkg_high)
+                    self.update_range_controls_silent(bkg_low, bkg_high)
+                    self.show_position_feedback(current_peak_key, bkg_low, bkg_high)
+                    self.highlight_peak_in_grid(current_peak_key)
 
     def switch_to_previous_peak(self):
-        """Switch to previous peak and move vlines to its background range."""
+        """Switch to previous position: 0=plot range 10%-90%, then peak background ranges."""
         sheet_name = self.parent.sheet_combobox.GetValue()
 
         # Check if we have peaks in the fitting data
@@ -1310,30 +1391,69 @@ class BackgroundWindow(wx.Frame):
         peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
         peak_keys = list(peaks.keys())
 
-        if not peak_keys:
-            return
+        # Initialize position index if not exists
+        if not hasattr(self, 'current_position_index'):
+            self.current_position_index = 1  # Start at 1 so first press goes to position 0
 
-        # Cycle through peaks backwards (fix for going to previous peak)
-        if not hasattr(self, 'current_peak_index'):
-            self.current_peak_index = 0
+        # Total positions = 1 (plot range) + number of peaks
+        total_positions = 1 + len(peak_keys)
 
-        self.current_peak_index = (self.current_peak_index - 1) % len(peak_keys)
-        current_peak_key = peak_keys[self.current_peak_index]
-        current_peak = peaks[current_peak_key]
+        # Move to previous position
+        self.current_position_index = (self.current_position_index - 1) % total_positions
 
-        # Get background range for this peak
-        if 'Bkg Low' in current_peak and 'Bkg High' in current_peak:
-            bkg_low = float(current_peak['Bkg Low'])
-            bkg_high = float(current_peak['Bkg High'])
+        if self.current_position_index == 0:
+            # Position 0: Use 10%-90% of current plot range
+            plot_range = self.get_plot_range_positions()
+            if plot_range:
+                low_pos, high_pos = plot_range
+                self.move_vlines_to_range(low_pos, high_pos)
+                self.update_range_controls_silent(low_pos, high_pos)
+                self.show_position_feedback("Plot Range (10%-90%)", low_pos, high_pos)
+        else:
+            # Position 1+: Use peak background ranges
+            peak_index = self.current_position_index - 1
+            if peak_index < len(peak_keys):
+                current_peak_key = peak_keys[peak_index]
+                current_peak = peaks[current_peak_key]
 
-            # Move vlines to the background range
-            self.move_vlines_to_range(bkg_low, bkg_high)
+    def get_plot_range_positions(self):
+        """Get 10% and 90% positions of current plot X-axis range."""
+        try:
+            # Get current X-axis limits from the plot
+            if hasattr(self.parent, 'ax') and self.parent.ax:
+                xlim = self.parent.ax.get_xlim()
+                x_min, x_max = xlim
 
-            # Update the range controls WITHOUT triggering events
-            self.update_range_controls_silent(bkg_low, bkg_high)
+                # Calculate the range
+                x_range = x_max - x_min
 
-            # Show visual feedback
-            self.show_peak_selection_feedback(current_peak_key, bkg_low, bkg_high)
+                # Calculate 10% and 90% positions
+                low_pos = x_min + (0.1 * x_range)  # 10% from left
+                high_pos = x_min + (0.9 * x_range)  # 90% from left
+
+                # Ensure proper order (BE scale is usually decreasing)
+                if low_pos > high_pos:
+                    low_pos, high_pos = high_pos, low_pos
+
+                return (low_pos, high_pos)
+
+        except (AttributeError, Exception):
+            # Fallback to data range if plot limits not available
+            sheet_name = self.parent.sheet_combobox.GetValue()
+            if sheet_name in self.parent.Data['Core levels']:
+                x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                if x_values:
+                    x_min, x_max = min(x_values), max(x_values)
+                    x_range = x_max - x_min
+                    low_pos = x_min + (0.1 * x_range)
+                    high_pos = x_min + (0.9 * x_range)
+
+                    if low_pos > high_pos:
+                        low_pos, high_pos = high_pos, low_pos
+
+                    return (low_pos, high_pos)
+
+        return None
 
     def move_vlines_to_range(self, bkg_low, bkg_high):
         """Move vlines to specified background range."""
@@ -1399,20 +1519,25 @@ class BackgroundWindow(wx.Frame):
             self.min_range_text.SetValue(f"{min(bkg_low, bkg_high):.2f}")
             self.max_range_text.SetValue(f"{max(bkg_low, bkg_high):.2f}")
 
-    def show_peak_selection_feedback(self, peak_key, bkg_low, bkg_high):
-        """Show visual feedback for peak selection."""
-        # Update window title to show current peak
-        min_val = min(bkg_low, bkg_high)
-        max_val = max(bkg_low, bkg_high)
-        self.SetTitle(f"Measure Area - {peak_key}")
+    def show_position_feedback(self, identifier, low_pos, high_pos):
+        """Show visual feedback for current position."""
+        min_val = min(low_pos, high_pos)
+        max_val = max(low_pos, high_pos)
+        if identifier == "Plot Range (10%-90%)":
+            self.SetTitle(
+                f"Measure Area - 10%-90%")
+            # Clear peak highlighting for plot range position
+            self.clear_peak_grid_highlights()
+        else:
+            self.SetTitle(f"Measure Area - {identifier}")
 
         # Highlight the corresponding peak in the grid
-        self.highlight_peak_in_grid(peak_key)
+        self.highlight_peak_in_grid(identifier)
 
     def Show(self, show=True):
         """Override Show to reset peak selection when window opens."""
         if show:
-            self.current_peak_index = 0  # Reset to first peak when opening
+            self.current_peak_index = -1  # Reset to first peak when opening
             self.clear_peak_grid_highlights()  # Clear any existing highlights
         super().Show(show)
 
@@ -1454,8 +1579,8 @@ class BackgroundWindow(wx.Frame):
                 self.parent.peak_params_grid.SetCellBackgroundColour(data_row, col, grey_color)
 
             # Highlight constraint row
-            for col in range(num_cols):
-                self.parent.peak_params_grid.SetCellBackgroundColour(constraint_row, col, grey_color)
+            # for col in range(num_cols):
+            #     self.parent.peak_params_grid.SetCellBackgroundColour(constraint_row, col, grey_color)
 
             # Make the highlighted rows visible
             self.parent.peak_params_grid.MakeCellVisible(data_row, 0)

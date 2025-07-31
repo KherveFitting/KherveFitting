@@ -913,6 +913,12 @@ class MyFrame(wx.Frame):
     def adjust_plot_limits(self, axis, direction):
         self.plot_config.adjust_plot_limits(self, axis, direction)
 
+        # canvas.draw_idle()
+        self.canvas.draw_idle()
+
+        # Refresh vline text labels after plot adjustment
+        self.refresh_vline_text_labels()
+
     def update_constraint(self, event):
         row = event.GetRow()
         col = event.GetCol()
@@ -1908,11 +1914,24 @@ class MyFrame(wx.Frame):
         if self.vline1 is not None and self.vline2 is not None:
             # Get y-axis range for positioning
             y_min, y_max = self.ax.get_ylim()
-            text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
+            y_range = y_max - y_min
 
             # Get vline positions and round to 2 digits
             vline1_x = round(self.vline1.get_xdata()[0], 2)
             vline2_x = round(self.vline2.get_xdata()[0], 2)
+
+            # Determine which is high BE and which is low BE
+            if vline1_x > vline2_x:
+                high_be_x, low_be_x = vline1_x, vline2_x
+                high_be_vline, low_be_vline = 'vline1', 'vline2'
+            else:
+                high_be_x, low_be_x = vline2_x, vline1_x
+                high_be_vline, low_be_vline = 'vline2', 'vline1'
+
+            # Position high BE text at 90% of Y axis
+            high_be_text_y = y_min + 0.9 * y_range
+            # Position low BE text 10% lower (80% of Y axis)
+            low_be_text_y = y_min + 0.8 * y_range
 
             # Remove existing text if any
             if self.vline1_text is not None:
@@ -1926,34 +1945,56 @@ class MyFrame(wx.Frame):
                 except:
                     pass
 
-            # Create new text labels with 2 decimal places
-            self.vline1_text = self.ax.text(vline1_x, text_y, f'{vline1_x:.2f}',
-                                            ha='center', va='center',
-                                            color='grey', fontsize=10,
-                                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
-
-            self.vline2_text = self.ax.text(vline2_x, text_y, f'{vline2_x:.2f}',
-                                            ha='center', va='center',
-                                            color='grey', fontsize=10,
-                                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+            # Create text labels with appropriate heights
+            if high_be_vline == 'vline1':
+                self.vline1_text = self.ax.text(vline1_x, high_be_text_y, f'{vline1_x:.2f}',
+                                                ha='center', va='center',
+                                                color='grey', fontsize=10,
+                                                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+                self.vline2_text = self.ax.text(vline2_x, low_be_text_y, f'{vline2_x:.2f}',
+                                                ha='center', va='center',
+                                                color='grey', fontsize=10,
+                                                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+            else:
+                self.vline1_text = self.ax.text(vline1_x, low_be_text_y, f'{vline1_x:.2f}',
+                                                ha='center', va='center',
+                                                color='grey', fontsize=10,
+                                                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+                self.vline2_text = self.ax.text(vline2_x, high_be_text_y, f'{vline2_x:.2f}',
+                                                ha='center', va='center',
+                                                color='grey', fontsize=10,
+                                                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
 
     def update_vline_text_labels(self):
         """Update the text labels when vlines are moved."""
         if self.vline1 is not None and self.vline2 is not None and self.vline1_text is not None and self.vline2_text is not None:
             # Get y-axis range for positioning
             y_min, y_max = self.ax.get_ylim()
-            text_y = y_min + 0.9 * (y_max - y_min)  # 9/10 of Y axis
+            y_range = y_max - y_min
 
             # Get current vline positions and round to 2 digits
             vline1_x = round(self.vline1.get_xdata()[0], 2)
             vline2_x = round(self.vline2.get_xdata()[0], 2)
 
-            # Update text positions and values
-            self.vline1_text.set_position((vline1_x, text_y))
-            self.vline1_text.set_text(f'{vline1_x:.2f}')
+            # Determine which is high BE and which is low BE
+            if vline1_x > vline2_x:
+                high_be_text_y = y_min + 0.9 * y_range  # High BE at 90%
+                low_be_text_y = y_min + 0.8 * y_range  # Low BE at 80%
 
-            self.vline2_text.set_position((vline2_x, text_y))
-            self.vline2_text.set_text(f'{vline2_x:.2f}')
+                # vline1 is high BE, vline2 is low BE
+                self.vline1_text.set_position((vline1_x, high_be_text_y))
+                self.vline1_text.set_text(f'{vline1_x:.2f}')
+                self.vline2_text.set_position((vline2_x, low_be_text_y))
+                self.vline2_text.set_text(f'{vline2_x:.2f}')
+            else:
+                high_be_text_y = y_min + 0.9 * y_range  # High BE at 90%
+                low_be_text_y = y_min + 0.8 * y_range  # Low BE at 80%
+
+                # vline2 is high BE, vline1 is low BE
+                self.vline1_text.set_position((vline1_x, low_be_text_y))
+                self.vline1_text.set_text(f'{vline1_x:.2f}')
+                self.vline2_text.set_position((vline2_x, high_be_text_y))
+                self.vline2_text.set_text(f'{vline2_x:.2f}')
 
     def remove_vline_text_labels(self):
         """Remove vline text labels."""
@@ -1969,6 +2010,22 @@ class MyFrame(wx.Frame):
             except:
                 pass
             self.vline2_text = None
+
+    def refresh_vline_text_labels(self):
+        """Refresh vline text labels after zoom/plot operations."""
+        # Check if vlines exist and screens are active
+        if (self.vline1 is not None and self.vline2 is not None and
+                (self.background_tab_selected or
+                 (hasattr(self, 'area_tab_selected') and self.area_tab_selected))):
+
+            # Update main window vline text labels
+            if hasattr(self, 'update_vline_text_labels'):
+                self.update_vline_text_labels()
+
+            # Update area screen vline text labels if open
+            if (hasattr(self, 'background_window') and self.background_window is not None and
+                    hasattr(self.background_window, 'update_vline_text_labels')):
+                self.background_window.update_vline_text_labels()
 
     def remove_background_vlines(self):
         """Completely remove background vlines from the plot"""
@@ -2076,9 +2133,10 @@ class MyFrame(wx.Frame):
             if self.background_method == "Multi-Regions Smart":
                 self.plot_manager.plot_background(self)
 
-
     def on_zoom_in_tool(self, event):
         self.plot_config.on_zoom_in_tool(self)
+        # Refresh vline text labels after zoom
+        self.refresh_vline_text_labels()
 
     def on_zoom_select(self, eclick, erelease):
         self.plot_config.on_zoom_select(self, eclick, erelease)
@@ -2092,6 +2150,8 @@ class MyFrame(wx.Frame):
 
     def on_zoom_out(self, event):
         self.plot_config.on_zoom_out(self)
+        # Refresh vline text labels after zoom
+        self.refresh_vline_text_labels()
 
     def on_drag_tool(self, event):
         self.plot_config.on_drag_tool(self)

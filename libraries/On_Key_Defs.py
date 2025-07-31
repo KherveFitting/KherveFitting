@@ -283,14 +283,35 @@ class KeyEventHandlers:
         if keycode == wx.WXK_TAB:
             import time
             current_time = time.time()
-            # Only show popup if 10+ seconds have passed since last one
-            if not self.main_frame.peak_fitting_tab_selected and (current_time - self.main_frame.last_popup_time > 10):
+
+            # Check if AreaFit Screen is open and active
+            if (hasattr(self.main_frame, 'background_window') and
+                    self.main_frame.background_window is not None and
+                    hasattr(self.main_frame, 'area_tab_selected') and
+                    self.main_frame.area_tab_selected):
+                # AreaFit Screen is open - switch to next peak position
+                self.main_frame.background_window.switch_to_next_peak()
+                return True
+
+            # Original logic for peak fitting tab
+            elif not self.main_frame.peak_fitting_tab_selected and (
+                    current_time - self.main_frame.last_popup_time > 10):
                 self.main_frame.show_popup_message("Open the Peak Fitting Tab to move or select a peak")
                 self.main_frame.last_popup_time = current_time
             elif self.main_frame.peak_fitting_tab_selected:
                 self.main_frame.peak_manipulation.change_selected_peak(1)  # Move to next peak
             return True
         elif keycode == ord('Q'):
+            # Check if AreaFit Screen is open and active
+            if (hasattr(self.main_frame, 'background_window') and
+                    self.main_frame.background_window is not None and
+                    hasattr(self.main_frame, 'area_tab_selected') and
+                    self.main_frame.area_tab_selected):
+                # AreaFit Screen is open - switch to previous peak position
+                self.main_frame.background_window.switch_to_previous_peak()
+                return True
+
+            # Original logic for peak fitting
             if not self.main_frame.peak_fitting_tab_selected:
                 self.main_frame.show_popup_message("Open the Peak Fitting Tab to move or select a peak")
             else:
@@ -348,6 +369,9 @@ class KeyEventHandlers:
 
         self.main_frame.canvas.draw_idle()
 
+        # Refresh vline text labels after zoom
+        self.main_frame.refresh_vline_text_labels()
+
     def _handle_ctrl_arrow_keys(self, keycode):
         """Handle Ctrl+Arrow keys for plot movement"""
         sheet_name = self.main_frame.sheet_combobox.GetValue()
@@ -371,6 +395,9 @@ class KeyEventHandlers:
         self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
 
         self.main_frame.canvas.draw_idle()
+
+        # Refresh vline text labels after plot movement
+        self.main_frame.refresh_vline_text_labels()
 
     def _handle_ctrl_up_down_keys(self, keycode):
         """Handle Ctrl+Up/Down keys for intensity adjustment"""
@@ -415,6 +442,9 @@ class KeyEventHandlers:
                                                                                                   edgecolor='none'))
 
         self.main_frame.canvas.draw_idle()
+
+        # Refresh vline text labels after intensity adjustment
+        self.main_frame.refresh_vline_text_labels()
 
 
 def setup_key_handlers(main_frame):

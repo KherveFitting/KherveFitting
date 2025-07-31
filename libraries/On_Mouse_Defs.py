@@ -420,6 +420,11 @@ class MouseEventHandler:
                 new_sheet = self.window.sheet_combobox.GetString(new_index)
                 on_sheet_selected(self.window, new_sheet)
 
+        self.window.canvas.draw_idle()
+
+        # Refresh vline text labels after mouse wheel zoom
+        self.window.refresh_vline_text_labels()
+
     def on_motion(self, event):
         if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
             x_click = event.xdata
