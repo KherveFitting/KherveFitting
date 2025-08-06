@@ -430,6 +430,7 @@ class MouseEventHandler:
             x_click = event.xdata
             sheet_name = self.window.sheet_combobox.GetValue()
             if self.window.vline1 is not None and self.window.vline2 is not None:
+                # Store vline positions before plotting background
                 vline1_x = self.window.vline1.get_xdata()[0]
                 vline2_x = self.window.vline2.get_xdata()[0]
 
@@ -472,7 +473,25 @@ class MouseEventHandler:
                             'Bkg Offset High'] = self.window.offset_h
                         self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
 
+                # Plot background (this destroys vlines)
                 self.window.plot_manager.plot_background(self.window)
+
+                # Restore vlines after background plotting
+                self.window.vline1 = self.window.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+                self.window.vline2 = self.window.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+                # Update vline text labels if they exist
+                if hasattr(self.window, 'update_vline_text_labels'):
+                    self.window.update_vline_text_labels()
+
+                # Update range controls in fitting window
+                if (hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None and
+                        hasattr(self.window.fitting_window, 'update_range_controls_from_data')):
+                    self.window.fitting_window.update_range_controls_from_data()
+
+                # Redraw canvas
+                self.window.canvas.draw_idle()
+            return
         elif event.inaxes and self.window.moving_vline is not None:
             x_click = event.xdata
             self.window.moving_vline.set_xdata([x_click])
@@ -1259,8 +1278,12 @@ class MouseEventHandler:
     def create_peak_data_for_model(self, model_name, peak_x, peak_y, sheet_name):
         """Create peak data structure for specific model"""
         # Get background range
-        bg_low = self.window.bg_min_energy
-        bg_high = self.window.bg_max_energy
+        if (hasattr(self.window, 'fitting_window') and
+                hasattr(self.window.fitting_window, 'get_overall_background_range')):
+            bg_low, bg_high = self.window.fitting_window.get_overall_background_range()
+        else:
+            bg_low = self.window.bg_min_energy
+            bg_high = self.window.bg_max_energy
         position_constraint = f"{bg_low:.2f},{bg_high:.2f}"
 
         # Base peak data

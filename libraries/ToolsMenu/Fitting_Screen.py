@@ -169,6 +169,9 @@ class FittingWindow(wx.Frame):
         # Add this flag to prevent recursive updates
         self.updating_range_controls = False
 
+        # Add active range tracking (after creating range boxes)
+        self.active_range_index = -1  # -1 means no active range, 0+ means active range index
+
         # Initialize with current vline positions from data
         self.update_range_controls_from_data()
 
@@ -187,7 +190,7 @@ class FittingWindow(wx.Frame):
         self.cross_section.Bind(wx.EVT_TEXT, self.on_cross_section_change)
 
         # Range selection boxes (after self.cross_section creation)
-        self.range_boxes_label = wx.StaticText(self.background_panel, label='Recorded Ranges:')
+        self.range_boxes_label = wx.StaticText(self.background_panel, label='Recorded Regions:')
         self.range_boxes_panel = wx.Panel(self.background_panel)
         self.range_boxes_panel.SetMinSize((-1, 50))  # Allow for 2 rows of buttons with spacing
 
@@ -232,7 +235,7 @@ class FittingWindow(wx.Frame):
                 # self.cross_section2.SetValue(','.join(map(str, saved_values2)))
                 # self.cross_section2.SetValue(','.join(map(str, saved_values3)))
 
-        background_button = wx.Button(self.background_panel, label="Create\nBackground")
+        background_button = wx.Button(self.background_panel, label="Create\nRegion")
         if 'wxMac' in wx.PlatformInfo:
             background_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -716,21 +719,6 @@ class FittingWindow(wx.Frame):
             self.tougaard_fit_btn.Enable(False)
         self.background_panel.Layout()
 
-    # def on_clear_background(self, event):
-    #     # Show confirmation dialog
-    #     dlg = wx.MessageDialog(self,
-    #                            "Are you sure you want to clear all background data and recorded ranges?",
-    #                            "Clear Background", wx.YES_NO | wx.ICON_QUESTION)
-    #
-    #     if dlg.ShowModal() == wx.ID_YES:
-    #         # Clear recorded ranges
-    #         self.clear_recorded_ranges_from_data()
-    #         self.update_range_boxes()
-    #
-    #         # Existing clear background code
-    #         self.parent.plot_manager.clear_background(self.parent)
-    #
-    #     dlg.Destroy()
 
     def on_notebook_page_changed(self, event):
         """Handle notebook page changes to initialize ranges when background tab is selected"""
@@ -906,6 +894,9 @@ class FittingWindow(wx.Frame):
             # wx.MessageBox("Please create a background first.", "No Background", wx.OK | wx.ICON_WARNING)
             self.parent.show_popup_message2("No Background", "Please create a background first.")
             return
+
+        # Get overall background range for doublet creation
+        overall_bg_low, overall_bg_high = self.get_overall_background_range()
 
         sheet_name = self.parent.sheet_combobox.GetValue()
 
@@ -1123,8 +1114,9 @@ class FittingWindow(wx.Frame):
 
         # Get current background information
         current_bg_type = self.parent.background_method
-        current_bg_low = self.parent.bg_min_energy
-        current_bg_high = self.parent.bg_max_energy
+
+        # Use overall background range instead of current vline positions
+        overall_bg_low, overall_bg_high = self.get_overall_background_range()
 
         # Update peak fitting grid
         if hasattr(self.parent, 'peak_params_grid') and self.parent.peak_params_grid.GetNumberRows() > 0:
@@ -1135,8 +1127,8 @@ class FittingWindow(wx.Frame):
 
                 # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
                 self.parent.peak_params_grid.SetCellValue(row, 14, current_bg_type)
-                self.parent.peak_params_grid.SetCellValue(row, 15, f"{current_bg_low:.2f}")
-                self.parent.peak_params_grid.SetCellValue(row, 16, f"{current_bg_high:.2f}")
+                self.parent.peak_params_grid.SetCellValue(row, 15, f"{overall_bg_low:.2f}")
+                self.parent.peak_params_grid.SetCellValue(row, 16, f"{overall_bg_high:.2f}")
 
         # Update window.Data structure
         if (sheet_name in self.parent.Data['Core levels'] and
@@ -1147,8 +1139,8 @@ class FittingWindow(wx.Frame):
 
             for peak_label, peak_data in peaks.items():
                 peak_data['Bkg Type'] = current_bg_type
-                peak_data['Bkg Low'] = current_bg_low
-                peak_data['Bkg High'] = current_bg_high
+                peak_data['Bkg Low'] = overall_bg_low
+                peak_data['Bkg High'] = overall_bg_high
 
     def on_clear_background(self, event):
         # Show confirmation dialog
@@ -1163,6 +1155,7 @@ class FittingWindow(wx.Frame):
         if result == wx.ID_YES:
             save_state(self.parent)
             self.clear_recorded_ranges_from_data()
+            self.clear_active_range()  # Clear active range highlighting
             self.update_range_boxes()
             self.parent.plot_manager.clear_background(self.parent)
             self.parent.bg_min_energy = None
@@ -1171,23 +1164,42 @@ class FittingWindow(wx.Frame):
             save_state(self.parent)
 
     def on_clear_background_only(self, event):
-        # Clear recorded ranges
+        # Clear recorded ranges and active state
         self.clear_recorded_ranges_from_data()
+        self.clear_active_range()  # Clear active range highlighting
         self.update_range_boxes()
 
         # Existing clear background only code
         self.parent.plot_manager.clear_background_only(self.parent)
 
+    def set_active_range(self, index):
+        """Set the active range and update visual highlighting"""
+        self.active_range_index = index
+        self.update_range_box_colors()
 
-    def on_offset_h_change_OLD(self, event):
-        save_state(self.parent)
-        offset_h_value = self.offset_h_text.GetValue()
-        self.parent.set_offset_h(offset_h_value)
+    def update_range_box_colors(self):
+        """Update range box colors to show active state"""
+        ranges = self.get_recorded_ranges_from_data()
 
-    def on_offset_l_chang_OLD(self, event):
-        save_state(self.parent)
-        offset_l_value = self.offset_l_text.GetValue()
-        self.parent.set_offset_l(offset_l_value)
+        for i, box in enumerate(self.range_boxes):
+            try:
+                if i == self.active_range_index:
+                    # Active range - yellow background
+                    box.SetBackgroundColour(wx.Colour(255, 255, 0))  # Yellow
+                    box.SetForegroundColour(wx.Colour(0, 0, 0))  # Black text
+                else:
+                    # Inactive range - default colors
+                    box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+                    box.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNTEXT))
+                box.Refresh()
+            except RuntimeError:
+                # Button was destroyed, skip
+                pass
+
+    def clear_active_range(self):
+        """Clear active range selection"""
+        self.active_range_index = -1
+        self.update_range_box_colors()
 
     def on_offset_h_change(self, event):
         if self._updating_offsets:  # Prevent recursion
@@ -1203,6 +1215,12 @@ class FittingWindow(wx.Frame):
                     offset_h_value = 0
                     self.offset_h_text.SetValue(f'{offset_h_value:.1f}')
                 self.parent.set_offset_h(offset_h_value)
+
+                # Update active range if one is selected
+                if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
+                    offset_l_value = float(self.offset_l_text.GetValue())
+                    self.update_active_range_offsets(offset_h_value, offset_l_value)
+
             except ValueError:
                 self.parent.set_offset_h(0)
                 self.offset_h_text.SetValue('0.0')
@@ -1223,6 +1241,12 @@ class FittingWindow(wx.Frame):
                     offset_l_value = 0
                     self.offset_l_text.SetValue(f'{offset_l_value:.1f}')
                 self.parent.set_offset_l(offset_l_value)
+
+                # Update active range if one is selected
+                if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
+                    offset_h_value = float(self.offset_h_text.GetValue())
+                    self.update_active_range_offsets(offset_h_value, offset_l_value)
+
             except ValueError:
                 self.parent.set_offset_l(0)
                 self.offset_l_text.SetValue('0.0')
@@ -1240,8 +1264,6 @@ class FittingWindow(wx.Frame):
                        "the data contains symmetrical peak. the number of iteration is set to 100",
             "Linear": "Simple linear background. Usually used on negative background",
             "1x U4-Tougaard": "U4 Tougaard background for Advanced users. B, C, D and T0 can be varied.",
-            "2x U4-Tougaard": "Double U4 Tougaard background for Advanced users. Two sets of B, C, D and T0 can be varied.",
-            "3x U4-Tougaard": "Triple U4 Tougaard background for Advanced users. Three sets of B, C, D and T0 can be varied.",
             "ALS-Raman": "Asymmetric Least Squares background estimation. Good for uneven backgrounds "
                          "with broad features. Lambda controls smoothness and p controls asymmetry."
         }
@@ -1391,6 +1413,10 @@ class FittingWindow(wx.Frame):
     def initialize_recorded_ranges(self):
         """Initialize recorded ranges from window.Data when tab becomes active"""
         self.update_range_boxes()
+        # Also update window.Data background range
+        if self.get_recorded_ranges_from_data():  # Only if we have recorded ranges
+            self.update_window_data_background_range()
+
 
     def record_current_range(self):
         """Record current background range settings"""
@@ -1415,56 +1441,37 @@ class FittingWindow(wx.Frame):
                     self.parent.Data['Core levels'][sheet_name]['Background'] = {}
                 self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = current_ranges
 
+                # Set the new range as active
+                self.set_active_range(len(current_ranges) - 1)
+
+                # Update window.Data background range with overall range
+                self.update_window_data_background_range()
+
                 self.update_range_boxes()
 
         except ValueError:
             pass  # Invalid values, don't record
 
-    def update_range_boxes_OLD(self):
-        """Update the numbered range selection boxes with wrapping after 4"""
-        # Clear existing boxes
-        for box in self.range_boxes:
-            box.Destroy()
-        self.range_boxes.clear()
+    def update_active_range_offsets(self, new_offset_h, new_offset_l):
+        """Update the offsets for the currently active range"""
+        if self.active_range_index >= 0:
+            ranges = self.get_recorded_ranges_from_data()
+            if self.active_range_index < len(ranges):
+                # Get current range data
+                old_offset_h, old_offset_l, min_range, max_range = ranges[self.active_range_index]
 
-        # Clear the sizer
-        self.range_boxes_sizer.Clear()
+                # Update with new offsets
+                ranges[self.active_range_index] = (new_offset_h, new_offset_l, min_range, max_range)
 
-        # Get ranges from data
-        ranges = self.get_recorded_ranges_from_data()
+                # Save back to data
+                sheet_name = self.parent.sheet_combobox.GetValue()
+                if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                    self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+                self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = ranges
 
-        # Create new boxes with wrapping after 4
-        for i, range_data in enumerate(ranges):
-            box = wx.Button(self.range_boxes_panel, label=str(i + 1), size=(25, 25))
-            box.Bind(wx.EVT_BUTTON, lambda evt, idx=i: self.on_range_box_click(idx))
-            self.range_boxes.append(box)
+                # print(
+                #     f"Updated active range {self.active_range_index + 1}: Offset H={new_offset_h:.1f}, L={new_offset_l:.1f}")
 
-            # Add to sizer with wrapping after 4
-            if i < 4:
-                self.range_boxes_sizer.Add(box, 0, wx.ALL, 2)
-            else:
-                # For boxes 5+, we need to create a second row
-                if i == 4:
-                    # Create second row sizer
-                    if not hasattr(self, 'range_boxes_sizer2'):
-                        self.range_boxes_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
-                        # Add second row to main panel sizer below first row
-                        parent_sizer = self.range_boxes_panel.GetSizer()
-                        if hasattr(parent_sizer, 'Add'):
-                            # If it's already a vertical sizer, just add
-                            pass
-                        else:
-                            # Convert to vertical sizer
-                            old_sizer = self.range_boxes_sizer
-                            new_main_sizer = wx.BoxSizer(wx.VERTICAL)
-                            new_main_sizer.Add(old_sizer, 0, wx.EXPAND)
-                            new_main_sizer.Add(self.range_boxes_sizer2, 0, wx.EXPAND)
-                            self.range_boxes_panel.SetSizer(new_main_sizer)
-
-                if hasattr(self, 'range_boxes_sizer2'):
-                    self.range_boxes_sizer2.Add(box, 0, wx.ALL, 2)
-
-        self.range_boxes_panel.Layout()
 
     def update_range_boxes(self):
         """Update the numbered range selection boxes with wrapping after 4"""
@@ -1503,11 +1510,17 @@ class FittingWindow(wx.Frame):
         if index < len(ranges):
             offset_h, offset_l, min_range, max_range = ranges[index]
 
+            # Set this as the active range
+            self.set_active_range(index)
+
             # Update the controls
             self.offset_h_text.SetValue(str(offset_h))
             self.offset_l_text.SetValue(str(offset_l))
             self.min_range_text.SetValue(str(min_range))
             self.max_range_text.SetValue(str(max_range))
+
+            # Update window.Data background range with overall range
+            self.update_window_data_background_range()
 
     def save_recorded_ranges_to_data(self):
         """Save recorded ranges to window.Data"""
@@ -1534,6 +1547,35 @@ class FittingWindow(wx.Frame):
         if (sheet_name in self.parent.Data['Core levels'] and
                 'Background' in self.parent.Data['Core levels'][sheet_name]):
             self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = []
+
+    def get_overall_background_range(self):
+        """Get the overall minimum and maximum values from all recorded background ranges"""
+        ranges = self.get_recorded_ranges_from_data()
+
+        if not ranges:
+            # No recorded ranges, fall back to current vline positions or default
+            if (hasattr(self.parent, 'vline1') and self.parent.vline1 is not None and
+                    hasattr(self.parent, 'vline2') and self.parent.vline2 is not None):
+                vline1_pos = self.parent.vline1.get_xdata()[0]
+                vline2_pos = self.parent.vline2.get_xdata()[0]
+                return min(vline1_pos, vline2_pos), max(vline1_pos, vline2_pos)
+            else:
+                return self.parent.bg_min_energy, self.parent.bg_max_energy
+
+        # Extract min and max ranges from all recorded ranges
+        all_mins = []
+        all_maxs = []
+
+        for offset_h, offset_l, min_range, max_range in ranges:
+            all_mins.append(min_range)
+            all_maxs.append(max_range)
+
+        overall_min = min(all_mins)
+        overall_max = max(all_maxs)
+
+        # print(f"Overall background range from {len(ranges)} recorded ranges: {overall_min:.2f} - {overall_max:.2f}")
+
+        return overall_min, overall_max
 
     def on_cross_section2_change(self, event):
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -1674,6 +1716,27 @@ class FittingWindow(wx.Frame):
         except ValueError:
             pass
 
+    def update_window_data_background_range(self):
+        """Update window.Data background range with overall range from all recorded ranges"""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        if sheet_name in self.parent.Data['Core levels']:
+            # Get overall range
+            overall_min, overall_max = self.get_overall_background_range()
+
+            # Update window.Data
+            if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+
+            # Update with overall range
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = overall_min
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = overall_max
+
+            # Also update the window attributes
+            self.parent.bg_min_energy = overall_min
+            self.parent.bg_max_energy = overall_max
+
+            print(f"Updated window.Data background range: {overall_min:.2f} - {overall_max:.2f}")
 
     def update_range_controls_from_data(self):
         """Update min/max range controls from vline positions."""

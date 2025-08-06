@@ -30,11 +30,20 @@ class PeakFittingGrid:
 
         num_peaks = self.window.peak_params_grid.GetNumberRows() // 2
 
-        # Update bg_min_energy and bg_max_energy from window.Data
-        if sheet_name in self.window.Data['Core levels'] and 'Background' in self.window.Data['Core levels'][sheet_name]:
-            background_data = self.window.Data['Core levels'][sheet_name]['Background']
-            self.window.bg_min_energy = background_data.get('Bkg Low')
-            self.window.bg_max_energy = background_data.get('Bkg High')
+        # Get overall background range from all recorded ranges instead of just current range
+        if (hasattr(self.window, 'fitting_window') and
+                hasattr(self.window.fitting_window, 'get_overall_background_range')):
+            overall_bg_low, overall_bg_high = self.window.fitting_window.get_overall_background_range()
+            # Update the window's bg values to use overall range
+            self.window.bg_min_energy = overall_bg_low
+            self.window.bg_max_energy = overall_bg_high
+        else:
+            # Fallback to original method
+            if sheet_name in self.window.Data['Core levels'] and 'Background' in self.window.Data['Core levels'][
+                sheet_name]:
+                background_data = self.window.Data['Core levels'][sheet_name]['Background']
+                self.window.bg_min_energy = background_data.get('Bkg Low')
+                self.window.bg_max_energy = background_data.get('Bkg High')
 
         # Ensure bg_min_energy and bg_max_energy are not None
         if self.window.bg_min_energy is None or self.window.bg_max_energy is None:

@@ -260,9 +260,23 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
     num_peaks = peak_params_grid.GetNumberRows() // 2
 
-    bg_min_energy = core_level_data['Background'].get('Bkg Low')
-    bg_max_energy = core_level_data['Background'].get('Bkg High')
+    # Get overall background range from all recorded ranges instead of just current range
+    if (hasattr(window, 'fitting_window') and
+            hasattr(window.fitting_window, 'get_overall_background_range')):
+        bg_min_energy, bg_max_energy = window.fitting_window.get_overall_background_range()
+    else:
+        # Fallback to original method
+        bg_min_energy = core_level_data['Background'].get('Bkg Low')
+        bg_max_energy = core_level_data['Background'].get('Bkg High')
 
+        try:
+            bg_min_energy = float(bg_min_energy)
+            bg_max_energy = float(bg_max_energy)
+        except (ValueError, TypeError):
+            bg_min_energy = min(x_values)
+            bg_max_energy = max(x_values)
+
+    # Ensure we have valid float values
     try:
         bg_min_energy = float(bg_min_energy)
         bg_max_energy = float(bg_max_energy)
