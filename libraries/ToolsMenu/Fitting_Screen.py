@@ -138,8 +138,7 @@ class FittingWindow(wx.Frame):
 
         method_label = wx.StaticText(self.background_panel, label="Method:")
         self.method_combobox = wx.ComboBox(self.background_panel, choices=["Multi-Regions Smart", "Smart", "Shirley",
-                                            "Linear", '1x U4-Tougaard', "2x U4-Tougaard", "3x U4-Tougaard",
-                                                                           "ALS-Raman"],
+                                            "Linear", '1x U4-Tougaard', "ALS-Raman"],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetMaxSize((125,25))
 
@@ -150,19 +149,19 @@ class FittingWindow(wx.Frame):
         # info_button = self.create_info_button(self.background_panel,
         #                                       self.get_background_description(self.parent.background_method))
 
-        offset_h_label = wx.StaticText(self.background_panel, label="Offset (H):")
+        offset_h_label = wx.StaticText(self.background_panel, label="I Offset (Left):")
         self.offset_h_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_h))
         self.offset_h_text.Bind(wx.EVT_TEXT, self.on_offset_h_change)
 
-        offset_l_label = wx.StaticText(self.background_panel, label="Offset (L):")
+        offset_l_label = wx.StaticText(self.background_panel, label="I Offset (Right):")
         self.offset_l_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_l))
         self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_l_change)
 
-        self.min_range_label = wx.StaticText(self.background_panel, label='Min Range:')
+        self.min_range_label = wx.StaticText(self.background_panel, label='Min Range (Region):')
         self.min_range_text = wx.TextCtrl(self.background_panel, value="0.00")
         self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
 
-        self.max_range_label = wx.StaticText(self.background_panel, label='Max Range:')
+        self.max_range_label = wx.StaticText(self.background_panel, label='Max Range (Region):')
         self.max_range_text = wx.TextCtrl(self.background_panel, value="0.00")
         self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
 

@@ -577,11 +577,41 @@ class MouseEventHandler:
     def restore_vlines_after_plot(self, vline1_pos, vline2_pos):
         """Restore vlines at specified positions after plotting"""
         try:
-            # Recreate vlines at the stored positions
+            # FIRST: Remove/destroy any existing vlines
+            if self.window.vline1 is not None:
+                try:
+                    self.window.vline1.remove()
+                except:
+                    pass
+                self.window.vline1 = None
+
+            if self.window.vline2 is not None:
+                try:
+                    self.window.vline2.remove()
+                except:
+                    pass
+                self.window.vline2 = None
+
+            # Remove any existing text labels
+            if hasattr(self.window, 'vline1_text') and self.window.vline1_text is not None:
+                try:
+                    self.window.vline1_text.remove()
+                except:
+                    pass
+                self.window.vline1_text = None
+
+            if hasattr(self.window, 'vline2_text') and self.window.vline2_text is not None:
+                try:
+                    self.window.vline2_text.remove()
+                except:
+                    pass
+                self.window.vline2_text = None
+
+            # THEN: Create new vlines at the specified positions
             self.window.vline1 = self.window.ax.axvline(x=vline1_pos, color='red', linestyle='--', alpha=0.7)
             self.window.vline2 = self.window.ax.axvline(x=vline2_pos, color='red', linestyle='--', alpha=0.7)
 
-            # Update text labels if they exist
+            # Update text labels if the method exists
             if hasattr(self.window, 'update_vline_text_labels'):
                 self.window.update_vline_text_labels()
 
@@ -590,6 +620,8 @@ class MouseEventHandler:
 
             # Force canvas redraw
             self.window.canvas.draw_idle()
+
+            print(f"Restored vlines at positions: {vline1_pos:.2f}, {vline2_pos:.2f}")
 
         except Exception as e:
             print(f"Error restoring vlines: {e}")
