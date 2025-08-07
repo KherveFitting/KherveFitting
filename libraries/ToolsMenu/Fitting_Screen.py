@@ -190,7 +190,7 @@ class FittingWindow(wx.Frame):
         self.cross_section.Bind(wx.EVT_TEXT, self.on_cross_section_change)
 
         # Range selection boxes (after self.cross_section creation)
-        self.range_boxes_label = wx.StaticText(self.background_panel, label='Recorded Regions:')
+        self.range_boxes_label = wx.StaticText(self.background_panel, label='Regions:')
         self.range_boxes_panel = wx.Panel(self.background_panel)
         self.range_boxes_panel.SetMinSize((-1, 50))  # Allow for 2 rows of buttons with spacing
 
@@ -1069,12 +1069,24 @@ class FittingWindow(wx.Frame):
             vline2_pos = self.parent.vline2.get_xdata()[0]
             self.parent.bg_min_energy = min(vline1_pos, vline2_pos)
             self.parent.bg_max_energy = max(vline1_pos, vline2_pos)
+
+            # ADD THIS: Update the range controls with current vline positions
+            self.updating_range_controls = True
+            self.min_range_text.SetValue(f"{self.parent.bg_min_energy:.2f}")
+            self.max_range_text.SetValue(f"{self.parent.bg_max_energy:.2f}")
+            self.updating_range_controls = False
         elif self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
             # Fallback to full range only if no vlines and no stored values
             sheet_name = self.parent.sheet_combobox.GetValue()
             x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
             self.parent.bg_min_energy = min(x_values)
             self.parent.bg_max_energy = max(x_values)
+
+            # ADD THIS: Update the range controls with full range values
+            self.updating_range_controls = True
+            self.min_range_text.SetValue(f"{self.parent.bg_min_energy:.2f}")
+            self.max_range_text.SetValue(f"{self.parent.bg_max_energy:.2f}")
+            self.updating_range_controls = False
 
         # Update the data structure with the correct values
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -1185,7 +1197,7 @@ class FittingWindow(wx.Frame):
             try:
                 if i == self.active_range_index:
                     # Active range - yellow background
-                    box.SetBackgroundColour(wx.Colour(255, 255, 0))  # Yellow
+                    box.SetBackgroundColour(wx.Colour(255, 0, 0))  # Yellow
                     box.SetForegroundColour(wx.Colour(0, 0, 0))  # Black text
                 else:
                     # Inactive range - default colors
@@ -1417,7 +1429,6 @@ class FittingWindow(wx.Frame):
         if self.get_recorded_ranges_from_data():  # Only if we have recorded ranges
             self.update_window_data_background_range()
 
-
     def record_current_range(self):
         """Record current background range settings"""
         try:
@@ -1431,23 +1442,23 @@ class FittingWindow(wx.Frame):
             # Get current ranges from data
             current_ranges = self.get_recorded_ranges_from_data()
 
-            # Only add if different from last entry
-            if not current_ranges or current_ranges[-1] != range_tuple:
-                current_ranges.append(range_tuple)
+            # REMOVE THIS DUPLICATE CHECK - Always add the range
+            # OLD CODE: if not current_ranges or current_ranges[-1] != range_tuple:
+            current_ranges.append(range_tuple)
 
-                # Save back to data
-                sheet_name = self.parent.sheet_combobox.GetValue()
-                if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
-                    self.parent.Data['Core levels'][sheet_name]['Background'] = {}
-                self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = current_ranges
+            # Save back to data
+            sheet_name = self.parent.sheet_combobox.GetValue()
+            if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+            self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = current_ranges
 
-                # Set the new range as active
-                self.set_active_range(len(current_ranges) - 1)
+            # Set the new range as active
+            self.set_active_range(len(current_ranges) - 1)
 
-                # Update window.Data background range with overall range
-                self.update_window_data_background_range()
+            # Update window.Data background range with overall range
+            self.update_window_data_background_range()
 
-                self.update_range_boxes()
+            self.update_range_boxes()
 
         except ValueError:
             pass  # Invalid values, don't record
