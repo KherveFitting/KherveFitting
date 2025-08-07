@@ -536,6 +536,14 @@ class MouseEventHandler:
         if not ranges:
             return
 
+        # Store current vline positions before they get destroyed
+        current_vline1_pos = None
+        current_vline2_pos = None
+        if self.window.vline1 is not None:
+            current_vline1_pos = self.window.vline1.get_xdata()[0]
+        if self.window.vline2 is not None:
+            current_vline2_pos = self.window.vline2.get_xdata()[0]
+
         # Clear existing background
         x_values = np.array(self.window.Data['Core levels'][sheet_name]['B.E.'], dtype=float)
         y_values = np.array(self.window.Data['Core levels'][sheet_name]['Raw Data'], dtype=float)
@@ -560,6 +568,31 @@ class MouseEventHandler:
 
         # Redraw the plot
         self.window.plot_manager.plot_background(self.window)
+
+        # RESTORE vLines after plotting (they get destroyed by clear_and_replot)
+        if current_vline1_pos is not None and current_vline2_pos is not None:
+            # Force vline recreation at stored positions
+            wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
+
+    def restore_vlines_after_plot(self, vline1_pos, vline2_pos):
+        """Restore vlines at specified positions after plotting"""
+        try:
+            # Recreate vlines at the stored positions
+            self.window.vline1 = self.window.ax.axvline(x=vline1_pos, color='red', linestyle='--', alpha=0.7)
+            self.window.vline2 = self.window.ax.axvline(x=vline2_pos, color='red', linestyle='--', alpha=0.7)
+
+            # Update text labels if they exist
+            if hasattr(self.window, 'update_vline_text_labels'):
+                self.window.update_vline_text_labels()
+
+            # Make sure they're visible
+            self.window.show_hide_vlines()
+
+            # Force canvas redraw
+            self.window.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Error restoring vlines: {e}")
 
     def update_active_region_positions(self):
         """Record new vLine positions in the active region's min/max range and window.data"""
