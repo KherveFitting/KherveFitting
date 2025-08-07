@@ -430,7 +430,6 @@ class MouseEventHandler:
             x_click = event.xdata
             sheet_name = self.window.sheet_combobox.GetValue()
             if self.window.vline1 is not None and self.window.vline2 is not None:
-                # Store vline positions before plotting background
                 vline1_x = self.window.vline1.get_xdata()[0]
                 vline2_x = self.window.vline2.get_xdata()[0]
 
@@ -473,25 +472,7 @@ class MouseEventHandler:
                             'Bkg Offset High'] = self.window.offset_h
                         self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
 
-                # Plot background (this destroys vlines)
                 self.window.plot_manager.plot_background(self.window)
-
-                # Restore vlines after background plotting
-                self.window.vline1 = self.window.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
-                self.window.vline2 = self.window.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
-
-                # Update vline text labels if they exist
-                if hasattr(self.window, 'update_vline_text_labels'):
-                    self.window.update_vline_text_labels()
-
-                # Update range controls in fitting window
-                if (hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None and
-                        hasattr(self.window.fitting_window, 'update_range_controls_from_data')):
-                    self.window.fitting_window.update_range_controls_from_data()
-
-                # Redraw canvas
-                self.window.canvas.draw_idle()
-            return
         elif event.inaxes and self.window.moving_vline is not None:
             x_click = event.xdata
             self.window.moving_vline.set_xdata([x_click])
@@ -541,6 +522,86 @@ class MouseEventHandler:
         if self.window.moving_vline in [self.window.vline1, self.window.vline2]:
             self.window.update_vline_text_labels()
 
+    def redraw_all_regions_background(self):
+        """Delete whole background and redraw from region 1, 2, 3... in sequence"""
+        if not hasattr(self.window, 'fitting_window') or self.window.fitting_window is None:
+            return
+
+        sheet_name = self.window.sheet_combobox.GetValue()
+        if sheet_name not in self.window.Data['Core levels']:
+            return
+
+        # Get all recorded ranges
+        ranges = self.window.fitting_window.get_recorded_ranges_from_data()
+        if not ranges:
+            return
+
+        # Clear existing background
+        x_values = np.array(self.window.Data['Core levels'][sheet_name]['B.E.'], dtype=float)
+        y_values = np.array(self.window.Data['Core levels'][sheet_name]['Raw Data'], dtype=float)
+
+        # Initialize background to raw data
+        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_values.tolist()
+        current_background = np.array(y_values)
+
+        # Apply each region in sequence: region 1, then 2, then 3, etc.
+        for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
+            print(f"Applying region {i + 1}: {min_range:.2f} - {max_range:.2f}")
+
+            # Calculate background for this specific region
+            from libraries.Peak_Functions import BackgroundCalculations
+            current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+                x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l
+            )
+
+        # Update the final background
+        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
+        self.window.background = current_background
+
+        # Redraw the plot
+        self.window.plot_manager.plot_background(self.window)
+
+    def update_active_region_positions(self):
+        """Record new vLine positions in the active region's min/max range and window.data"""
+        if (not hasattr(self.window, 'fitting_window') or
+                not hasattr(self.window.fitting_window, 'active_range_index') or
+                self.window.fitting_window.active_range_index < 0):
+            return
+
+        # Get current vline positions
+        if self.window.vline1 is None or self.window.vline2 is None:
+            return
+
+        vline1_x = self.window.vline1.get_xdata()[0]
+        vline2_x = self.window.vline2.get_xdata()[0]
+
+        # Round to 2 decimal places before storing
+        min_pos = round(min(vline1_x, vline2_x), 2)
+        max_pos = round(max(vline1_x, vline2_x), 2)
+
+        # Update the active region's positions
+        ranges = self.window.fitting_window.get_recorded_ranges_from_data()
+        active_idx = self.window.fitting_window.active_range_index
+
+        if active_idx < len(ranges):
+            # Keep existing offsets, update positions
+            offset_h, offset_l, old_min, old_max = ranges[active_idx]
+            ranges[active_idx] = (offset_h, offset_l, min_pos, max_pos)
+
+            # Save back to window.data
+            sheet_name = self.window.sheet_combobox.GetValue()
+            if 'Background' not in self.window.Data['Core levels'][sheet_name]:
+                self.window.Data['Core levels'][sheet_name]['Background'] = {}
+            self.window.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = ranges
+
+            # Update the UI range controls
+            self.window.fitting_window.updating_range_controls = True
+            self.window.fitting_window.min_range_text.SetValue(f"{min_pos:.2f}")
+            self.window.fitting_window.max_range_text.SetValue(f"{max_pos:.2f}")
+            self.window.fitting_window.updating_range_controls = False
+
+            print(f"Updated region {active_idx + 1} positions: {min_pos:.2f} - {max_pos:.2f}")
+
     def cleanup_vline_handlers(self):
         """Clean up any existing vline event handlers"""
         if hasattr(self.window, 'motion_cid'):
@@ -555,12 +616,8 @@ class MouseEventHandler:
 
     def on_release(self, event):
         if self.window.moving_vline is not None:
-            # if hasattr(self.window, 'motion_notify_id'):
-            #     self.window.canvas.mpl_disconnect(self.window.motion_notify_id)
-            #     delattr(self.window, 'motion_notify_id')
-            # if hasattr(self.window, 'button_release_id'):
-            #     self.window.canvas.mpl_disconnect(self.window.button_release_id)
-            #     delattr(self.window, 'button_release_id')
+            # Store which vline was moved before resetting to None
+            moved_vline = self.window.moving_vline
 
             # Use the correct variable names to disconnect events
             if hasattr(self.window, 'motion_cid'):
@@ -573,19 +630,6 @@ class MouseEventHandler:
             # Reset the moving vline to None
             self.window.moving_vline = None
 
-            # # Rest of your existing code for updating background data...
-            # sheet_name = self.window.sheet_combobox.GetValue()
-            # if sheet_name in self.window.Data['Core levels']:
-            #     core_level_data = self.window.Data['Core levels'][sheet_name]
-            #     if 'Background' in core_level_data:
-            #         bg_low = core_level_data['Background']['Bkg Low']
-            #         bg_high = core_level_data['Background']['Bkg High']
-            #         # Update background if needed
-            #         if self.window.background_method == "Multi-Regions Smart":
-            #             self.window.plot_manager.plot_background(self.window)
-            #
-            # self.window.moving_vline = None
-
             sheet_name = self.window.sheet_combobox.GetValue()
             if sheet_name in self.window.Data['Core levels']:
                 core_level_data = self.window.Data['Core levels'][sheet_name]
@@ -595,6 +639,15 @@ class MouseEventHandler:
                     if bg_low is not None and bg_high is not None:
                         core_level_data['Background']['Bkg Low'] = min(bg_low, bg_high)
                         core_level_data['Background']['Bkg High'] = max(bg_low, bg_high)
+
+                if (moved_vline in [self.window.vline1, self.window.vline2] and
+                        self.window.background_method == "Multi-Regions Smart" and
+                        hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
+                    # Update active region positions with new vLine positions
+                    self.update_active_region_positions()
+
+                    # Redraw all regions in sequence
+                    self.redraw_all_regions_background()
 
         if self.window.selected_peak_index is not None:
             row = self.window.selected_peak_index * 2
