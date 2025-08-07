@@ -1367,6 +1367,42 @@ class FittingWindow(wx.Frame):
             self.parent.enable_background_interaction()
             # Show vlines when entering background tab
             self.parent.show_hide_vlines()
+
+            # AUTO-activate first region if regions exist
+            ranges = self.get_recorded_ranges_from_data()
+            if ranges:
+                # Set first region as active
+                self.set_active_range(0)
+
+                # Get first region data
+                offset_h, offset_l, min_range, max_range = ranges[0]
+
+                # Update all controls with first region values
+                self.updating_range_controls = True
+                self.offset_h_text.SetValue(f"{offset_h:.1f}")
+                self.offset_l_text.SetValue(f"{offset_l:.1f}")
+                self.min_range_text.SetValue(f"{min_range:.2f}")
+                self.max_range_text.SetValue(f"{max_range:.2f}")
+                self.updating_range_controls = False
+
+                # Position vLines at first region's range
+                if self.parent.vline1 is not None and self.parent.vline2 is not None:
+                    self.parent.vline1.set_xdata([min_range, min_range])
+                    self.parent.vline2.set_xdata([max_range, max_range])
+
+                    # Update text labels
+                    if hasattr(self.parent, 'update_vline_text_labels'):
+                        self.parent.update_vline_text_labels()
+
+                    # Force canvas redraw
+                    self.parent.canvas.draw_idle()
+
+                # DELAY the color update to ensure UI is ready
+                wx.CallAfter(self.update_range_box_colors)
+                wx.CallAfter(self.force_range_box_refresh)
+
+                print(f"Auto-activated region 1: {min_range:.2f} - {max_range:.2f}")
+
         else:
             self.parent.disable_background_interaction()
             # Reset vlines when leaving background tab (same as Reset Vertical Lines button)
@@ -1378,6 +1414,63 @@ class FittingWindow(wx.Frame):
             self.parent.peak_manipulation.deselect_all_peaks()
 
         event.Skip()
+
+    def force_range_box_refresh(self):
+        """Force refresh of range box colors and layout"""
+        try:
+            # Double-check active range is set
+            print(f"Active range index: {getattr(self, 'active_range_index', 'NOT SET')}")
+
+            # Force refresh of each range box
+            for i, box in enumerate(self.range_boxes):
+                if i == self.active_range_index:
+                    box.SetBackgroundColour(wx.Colour(255, 0, 0))  # Red
+                    box.SetForegroundColour(wx.Colour(255, 255, 255))  # White text
+                    print(f"Setting box {i + 1} to RED (active)")
+                else:
+                    box.SetBackgroundColour(wx.NullColour)
+                    box.SetForegroundColour(wx.NullColour)
+                    print(f"Setting box {i + 1} to DEFAULT")
+
+                box.Refresh()
+                box.Update()
+
+            # Force layout refresh
+            self.range_boxes_panel.Layout()
+            self.range_boxes_panel.Refresh()
+
+        except Exception as e:
+            print(f"Error in force_range_box_refresh: {e}")
+
+    def load_active_range_to_controls(self):
+        """Load active range settings into the UI controls"""
+        if not hasattr(self, 'active_range_index') or self.active_range_index < 0:
+            return
+
+        ranges = self.get_recorded_ranges_from_data()
+        if self.active_range_index < len(ranges):
+            offset_h, offset_l, min_range, max_range = ranges[self.active_range_index]
+
+            # Update controls with active range values
+            self.updating_range_controls = True
+            self.offset_h_text.SetValue(f"{offset_h:.1f}")
+            self.offset_l_text.SetValue(f"{offset_l:.1f}")
+            self.min_range_text.SetValue(f"{min_range:.2f}")
+            self.max_range_text.SetValue(f"{max_range:.2f}")
+            self.updating_range_controls = False
+
+            # Update vlines to match active region positions
+            if self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([min_range, min_range])
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([max_range, max_range])
+
+            # Update text labels and redraw
+            if hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+            self.parent.canvas.draw_idle()
+
+            print(f"Loaded region {self.active_range_index + 1} as active")
 
     def on_close(self, event):
         # Store previous state
