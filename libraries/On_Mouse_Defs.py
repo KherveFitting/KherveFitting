@@ -611,8 +611,10 @@ class MouseEventHandler:
             self.window.vline1 = self.window.ax.axvline(x=vline1_pos, color='red', linestyle='--', alpha=0.7)
             self.window.vline2 = self.window.ax.axvline(x=vline2_pos, color='red', linestyle='--', alpha=0.7)
 
-            # Update text labels if the method exists
-            if hasattr(self.window, 'update_vline_text_labels'):
+            # Create new text labels
+            if hasattr(self.window, 'add_vline_text_labels'):
+                self.window.add_vline_text_labels()
+            elif hasattr(self.window, 'update_vline_text_labels'):
                 self.window.update_vline_text_labels()
 
             # Make sure they're visible

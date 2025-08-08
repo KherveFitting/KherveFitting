@@ -150,20 +150,22 @@ class FittingWindow(wx.Frame):
         #                                       self.get_background_description(self.parent.background_method))
 
         offset_h_label = wx.StaticText(self.background_panel, label="I Offset (Left):")
-        self.offset_h_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_h))
-        self.offset_h_text.Bind(wx.EVT_TEXT, self.on_offset_h_change)
+        self.offset_h_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_h),
+                                         style=wx.TE_PROCESS_ENTER)
+        self.offset_h_text.Bind(wx.EVT_TEXT_ENTER, self.on_offset_h_change)
 
         offset_l_label = wx.StaticText(self.background_panel, label="I Offset (Right):")
-        self.offset_l_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_l))
-        self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_l_change)
+        self.offset_l_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_l),
+                                         style=wx.TE_PROCESS_ENTER)
+        self.offset_l_text.Bind(wx.EVT_TEXT_ENTER, self.on_offset_l_change)
 
         self.min_range_label = wx.StaticText(self.background_panel, label='Min Range (Region):')
-        self.min_range_text = wx.TextCtrl(self.background_panel, value="0.00")
-        self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
+        self.min_range_text = wx.TextCtrl(self.background_panel, value="0.00", style=wx.TE_PROCESS_ENTER)
+        self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_change)
 
         self.max_range_label = wx.StaticText(self.background_panel, label='Max Range (Region):')
-        self.max_range_text = wx.TextCtrl(self.background_panel, value="0.00")
-        self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+        self.max_range_text = wx.TextCtrl(self.background_panel, value="0.00", style=wx.TE_PROCESS_ENTER)
+        self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_change)
 
         # Add this flag to prevent recursive updates
         self.updating_range_controls = False
@@ -261,14 +263,14 @@ class FittingWindow(wx.Frame):
             reset_vlines_button.SetMinSize((125, 35))
         reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
 
-        clear_between_vlines_button = wx.Button(self.background_panel, label="Clear Between\nVertical Lines")
+        remove_active_region_button = wx.Button(self.background_panel, label="Remove Active\nRegion")
         if 'wxMac' in wx.PlatformInfo:
-            clear_between_vlines_button.SetMinSize((125, 30))
+            remove_active_region_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
-            clear_between_vlines_button.SetMinSize((125, 35))
+            remove_active_region_button.SetMinSize((125, 35))
         else:
-            clear_between_vlines_button.SetMinSize((125, 35))
-        clear_between_vlines_button.Bind(wx.EVT_BUTTON, self.on_clear_between_vlines)
+            remove_active_region_button.SetMinSize((125, 35))
+        remove_active_region_button.Bind(wx.EVT_BUTTON, self.on_remove_active_region)
 
         clear_background_only_button = wx.Button(self.background_panel, label="Clear\nBackground")
         if 'wxMac' in wx.PlatformInfo:
@@ -315,7 +317,7 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.range_boxes_panel, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             background_sizer.Add(reset_vlines_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(clear_between_vlines_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(remove_active_region_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(clear_background_only_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(background_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
@@ -347,8 +349,7 @@ class FittingWindow(wx.Frame):
 
 
             background_sizer.Add(reset_vlines_button, pos=(9, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_between_vlines_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
-                                 border=0)
+            background_sizer.Add(remove_active_region_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(clear_background_only_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
                                  border=0)
@@ -746,14 +747,6 @@ class FittingWindow(wx.Frame):
 
             new_low = x_min + x_range / 15
             new_high = x_min + 14 * x_range / 15
-
-            # # Update the data structure
-            # sheet_name = self.parent.sheet_combobox.GetValue()
-            # if sheet_name in self.parent.Data['Core levels']:
-            #     if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
-            #         self.parent.Data['Core levels'][sheet_name]['Background'] = {}
-            #     self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(new_low)
-            #     self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_high)
 
             # Update bg_min_energy and bg_max_energy
             self.parent.bg_min_energy = new_low
@@ -1232,6 +1225,11 @@ class FittingWindow(wx.Frame):
                     offset_l_value = float(self.offset_l_text.GetValue())
                     self.update_active_range_offsets(offset_h_value, offset_l_value)
 
+                # Redraw background from all regions
+                if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                     'redraw_all_regions_background'):
+                    self.parent.mouse_handler.redraw_all_regions_background()
+
             except ValueError:
                 self.parent.set_offset_h(0)
                 self.offset_h_text.SetValue('0.0')
@@ -1257,6 +1255,11 @@ class FittingWindow(wx.Frame):
                 if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
                     offset_h_value = float(self.offset_h_text.GetValue())
                     self.update_active_range_offsets(offset_h_value, offset_l_value)
+
+                # Redraw background from all regions
+                if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                     'redraw_all_regions_background'):
+                    self.parent.mouse_handler.redraw_all_regions_background()
 
             except ValueError:
                 self.parent.set_offset_l(0)
@@ -1378,10 +1381,12 @@ class FittingWindow(wx.Frame):
 
                 # Update all controls with first region values
                 self.updating_range_controls = True
+                self._updating_offsets = True  # Prevent save_state calls from offset handlers
                 self.offset_h_text.SetValue(f"{offset_h:.1f}")
                 self.offset_l_text.SetValue(f"{offset_l:.1f}")
                 self.min_range_text.SetValue(f"{min_range:.2f}")
                 self.max_range_text.SetValue(f"{max_range:.2f}")
+                self._updating_offsets = False
                 self.updating_range_controls = False
 
                 # Position vLines at first region's range
@@ -1740,9 +1745,7 @@ class FittingWindow(wx.Frame):
                 if notebook:
                     wx.CallAfter(self._switch_tabs_trick, notebook)
 
-
     def on_min_range_change(self, event):
-        """Handle min range change."""
         if self.updating_range_controls:
             return
 
@@ -1776,13 +1779,21 @@ class FittingWindow(wx.Frame):
 
                 self.parent.canvas.draw_idle()
 
+            # Update active range positions if one is selected
+            if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
+                if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                     'update_active_region_positions'):
+                    self.parent.mouse_handler.update_active_region_positions()
+
+            # Redraw background from all regions
+            if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                 'redraw_all_regions_background'):
+                self.parent.mouse_handler.redraw_all_regions_background()
+
         except ValueError:
             pass
 
-
-
     def on_max_range_change(self, event):
-        """Handle max range change."""
         if self.updating_range_controls:
             return
 
@@ -1815,6 +1826,17 @@ class FittingWindow(wx.Frame):
                     self.parent.update_vline_text_labels()
 
                 self.parent.canvas.draw_idle()
+
+            # Update active range positions if one is selected
+            if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
+                if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                     'update_active_region_positions'):
+                    self.parent.mouse_handler.update_active_region_positions()
+
+            # Redraw background from all regions
+            if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                 'redraw_all_regions_background'):
+                self.parent.mouse_handler.redraw_all_regions_background()
 
         except ValueError:
             pass
@@ -1875,6 +1897,96 @@ class FittingWindow(wx.Frame):
 
         finally:
             self.updating_range_controls = False
+
+    def on_remove_active_region(self, event):
+        """Remove the currently active region"""
+        if not hasattr(self, 'active_range_index') or self.active_range_index < 0:
+            wx.MessageBox("No active region selected to remove.", "No Active Region",
+                          wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Get current ranges
+        ranges = self.get_recorded_ranges_from_data()
+        if self.active_range_index >= len(ranges):
+            return
+
+        # Store which region we're removing for the print message
+        removed_region_number = self.active_range_index + 1
+
+        # STEP 1: Remove the region data from window.data
+        ranges.pop(self.active_range_index)
+
+        # Save back to data
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+            self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+        self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = ranges
+
+        # STEP 2: Update range boxes (removes the button)
+        self.update_range_boxes()
+
+        # STEP 3: Set region 1 as active if it exists
+        if ranges:
+            # Set region 1 (index 0) as active
+            self.set_active_range(0)
+
+            # Load region 1 values to controls
+            offset_h, offset_l, min_range, max_range = ranges[0]
+            self.updating_range_controls = True
+            self.offset_h_text.SetValue(f"{offset_h:.1f}")
+            self.offset_l_text.SetValue(f"{offset_l:.1f}")
+            self.min_range_text.SetValue(f"{min_range:.2f}")
+            self.max_range_text.SetValue(f"{max_range:.2f}")
+            self.updating_range_controls = False
+
+            # Update vlines to region 1 position
+            if self.parent.vline1 is not None and self.parent.vline2 is not None:
+                self.parent.vline1.set_xdata([min_range, min_range])
+                self.parent.vline2.set_xdata([max_range, max_range])
+                if hasattr(self.parent, 'update_vline_text_labels'):
+                    self.parent.update_vline_text_labels()
+
+            # Update window data background range
+            self.update_window_data_background_range()
+
+            # Force visual refresh to show region 1 as active
+            wx.CallAfter(self.update_range_box_colors)
+            wx.CallAfter(self.force_range_box_refresh)
+
+        else:
+            # No regions left
+            self.clear_active_range()
+
+            # Clear window data background
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = None
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = None
+            self.parent.bg_min_energy = None
+            self.parent.bg_max_energy = None
+
+            # Clear the UI controls
+            self.updating_range_controls = True
+            self.offset_h_text.SetValue("0.0")
+            self.offset_l_text.SetValue("0.0")
+            self.min_range_text.SetValue("0.00")
+            self.max_range_text.SetValue("0.00")
+            self.updating_range_controls = False
+
+        # STEP 4: Remove whole background and redraw from region 1 to xxx
+        if ranges:
+            # Redraw background from all remaining regions in sequence
+            if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
+                                                                 'redraw_all_regions_background'):
+                self.parent.mouse_handler.redraw_all_regions_background()
+            else:
+                # Fallback: plot background normally
+                self.parent.plot_manager.plot_background(self.parent)
+        else:
+            # STEP 5: No regions - don't create any background, just plot raw data
+            self.parent.plot_manager.clear_background(self.parent)
+            self.parent.plot_data()
+
+        save_state(self.parent)
+        print(f"Removed region {removed_region_number}")
 
     def disable_fitting_ui(self):
         """Disable all UI controls during multiple fitting"""
