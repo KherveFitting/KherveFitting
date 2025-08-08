@@ -1621,14 +1621,37 @@ class FittingWindow(wx.Frame):
             # Set this as the active range
             self.set_active_range(index)
 
-            # Update the controls
+            # Update the controls with flags to prevent unwanted events
+            self.updating_range_controls = True
+            self._updating_offsets = True
             self.offset_h_text.SetValue(str(offset_h))
             self.offset_l_text.SetValue(str(offset_l))
             self.min_range_text.SetValue(str(min_range))
             self.max_range_text.SetValue(str(max_range))
+            self._updating_offsets = False
+            self.updating_range_controls = False
+
+            # Move vLines to the selected region's positions
+            if self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([min_range, min_range])
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([max_range, max_range])
+
+            # Update text labels
+            if hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+
+            # Force canvas redraw
+            self.parent.canvas.draw_idle()
 
             # Update window.Data background range with overall range
             self.update_window_data_background_range()
+
+            # Update visual highlighting
+            wx.CallAfter(self.update_range_box_colors)
+            wx.CallAfter(self.force_range_box_refresh)
+
+            print(f"Selected region {index + 1}: {min_range:.2f} - {max_range:.2f}")
 
     def save_recorded_ranges_to_data(self):
         """Save recorded ranges to window.Data"""

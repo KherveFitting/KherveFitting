@@ -686,6 +686,9 @@ class MouseEventHandler:
             # Store which vline was moved before resetting to None
             moved_vline = self.window.moving_vline
 
+            # Save state after vline movement and background update
+            save_state(self.window)
+
             # Use the correct variable names to disconnect events
             if hasattr(self.window, 'motion_cid'):
                 self.window.canvas.mpl_disconnect(self.window.motion_cid)
