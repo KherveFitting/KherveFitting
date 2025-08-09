@@ -284,8 +284,17 @@ class KeyEventHandlers:
             import time
             current_time = time.time()
 
+            # Check if Fitting Screen is open with background tab selected
+            if (hasattr(self.main_frame, 'fitting_window') and
+                    self.main_frame.fitting_window is not None and
+                    hasattr(self.main_frame, 'background_tab_selected') and
+                    self.main_frame.background_tab_selected):
+                # Fitting Screen background tab is active - switch regions
+                self.main_frame.fitting_window.on_reset_vlines2(None)
+                return True
+
             # Check if AreaFit Screen is open and active
-            if (hasattr(self.main_frame, 'background_window') and
+            elif (hasattr(self.main_frame, 'background_window') and
                     self.main_frame.background_window is not None and
                     hasattr(self.main_frame, 'area_tab_selected') and
                     self.main_frame.area_tab_selected):

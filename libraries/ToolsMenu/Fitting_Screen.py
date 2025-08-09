@@ -245,7 +245,7 @@ class FittingWindow(wx.Frame):
             background_button.SetMinSize((125, 35))
         background_button.Bind(wx.EVT_BUTTON, self.on_background)
 
-        clear_background_button = wx.Button(self.background_panel, label="Clear\nAll")
+        clear_background_button = wx.Button(self.background_panel, label="Remove\nRegions and Peaks")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -254,16 +254,16 @@ class FittingWindow(wx.Frame):
             clear_background_button.SetMinSize((125, 35))
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
-        reset_vlines_button = wx.Button(self.background_panel, label="Reset \nVertical Lines")
+        reset_vlines_button = wx.Button(self.background_panel, label="Switch Region\nTAB key")
         if 'wxMac' in wx.PlatformInfo:
             reset_vlines_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
             reset_vlines_button.SetMinSize((125, 35))
         else:
             reset_vlines_button.SetMinSize((125, 35))
-        reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines)
+        reset_vlines_button.Bind(wx.EVT_BUTTON, self.on_reset_vlines2)
 
-        remove_active_region_button = wx.Button(self.background_panel, label="Remove Active\nRegion")
+        remove_active_region_button = wx.Button(self.background_panel, label="Remove\nCurrent Region")
         if 'wxMac' in wx.PlatformInfo:
             remove_active_region_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -272,7 +272,7 @@ class FittingWindow(wx.Frame):
             remove_active_region_button.SetMinSize((125, 35))
         remove_active_region_button.Bind(wx.EVT_BUTTON, self.on_remove_active_region)
 
-        clear_background_only_button = wx.Button(self.background_panel, label="Clear\nBackground")
+        clear_background_only_button = wx.Button(self.background_panel, label="Remove\nAll Regions")
         if 'wxMac' in wx.PlatformInfo:
             clear_background_only_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -317,11 +317,12 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(self.range_boxes_panel, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             background_sizer.Add(reset_vlines_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(remove_active_region_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(clear_background_button, pos=(9, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(clear_background_only_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(background_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(clear_background_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+            background_sizer.Add(remove_active_region_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
         else:
             background_sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.method_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -349,12 +350,13 @@ class FittingWindow(wx.Frame):
 
 
             background_sizer.Add(reset_vlines_button, pos=(9, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(remove_active_region_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(clear_background_button, pos=(9, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(clear_background_only_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP,
                                  border=0)
             background_sizer.Add(background_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(clear_background_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(remove_active_region_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
 
         self.background_panel.SetSizer(background_sizer)
         notebook.AddPage(self.background_panel, "Background")
@@ -732,14 +734,7 @@ class FittingWindow(wx.Frame):
         except ValueError:
             pass
 
-    def on_reset_vlines_OLD(self, event):
-        self.parent.vline1 = None
-        self.parent.vline2 = None
-        self.parent.show_hide_vlines()
-        self.parent.plot_manager.clear_and_replot(self.parent)
-
     def on_reset_vlines(self, event):
-        # Calculate 1/15 and 14/15 positions
         if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
             x_min = min(self.parent.x_values)
             x_max = max(self.parent.x_values)
@@ -777,6 +772,99 @@ class FittingWindow(wx.Frame):
         else:
             # If not on background tab, just clear and replot
             self.parent.plot_manager.clear_and_replot(self.parent)
+
+    def on_reset_vlines2(self, event):
+        # NEW: Check for region switching first
+        ranges = self.get_recorded_ranges_from_data()
+        if ranges:
+            # Get current active region
+            current_active = getattr(self, 'active_range_index', -1)
+
+            # Calculate next region index (cycle back to 0 after last region)
+            if current_active < 0:
+                # No active region, start with region 1 (index 0)
+                next_region = 0
+            else:
+                # Move to next region, cycling back to 0 after the last one
+                next_region = (current_active + 1) % len(ranges)
+
+            # Set the next region as active
+            self.set_active_range(next_region)
+
+            # Get the next region's data
+            offset_h, offset_l, min_range, max_range = ranges[next_region]
+
+            # Update controls with next region values
+            self.updating_range_controls = True
+            self._updating_offsets = True
+            self.offset_h_text.SetValue(f"{offset_h:.1f}")
+            self.offset_l_text.SetValue(f"{offset_l:.1f}")
+            self.min_range_text.SetValue(f"{min_range:.2f}")
+            self.max_range_text.SetValue(f"{max_range:.2f}")
+            self._updating_offsets = False
+            self.updating_range_controls = False
+
+            # Move vLines to the next region's positions
+            if self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([min_range, min_range])
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([max_range, max_range])
+
+            # Update text labels
+            if hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+
+            # Force canvas redraw
+            self.parent.canvas.draw_idle()
+
+            # Update window.Data background range
+            self.update_window_data_background_range()
+
+            # Update visual highlighting
+            wx.CallAfter(self.update_range_box_colors)
+            wx.CallAfter(self.force_range_box_refresh)
+
+            print(f"Switched to region {next_region + 1}: {min_range:.2f} - {max_range:.2f}")
+            return
+
+        # # ORIGINAL CODE: Calculate 1/15 and 14/15 positions
+        # if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+        #     x_min = min(self.parent.x_values)
+        #     x_max = max(self.parent.x_values)
+        #     x_range = x_max - x_min
+        #
+        #     new_low = x_min + x_range / 15
+        #     new_high = x_min + 14 * x_range / 15
+        #
+        #     # Update bg_min_energy and bg_max_energy
+        #     self.parent.bg_min_energy = new_low
+        #     self.parent.bg_max_energy = new_high
+
+        # Reset vlines to None first
+        self.parent.vline1 = None
+        self.parent.vline2 = None
+        if hasattr(self.parent, 'vline1_text'):
+            self.parent.vline1_text = None
+        if hasattr(self.parent, 'vline2_text'):
+            self.parent.vline2_text = None
+
+        # # Use tab switching trick to properly recreate vlines at new positions
+        # if self.parent.background_tab_selected:
+        #     # Find the notebook
+        #     notebook = None
+        #     for child in self.GetChildren():
+        #         for grandchild in child.GetChildren():
+        #             if isinstance(grandchild, wx.Notebook):
+        #                 notebook = grandchild
+        #                 break
+        #         if notebook:
+        #             break
+        #
+        #     if notebook:
+        #         wx.CallAfter(self._switch_tabs_trick, notebook)
+        # else:
+        #     # If not on background tab, just clear and replot
+        #     self.parent.plot_manager.clear_and_replot(self.parent)
 
     def on_add_peak(self, event):
         current_model = self.model_combobox.GetValue()
