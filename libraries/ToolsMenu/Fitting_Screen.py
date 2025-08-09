@@ -153,19 +153,27 @@ class FittingWindow(wx.Frame):
         self.offset_h_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_h),
                                          style=wx.TE_PROCESS_ENTER)
         self.offset_h_text.Bind(wx.EVT_TEXT_ENTER, self.on_offset_h_change)
+        self.offset_h_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
+        self.offset_h_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         offset_l_label = wx.StaticText(self.background_panel, label="I Offset (Right):")
         self.offset_l_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_l),
                                          style=wx.TE_PROCESS_ENTER)
         self.offset_l_text.Bind(wx.EVT_TEXT_ENTER, self.on_offset_l_change)
+        self.offset_l_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
+        self.offset_l_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         self.min_range_label = wx.StaticText(self.background_panel, label='Min Range (Region):')
         self.min_range_text = wx.TextCtrl(self.background_panel, value="0.00", style=wx.TE_PROCESS_ENTER)
         self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_change)
+        self.min_range_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
+        self.min_range_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         self.max_range_label = wx.StaticText(self.background_panel, label='Max Range (Region):')
         self.max_range_text = wx.TextCtrl(self.background_panel, value="0.00", style=wx.TE_PROCESS_ENTER)
         self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_change)
+        self.max_range_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
+        self.max_range_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         # Add this flag to prevent recursive updates
         self.updating_range_controls = False
@@ -735,25 +743,25 @@ class FittingWindow(wx.Frame):
             pass
 
     def on_reset_vlines(self, event):
-        if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
-            x_min = min(self.parent.x_values)
-            x_max = max(self.parent.x_values)
-            x_range = x_max - x_min
+        # if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
+        #     x_min = min(self.parent.x_values)
+        #     x_max = max(self.parent.x_values)
+        #     x_range = x_max - x_min
+        #
+        #     new_low = x_min + x_range / 15
+        #     new_high = x_min + 14 * x_range / 15
+        #
+        #     # Update bg_min_energy and bg_max_energy
+        #     self.parent.bg_min_energy = new_low
+        #     self.parent.bg_max_energy = new_high
 
-            new_low = x_min + x_range / 15
-            new_high = x_min + 14 * x_range / 15
-
-            # Update bg_min_energy and bg_max_energy
-            self.parent.bg_min_energy = new_low
-            self.parent.bg_max_energy = new_high
-
-        # Reset vlines to None first
-        self.parent.vline1 = None
-        self.parent.vline2 = None
-        if hasattr(self.parent, 'vline1_text'):
-            self.parent.vline1_text = None
-        if hasattr(self.parent, 'vline2_text'):
-            self.parent.vline2_text = None
+        # # Reset vlines to None first
+        # self.parent.vline1 = None
+        # self.parent.vline2 = None
+        # if hasattr(self.parent, 'vline1_text'):
+        #     self.parent.vline1_text = None
+        # if hasattr(self.parent, 'vline2_text'):
+        #     self.parent.vline2_text = None
 
         # Use tab switching trick to properly recreate vlines at new positions
         if self.parent.background_tab_selected:
@@ -1506,6 +1514,255 @@ class FittingWindow(wx.Frame):
             self.parent.peak_manipulation.deselect_all_peaks()
 
         event.Skip()
+
+    def on_key_down(self, event):
+        """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""
+        key_code = event.GetKeyCode()
+
+        # Only handle UP/DOWN arrows - let everything else pass through
+        if key_code not in [wx.WXK_UP, wx.WXK_DOWN]:
+            event.Skip()
+            return
+
+        text_ctrl = event.GetEventObject()
+        current_value = text_ctrl.GetValue()
+        cursor_pos = text_ctrl.GetInsertionPoint()
+
+        # Skip if empty or cursor at invalid position
+        if not current_value or cursor_pos >= len(current_value):
+            event.Skip()
+            return
+
+        try:
+            # Parse the number
+            original_number = float(current_value)
+            is_negative = original_number < 0
+
+            # Work with absolute value for easier processing
+            abs_value = abs(original_number)
+
+            # Split into integer and decimal parts
+            str_abs = f"{abs_value:.10f}".rstrip('0').rstrip('.')
+            if '.' in str_abs:
+                integer_part, decimal_part = str_abs.split('.')
+            else:
+                integer_part = str_abs
+                decimal_part = ""
+
+            # Find which digit position cursor is on
+            full_str = current_value.replace('-', '')  # Remove minus for position calculation
+            adjusted_cursor = cursor_pos
+            if is_negative:
+                adjusted_cursor -= 1  # Account for minus sign
+
+            # Skip if cursor is on decimal point
+            if adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.':
+                event.Skip()
+                return
+
+            # Determine digit position (power of 10)
+            if '.' in full_str:
+                decimal_pos = full_str.index('.')
+                if adjusted_cursor < decimal_pos:
+                    # Integer part - power is positive
+                    digit_power = decimal_pos - adjusted_cursor - 1
+                else:
+                    # Decimal part - power is negative
+                    digit_power = decimal_pos - adjusted_cursor
+            else:
+                # No decimal point
+                digit_power = len(full_str) - adjusted_cursor - 1
+
+            # Calculate increment value
+            increment_value = 10 ** digit_power
+            if key_code == wx.WXK_DOWN:
+                increment_value = -increment_value
+
+            # Apply increment
+            new_number = original_number + increment_value
+
+            # Format the result
+            if digit_power >= 0:
+                # Integer digit changed
+                if abs(new_number - round(new_number)) < 1e-10:
+                    formatted_result = f"{int(round(new_number))}"
+                else:
+                    decimal_places = len(decimal_part) if decimal_part else 0
+                    formatted_result = f"{new_number:.{decimal_places}f}"
+            else:
+                # Decimal digit changed
+                required_decimals = abs(digit_power)
+                existing_decimals = len(decimal_part) if decimal_part else 0
+                decimal_places = max(required_decimals, existing_decimals)
+                formatted_result = f"{new_number:.{decimal_places}f}".rstrip('0').rstrip('.')
+
+            # Update the text control
+            text_ctrl.SetValue(formatted_result)
+
+            # Restore cursor position
+            new_length = len(formatted_result)
+            old_length = len(current_value)
+            new_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
+            text_ctrl.SetInsertionPoint(new_cursor_pos)
+
+            # Trigger the appropriate change event manually
+            if text_ctrl == self.offset_h_text:
+                self.on_offset_h_change(event)
+            elif text_ctrl == self.offset_l_text:
+                self.on_offset_l_change(event)
+            elif text_ctrl == self.min_range_text:
+                self.on_min_range_change(event)
+            elif text_ctrl == self.max_range_text:
+                self.on_max_range_change(event)
+
+            # DO NOT call event.Skip() - we handled this completely
+
+        except (ValueError, IndexError):
+            # If parsing fails, allow default behavior
+            event.Skip()
+            return
+
+    def validate_numeric_input(self, event):
+        """Validate input to allow only numbers, single dot, and minus sign"""
+        key_code = event.GetKeyCode()
+
+        # Always allow these control keys
+        if key_code in [wx.WXK_BACK, wx.WXK_DELETE, wx.WXK_TAB, wx.WXK_RETURN,
+                        wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_HOME, wx.WXK_END]:
+            event.Skip()
+            return
+
+        # Get the current text control and its current value
+        text_ctrl = event.GetEventObject()
+        current_value = text_ctrl.GetValue()
+        insertion_point = text_ctrl.GetInsertionPoint()
+
+        # Allow digits 0-9
+        if 48 <= key_code <= 57:  # ASCII codes for '0' to '9'
+            event.Skip()
+            return
+
+        # Allow minus sign only at the beginning for offset controls
+        if key_code == 45 and insertion_point == 0:  # ASCII code for '-'
+            if text_ctrl in [self.offset_h_text, self.offset_l_text]:
+                if '-' not in current_value:
+                    event.Skip()
+                    return
+
+        # Allow dot only if there isn't one already
+        if key_code == 46:  # ASCII code for '.'
+            if '.' not in current_value:
+                event.Skip()
+                return
+
+        # Block all other characters
+        return
+
+    def handle_digit_increment(self, event):
+        """Handle UP/DOWN arrow keys to increment/decrement digit at cursor position"""
+        key_code = event.GetKeyCode()
+
+        # Only handle UP and DOWN arrow keys
+        if key_code not in [wx.WXK_UP, wx.WXK_DOWN]:
+            event.Skip()
+            return
+
+        text_ctrl = event.GetEventObject()
+        current_value = text_ctrl.GetValue()
+        cursor_pos = text_ctrl.GetInsertionPoint()
+
+        # Skip if empty or cursor at invalid position
+        if not current_value or cursor_pos >= len(current_value):
+            event.Skip()
+            return
+
+        try:
+            # Parse the number
+            original_number = float(current_value)
+            is_negative = original_number < 0
+
+            # Work with absolute value for easier processing
+            abs_value = abs(original_number)
+
+            # Split into integer and decimal parts
+            str_abs = f"{abs_value:.10f}".rstrip('0').rstrip('.')
+            if '.' in str_abs:
+                integer_part, decimal_part = str_abs.split('.')
+            else:
+                integer_part = str_abs
+                decimal_part = ""
+
+            # Find which digit position cursor is on
+            full_str = current_value.replace('-', '')  # Remove minus for position calculation
+            adjusted_cursor = cursor_pos
+            if is_negative:
+                adjusted_cursor -= 1  # Account for minus sign
+
+            # Skip if cursor is on decimal point
+            if adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.':
+                event.Skip()
+                return
+
+            # Determine digit position (power of 10)
+            if '.' in full_str:
+                decimal_pos = full_str.index('.')
+                if adjusted_cursor < decimal_pos:
+                    # Integer part - power is positive
+                    digit_power = decimal_pos - adjusted_cursor - 1
+                else:
+                    # Decimal part - power is negative
+                    digit_power = decimal_pos - adjusted_cursor
+            else:
+                # No decimal point
+                digit_power = len(full_str) - adjusted_cursor - 1
+
+            # Calculate increment value
+            increment_value = 10 ** digit_power
+            if key_code == wx.WXK_DOWN:
+                increment_value = -increment_value
+
+            # Apply increment
+            new_number = original_number + increment_value
+
+            # Format the result to preserve appropriate decimal places
+            if digit_power >= 0:
+                # Integer digit changed - format as integer if no decimals needed
+                if abs(new_number - round(new_number)) < 1e-10:
+                    formatted_result = f"{int(round(new_number))}"
+                else:
+                    # Keep existing decimal places
+                    decimal_places = len(decimal_part) if decimal_part else 0
+                    formatted_result = f"{new_number:.{decimal_places}f}"
+            else:
+                # Decimal digit changed - ensure we have enough decimal places
+                required_decimals = abs(digit_power)
+                existing_decimals = len(decimal_part) if decimal_part else 0
+                decimal_places = max(required_decimals, existing_decimals)
+                formatted_result = f"{new_number:.{decimal_places}f}".rstrip('0').rstrip('.')
+
+            # Update the text control
+            text_ctrl.SetValue(formatted_result)
+
+            # Restore cursor position (adjust for possible length change)
+            new_length = len(formatted_result)
+            old_length = len(current_value)
+            new_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
+            text_ctrl.SetInsertionPoint(new_cursor_pos)
+
+            # Trigger the appropriate change event
+            if text_ctrl == self.offset_h_text:
+                self.on_offset_h_change(event)
+            elif text_ctrl == self.offset_l_text:
+                self.on_offset_l_change(event)
+            elif text_ctrl == self.min_range_text:
+                self.on_min_range_change(event)
+            elif text_ctrl == self.max_range_text:
+                self.on_max_range_change(event)
+
+        except (ValueError, IndexError):
+            # If parsing fails, just skip
+            event.Skip()
+            return
 
     def force_range_box_refresh(self):
         """Force refresh of range box colors and layout"""

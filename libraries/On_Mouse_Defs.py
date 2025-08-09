@@ -117,6 +117,14 @@ class MouseEventHandler:
         if event.inaxes:
             x_click = event.xdata
             if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
+                # Store current vline positions
+                current_vline1_pos = None
+                current_vline2_pos = None
+                if self.window.vline1 is not None:
+                    current_vline1_pos = self.window.vline1.get_xdata()[0]
+                if self.window.vline2 is not None:
+                    current_vline2_pos = self.window.vline2.get_xdata()[0]
+
                 # Clean up any existing handlers first
                 if hasattr(self.window, 'motion_cid'):
                     self.window.canvas.mpl_disconnect(self.window.motion_cid)
@@ -145,34 +153,78 @@ class MouseEventHandler:
                         if vline1_x == low_be_x:
                             calculated_offset = event.ydata - raw_y
                             # Ensure offset cannot be positive
-                            self.window.offset_l = min(calculated_offset, 0)
+                            calculated_offset = min(calculated_offset, 0)
+
+                            # REGION-SPECIFIC UPDATE:
+                            self.window.fitting_window.offset_l_text.SetValue(f'{calculated_offset:.1f}')
+                            if hasattr(self.window.fitting_window,
+                                       'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                                offset_h_value = float(self.window.fitting_window.offset_h_text.GetValue())
+                                self.window.fitting_window.update_active_range_offsets(offset_h_value,
+                                                                                       calculated_offset)
+                            self.window.set_offset_l(calculated_offset)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset Low'] = self.window.offset_l
-                            self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+
                         else:
                             calculated_offset = event.ydata - raw_y
                             # Ensure offset cannot be positive
-                            self.window.offset_h = min(calculated_offset, 0)
+                            calculated_offset = min(calculated_offset, 0)
+
+                            # REGION-SPECIFIC UPDATE:
+                            self.window.fitting_window.offset_h_text.SetValue(f'{calculated_offset:.1f}')
+                            if hasattr(self.window.fitting_window,
+                                       'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                                offset_l_value = float(self.window.fitting_window.offset_l_text.GetValue())
+                                self.window.fitting_window.update_active_range_offsets(calculated_offset,
+                                                                                       offset_l_value)
+                            self.window.set_offset_h(calculated_offset)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset High'] = self.window.offset_h
-                            self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
+
                     else:
                         raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
                         if vline2_x == low_be_x:
                             calculated_offset = event.ydata - raw_y
                             # Ensure offset cannot be positive
-                            self.window.offset_l = min(calculated_offset, 0)
+                            calculated_offset = min(calculated_offset, 0)
+
+                            # REGION-SPECIFIC UPDATE:
+                            self.window.fitting_window.offset_l_text.SetValue(f'{calculated_offset:.1f}')
+                            if hasattr(self.window.fitting_window,
+                                       'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                                offset_h_value = float(self.window.fitting_window.offset_h_text.GetValue())
+                                self.window.fitting_window.update_active_range_offsets(offset_h_value,
+                                                                                       calculated_offset)
+                            self.window.set_offset_l(calculated_offset)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset Low'] = self.window.offset_l
-                            self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+
                         else:
                             calculated_offset = event.ydata - raw_y
                             # Ensure offset cannot be positive
-                            self.window.offset_h = min(calculated_offset, 0)
+                            calculated_offset = min(calculated_offset, 0)
+
+                            # REGION-SPECIFIC UPDATE:
+                            self.window.fitting_window.offset_h_text.SetValue(f'{calculated_offset:.1f}')
+                            if hasattr(self.window.fitting_window,
+                                       'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                                offset_l_value = float(self.window.fitting_window.offset_l_text.GetValue())
+                                self.window.fitting_window.update_active_range_offsets(calculated_offset,
+                                                                                       offset_l_value)
+                            self.window.set_offset_h(calculated_offset)
                             self.window.Data['Core levels'][sheet_name]['Background'][
                                 'Bkg Offset High'] = self.window.offset_h
-                            self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
+
                     self.window.plot_manager.plot_background(self.window)
+
+                    # Force correct legend update for Multi-Regions Smart background
+                    if hasattr(self.window.plot_manager, 'update_legend'):
+                        self.window.plot_manager.update_legend(self.window)
+
+                    # Restore vlines after plotting
+                    if current_vline1_pos is not None and current_vline2_pos is not None:
+                        wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
                     return
             elif event.button == 1:
                 if event.key == 'shift':
@@ -427,6 +479,14 @@ class MouseEventHandler:
 
     def on_motion(self, event):
         if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
+            # Store current vline positions
+            current_vline1_pos = None
+            current_vline2_pos = None
+            if self.window.vline1 is not None:
+                current_vline1_pos = self.window.vline1.get_xdata()[0]
+            if self.window.vline2 is not None:
+                current_vline2_pos = self.window.vline2.get_xdata()[0]
+
             x_click = event.xdata
             sheet_name = self.window.sheet_combobox.GetValue()
             if self.window.vline1 is not None and self.window.vline2 is not None:
@@ -444,35 +504,71 @@ class MouseEventHandler:
                     if vline1_x == low_be_x:
                         calculated_offset = event.ydata - raw_y
                         # Ensure offset cannot be positive
-                        self.window.offset_l = min(calculated_offset, 0)
-                        self.window.Data['Core levels'][sheet_name]['Background'][
-                            'Bkg Offset Low'] = self.window.offset_l
-                        self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                        calculated_offset = min(calculated_offset, 0)
+
+                        # REGION-SPECIFIC UPDATE:
+                        self.window.fitting_window.offset_l_text.SetValue(f'{calculated_offset:.1f}')
+                        if hasattr(self.window.fitting_window,
+                                   'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                            offset_h_value = float(self.window.fitting_window.offset_h_text.GetValue())
+                            self.window.fitting_window.update_active_range_offsets(offset_h_value, calculated_offset)
+                        self.window.set_offset_l(calculated_offset)
+
                     else:
                         calculated_offset = event.ydata - raw_y
                         # Ensure offset cannot be positive
-                        self.window.offset_h = min(calculated_offset, 0)
-                        self.window.Data['Core levels'][sheet_name]['Background'][
-                            'Bkg Offset High'] = self.window.offset_h
-                        self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
+                        calculated_offset = min(calculated_offset, 0)
+
+                        # REGION-SPECIFIC UPDATE:
+                        self.window.fitting_window.offset_h_text.SetValue(f'{calculated_offset:.1f}')
+                        if hasattr(self.window.fitting_window,
+                                   'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                            offset_l_value = float(self.window.fitting_window.offset_l_text.GetValue())
+                            self.window.fitting_window.update_active_range_offsets(calculated_offset, offset_l_value)
+                        self.window.set_offset_h(calculated_offset)
+
                 else:
                     raw_y = self.window.y_values[np.argmin(np.abs(self.window.x_values - vline2_x))]
                     if vline2_x == low_be_x:
                         calculated_offset = event.ydata - raw_y
                         # Ensure offset cannot be positive
-                        self.window.offset_l = min(calculated_offset, 0)
-                        self.window.Data['Core levels'][sheet_name]['Background'][
-                            'Bkg Offset Low'] = self.window.offset_l
-                        self.window.fitting_window.offset_l_text.SetValue(f'{self.window.offset_l:.1f}')
+                        calculated_offset = min(calculated_offset, 0)
+
+                        # REGION-SPECIFIC UPDATE:
+                        self.window.fitting_window.offset_l_text.SetValue(f'{calculated_offset:.1f}')
+                        if hasattr(self.window.fitting_window,
+                                   'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                            offset_h_value = float(self.window.fitting_window.offset_h_text.GetValue())
+                            self.window.fitting_window.update_active_range_offsets(offset_h_value, calculated_offset)
+                        self.window.set_offset_l(calculated_offset)
+
                     else:
                         calculated_offset = event.ydata - raw_y
                         # Ensure offset cannot be positive
-                        self.window.offset_h = min(calculated_offset, 0)
-                        self.window.Data['Core levels'][sheet_name]['Background'][
-                            'Bkg Offset High'] = self.window.offset_h
-                        self.window.fitting_window.offset_h_text.SetValue(f'{self.window.offset_h:.1f}')
+                        calculated_offset = min(calculated_offset, 0)
+
+                        # REGION-SPECIFIC UPDATE:
+                        self.window.fitting_window.offset_h_text.SetValue(f'{calculated_offset:.1f}')
+                        if hasattr(self.window.fitting_window,
+                                   'active_range_index') and self.window.fitting_window.active_range_index >= 0:
+                            offset_l_value = float(self.window.fitting_window.offset_l_text.GetValue())
+                            self.window.fitting_window.update_active_range_offsets(calculated_offset, offset_l_value)
+                        self.window.set_offset_h(calculated_offset)
+
+                # Store old 'Bkg Offset' values in window.data
+                self.window.Data['Core levels'][sheet_name]['Background']['Bkg Offset Low'] = self.window.offset_l
+                self.window.Data['Core levels'][sheet_name]['Background']['Bkg Offset High'] = self.window.offset_h
 
                 self.window.plot_manager.plot_background(self.window)
+
+                # Force correct legend update for Multi-Regions Smart background
+                if hasattr(self.window.plot_manager, 'update_legend'):
+                    self.window.plot_manager.update_legend(self.window)
+
+                # Restore vlines after plotting
+                if current_vline1_pos is not None and current_vline2_pos is not None:
+                    wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
+
         elif event.inaxes and self.window.moving_vline is not None:
             x_click = event.xdata
             self.window.moving_vline.set_xdata([x_click])
@@ -643,7 +739,7 @@ class MouseEventHandler:
             # Force canvas redraw
             self.window.canvas.draw_idle()
 
-            print(f"Restored vlines at positions: {vline1_pos:.2f}, {vline2_pos:.2f}")
+            # print(f"Restored vlines at positions: {vline1_pos:.2f}, {vline2_pos:.2f}")
 
         except Exception as e:
             print(f"Error restoring vlines: {e}")
