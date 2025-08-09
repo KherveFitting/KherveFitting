@@ -531,7 +531,7 @@ class MouseEventHandler:
         if sheet_name not in self.window.Data['Core levels']:
             return
 
-        # Get all recorded ranges
+        # Get all recorded ranges from window.data
         ranges = self.window.fitting_window.get_recorded_ranges_from_data()
         if not ranges:
             return
@@ -552,11 +552,19 @@ class MouseEventHandler:
         self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_values.tolist()
         current_background = np.array(y_values)
 
+        # Get active region index
+        active_region_index = getattr(self.window.fitting_window, 'active_range_index', -1)
+
         # Apply each region in sequence: region 1, then 2, then 3, etc.
         for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-            print(f"Applying region {i + 1}: {min_range:.2f} - {max_range:.2f}")
+            if i == active_region_index:
+                print(
+                    f"Applying region {i + 1} (ACTIVE): {min_range:.2f} - {max_range:.2f} with window.data offsets: {offset_h:.1f}, {offset_l:.1f}")
+            else:
+                print(
+                    f"Applying region {i + 1}: {min_range:.2f} - {max_range:.2f} with stored offsets: {offset_h:.1f}, {offset_l:.1f}")
 
-            # Calculate background for this specific region
+            # Calculate background for this specific region using window.data offset values
             from libraries.Peak_Functions import BackgroundCalculations
             current_background = BackgroundCalculations.calculate_adaptive_smart_background(
                 x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l
@@ -566,8 +574,20 @@ class MouseEventHandler:
         self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
         self.window.background = current_background
 
+        # CRITICAL: Update window offset values to match active region offsets
+        # This ensures plot_background() uses correct offsets for the active region
+        if active_region_index >= 0 and active_region_index < len(ranges):
+            active_offset_h, active_offset_l, _, _ = ranges[active_region_index]
+            self.window.offset_h = active_offset_h
+            self.window.offset_l = active_offset_l
+            print(f"Updated window offsets to active region values: {active_offset_h:.1f}, {active_offset_l:.1f}")
+
         # Redraw the plot
         self.window.plot_manager.plot_background(self.window)
+
+        # Force correct legend update for Multi-Regions Smart background
+        if hasattr(self.window.plot_manager, 'update_legend'):
+            self.window.plot_manager.update_legend(self.window)
 
         # RESTORE vLines after plotting (they get destroyed by clear_and_replot)
         if current_vline1_pos is not None and current_vline2_pos is not None:
@@ -646,14 +666,23 @@ class MouseEventHandler:
         min_pos = round(min(vline1_x, vline2_x), 2)
         max_pos = round(max(vline1_x, vline2_x), 2)
 
+        # Get current offset values from UI controls instead of stored values
+        try:
+            current_offset_h = float(self.window.fitting_window.offset_h_text.GetValue())
+            current_offset_l = float(self.window.fitting_window.offset_l_text.GetValue())
+            print(f'current_offset_h = {current_offset_h}')
+        except (ValueError, AttributeError):
+            current_offset_h = 0.0
+            current_offset_l = 0.0
+
         # Update the active region's positions
         ranges = self.window.fitting_window.get_recorded_ranges_from_data()
         active_idx = self.window.fitting_window.active_range_index
 
         if active_idx < len(ranges):
-            # Keep existing offsets, update positions
-            offset_h, offset_l, old_min, old_max = ranges[active_idx]
-            ranges[active_idx] = (offset_h, offset_l, min_pos, max_pos)
+            # Use current UI offset values instead of stored ones
+            old_offset_h, old_offset_l, old_min, old_max = ranges[active_idx]
+            ranges[active_idx] = (current_offset_h, current_offset_l, min_pos, max_pos)
 
             # Save back to window.data
             sheet_name = self.window.sheet_combobox.GetValue()
@@ -667,7 +696,8 @@ class MouseEventHandler:
             self.window.fitting_window.max_range_text.SetValue(f"{max_pos:.2f}")
             self.window.fitting_window.updating_range_controls = False
 
-            print(f"Updated region {active_idx + 1} positions: {min_pos:.2f} - {max_pos:.2f}")
+            print(
+                f"Updated region {active_idx + 1} positions: {min_pos:.2f} - {max_pos:.2f} with offsets: {current_offset_h:.1f}, {current_offset_l:.1f}")
 
     def cleanup_vline_handlers(self):
         """Clean up any existing vline event handlers"""
