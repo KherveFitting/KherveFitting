@@ -149,27 +149,27 @@ class FittingWindow(wx.Frame):
         # info_button = self.create_info_button(self.background_panel,
         #                                       self.get_background_description(self.parent.background_method))
 
-        offset_h_label = wx.StaticText(self.background_panel, label="I Offset (Left):")
-        self.offset_h_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_h),
+        offset_h_label = wx.StaticText(self.background_panel, label="Offset (Left):")
+        self.offset_h_text = wx.TextCtrl(self.background_panel, value=f"{self.parent.offset_h:.2f}",
                                          style=wx.TE_PROCESS_ENTER)
         self.offset_h_text.Bind(wx.EVT_TEXT_ENTER, self.on_offset_h_change)
         self.offset_h_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
         self.offset_h_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
-        offset_l_label = wx.StaticText(self.background_panel, label="I Offset (Right):")
-        self.offset_l_text = wx.TextCtrl(self.background_panel, value=str(self.parent.offset_l),
+        offset_l_label = wx.StaticText(self.background_panel, label="Offset (Right):")
+        self.offset_l_text = wx.TextCtrl(self.background_panel, value=f"{self.parent.offset_l:.2f}",
                                          style=wx.TE_PROCESS_ENTER)
         self.offset_l_text.Bind(wx.EVT_TEXT_ENTER, self.on_offset_l_change)
         self.offset_l_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
         self.offset_l_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
-        self.min_range_label = wx.StaticText(self.background_panel, label='Min Range (Region):')
+        self.min_range_label = wx.StaticText(self.background_panel, label='Region (Right):')
         self.min_range_text = wx.TextCtrl(self.background_panel, value="0.00", style=wx.TE_PROCESS_ENTER)
         self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_change)
         self.min_range_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
         self.min_range_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
-        self.max_range_label = wx.StaticText(self.background_panel, label='Max Range (Region):')
+        self.max_range_label = wx.StaticText(self.background_panel, label='Region (Left):')
         self.max_range_text = wx.TextCtrl(self.background_panel, value="0.00", style=wx.TE_PROCESS_ENTER)
         self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_change)
         self.max_range_text.Bind(wx.EVT_CHAR, self.validate_numeric_input)
@@ -308,10 +308,10 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(offset_l_label, pos=(2, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.offset_l_text, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            background_sizer.Add(self.min_range_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.min_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.max_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            background_sizer.Add(self.max_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.min_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.max_range_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            background_sizer.Add(self.max_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             background_sizer.Add(averaging_points_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
             background_sizer.Add(self.averaging_points_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
@@ -340,10 +340,10 @@ class FittingWindow(wx.Frame):
             background_sizer.Add(offset_l_label, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.offset_l_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-            background_sizer.Add(self.min_range_label, pos=(3, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.min_range_text, pos=(3, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.max_range_label, pos=(4, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            background_sizer.Add(self.max_range_text, pos=(4, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.min_range_text, pos=(4, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.max_range_label, pos=(3, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            background_sizer.Add(self.max_range_text, pos=(3, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             background_sizer.Add(averaging_points_label, pos=(5, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             background_sizer.Add(self.averaging_points_text, pos=(5, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -805,8 +805,8 @@ class FittingWindow(wx.Frame):
             # Update controls with next region values
             self.updating_range_controls = True
             self._updating_offsets = True
-            self.offset_h_text.SetValue(f"{offset_h:.1f}")
-            self.offset_l_text.SetValue(f"{offset_l:.1f}")
+            self.offset_h_text.SetValue(f"{offset_h:.2f}")
+            self.offset_l_text.SetValue(f"{offset_l:.2f}")
             self.min_range_text.SetValue(f"{min_range:.2f}")
             self.max_range_text.SetValue(f"{max_range:.2f}")
             self._updating_offsets = False
@@ -832,7 +832,7 @@ class FittingWindow(wx.Frame):
             wx.CallAfter(self.update_range_box_colors)
             wx.CallAfter(self.force_range_box_refresh)
 
-            print(f"Switched to region {next_region + 1}: {min_range:.2f} - {max_range:.2f}")
+            # print(f"Switched to region {next_region + 1}: {min_range:.2f} - {max_range:.2f}")
             return
 
         # # ORIGINAL CODE: Calculate 1/15 and 14/15 positions
@@ -1309,16 +1309,15 @@ class FittingWindow(wx.Frame):
         try:
             save_state(self.parent)
             try:
-                offset_h_value = float(self.offset_h_text.GetValue())
-                # Ensure offset cannot be positive
-                if offset_h_value > 0:
-                    offset_h_value = 0
-                    self.offset_h_text.SetValue(f'{offset_h_value:.1f}')
+                display_value = float(self.offset_h_text.GetValue())
+                # Convert positive display to negative actual value
+                offset_h_value = -abs(display_value)
+
                 self.parent.set_offset_h(offset_h_value)
 
                 # Update active range if one is selected
                 if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
-                    offset_l_value = float(self.offset_l_text.GetValue())
+                    offset_l_value = self.get_offset_actual_value(self.offset_l_text)
                     self.update_active_range_offsets(offset_h_value, offset_l_value)
 
                 # Redraw background from all regions
@@ -1340,16 +1339,15 @@ class FittingWindow(wx.Frame):
         try:
             save_state(self.parent)
             try:
-                offset_l_value = float(self.offset_l_text.GetValue())
-                # Ensure offset cannot be positive
-                if offset_l_value > 0:
-                    offset_l_value = 0
-                    self.offset_l_text.SetValue(f'{offset_l_value:.1f}')
+                display_value = float(self.offset_l_text.GetValue())
+                # Convert positive display to negative actual value
+                offset_l_value = -abs(display_value)
+
                 self.parent.set_offset_l(offset_l_value)
 
                 # Update active range if one is selected
                 if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
-                    offset_h_value = float(self.offset_h_text.GetValue())
+                    offset_h_value = self.get_offset_actual_value(self.offset_h_text)
                     self.update_active_range_offsets(offset_h_value, offset_l_value)
 
                 # Redraw background from all regions
@@ -1478,8 +1476,8 @@ class FittingWindow(wx.Frame):
                 # Update all controls with first region values
                 self.updating_range_controls = True
                 self._updating_offsets = True  # Prevent save_state calls from offset handlers
-                self.offset_h_text.SetValue(f"{offset_h:.1f}")
-                self.offset_l_text.SetValue(f"{offset_l:.1f}")
+                self.offset_h_text.SetValue(f"{offset_h:.2f}")
+                self.offset_l_text.SetValue(f"{offset_l:.2f}")
                 self.min_range_text.SetValue(f"{min_range:.2f}")
                 self.max_range_text.SetValue(f"{max_range:.2f}")
                 self._updating_offsets = False
@@ -1501,7 +1499,7 @@ class FittingWindow(wx.Frame):
                 wx.CallAfter(self.update_range_box_colors)
                 wx.CallAfter(self.force_range_box_refresh)
 
-                print(f"Auto-activated region 1: {min_range:.2f} - {max_range:.2f}")
+                # print(f"Auto-activated region 1: {min_range:.2f} - {max_range:.2f}")
 
         else:
             self.parent.disable_background_interaction()
@@ -1514,6 +1512,7 @@ class FittingWindow(wx.Frame):
             self.parent.peak_manipulation.deselect_all_peaks()
 
         event.Skip()
+
 
     def on_key_down_OLD(self, event):
         """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""
@@ -1555,27 +1554,28 @@ class FittingWindow(wx.Frame):
             if is_negative:
                 adjusted_cursor -= 1  # Account for minus sign
 
-            # # Skip if cursor is on decimal point
-            # if adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.':
-            #     event.Skip()
-            #     return
-
-            # CORRECTED: Determine digit position (power of 10)
-            # We want to modify the character AT the cursor position
+            # Determine digit position (power of 10)
             if '.' in full_str:
                 decimal_pos = full_str.index('.')
                 if adjusted_cursor < decimal_pos:
-                    # Integer part - character at position adjusted_cursor
-                    # Power = (decimal_pos - 1) - adjusted_cursor
-                    digit_power = (decimal_pos - 0) - adjusted_cursor
+                    # Integer part - modify character to the RIGHT of cursor
+                    # Increment adjusted_cursor to get the character we want to modify
+                    target_char_pos = adjusted_cursor
+                    digit_power = (decimal_pos - 1) - target_char_pos
                 else:
-                    # Decimal part - character at position adjusted_cursor
-                    # Power = decimal_pos - adjusted_cursor
-                    digit_power = decimal_pos - adjusted_cursor
+                    # Decimal part - modify character to the RIGHT of cursor
+                    target_char_pos = adjusted_cursor
+                    digit_power = decimal_pos - target_char_pos
             else:
-                # No decimal point - character at position adjusted_cursor
-                # Power = (len(full_str) - 1) - adjusted_cursor
-                digit_power = (len(full_str) - 0) - adjusted_cursor
+                # No decimal point - modify character to the RIGHT of cursor
+                target_char_pos = adjusted_cursor
+                digit_power = (len(full_str) - 1) - target_char_pos
+
+            # Skip if we're at the end or on decimal point
+            if adjusted_cursor >= len(full_str) or (
+                    adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.'):
+                event.Skip()
+                return
 
             # Calculate increment value
             increment_value = 10 ** digit_power
@@ -1678,7 +1678,6 @@ class FittingWindow(wx.Frame):
                 decimal_pos = full_str.index('.')
                 if adjusted_cursor < decimal_pos:
                     # Integer part - modify character to the RIGHT of cursor
-                    # Increment adjusted_cursor to get the character we want to modify
                     target_char_pos = adjusted_cursor
                     digit_power = (decimal_pos - 1) - target_char_pos
                 else:
@@ -1704,28 +1703,20 @@ class FittingWindow(wx.Frame):
             # Apply increment
             new_number = original_number + increment_value
 
-            # Format the result
-            if digit_power >= 0:
-                # Integer digit changed
-                if abs(new_number - round(new_number)) < 1e-10:
-                    formatted_result = f"{int(round(new_number))}"
-                else:
-                    decimal_places = len(decimal_part) if decimal_part else 0
-                    formatted_result = f"{new_number:.{decimal_places}f}"
+            # CONSISTENT FORMATTING: Maintain same decimal places as original
+            if '.' in current_value:
+                # Has decimal - maintain same number of decimal places
+                original_decimal_places = len(current_value.split('.')[1])
+                formatted_result = f"{new_number:.{original_decimal_places}f}"
             else:
-                # Decimal digit changed
-                required_decimals = abs(digit_power)
-                existing_decimals = len(decimal_part) if decimal_part else 0
-                decimal_places = max(required_decimals, existing_decimals)
-                formatted_result = f"{new_number:.{decimal_places}f}".rstrip('0').rstrip('.')
+                # No decimal - format as integer
+                formatted_result = f"{int(round(new_number))}"
 
             # Update the text control
             text_ctrl.SetValue(formatted_result)
 
-            # Calculate desired cursor position BEFORE calling change event
-            new_length = len(formatted_result)
-            old_length = len(current_value)
-            desired_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
+            # Since string length stays the same, cursor position stays the same
+            desired_cursor_pos = cursor_pos
 
             # Trigger the appropriate change event manually
             if text_ctrl == self.offset_h_text:
@@ -1898,18 +1889,18 @@ class FittingWindow(wx.Frame):
         """Force refresh of range box colors and layout"""
         try:
             # Double-check active range is set
-            print(f"Active range index: {getattr(self, 'active_range_index', 'NOT SET')}")
+            # print(f"Active range index: {getattr(self, 'active_range_index', 'NOT SET')}")
 
             # Force refresh of each range box
             for i, box in enumerate(self.range_boxes):
                 if i == self.active_range_index:
                     box.SetBackgroundColour(wx.Colour(255, 0, 0))  # Red
                     box.SetForegroundColour(wx.Colour(255, 255, 255))  # White text
-                    print(f"Setting box {i + 1} to RED (active)")
+                    # print(f"Setting box {i + 1} to RED (active)")
                 else:
                     box.SetBackgroundColour(wx.NullColour)
                     box.SetForegroundColour(wx.NullColour)
-                    print(f"Setting box {i + 1} to DEFAULT")
+                    # print(f"Setting box {i + 1} to DEFAULT")
 
                 box.Refresh()
                 box.Update()
@@ -1932,8 +1923,8 @@ class FittingWindow(wx.Frame):
 
             # Update controls with active range values
             self.updating_range_controls = True
-            self.offset_h_text.SetValue(f"{offset_h:.1f}")
-            self.offset_l_text.SetValue(f"{offset_l:.1f}")
+            self.offset_h_text.SetValue(f"{offset_h:.2f}")
+            self.offset_l_text.SetValue(f"{offset_l:.2f}")
             self.min_range_text.SetValue(f"{min_range:.2f}")
             self.max_range_text.SetValue(f"{max_range:.2f}")
             self.updating_range_controls = False
@@ -2359,7 +2350,7 @@ class FittingWindow(wx.Frame):
             self.parent.bg_min_energy = overall_min
             self.parent.bg_max_energy = overall_max
 
-            print(f"Updated window.Data background range: {overall_min:.2f} - {overall_max:.2f}")
+            # print(f"Updated window.Data background range: {overall_min:.2f} - {overall_max:.2f}")
 
     def update_range_controls_from_data(self):
         """Update min/max range controls from vline positions."""
@@ -2431,8 +2422,8 @@ class FittingWindow(wx.Frame):
             # Load region 1 values to controls
             offset_h, offset_l, min_range, max_range = ranges[0]
             self.updating_range_controls = True
-            self.offset_h_text.SetValue(f"{offset_h:.1f}")
-            self.offset_l_text.SetValue(f"{offset_l:.1f}")
+            self.offset_h_text.SetValue(f"{offset_h:.2f}")
+            self.offset_l_text.SetValue(f"{offset_l:.2f}")
             self.min_range_text.SetValue(f"{min_range:.2f}")
             self.max_range_text.SetValue(f"{max_range:.2f}")
             self.updating_range_controls = False
@@ -2485,6 +2476,16 @@ class FittingWindow(wx.Frame):
 
         save_state(self.parent)
         print(f"Removed region {removed_region_number}")
+
+    def set_offset_display_value(self, text_ctrl, actual_value):
+        """Set display value as positive while keeping actual value negative"""
+        display_value = abs(float(actual_value))
+        text_ctrl.SetValue(f"{display_value:.1f}")
+
+    def get_offset_actual_value(self, text_ctrl):
+        """Get actual negative value from positive display value"""
+        display_value = float(text_ctrl.GetValue())
+        return -abs(display_value)  # Always return negative
 
     def disable_fitting_ui(self):
         """Disable all UI controls during multiple fitting"""

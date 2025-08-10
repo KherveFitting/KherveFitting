@@ -776,7 +776,7 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None):
 
         # PRESERVE SampleNames data (NEW CODE - this was missing!)
         sample_names = window.Data.get('SampleNames', {}).copy() if 'SampleNames' in window.Data else {}
-        print(f"DEBUG: Preserving SampleNames during refresh: {sample_names}")
+        # print(f"DEBUG: Preserving SampleNames during refresh: {sample_names}")
 
         # Save current state to JSON
         update_console("Saving current state to JSON...")

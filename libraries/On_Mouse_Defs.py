@@ -653,12 +653,12 @@ class MouseEventHandler:
 
         # Apply each region in sequence: region 1, then 2, then 3, etc.
         for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-            if i == active_region_index:
-                print(
-                    f"Applying region {i + 1} (ACTIVE): {min_range:.2f} - {max_range:.2f} with window.data offsets: {offset_h:.1f}, {offset_l:.1f}")
-            else:
-                print(
-                    f"Applying region {i + 1}: {min_range:.2f} - {max_range:.2f} with stored offsets: {offset_h:.1f}, {offset_l:.1f}")
+            # if i == active_region_index:
+            #     print(
+            #         f"Applying region {i + 1} (ACTIVE): {min_range:.2f} - {max_range:.2f} with window.data offsets: {offset_h:.1f}, {offset_l:.1f}")
+            # else:
+            #     print(
+            #         f"Applying region {i + 1}: {min_range:.2f} - {max_range:.2f} with stored offsets: {offset_h:.1f}, {offset_l:.1f}")
 
             # Calculate background for this specific region using window.data offset values
             from libraries.Peak_Functions import BackgroundCalculations
@@ -676,7 +676,7 @@ class MouseEventHandler:
             active_offset_h, active_offset_l, _, _ = ranges[active_region_index]
             self.window.offset_h = active_offset_h
             self.window.offset_l = active_offset_l
-            print(f"Updated window offsets to active region values: {active_offset_h:.1f}, {active_offset_l:.1f}")
+            # print(f"Updated window offsets to active region values: {active_offset_h:.1f}, {active_offset_l:.1f}")
 
         # Redraw the plot
         self.window.plot_manager.plot_background(self.window)
@@ -766,7 +766,7 @@ class MouseEventHandler:
         try:
             current_offset_h = float(self.window.fitting_window.offset_h_text.GetValue())
             current_offset_l = float(self.window.fitting_window.offset_l_text.GetValue())
-            print(f'current_offset_h = {current_offset_h}')
+            # print(f'current_offset_h = {current_offset_h}')
         except (ValueError, AttributeError):
             current_offset_h = 0.0
             current_offset_l = 0.0
@@ -792,8 +792,8 @@ class MouseEventHandler:
             self.window.fitting_window.max_range_text.SetValue(f"{max_pos:.2f}")
             self.window.fitting_window.updating_range_controls = False
 
-            print(
-                f"Updated region {active_idx + 1} positions: {min_pos:.2f} - {max_pos:.2f} with offsets: {current_offset_h:.1f}, {current_offset_l:.1f}")
+            # print(
+            #     f"Updated region {active_idx + 1} positions: {min_pos:.2f} - {max_pos:.2f} with offsets: {current_offset_h:.1f}, {current_offset_l:.1f}")
 
     def cleanup_vline_handlers(self):
         """Clean up any existing vline event handlers"""
