@@ -653,18 +653,32 @@ class MouseEventHandler:
 
         # Apply each region in sequence: region 1, then 2, then 3, etc.
         for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-            # if i == active_region_index:
-            #     print(
-            #         f"Applying region {i + 1} (ACTIVE): {min_range:.2f} - {max_range:.2f} with window.data offsets: {offset_h:.1f}, {offset_l:.1f}")
-            # else:
-            #     print(
-            #         f"Applying region {i + 1}: {min_range:.2f} - {max_range:.2f} with stored offsets: {offset_h:.1f}, {offset_l:.1f}")
+            # # Calculate background for this specific region using window.data offset values
+            # from libraries.Peak_Functions import BackgroundCalculations
+            # current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+            #     x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l
+            # )
 
-            # Calculate background for this specific region using window.data offset values
+            # Calculate background for this specific region based on selected method
             from libraries.Peak_Functions import BackgroundCalculations
-            current_background = BackgroundCalculations.calculate_adaptive_smart_background(
-                x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l
-            )
+            method = self.window.background_method
+
+            if method == "Multi-Regions Smart":
+                current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
+            elif method == "Shirley":
+                current_background = BackgroundCalculations.calculate_adaptive_shirley_background(
+                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
+            elif method == "Linear":
+                current_background = BackgroundCalculations.calculate_adaptive_linear_background(
+                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
+            elif method == "Smart":
+                current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
+            else:
+                # Fallback to smart for unknown methods
+                current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
 
         # Update the final background
         self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
@@ -836,9 +850,11 @@ class MouseEventHandler:
                         core_level_data['Background']['Bkg Low'] = min(bg_low, bg_high)
                         core_level_data['Background']['Bkg High'] = max(bg_low, bg_high)
 
+                # if (moved_vline in [self.window.vline1, self.window.vline2] and
+                #         self.window.background_method == "Multi-Regions Smart" and
+                #         hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
                 if (moved_vline in [self.window.vline1, self.window.vline2] and
-                        self.window.background_method == "Multi-Regions Smart" and
-                        hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
+                            hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
                     # Update active region positions with new vLine positions
                     self.update_active_region_positions()
 

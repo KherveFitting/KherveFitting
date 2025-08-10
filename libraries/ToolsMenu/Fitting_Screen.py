@@ -126,7 +126,8 @@ class FittingWindow(wx.Frame):
 
     def init_background_tab(self, notebook):
         """Initialize the background tab in the notebook."""
-        self.parent.background_method = "Multi-Regions Smart"
+        # self.parent.background_method = "Multi-Regions Smart"
+        self.parent.background_method = "Smart"
         self.parent.offset_h = 0
         self.parent.offset_l = 0
 
@@ -137,7 +138,10 @@ class FittingWindow(wx.Frame):
         background_sizer = wx.GridBagSizer(hgap=0, vgap=0)
 
         method_label = wx.StaticText(self.background_panel, label="Method:")
-        self.method_combobox = wx.ComboBox(self.background_panel, choices=["Multi-Regions Smart", "Smart", "Shirley",
+        # self.method_combobox = wx.ComboBox(self.background_panel, choices=["Multi-Regions Smart", "Smart", "Shirley",
+        #                                     "Linear", '1x U4-Tougaard', "ALS-Raman"],
+        #                                    style=wx.CB_READONLY)
+        self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart", "Shirley",
                                             "Linear", '1x U4-Tougaard', "ALS-Raman"],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetMaxSize((125,25))
