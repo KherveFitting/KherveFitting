@@ -1515,6 +1515,124 @@ class FittingWindow(wx.Frame):
 
         event.Skip()
 
+    def on_key_down_OLD(self, event):
+        """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""
+        key_code = event.GetKeyCode()
+
+        # Only handle UP/DOWN arrows - let everything else pass through
+        if key_code not in [wx.WXK_UP, wx.WXK_DOWN]:
+            event.Skip()
+            return
+
+        text_ctrl = event.GetEventObject()
+        current_value = text_ctrl.GetValue()
+        cursor_pos = text_ctrl.GetInsertionPoint()
+
+        # Skip if empty or cursor at invalid position
+        if not current_value or cursor_pos >= len(current_value):
+            event.Skip()
+            return
+
+        try:
+            # Parse the number
+            original_number = float(current_value)
+            is_negative = original_number < 0
+
+            # Work with absolute value for easier processing
+            abs_value = abs(original_number)
+
+            # Split into integer and decimal parts
+            str_abs = f"{abs_value:.10f}".rstrip('0').rstrip('.')
+            if '.' in str_abs:
+                integer_part, decimal_part = str_abs.split('.')
+            else:
+                integer_part = str_abs
+                decimal_part = ""
+
+            # Find which digit position cursor is on
+            full_str = current_value.replace('-', '')  # Remove minus for position calculation
+            adjusted_cursor = cursor_pos
+            if is_negative:
+                adjusted_cursor -= 1  # Account for minus sign
+
+            # # Skip if cursor is on decimal point
+            # if adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.':
+            #     event.Skip()
+            #     return
+
+            # CORRECTED: Determine digit position (power of 10)
+            # We want to modify the character AT the cursor position
+            if '.' in full_str:
+                decimal_pos = full_str.index('.')
+                if adjusted_cursor < decimal_pos:
+                    # Integer part - character at position adjusted_cursor
+                    # Power = (decimal_pos - 1) - adjusted_cursor
+                    digit_power = (decimal_pos - 0) - adjusted_cursor
+                else:
+                    # Decimal part - character at position adjusted_cursor
+                    # Power = decimal_pos - adjusted_cursor
+                    digit_power = decimal_pos - adjusted_cursor
+            else:
+                # No decimal point - character at position adjusted_cursor
+                # Power = (len(full_str) - 1) - adjusted_cursor
+                digit_power = (len(full_str) - 0) - adjusted_cursor
+
+            # Calculate increment value
+            increment_value = 10 ** digit_power
+            if key_code == wx.WXK_DOWN:
+                increment_value = -increment_value
+
+            # Apply increment
+            new_number = original_number + increment_value
+
+            # Format the result
+            if digit_power >= 0:
+                # Integer digit changed
+                if abs(new_number - round(new_number)) < 1e-10:
+                    formatted_result = f"{int(round(new_number))}"
+                else:
+                    decimal_places = len(decimal_part) if decimal_part else 0
+                    formatted_result = f"{new_number:.{decimal_places}f}"
+            else:
+                # Decimal digit changed
+                required_decimals = abs(digit_power)
+                existing_decimals = len(decimal_part) if decimal_part else 0
+                decimal_places = max(required_decimals, existing_decimals)
+                formatted_result = f"{new_number:.{decimal_places}f}".rstrip('0').rstrip('.')
+
+            # Update the text control
+            text_ctrl.SetValue(formatted_result)
+
+            # Calculate desired cursor position BEFORE calling change event
+            new_length = len(formatted_result)
+            old_length = len(current_value)
+            desired_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
+
+            # Trigger the appropriate change event manually
+            if text_ctrl == self.offset_h_text:
+                self.on_offset_h_change(event)
+            elif text_ctrl == self.offset_l_text:
+                self.on_offset_l_change(event)
+            elif text_ctrl == self.min_range_text:
+                self.on_min_range_change(event)
+                # RESTORE cursor position after change event (which may call SetValue again)
+                wx.CallAfter(lambda: text_ctrl.SetInsertionPoint(desired_cursor_pos))
+            elif text_ctrl == self.max_range_text:
+                self.on_max_range_change(event)
+                # RESTORE cursor position after change event (which may call SetValue again)
+                wx.CallAfter(lambda: text_ctrl.SetInsertionPoint(desired_cursor_pos))
+
+            # For offset controls, set cursor position immediately since they don't interfere
+            if text_ctrl in [self.offset_h_text, self.offset_l_text]:
+                text_ctrl.SetInsertionPoint(desired_cursor_pos)
+
+            # DO NOT call event.Skip() - we handled this completely
+
+        except (ValueError, IndexError):
+            # If parsing fails, allow default behavior
+            event.Skip()
+            return
+
     def on_key_down(self, event):
         """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""
         key_code = event.GetKeyCode()
@@ -1555,23 +1673,28 @@ class FittingWindow(wx.Frame):
             if is_negative:
                 adjusted_cursor -= 1  # Account for minus sign
 
-            # Skip if cursor is on decimal point
-            if adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.':
-                event.Skip()
-                return
-
             # Determine digit position (power of 10)
             if '.' in full_str:
                 decimal_pos = full_str.index('.')
                 if adjusted_cursor < decimal_pos:
-                    # Integer part - power is positive
-                    digit_power = decimal_pos - adjusted_cursor - 1
+                    # Integer part - modify character to the RIGHT of cursor
+                    # Increment adjusted_cursor to get the character we want to modify
+                    target_char_pos = adjusted_cursor
+                    digit_power = (decimal_pos - 1) - target_char_pos
                 else:
-                    # Decimal part - power is negative
-                    digit_power = decimal_pos - adjusted_cursor
+                    # Decimal part - modify character to the RIGHT of cursor
+                    target_char_pos = adjusted_cursor
+                    digit_power = decimal_pos - target_char_pos
             else:
-                # No decimal point
-                digit_power = len(full_str) - adjusted_cursor - 1
+                # No decimal point - modify character to the RIGHT of cursor
+                target_char_pos = adjusted_cursor
+                digit_power = (len(full_str) - 1) - target_char_pos
+
+            # Skip if we're at the end or on decimal point
+            if adjusted_cursor >= len(full_str) or (
+                    adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.'):
+                event.Skip()
+                return
 
             # Calculate increment value
             increment_value = 10 ** digit_power
@@ -1599,11 +1722,10 @@ class FittingWindow(wx.Frame):
             # Update the text control
             text_ctrl.SetValue(formatted_result)
 
-            # Restore cursor position
+            # Calculate desired cursor position BEFORE calling change event
             new_length = len(formatted_result)
             old_length = len(current_value)
-            new_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
-            text_ctrl.SetInsertionPoint(new_cursor_pos)
+            desired_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
 
             # Trigger the appropriate change event manually
             if text_ctrl == self.offset_h_text:
@@ -1612,8 +1734,16 @@ class FittingWindow(wx.Frame):
                 self.on_offset_l_change(event)
             elif text_ctrl == self.min_range_text:
                 self.on_min_range_change(event)
+                # RESTORE cursor position after change event (which may call SetValue again)
+                wx.CallAfter(lambda: text_ctrl.SetInsertionPoint(desired_cursor_pos))
             elif text_ctrl == self.max_range_text:
                 self.on_max_range_change(event)
+                # RESTORE cursor position after change event (which may call SetValue again)
+                wx.CallAfter(lambda: text_ctrl.SetInsertionPoint(desired_cursor_pos))
+
+            # For offset controls, set cursor position immediately since they don't interfere
+            if text_ctrl in [self.offset_h_text, self.offset_l_text]:
+                text_ctrl.SetInsertionPoint(desired_cursor_pos)
 
             # DO NOT call event.Skip() - we handled this completely
 
