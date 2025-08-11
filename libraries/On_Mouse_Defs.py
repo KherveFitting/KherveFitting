@@ -116,6 +116,9 @@ class MouseEventHandler:
     def on_click(self, event):
         if event.inaxes:
             x_click = event.xdata
+            if self.window.zoom_mode:
+                return  # Exit early, don't process vLine clicks during zoom
+
             if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
                 # Store current vline positions
                 current_vline1_pos = None

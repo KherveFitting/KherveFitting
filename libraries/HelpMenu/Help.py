@@ -418,13 +418,14 @@ Philosophy:
 -v1.3 Dec-24  - Towards true Atomic concentration (TPP-2M, IMFP, Transmission)
 -v1.4 Feb-25  - Towards Mac Version
 -v1.5 May-25  - Towards multi-samples 2D-Manager
--v1.6 xxx-25  - Towards opening/saving fitted CasaXPS data
+-v1.6 xxx-25  - Towards opening/saving fitted CasaXPS / Better Background management
 -v1.7 xxx-25  - Automatic Survey identification
 -v1.8 xxx-25  - Towards Linux Version (Synchrotron)
 
 Version 1.505-1.590
 - Added opening peak fitted CasaXPS files - Beta
 - Added export peak fitted CasaXPS files - Beta
+- Added better background management
 - Added Thickogram - Beta
 - Added possibility to constraint to other core levels
 - Improve right click Menu in the peak fitting grid with other core level constraints

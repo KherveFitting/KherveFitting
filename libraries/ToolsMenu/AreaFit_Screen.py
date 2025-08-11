@@ -51,7 +51,7 @@ class BackgroundWindow(wx.Frame):
         method_label = wx.StaticText(panel, label="Method:")
         self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart",
                                                            # "Smart", "Shirley", "Linear",
-                                                           '1x U4-Tougaard', '2x U4-Tougaard', '3x U4-Tougaard'],
+                                                           '1x U4-Tougaard'], #, '2x U4-Tougaard', '3x U4-Tougaard'],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetSelection(0)  # Default to Shirley
         self.method_combobox.SetMaxSize((125,25))
@@ -132,12 +132,21 @@ class BackgroundWindow(wx.Frame):
             background_only_button.SetMinSize((125, 35))
         background_only_button.Bind(wx.EVT_BUTTON, self.on_background_only)
 
-        # area_button = wx.Button(panel, label="Calculate\nArea")
-        # if 'wxMac' in wx.PlatformInfo:
-        #     area_button.SetMinSize((90, 30))
-        # else:
-        #     area_button.SetMinSize((90, 35))
-        # area_button.Bind(wx.EVT_BUTTON, self.on_area)
+        area_button = wx.Button(panel, label="Calculate\nArea")
+        if 'wxMac' in wx.PlatformInfo:
+            area_button.SetMinSize((90, 30))
+        else:
+            area_button.SetMinSize((90, 35))
+        area_button.Bind(wx.EVT_BUTTON, self.on_area)
+
+        # Create pure background button (rename the existing one)
+        background_pure_button = wx.Button(panel, label="Create\nBackground")
+        if 'wxMac' in wx.PlatformInfo:
+            background_pure_button.SetMinSize((125, 30))
+        else:
+            background_pure_button.SetMinSize((125, 35))
+        background_pure_button.Bind(wx.EVT_BUTTON, self.on_background_only_pure)
+
 
         peak_label_text_label = wx.StaticText(panel, label="Area Name      ")
         self.peak_label_text = wx.TextCtrl(panel, value="")
@@ -216,31 +225,33 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.averaging_points_text, pos=(5, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Fourth row: Tougaard parameters
-            sizer.Add(self.cross_section_label, pos=(7, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(self.cross_section, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-
-
-            sizer.Add(peak_label_text_label, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=0)
-            sizer.Add(self.peak_label_text, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=0)
+            sizer.Add(self.cross_section_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Export to result button and Remove Peak button
             export_button = wx.Button(panel, label="Export to\nResult")
             export_button.SetMinSize((90, 35))
             export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
-            sizer.Add(export_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=0)
-            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+            sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=0)
+            sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+            sizer.Add(switch_vlines_button, pos=(10, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(remove_peak_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(switch_vlines_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            # sizer.Add(export_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=5)
+            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+            sizer.Add(background_pure_button, pos=(12, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(area_button, pos=(12, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Sixth row: Background and Clear Background buttons
             # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            sizer.Add(background_only_button, pos=(14, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(clear_background_button, pos=(14, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(background_only_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         # Initially disable all Tougaard controls
@@ -377,7 +388,7 @@ class BackgroundWindow(wx.Frame):
 
         self.parent.ax.legend()
         self.parent.peak_params_grid.ForceRefresh()
-        self.on_reset_vlines(self)
+        # self.on_reset_vlines(self)
         save_state(self.parent)
 
     def on_switch_vlines(self, event):
@@ -1078,8 +1089,8 @@ class BackgroundWindow(wx.Frame):
 
     def show_hide_vlines(self):
         """Show/hide vlines based on current screen state and zoom/drag modes."""
-        # Hide vlines if zooming or dragging
-        if self.zoom_mode or self.drag_mode:
+        # Hide vlines ONLY if dragging (NOT during zoom)
+        if self.drag_mode:  # REMOVED: or self.zoom_mode
             if self.vline1 is not None:
                 self.vline1.set_visible(False)
             if self.vline2 is not None:
@@ -1094,7 +1105,14 @@ class BackgroundWindow(wx.Frame):
                 self.vline4.set_visible(False)
             return
 
-        # Check if either fitting screen OR area screen is open and active
+        # During zoom_mode: keep vLines visible but make them non-draggable
+        if self.zoom_mode:
+            # Make vLines non-draggable by removing mouse event connections
+            if hasattr(self, 'mouse_handler'):
+                self.mouse_handler.cleanup_vline_handlers()
+            # But keep them visible - continue with normal visibility logic below
+
+        # Rest of existing visibility logic...
         fitting_screen_active = (hasattr(self, 'fitting_window') and
                                  self.fitting_window is not None and
                                  hasattr(self, 'background_tab_selected') and
@@ -1105,10 +1123,9 @@ class BackgroundWindow(wx.Frame):
                               hasattr(self, 'area_tab_selected') and
                               self.area_tab_selected)
 
-        # Background lines (vline1, vline2) should be visible if EITHER screen is active
         background_lines_visible = fitting_screen_active or area_screen_active
 
-        # Set visibility for background vlines (vline1 and vline2)
+        # Set visibility for background vlines
         if self.vline1 is not None:
             self.vline1.set_visible(background_lines_visible)
         if self.vline2 is not None:
@@ -1118,7 +1135,7 @@ class BackgroundWindow(wx.Frame):
         if hasattr(self, 'vline2_text') and self.vline2_text is not None:
             self.vline2_text.set_visible(background_lines_visible)
 
-        # Noise lines visibility (only for fitting screen)
+        # Noise lines visibility
         noise_lines_visible = (self.noise_analysis_window is not None and
                                hasattr(self, 'noise_tab_selected') and
                                self.noise_tab_selected)
@@ -1304,6 +1321,42 @@ class BackgroundWindow(wx.Frame):
             return  # Don't skip - we handled it
 
         event.Skip()  # Let other keys pass through
+
+    def on_background_only_pure(self, event):
+        """Create background only without calculating area."""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if self.parent.vline1 is None or self.parent.vline2 is None:
+            return
+
+        save_state(self.parent)
+
+        # Set the background method from combobox
+        selected_method = self.method_combobox.GetValue()
+        self.parent.background_method = selected_method
+
+        # Get offsets
+        self.parent.offset_h = float(self.offset_h_text.GetValue())
+        self.parent.offset_l = float(self.offset_l_text.GetValue())
+
+        # Store vline positions BEFORE plotting background
+        vline1_x = self.parent.vline1.get_xdata()[0]
+        vline2_x = self.parent.vline2.get_xdata()[0]
+
+        # Create background only
+        self.parent.plot_manager.plot_background(self.parent)
+
+        # Restore vlines at their positions
+        self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+        self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+        # Add text labels back
+        self.add_vline_text_labels()
+
+        # Update area tab selection state so vlines stay visible
+        self.parent.area_tab_selected = True
+
+        print(f"Background created using {selected_method} method")
+        save_state(self.parent)
 
     def switch_to_next_peak(self):
         """Switch to next position: 0=plot range 10%-90%, then peak background ranges."""

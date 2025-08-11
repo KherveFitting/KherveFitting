@@ -1186,6 +1186,9 @@ class FittingWindow(wx.Frame):
             self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = self.parent.bg_min_energy
             self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = self.parent.bg_max_energy
 
+        # Parse and save cross-section values when creating region
+        self.parse_cross_section(self.cross_section.GetValue())
+
         # Get smooth checkbox state
         use_smoothing = self.smooth_data_checkbox.GetValue()
 
