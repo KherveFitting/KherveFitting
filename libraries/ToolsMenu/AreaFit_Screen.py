@@ -9,9 +9,9 @@ class BackgroundWindow(wx.Frame):
         self.parent = parent
         self.SetTitle("Measure Area")
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize((260, 385))  # Increased height to accommodate new elements
-            self.SetMinSize((260, 385))
-            self.SetMaxSize((260, 385))
+            self.SetSize((260, 345))  # Increased height to accommodate new elements
+            self.SetMinSize((260, 345))
+            self.SetMaxSize((260, 345))
         # elif 'wxGTK' in wx.PlatformInfo:
         #     self.SetSize((260, 470))  # Increased height to accommodate new elements
         #     self.SetMinSize((260, 470))
@@ -29,9 +29,9 @@ class BackgroundWindow(wx.Frame):
                 self.SetSize((280, 520))
             print(f'GTK environment: {desktop}')
         else:
-            self.SetSize((267, 400))
-            self.SetMinSize((267, 400))
-            self.SetMaxSize((267, 400))
+            self.SetSize((267, 370))
+            self.SetMinSize((267, 370))
+            self.SetMaxSize((267, 370))
 
         panel = wx.Panel(self)
 
@@ -56,20 +56,20 @@ class BackgroundWindow(wx.Frame):
         self.method_combobox.SetSelection(0)  # Default to Shirley
         self.method_combobox.SetMaxSize((125,25))
 
-        offset_h_label = wx.StaticText(panel, label="Offset (H):")
+        offset_h_label = wx.StaticText(panel, label="Offset (Left):")
         self.offset_h_text = wx.TextCtrl(panel, value="0")
 
-        offset_l_label = wx.StaticText(panel, label="Offset (L):")
+        offset_l_label = wx.StaticText(panel, label="Offset (Right):")
         self.offset_l_text = wx.TextCtrl(panel, value="0")
 
         self.offset_h_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
         self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
 
-        self.min_range_label = wx.StaticText(panel, label='Min Range:')
+        self.min_range_label = wx.StaticText(panel, label='Range (Right):')
         self.min_range_text = wx.TextCtrl(panel, value="0.00")
         self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
 
-        self.max_range_label = wx.StaticText(panel, label='Max Range:')
+        self.max_range_label = wx.StaticText(panel, label='Range (Left):')
         self.max_range_text = wx.TextCtrl(panel, value="0.00")
         self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
 
@@ -132,20 +132,20 @@ class BackgroundWindow(wx.Frame):
             background_only_button.SetMinSize((125, 35))
         background_only_button.Bind(wx.EVT_BUTTON, self.on_background_only)
 
-        area_button = wx.Button(panel, label="Calculate\nArea")
-        if 'wxMac' in wx.PlatformInfo:
-            area_button.SetMinSize((90, 30))
-        else:
-            area_button.SetMinSize((90, 35))
-        area_button.Bind(wx.EVT_BUTTON, self.on_area)
+        # area_button = wx.Button(panel, label="Calculate\nArea")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     area_button.SetMinSize((90, 30))
+        # else:
+        #     area_button.SetMinSize((90, 35))
+        # area_button.Bind(wx.EVT_BUTTON, self.on_area)
 
-        # Create pure background button (rename the existing one)
-        background_pure_button = wx.Button(panel, label="Create\nBackground")
-        if 'wxMac' in wx.PlatformInfo:
-            background_pure_button.SetMinSize((125, 30))
-        else:
-            background_pure_button.SetMinSize((125, 35))
-        background_pure_button.Bind(wx.EVT_BUTTON, self.on_background_only_pure)
+        # # Create pure background button (rename the existing one)
+        # background_pure_button = wx.Button(panel, label="Create\nBackground")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     background_pure_button.SetMinSize((125, 30))
+        # else:
+        #     background_pure_button.SetMinSize((125, 35))
+        # background_pure_button.Bind(wx.EVT_BUTTON, self.on_background_only_pure)
 
 
         peak_label_text_label = wx.StaticText(panel, label="Area Name      ")
@@ -171,38 +171,38 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.offset_l_text, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # Add new range controls
-            sizer.Add(self.min_range_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.min_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.max_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.max_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.min_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.max_range_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.max_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # Fourth row: Averaging Points
             sizer.Add(averaging_points_label, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.averaging_points_text, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # Tougaard parameters (only Tougaard1)
-            sizer.Add(self.cross_section_label, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.cross_section, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.cross_section_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.cross_section, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
 
-            sizer.Add(peak_label_text_label, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.peak_label_text, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # Export to result button and Remove Peak button
             export_button = wx.Button(panel, label="Export to\nResult")
             export_button.SetMinSize((90, 30))
             export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
-            sizer.Add(export_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(export_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(remove_peak_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(13, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(switch_vlines_button, pos=(13, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(switch_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            sizer.Add(background_only_button, pos=(14, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(clear_background_button, pos=(14, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(background_only_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(clear_background_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
         else:  # For Windows
             # First row: Method
             sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -215,10 +215,10 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.offset_l_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Add new range controls
-            sizer.Add(self.min_range_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.min_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.max_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(self.max_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.min_range_text, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.max_range_label, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.max_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # Fourth row: Averaging Points
             sizer.Add(averaging_points_label, pos=(5, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -245,13 +245,13 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-            sizer.Add(background_pure_button, pos=(12, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(area_button, pos=(12, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # sizer.Add(background_pure_button, pos=(12, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # sizer.Add(area_button, pos=(12, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Sixth row: Background and Clear Background buttons
             # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            sizer.Add(background_only_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(clear_background_button, pos=(13, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(background_only_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         # Initially disable all Tougaard controls
@@ -529,8 +529,13 @@ class BackgroundWindow(wx.Frame):
             # Clear background between previous range using the same logic as Fitting_Screen
             self.clear_background_between_range(prev_bg_low, prev_bg_high)
 
-        # Calculate background first using plot_manager
-        self.parent.plot_manager.plot_background(self.parent)
+        # **SPECIAL HANDLING FOR TOUGAARD BACKGROUNDS**
+        if "Tougaard" in selected_method:
+            # For Tougaard: calculate background for ENTIRE data range, apply only between vLines
+            self.handle_tougaard_background_special(sheet_name, selected_method, vline1_x, vline2_x)
+        else:
+            # For other methods: use normal background creation
+            self.parent.plot_manager.plot_background(self.parent)
 
         # Get data after background calculation
         x_values = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
@@ -703,6 +708,78 @@ class BackgroundWindow(wx.Frame):
 
         save_state(self.parent)
 
+    def handle_tougaard_background_special(self, sheet_name, selected_method, vline1_x, vline2_x):
+        """Handle Tougaard background creation with special logic."""
+        import numpy as np
+        from libraries.Peak_Functions import BackgroundCalculations
+
+        # Get FULL data range
+        full_x_values = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
+        full_raw_data = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+
+        # Get current background or create from raw data
+        if 'Background' in self.parent.Data['Core levels'][sheet_name] and 'Bkg Y' in \
+                self.parent.Data['Core levels'][sheet_name]['Background']:
+            current_background = np.array(self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+        else:
+            # Initialize background as raw data
+            current_background = full_raw_data.copy()
+            if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
+
+        # Define vLine range
+        range_min = min(vline1_x, vline2_x)
+        range_max = max(vline1_x, vline2_x)
+
+        # Create mask for vLine range
+        vline_mask = (full_x_values >= range_min) & (full_x_values <= range_max)
+
+        # STEP 1: Remove any existing background in the vLine range
+        # (Restore raw data in that range - this handles the "remove previous background" requirement)
+        current_background[vline_mask] = full_raw_data[vline_mask]
+
+        # STEP 2: Calculate Tougaard background for ENTIRE data range
+        print(f"Calculating {selected_method} background for entire data range...")
+
+        # Temporarily set background range to full range for Tougaard calculation
+        original_bg_min = getattr(self.parent, 'bg_min_energy', None)
+        original_bg_max = getattr(self.parent, 'bg_max_energy', None)
+
+        self.parent.bg_min_energy = float(np.min(full_x_values))
+        self.parent.bg_max_energy = float(np.max(full_x_values))
+
+        try:
+            if selected_method == "1x U4-Tougaard":
+                full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
+                    full_x_values, current_background, sheet_name, self.parent)
+            elif selected_method == "2x U4-Tougaard":
+                full_tougaard_bg = BackgroundCalculations.calculate_double_tougaard_background(
+                    full_x_values, current_background, sheet_name, self.parent)
+            elif selected_method == "3x U4-Tougaard":
+                full_tougaard_bg = BackgroundCalculations.calculate_triple_tougaard_background(
+                    full_x_values, current_background, sheet_name, self.parent)
+            else:
+                print(f"Unknown Tougaard method: {selected_method}")
+                # Fallback to normal background
+                self.parent.plot_manager.plot_background(self.parent)
+                return
+
+            # STEP 3: Apply Tougaard background ONLY in vLine range
+            current_background[vline_mask] = full_tougaard_bg[vline_mask]
+
+            # Update data structure
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
+            self.parent.background = current_background
+
+            print(f"Tougaard background applied between {range_min:.2f} - {range_max:.2f} eV")
+
+        finally:
+            # Restore original background range
+            if original_bg_min is not None:
+                self.parent.bg_min_energy = original_bg_min
+            if original_bg_max is not None:
+                self.parent.bg_max_energy = original_bg_max
 
     def on_bkg_method_change(self, event):
         new_method = self.method_combobox.GetValue()
@@ -1146,7 +1223,7 @@ class BackgroundWindow(wx.Frame):
 
         self.canvas.draw_idle()
 
-    def create_elements_database(self):
+    def create_elements_database_OLD(self):
         """Create a comprehensive elements database with binding energy ranges."""
         return {
             'C': {'1s': (284, 291), '2s': (20, 25)},
@@ -1193,6 +1270,136 @@ class BackgroundWindow(wx.Frame):
                    '3p': (3554, 3556)},
             'Bi': {'1s': (90526, 90528), '2s': (16388, 16390), '2p': (13419, 13423), '3s': (3999, 4001),
                    '3p': (3696, 3698)}
+        }
+
+    def create_elements_database(self):
+        """Create a comprehensive elements database with binding energy ranges."""
+        return {
+            # Light elements
+            'C': {'1s': (284, 291), '2s': (20, 25)},
+            'N': {'1s': (397, 407), '2s': (20, 25)},
+            'O': {'1s': (528, 538), '2s': (23, 28), '2p': (5, 8)},
+            'F': {'1s': (684, 688), '2s': (31, 35)},
+            'Na': {'1s': (1071, 1072), '2s': (63, 64), '2p': (31, 31.5)},
+            'Mg': {'1s': (1303, 1304), '2s': (88, 90), '2p': (50, 51)},
+            'Al': {'1s': (1559, 1560), '2s': (117, 119), '2p': (72, 75)},
+            'Si': {'1s': (1838, 1840), '2s': (149, 151), '2p': (99, 103)},
+            'P': {'1s': (2145, 2147), '2s': (189, 191), '2p': (129, 136)},
+            'S': {'1s': (2470, 2473), '2s': (228, 230), '2p': (162, 170)},
+            'Cl': {'1s': (2822, 2824), '2s': (270, 272), '2p': (198, 202)},
+            'K': {'1s': (3607, 3609), '2s': (378, 380), '2p': (293, 297), '3s': (34, 35), '3p': (18, 19)},
+            'Ca': {'1s': (4038, 4040), '2s': (438, 440), '2p': (346, 350), '3s': (44, 45), '3p': (25, 26)},
+
+            # Transition metals
+            'Ti': {'1s': (4964, 4966), '2s': (563, 565), '2p': (455, 465), '3s': (60, 61), '3p': (37, 38)},
+            'Cr': {'1s': (5987, 5989), '2s': (694, 696), '2p': (574, 584), '3s': (84, 85), '3p': (43, 45)},
+            'Mn': {'1s': (6539, 6541), '2s': (769, 771), '2p': (639, 651), '3s': (82, 84), '3p': (47, 49)},
+            'Fe': {'1s': (7112, 7114), '2s': (844, 846), '2p': (706, 720), '3s': (91, 93), '3p': (52, 54)},
+            'Co': {'1s': (7709, 7711), '2s': (925, 927), '2p': (778, 793), '3s': (101, 103), '3p': (58, 60)},
+            'Ni': {'1s': (8333, 8335), '2s': (1008, 1010), '2p': (852, 870), '3s': (110, 112), '3p': (66, 68)},
+            'Cu': {'1s': (8979, 8981), '2s': (1096, 1098), '2p': (932, 953), '3s': (122, 124), '3p': (75, 77)},
+            'Zn': {'1s': (9659, 9661), '2s': (1193, 1195), '2p': (1021, 1045), '3s': (139, 141), '3p': (88, 90)},
+            'Ga': {'1s': (10367, 10369), '2s': (1298, 1300), '2p': (1116, 1120), '3s': (159, 161), '3p': (103, 105)},
+            'Ge': {'1s': (11103, 11105), '2s': (1414, 1416), '2p': (1217, 1221), '3s': (180, 182), '3p': (120, 122)},
+            'As': {'1s': (11867, 11869), '2s': (1527, 1529), '2p': (1323, 1327), '3s': (204, 206), '3p': (141, 143)},
+            'Se': {'1s': (12658, 12660), '2s': (1652, 1654), '2p': (1433, 1437), '3s': (229, 231), '3p': (160, 162)},
+            'Br': {'1s': (13474, 13476), '2s': (1782, 1784), '2p': (1550, 1554), '3s': (257, 259), '3p': (182, 184)},
+            'Sr': {'1s': (16105, 16107), '2s': (2216, 2218), '2p': (1940, 1944), '3s': (358, 360), '3p': (269, 271)},
+            'Zr': {'1s': (17998, 18000), '2s': (2532, 2534), '2p': (2223, 2227), '3s': (430, 432), '3p': (343, 345)},
+            'Mo': {'1s': (20000, 20002), '2s': (2866, 2868), '2p': (2520, 2524), '3s': (506, 508), '3p': (412, 414)},
+            'Ag': {'1s': (25514, 25516), '2s': (3806, 3808), '2p': (3351, 3355), '3s': (719, 721), '3p': (603, 605)},
+
+            # MISSING HEAVY ELEMENTS - NOW ADDED:
+            'Cs': {'1s': (35985, 35987), '2s': (5714, 5716), '2p': (5359, 5361), '3s': (1217, 1219), '3p': (1065, 1067),
+                   '3d': (726, 740)},
+            'Ba': {'1s': (37441, 37443), '2s': (5989, 5991), '2p': (5624, 5626), '3s': (1293, 1295), '3p': (1137, 1139),
+                   '3d': (780, 795)},
+
+            # LANTHANIDES - NOW ADDED WITH 4f TRANSITIONS:
+            'La': {'1s': (38925, 38927), '2s': (6266, 6268), '2p': (5891, 5893), '3s': (1362, 1364), '3p': (1209, 1211),
+                   '3d': (836, 851), '4f': (15, 18)},
+            'Ce': {'1s': (40443, 40445), '2s': (6549, 6551), '2p': (6164, 6166), '3s': (1436, 1438), '3p': (1274, 1276),
+                   '3d': (884, 901), '4f': (16, 19)},
+            'Pr': {'1s': (41991, 41993), '2s': (6835, 6837), '2p': (6440, 6442), '3s': (1511, 1513), '3p': (1337, 1339),
+                   '3d': (932, 950), '4f': (17, 20)},
+            'Nd': {'1s': (43569, 43571), '2s': (7126, 7128), '2p': (6722, 6724), '3s': (1575, 1577), '3p': (1403, 1405),
+                   '3d': (981, 1000), '4f': (18, 21)},
+            'Pm': {'1s': (45184, 45186), '2s': (7428, 7430), '2p': (7013, 7015), '3s': (1471, 1473), '3p': (1357, 1359),
+                   '3d': (1027, 1048), '4f': (19, 22)},
+            'Sm': {'1s': (46834, 46836), '2s': (7737, 7739), '2p': (7312, 7314), '3s': (1723, 1725), '3p': (1541, 1543),
+                   '3d': (1081, 1101), '4f': (20, 23)},
+            'Eu': {'1s': (48519, 48521), '2s': (8052, 8054), '2p': (7617, 7619), '3s': (1800, 1802), '3p': (1614, 1616),
+                   '3d': (1131, 1151), '4f': (21, 24)},
+            'Gd': {'1s': (50239, 50241), '2s': (8376, 8378), '2p': (7930, 7932), '3s': (1881, 1883), '3p': (1688, 1690),
+                   '3d': (1185, 1205), '4f': (22, 25)},
+            'Tb': {'1s': (51996, 51998), '2s': (8708, 8710), '2p': (8252, 8254), '3s': (1968, 1970), '3p': (1768, 1770),
+                   '3d': (1241, 1261), '4f': (23, 26)},
+            'Dy': {'1s': (53789, 53791), '2s': (9046, 9048), '2p': (8581, 8583), '3s': (2047, 2049), '3p': (1842, 1844),
+                   '3d': (1295, 1317), '4f': (24, 27)},
+            'Ho': {'1s': (55618, 55620), '2s': (9394, 9396), '2p': (8918, 8920), '3s': (2128, 2130), '3p': (1923, 1925),
+                   '3d': (1351, 1373), '4f': (25, 28)},
+            'Er': {'1s': (57486, 57488), '2s': (9751, 9753), '2p': (9264, 9266), '3s': (2206, 2208), '3p': (2006, 2008),
+                   '3d': (1409, 1431), '4f': (26, 29)},
+            'Tm': {'1s': (59390, 59392), '2s': (10116, 10118), '2p': (9617, 9619), '3s': (2307, 2309),
+                   '3p': (2090, 2092), '3d': (1468, 1490), '4f': (27, 30)},
+            'Yb': {'1s': (61332, 61334), '2s': (10486, 10488), '2p': (9978, 9980), '3s': (2398, 2400),
+                   '3p': (2173, 2175), '3d': (1528, 1550), '4f': (28, 31)},
+            'Lu': {'1s': (63314, 63316), '2s': (10870, 10872), '2p': (10349, 10351), '3s': (2491, 2493),
+                   '3p': (2264, 2266), '3d': (1588, 1610), '4f': (29, 32)},
+
+            # HEAVY TRANSITION METALS - NOW ADDED WITH 4f TRANSITIONS:
+            'Hf': {'1s': (65351, 65353), '2s': (11271, 11273), '2p': (10739, 10741), '3s': (2601, 2603),
+                   '3p': (2365, 2367), '3d': (1716, 1740), '4f': (14, 17)},
+            'Ta': {'1s': (67416, 67418), '2s': (11682, 11684), '2p': (11136, 11138), '3s': (2708, 2710),
+                   '3p': (2469, 2471), '3d': (1793, 1817), '4f': (22, 25)},
+            'W': {'1s': (69525, 69527), '2s': (12100, 12102), '2p': (11544, 11546), '3s': (2820, 2822),
+                  '3p': (2575, 2577), '3d': (1872, 1896), '4f': (31, 34)},
+            'Re': {'1s': (71676, 71678), '2s': (12527, 12529), '2p': (11959, 11961), '3s': (2932, 2934),
+                   '3p': (2682, 2684), '3d': (1949, 1973), '4f': (40, 43)},
+            'Os': {'1s': (73871, 73873), '2s': (12968, 12970), '2p': (12385, 12387), '3s': (3049, 3051),
+                   '3p': (2792, 2794), '3d': (2031, 2055), '4f': (51, 54)},
+            'Ir': {'1s': (76111, 76113), '2s': (13419, 13421), '2p': (12824, 12826), '3s': (3174, 3176),
+                   '3p': (2909, 2911), '3d': (2116, 2140), '4f': (61, 64)},
+            'Pt': {'1s': (78395, 78397), '2s': (13880, 13882), '2p': (13273, 13275), '3s': (3296, 3298),
+                   '3p': (3027, 3029), '3d': (2202, 2226), '4f': (71, 74)},
+            'Au': {'1s': (80725, 80727), '2s': (14353, 14355), '2p': (13734, 13736), '3s': (3425, 3427),
+                   '3p': (3148, 3150), '3d': (2291, 2315), '4f': (84, 87)},
+            'Hg': {'1s': (83102, 83104), '2s': (14839, 14841), '2p': (14209, 14211), '3s': (3562, 3564),
+                   '3p': (3279, 3281), '3d': (2385, 2409), '4f': (101, 104)},
+            'Tl': {'1s': (85530, 85532), '2s': (15347, 15349), '2p': (14698, 14700), '3s': (3704, 3706),
+                   '3p': (3416, 3418), '3d': (2485, 2509), '4f': (118, 121)},
+            'Pb': {'1s': (88005, 88007), '2s': (15861, 15863), '2p': (15200, 15202), '3s': (3851, 3853),
+                   '3p': (3554, 3556), '3d': (2586, 2610), '4f': (137, 140)},
+            'Bi': {'1s': (90526, 90528), '2s': (16388, 16390), '2p': (15711, 15713), '3s': (4002, 4004),
+                   '3p': (3696, 3698), '3d': (2688, 2712), '4f': (157, 160)},
+
+            # Additional common elements
+            'Rb': {'1s': (15200, 15202), '2s': (2692, 2694), '2p': (2472, 2474), '3s': (484, 486), '3p': (394, 396),
+                   '3d': (111, 113)},
+            'Y': {'1s': (17038, 17040), '2s': (2373, 2375), '2p': (2156, 2158), '3s': (392, 394), '3p': (298, 300),
+                  '3d': (158, 160)},
+            'Nb': {'1s': (18986, 18988), '2s': (2698, 2700), '2p': (2465, 2467), '3s': (468, 470), '3p': (360, 362),
+                   '3d': (202, 204)},
+            'Ru': {'1s': (22117, 22119), '2s': (2967, 2969), '2p': (2838, 2840), '3s': (586, 588), '3p': (461, 463),
+                   '3d': (280, 284)},
+            'Rh': {'1s': (23220, 23222), '2s': (3146, 3148), '2p': (3004, 3006), '3s': (628, 630), '3p': (496, 498),
+                   '3d': (307, 311)},
+            'Pd': {'1s': (24350, 24352), '2s': (3330, 3332), '2p': (3173, 3175), '3s': (671, 673), '3p': (532, 534),
+                   '3d': (335, 339)},
+            'Cd': {'1s': (26711, 26713), '2s': (4018, 4020), '2p': (3727, 3729), '3s': (772, 774), '3p': (618, 620),
+                   '3d': (405, 409)},
+            'In': {'1s': (27940, 27942), '2s': (4238, 4240), '2p': (3938, 3940), '3s': (827, 829), '3p': (665, 667),
+                   '3d': (444, 448)},
+            'Sn': {'1s': (29200, 29202), '2s': (4465, 4467), '2p': (4156, 4158), '3s': (884, 886), '3p': (714, 716),
+                   '3d': (485, 489)},
+            'Sb': {'1s': (30491, 30493), '2s': (4698, 4700), '2p': (4380, 4382), '3s': (946, 948), '3p': (766, 768),
+                   '3d': (528, 532)},
+            'Te': {'1s': (31814, 31816), '2s': (4939, 4941), '2p': (4612, 4614), '3s': (1006, 1008), '3p': (820, 822),
+                   '3d': (573, 577)},
+            'I': {'1s': (33169, 33171), '2s': (5188, 5190), '2p': (4852, 4854), '3s': (1072, 1074), '3p': (875, 877),
+                  '3d': (619, 623)},
+            'Xe': {'1s': (34561, 34563), '2s': (5453, 5455), '2p': (5107, 5109), '3s': (1148, 1150), '3p': (940, 942),
+                   '3d': (670, 674)}
         }
 
     def update_range_controls_from_data(self):
