@@ -1034,6 +1034,9 @@ class PlotFrame(wx.Frame):
         ax.set_title(f'Binding Energy Distribution{element_str}{line_str}')
         ax.grid(True, linestyle='--', alpha=0.7)
 
+        # REVERSE X-AXIS FOR XPS CONVENTION (low BE left, high BE right)
+        ax.set_xlim(max_energy, min_energy)
+
         # Add text annotations
         ax.text(0.98, 0.95, f'Total References: {len(self.binding_energies)}',
                 transform=ax.transAxes, ha='right', va='top',
@@ -1461,8 +1464,8 @@ class ElementPropertiesDialog(wx.Dialog):
         element_names = {
             'H': 'Hydrogen', 'He': 'Helium', 'Li': 'Lithium', 'Be': 'Beryllium', 'B': 'Boron',
             'C': 'carbon', 'N': 'Nitrogen', 'O': 'Oxygen', 'F': 'Fluorine', 'Ne': 'Neon',
-            'Na': 'Sodium', 'Mg': 'Magnesium', 'Al': 'Aluminium', 'Si': 'Silicon', 'P': 'Phosphorus',
-            'S': 'Sulfur', 'Cl': 'Chlorine', 'Ar': 'Argon', 'K': 'Potassium', 'Ca': 'Calcium',
+            'Na': 'Sodium', 'Mg': 'Magnesium', 'Al': 'Aluminum', 'Si': 'Silicon', 'P': 'Phosphorus',
+            'S': 'Sulphur', 'Cl': 'Chlorine', 'Ar': 'Argon', 'K': 'Potassium', 'Ca': 'Calcium',
             'Sc': 'Scandium', 'Ti': 'Titanium', 'V': 'Vanadium', 'Cr': 'Chromium', 'Mn': 'Manganese',
             'Fe': 'Iron', 'Co': 'Cobalt', 'Ni': 'Nickel', 'Cu': 'Copper', 'Zn': 'Zinc',
             'Ga': 'Gallium', 'Ge': 'Germanium', 'As': 'Arsenic', 'Se': 'Selenium', 'Br': 'Bromine',
@@ -1489,28 +1492,28 @@ class ElementPropertiesDialog(wx.Dialog):
         """Generate Thermo Fisher URL for element"""
         # Map element symbols to their category paths for Thermo URLs
         element_categories = {
-            'H': 'nonmetal/hydrogen', 'He': 'noble-gas/helium', 'Li': 'alkali-metal/lithium',
+            'H': 'non-metal/hydrogen', 'He': 'noble-gas/helium', 'Li': 'alkali-metal/lithium',
             'Be': 'alkaline-earth-metal/beryllium', 'B': 'metalloid/boron', 'C': 'non-metal/carbon',
             'N': 'non-metal/nitrogen', 'O': 'non-metal/oxygen', 'F': 'halogen/fluorine',
             'Ne': 'noble-gas/neon', 'Na': 'alkali-metal/sodium', 'Mg': 'alkaline-earth-metal/magnesium',
-            'Al': 'post-transition-metal/aluminum', 'Si': 'metalloid/silicon', 'P': 'non-metal/phosphorus',
-            'S': 'nonmetal/sulfur', 'Cl': 'halogen/chlorine', 'Ar': 'noble-gas/argon',
+            'Al': 'other-metal/aluminium', 'Si': 'metalloid/silicon', 'P': 'non-metal/phosphorus',
+            'S': 'non-metal/sulfur', 'Cl': 'halogen/chlorine', 'Ar': 'noble-gas/argon',
             'K': 'alkali-metal/potassium', 'Ca': 'alkaline-earth-metal/calcium',
             'Sc': 'transition-metal/scandium', 'Ti': 'transition-metal/titanium',
             'V': 'transition-metal/vanadium', 'Cr': 'transition-metal/chromium',
             'Mn': 'transition-metal/manganese', 'Fe': 'transition-metal/iron',
             'Co': 'transition-metal/cobalt', 'Ni': 'transition-metal/nickel',
             'Cu': 'transition-metal/copper', 'Zn': 'transition-metal/zinc',
-            'Ga': 'post-transition-metal/gallium', 'Ge': 'metalloid/germanium',
-            'As': 'metalloid/arsenic', 'Se': 'nonmetal/selenium', 'Br': 'halogen/bromine',
+            'Ga': 'other-metal/gallium', 'Ge': 'metalloid/germanium',
+            'As': 'metalloid/arsenic', 'Se': 'non-metal/selenium', 'Br': 'halogen/bromine',
             'Kr': 'noble-gas/krypton', 'Rb': 'alkali-metal/rubidium',
             'Sr': 'alkaline-earth-metal/strontium', 'Y': 'transition-metal/yttrium',
             'Zr': 'transition-metal/zirconium', 'Nb': 'transition-metal/niobium',
             'Mo': 'transition-metal/molybdenum', 'Tc': 'transition-metal/technetium',
             'Ru': 'transition-metal/ruthenium', 'Rh': 'transition-metal/rhodium',
             'Pd': 'transition-metal/palladium', 'Ag': 'transition-metal/silver',
-            'Cd': 'transition-metal/cadmium', 'In': 'post-transition-metal/indium',
-            'Sn': 'post-transition-metal/tin', 'Sb': 'metalloid/antimony',
+            'Cd': 'transition-metal/cadmium', 'In': 'other-metal/indium',
+            'Sn': 'other-metal/tin', 'Sb': 'metalloid/antimony',
             'Te': 'metalloid/tellurium', 'I': 'halogen/iodine', 'Xe': 'noble-gas/xenon',
             'Cs': 'alkali-metal/cesium', 'Ba': 'alkaline-earth-metal/barium',
             'La': 'lanthanide-rare-earth/lanthanum', 'Ce': 'lanthanide-rare-earth/cerium', 'Pr': 'lanthanide-rare-earth/praseodymium',
@@ -1522,8 +1525,8 @@ class ElementPropertiesDialog(wx.Dialog):
             'W': 'transition-metal/tungsten', 'Re': 'transition-metal/rhenium',
             'Os': 'transition-metal/osmium', 'Ir': 'transition-metal/iridium',
             'Pt': 'transition-metal/platinum', 'Au': 'transition-metal/gold',
-            'Hg': 'transition-metal/mercury', 'Tl': 'post-transition-metal/thallium',
-            'Pb': 'post-transition-metal/lead', 'Bi': 'post-transition-metal/bismuth',
+            'Hg': 'transition-metal/mercury', 'Tl': 'other-metal/thallium',
+            'Pb': 'other-metal/lead', 'Bi': 'other-metal/bismuth',
             'Po': 'metalloid/polonium', 'At': 'halogen/astatine', 'Rn': 'noble-gas/radon',
             'Fr': 'alkali-metal/francium', 'Ra': 'alkaline-earth-metal/radium',
             'Ac': 'actinide/actinium', 'Th': 'actinide/thorium', 'Pa': 'actinide/protactinium',
@@ -1823,7 +1826,7 @@ class ElementPropertiesDialog(wx.Dialog):
                 "Category": "Nonmetal"
             },
             "S": {
-                "Name": "Sulfur",
+                "Name": "Sulphur",
                 "Atomic Number": 16,
                 "Atomic Mass": "32.066 u",
                 "Density": "2.07 g/cm³",
