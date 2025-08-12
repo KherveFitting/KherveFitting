@@ -142,7 +142,7 @@ class FittingWindow(wx.Frame):
         #                                     "Linear", '1x U4-Tougaard', "ALS-Raman"],
         #                                    style=wx.CB_READONLY)
         self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart", "Shirley",
-                                            "Linear", '1x U4-Tougaard', "ALS-Raman"],
+                                            "Linear", 'U4-Tougaard', "ALS-Raman"],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetMaxSize((125,25))
 
@@ -707,7 +707,7 @@ class FittingWindow(wx.Frame):
 
     def on_tougaard_raman_model(self, event):
         bg_method = self.method_combobox.GetValue()
-        if bg_method.startswith("1x U4-Tougaard") or bg_method.startswith("2x U4-Tougaard") or \
+        if bg_method.startswith("U4-Tougaard") or bg_method.startswith("2x U4-Tougaard") or \
                 bg_method.startswith("3x U4-Tougaard"):
             tougaard_window = TougaardFitWindow(self)
             tougaard_window.Show()
@@ -719,7 +719,7 @@ class FittingWindow(wx.Frame):
                                             "Tougaard/Raman Model is only available for Tougaard and ALS-Raman background methods.")
 
     def update_tougaard_controls_visibility(self, new_method):
-        if new_method.startswith("1x U4-Tougaard"):
+        if new_method.startswith("U4-Tougaard"):
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
@@ -1378,7 +1378,7 @@ class FittingWindow(wx.Frame):
             "Shirley": "Iterative background calculation. Reliable for increasing background when "
                        "the data contains symmetrical peak. the number of iteration is set to 100",
             "Linear": "Simple linear background. Usually used on negative background",
-            "1x U4-Tougaard": "U4 Tougaard background for Advanced users. B, C, D and T0 can be varied.",
+            "U4-Tougaard": "U4 Tougaard background for Advanced users. B, C, D and T0 can be varied.",
             "ALS-Raman": "Asymmetric Least Squares background estimation. Good for uneven backgrounds "
                          "with broad features. Lambda controls smoothness and p controls asymmetry."
         }

@@ -2141,7 +2141,7 @@ class PlotManager:
                                                                                     offset_l)
             label = 'Background (Smart)'
 
-        elif method == "1x U4-Tougaard":
+        elif method == "U4-Tougaard":
             background_filtered = BackgroundCalculations.calculate_tougaard_background(x_values_filtered,
                                                                                        y_values_filtered,
                                                                                        sheet_name,

@@ -51,27 +51,43 @@ class BackgroundWindow(wx.Frame):
         method_label = wx.StaticText(panel, label="Method:")
         self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart",
                                                            # "Smart", "Shirley", "Linear",
-                                                           '1x U4-Tougaard'], #, '2x U4-Tougaard', '3x U4-Tougaard'],
+                                                           'U4-Tougaard'], #, '2x U4-Tougaard', '3x U4-Tougaard'],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetSelection(0)  # Default to Shirley
         self.method_combobox.SetMaxSize((125,25))
 
         offset_h_label = wx.StaticText(panel, label="Offset (Left):")
-        self.offset_h_text = wx.TextCtrl(panel, value="0")
+        self.offset_h_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
+        self.offset_h_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
+        self.offset_h_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
 
         offset_l_label = wx.StaticText(panel, label="Offset (Right):")
-        self.offset_l_text = wx.TextCtrl(panel, value="0")
+        self.offset_l_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
+        self.offset_l_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
+        self.offset_l_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
 
-        self.offset_h_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
-        self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
+
 
         self.min_range_label = wx.StaticText(panel, label='Range (Right):')
-        self.min_range_text = wx.TextCtrl(panel, value="0.00")
-        self.min_range_text.Bind(wx.EVT_TEXT, self.on_min_range_change)
+        self.min_range_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
+        self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
+        self.min_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
+
 
         self.max_range_label = wx.StaticText(panel, label='Range (Left):')
-        self.max_range_text = wx.TextCtrl(panel, value="0.00")
-        self.max_range_text.Bind(wx.EVT_TEXT, self.on_max_range_change)
+        self.max_range_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
+        self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
+        self.max_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
+
+        # self.offset_h_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
+        # self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
+        # self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_change)
+        # self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_change)
+        self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_enter)
+        self.min_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_min_range_enter)
+        self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_enter)
+        self.max_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_max_range_enter)
+
 
         # Initialize range control updating flag
         self.updating_range_controls = False
@@ -346,13 +362,13 @@ class BackgroundWindow(wx.Frame):
         for col in range(grid.GetNumberCols()):
             grid.SetCellBackgroundColour(row + 1, col, wx.Colour(200,245,228))
 
-        grid.SetCellValue(row + 1, 2, "0,1e3")
-        grid.SetCellValue(row + 1, 3, "1,1e7")
-        grid.SetCellValue(row + 1, 4, "0.3,3.5")
-        grid.SetCellValue(row + 1, 5, "0,0.5")
-        grid.SetCellValue(row + 1, 7, "0.1,1")
-        grid.SetCellValue(row + 1, 8, "0.1,1")
-        grid.SetCellValue(row + 1, 9, "0.01,2")
+        grid.SetCellValue(row + 1, 2, "0:1e3")
+        grid.SetCellValue(row + 1, 3, "1:1e7")
+        grid.SetCellValue(row + 1, 4, "0.3:3.5")
+        grid.SetCellValue(row + 1, 5, "0:0.5")
+        grid.SetCellValue(row + 1, 7, "0.1:1")
+        grid.SetCellValue(row + 1, 8, "0.1:1")
+        grid.SetCellValue(row + 1, 9, "0.01:2")
 
         if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
             self.parent.Data['Core levels'][sheet_name]['Fitting'] = {}
@@ -372,13 +388,13 @@ class BackgroundWindow(wx.Frame):
             'Bkg Low': range_min,
             'Bkg High': range_max,
             'Constraints': {
-                'Position': "0,1e3",
-                'Height': "1,1e7",
-                'FWHM': "0.3,3.5",
-                'L/G': "0,0.5",
-                'Sigma': "0.1,1",
-                'Gamma': "0.1,1",
-                'Skew': "0.01,2"
+                'Position': "0:1e3",
+                'Height': "1:1e7",
+                'FWHM': "0.3:3.5",
+                'L/G': "0:0.5",
+                'Sigma': "0.1:1",
+                'Gamma': "0.1:1",
+                'Skew': "0.01:2"
             }
         }
 
@@ -750,7 +766,7 @@ class BackgroundWindow(wx.Frame):
         self.parent.bg_max_energy = float(np.max(full_x_values))
 
         try:
-            if selected_method == "1x U4-Tougaard":
+            if selected_method == "U4-Tougaard":
                 full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
                     full_x_values, current_background, sheet_name, self.parent)
             elif selected_method == "2x U4-Tougaard":
@@ -907,13 +923,13 @@ class BackgroundWindow(wx.Frame):
             grid.SetCellBackgroundColour(row + 1, col, wx.Colour(230, 230, 230))
 
 
-        grid.SetCellValue(row + 1, 2, "0,1e3")
-        grid.SetCellValue(row + 1, 3, "1,1e7")
-        grid.SetCellValue(row + 1, 4, "0.3,3.5")
-        grid.SetCellValue(row + 1, 5, "0,0.5")
-        grid.SetCellValue(row + 1, 7, "0.1,1")
-        grid.SetCellValue(row + 1, 8, "0.1,1")
-        grid.SetCellValue(row + 1, 9, "0.01,2")
+        grid.SetCellValue(row + 1, 2, "0:1e3")
+        grid.SetCellValue(row + 1, 3, "1:1e7")
+        grid.SetCellValue(row + 1, 4, "0.3:3.5")
+        grid.SetCellValue(row + 1, 5, "0:0.5")
+        grid.SetCellValue(row + 1, 7, "0:1:1")
+        grid.SetCellValue(row + 1, 8, "0.1:1")
+        grid.SetCellValue(row + 1, 9, "0.01:2")
 
         # Update Data structure
         if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
@@ -932,13 +948,13 @@ class BackgroundWindow(wx.Frame):
             'Skew': 0,
             'Fitting Model': "Unfitted",
             'Constraints': {
-                'Position': "0,1e3",
-                'Height': "1,1e7",
-                'FWHM': "0.3,3.5",
-                'L/G': "0,0.5",
-                'Sigma': "0.1,1",
-                'Gamma': "0.1,1",
-                'Skew': "0.01,2"
+                'Position': "0:1e3",
+                'Height': "1:1e7",
+                'FWHM': "0.3:3.5",
+                'L/G': "0:0.5",
+                'Sigma': "0.1:1",
+                'Gamma': "0.1:1",
+                'Skew': "0.01:2"
             }
         }
 
@@ -1223,6 +1239,39 @@ class BackgroundWindow(wx.Frame):
 
         self.canvas.draw_idle()
 
+    def format_text_control_to_2f(self, text_ctrl):
+        """Format text control value to always show 2 decimal places."""
+        try:
+            current_value = text_ctrl.GetValue()
+            if current_value.strip():  # Only format if not empty
+                float_value = float(current_value)
+                formatted_value = f"{float_value:.2f}"
+                text_ctrl.SetValue(formatted_value)
+        except ValueError:
+            # If invalid number, reset to 0.00
+            text_ctrl.SetValue("0.00")
+
+    def on_text_control_focus_lost(self, event):
+        """Handle focus lost event for any text control that needs 2f formatting."""
+        text_ctrl = event.GetEventObject()
+        self.format_text_control_to_2f(text_ctrl)
+        event.Skip()  # Allow normal processing
+
+    def on_text_control_enter(self, event):
+        """Handle Enter key for any text control that needs 2f formatting."""
+        text_ctrl = event.GetEventObject()
+        self.format_text_control_to_2f(text_ctrl)
+
+        # Call the original handler based on which control triggered this
+        if text_ctrl == self.min_range_text:
+            self.on_min_range_change(event)
+        elif text_ctrl == self.max_range_text:
+            self.on_max_range_change(event)
+        elif text_ctrl == self.offset_h_text:
+            self.on_offset_changed(event)
+        elif text_ctrl == self.offset_l_text:
+            self.on_offset_changed(event)
+
     def create_elements_database_OLD(self):
         """Create a comprehensive elements database with binding energy ranges."""
         return {
@@ -1402,6 +1451,104 @@ class BackgroundWindow(wx.Frame):
                    '3d': (670, 674)}
         }
 
+    def update_range_controls_from_data_without_events(self, bkg_low, bkg_high):
+        """Update range controls without triggering change events."""
+        if not (hasattr(self, 'min_range_text') and hasattr(self, 'max_range_text')):
+            return
+        if not (self.min_range_text and self.max_range_text):
+            return
+
+        try:
+            # Temporarily unbind Enter and focus events
+            self.min_range_text.Unbind(wx.EVT_TEXT_ENTER)
+            self.max_range_text.Unbind(wx.EVT_TEXT_ENTER)
+            self.min_range_text.Unbind(wx.EVT_KILL_FOCUS)
+            self.max_range_text.Unbind(wx.EVT_KILL_FOCUS)
+
+            # Update values with 2f formatting
+            min_val = min(bkg_low, bkg_high)
+            max_val = max(bkg_low, bkg_high)
+
+            self.min_range_text.ChangeValue(f"{min_val:.2f}")
+            self.max_range_text.ChangeValue(f"{max_val:.2f}")
+
+            # Rebind events
+            self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_enter)
+            self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_enter)
+            self.min_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_min_range_enter)
+            self.max_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_max_range_enter)
+
+        except (RuntimeError, AttributeError):
+            pass
+
+    def on_min_range_enter(self, event):
+        """Handle min range change only on Enter or focus lost."""
+        if self.updating_range_controls:
+            return
+
+        try:
+            new_min = float(self.min_range_text.GetValue())
+            max_val = float(self.max_range_text.GetValue())
+
+            # Format to 2 decimal places
+            new_min = round(new_min, 2)
+            max_val = round(max_val, 2)
+
+            # Auto-swap if min > max
+            if new_min > max_val:
+                self.updating_range_controls = True
+                self.min_range_text.SetValue(f"{max_val:.2f}")
+                self.max_range_text.SetValue(f"{new_min:.2f}")
+                self.updating_range_controls = False
+                new_min = max_val
+            else:
+                # Format the current control to 2f
+                self.min_range_text.SetValue(f"{new_min:.2f}")
+
+            # Update vLine position
+            if self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([new_min, new_min])
+                self.update_vline_text_labels()
+                self.parent.canvas.draw_idle()
+
+        except ValueError:
+            # Reset to 0.00 if invalid
+            self.min_range_text.SetValue("0.00")
+
+    def on_max_range_enter(self, event):
+        """Handle max range change only on Enter or focus lost."""
+        if self.updating_range_controls:
+            return
+
+        try:
+            new_max = float(self.max_range_text.GetValue())
+            min_val = float(self.min_range_text.GetValue())
+
+            # Format to 2 decimal places
+            new_max = round(new_max, 2)
+            min_val = round(min_val, 2)
+
+            # Auto-swap if max < min
+            if new_max < min_val:
+                self.updating_range_controls = True
+                self.max_range_text.SetValue(f"{min_val:.2f}")
+                self.min_range_text.SetValue(f"{new_max:.2f}")
+                self.updating_range_controls = False
+                new_max = min_val
+            else:
+                # Format the current control to 2f
+                self.max_range_text.SetValue(f"{new_max:.2f}")
+
+            # Update vLine position
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([new_max, new_max])
+                self.update_vline_text_labels()
+                self.parent.canvas.draw_idle()
+
+        except ValueError:
+            # Reset to 0.00 if invalid
+            self.max_range_text.SetValue("0.00")
+
     def update_range_controls_from_data(self):
         """Update min/max range controls from vline positions."""
         if not hasattr(self, 'min_range_text') or not hasattr(self, 'max_range_text'):
@@ -1437,59 +1584,59 @@ class BackgroundWindow(wx.Frame):
         finally:
             self.updating_range_controls = False
 
-    def on_min_range_change(self, event):
-        """Handle min range change."""
-        if self.updating_range_controls:
-            return
-
-        try:
-            new_min = float(self.min_range_text.GetValue())
-            max_val = float(self.max_range_text.GetValue())
-
-            new_min = round(new_min, 2)
-            max_val = round(max_val, 2)
-
-            if new_min > max_val:
-                self.updating_range_controls = True
-                self.min_range_text.SetValue(f"{max_val:.2f}")
-                self.max_range_text.SetValue(f"{new_min:.2f}")
-                self.updating_range_controls = False
-                new_min = max_val
-
-            if self.parent.vline1 is not None:
-                self.parent.vline1.set_xdata([new_min, new_min])
-                self.update_vline_text_labels()
-                self.parent.canvas.draw_idle()
-
-        except ValueError:
-            pass
-
-    def on_max_range_change(self, event):
-        """Handle max range change."""
-        if self.updating_range_controls:
-            return
-
-        try:
-            new_max = float(self.max_range_text.GetValue())
-            min_val = float(self.min_range_text.GetValue())
-
-            new_max = round(new_max, 2)
-            min_val = round(min_val, 2)
-
-            if new_max < min_val:
-                self.updating_range_controls = True
-                self.max_range_text.SetValue(f"{min_val:.2f}")
-                self.min_range_text.SetValue(f"{new_max:.2f}")
-                self.updating_range_controls = False
-                new_max = min_val
-
-            if self.parent.vline2 is not None:
-                self.parent.vline2.set_xdata([new_max, new_max])
-                self.update_vline_text_labels()
-                self.parent.canvas.draw_idle()
-
-        except ValueError:
-            pass
+    # def on_min_range_change(self, event):
+    #     """Handle min range change."""
+    #     if self.updating_range_controls:
+    #         return
+    #
+    #     try:
+    #         new_min = float(self.min_range_text.GetValue())
+    #         max_val = float(self.max_range_text.GetValue())
+    #
+    #         new_min = round(new_min, 2)
+    #         max_val = round(max_val, 2)
+    #
+    #         if new_min > max_val:
+    #             self.updating_range_controls = True
+    #             self.min_range_text.SetValue(f"{max_val:.2f}")
+    #             self.max_range_text.SetValue(f"{new_min:.2f}")
+    #             self.updating_range_controls = False
+    #             new_min = max_val
+    #
+    #         if self.parent.vline1 is not None:
+    #             self.parent.vline1.set_xdata([new_min, new_min])
+    #             self.update_vline_text_labels()
+    #             self.parent.canvas.draw_idle()
+    #
+    #     except ValueError:
+    #         pass
+    #
+    # def on_max_range_change(self, event):
+    #     """Handle max range change."""
+    #     if self.updating_range_controls:
+    #         return
+    #
+    #     try:
+    #         new_max = float(self.max_range_text.GetValue())
+    #         min_val = float(self.min_range_text.GetValue())
+    #
+    #         new_max = round(new_max, 2)
+    #         min_val = round(min_val, 2)
+    #
+    #         if new_max < min_val:
+    #             self.updating_range_controls = True
+    #             self.max_range_text.SetValue(f"{min_val:.2f}")
+    #             self.min_range_text.SetValue(f"{new_max:.2f}")
+    #             self.updating_range_controls = False
+    #             new_max = min_val
+    #
+    #         if self.parent.vline2 is not None:
+    #             self.parent.vline2.set_xdata([new_max, new_max])
+    #             self.update_vline_text_labels()
+    #             self.parent.canvas.draw_idle()
+    #
+    #     except ValueError:
+    #         pass
 
     def auto_detect_area_name(self, vline1_pos, vline2_pos):
         """Auto-detect and update area name based on vline positions."""
