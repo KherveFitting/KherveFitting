@@ -360,6 +360,14 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 lg_ratio_min = evaluate_constraint(lg_ratio_min, peak_params_grid, 'lg_ratio', lg_ratio)
                 lg_ratio_max = evaluate_constraint(lg_ratio_max, peak_params_grid, 'lg_ratio', lg_ratio)
 
+                # Enforce minimum L/G ratio of 0.01 to prevent mathematical issues
+                if lg_ratio <= 0:
+                    lg_ratio = 0.001
+                if lg_ratio_min < 0.01:
+                    lg_ratio_min = 0.001
+                # Ensure lg_ratio is within bounds
+                lg_ratio = max(lg_ratio_min, lg_ratio)
+
                 prefix = f'peak{i}_'
                 if peak_model_choice == "Voigt (Area, L/G, \u03c3)":
                     try:
@@ -381,6 +389,13 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     sigma_max = evaluate_constraint(sigma_max, peak_params_grid, 'sigma', sigma)
                     fraction_min = evaluate_constraint(fraction_min, peak_params_grid, 'lg_ratio', fraction)
                     fraction_max = evaluate_constraint(fraction_max, peak_params_grid, 'lg_ratio', fraction)
+
+                    # Special handling for Voigt models: convert "Fixed" to ±0.01 range
+                    constraint_text = peak_params_grid.GetCellValue(row + 1, 5).strip()
+                    if constraint_text.lower() == "fixed":
+                        fraction_min = max(0.1, fraction - 0.1)
+                        fraction_max = min(99.9, fraction + 0.1)
+                        fraction_vary = True
 
                     # Calculate gamma, gamma_min, and gamma_max
                     def calc_gamma(f, s):
@@ -445,6 +460,13 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     fraction_max = evaluate_constraint(fraction_max, peak_params_grid, 'lg_ratio', fraction)
                     skew_min = evaluate_constraint(skew_min, peak_params_grid, 'skew', skew)
                     skew_max = evaluate_constraint(skew_max, peak_params_grid, 'skew', skew)
+
+                    # Special handling for Voigt models: convert "Fixed" to ±0.01 range
+                    constraint_text = peak_params_grid.GetCellValue(row + 1, 5).strip()
+                    if constraint_text.lower() == "fixed":
+                        fraction_min = max(0.01, fraction - 0.01)
+                        fraction_max = min(99.99, fraction + 0.01)
+                        fraction_vary = True
 
                     # Calculate gamma
                     def calc_gamma(f, s):
@@ -842,29 +864,60 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
 
                 if peak_label in existing_peaks:
                     center = result.params[f'{prefix}center'].value
-                    if peak_model_choice in["Voigt (Area, L/G, \u03c3)","Voigt (Area, \u03c3, \u03b3)"]: #, "Voigt (Area, L/G, \u03c3, S)"]:
+                    if peak_model_choice == "Voigt (Area, L/G, \u03c3)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         sigma = result.params[f'{prefix}sigma'].value
                         gamma = result.params[f'{prefix}gamma'].value
                         height = PeakFunctions.get_voigt_height(amplitude, sigma, gamma)
                         fwhm = PeakFunctions.voigt_fwhm(sigma, gamma)
-                        fraction = (2*gamma) / (sigma*2.355 + 2*gamma) * 100
-                        area = amplitude # * (sigma * np.sqrt(2 * np.pi))
+
+                        # Check if L/G constraint is Fixed for this peak
+                        lg_constraint = peak_params_grid.GetCellValue(row + 1, 5).strip()
+                        if lg_constraint.lower() == "fixed":
+                            # Keep original fraction value and recalculate gamma from fixed fraction and fitted sigma
+                            fraction = float(peak_params_grid.GetCellValue(row, 5))  # Original fraction
+                            # Recalculate gamma from fixed fraction: gamma = (fraction/100) * sigma / (1 - fraction/100)
+                            new_gamma = (fraction / 100) * sigma * 2.355 / (2 - 2 * fraction / 100)
+                            gamma = new_gamma
+                            # Update fwhm with new gamma
+                            fwhm = PeakFunctions.voigt_fwhm(sigma, new_gamma)
+                        else:
+                            # Normal behavior: calculate fraction from fitted sigma and gamma
+                            fraction = (2 * gamma) / (sigma * 2.355 + 2 * gamma) * 100
+
+                        area = amplitude
+
+                    elif peak_model_choice == "Voigt (Area, \u03c3, \u03b3)":
+                        amplitude = result.params[f'{prefix}amplitude'].value
+                        sigma = result.params[f'{prefix}sigma'].value
+                        gamma = result.params[f'{prefix}gamma'].value
+                        height = PeakFunctions.get_voigt_height(amplitude, sigma, gamma)
+                        fwhm = PeakFunctions.voigt_fwhm(sigma, gamma)
+                        # Normal behavior for sigma/gamma model
+                        fraction = (2 * gamma) / (sigma * 2.355 + 2 * gamma) * 100
+                        area = amplitude
 
                     elif peak_model_choice == "Voigt (Area, L/G, \u03c3, S)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         sigma = result.params[f'{prefix}sigma'].value
                         gamma = result.params[f'{prefix}gamma'].value
-                        skew  = result.params[f'{prefix}skew'].value
+                        skew = result.params[f'{prefix}skew'].value
                         height = PeakFunctions.get_skewedvoigt_height(amplitude, sigma, gamma, skew)
-                        peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")  # Update height in grid
-                        # amplitude = height / max_height
-                        fwhm = PeakFunctions.skewed_voigt_fwhm(sigma, gamma, skew)
-                        fraction = (2 * gamma) / (sigma * 2.355 + 2 * gamma) * 100
+                        peak_params_grid.SetCellValue(row, 3, f"{height:.2f}")
+
+                        # Check if L/G constraint is Fixed for this peak
+                        lg_constraint = peak_params_grid.GetCellValue(row + 1, 5).strip()
+                        if lg_constraint.lower() == "fixed":
+                            # Keep original fraction value and recalculate gamma
+                            fraction = float(peak_params_grid.GetCellValue(row, 5))  # Original fraction
+                            new_gamma = (fraction / 100) * sigma * 2.355 / (2 - 2 * fraction / 100)
+                            gamma = new_gamma
+                            fwhm = PeakFunctions.skewed_voigt_fwhm(sigma, new_gamma, skew)
+                        else:
+                            # Normal behavior: calculate fraction from fitted sigma and gamma
+                            fraction = (2 * gamma) / (sigma * 2.355 + 2 * gamma) * 100
+                            fwhm = PeakFunctions.skewed_voigt_fwhm(sigma, gamma, skew)
                         area = amplitude
-                        # print(f'Into Voigt (Area, L/G, \u03c3, skew): H {height}  w {fwhm}')
-
-
                     elif peak_model_choice == "DS (A, \u03c3, \u03b3)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         center = result.params[f'{prefix}center'].value
@@ -878,17 +931,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         # Get height directly from model
                         height = model.eval(x=np.array([center]), amplitude=amplitude, center=center,
                                             sigma=sigma, gamma=gamma, asymmetry=skew)[0]
-                        # print(f'DS Height: {height}')
-                        # print(f'DS Amplitude : {amplitude}')
-                        # amplitude_calc = PeakFunctions.doniach_sunjic_height_to_amplitude(height, sigma, gamma, skew)
-                        # print(f'DS Amplitude calculated: {amplitude_calc}')
                         area_calc= PeakFunctions.doniach_sunjic_height_to_area(height, sigma, gamma, skew)
-                        # print(f'DS Area calculated: {area_calc}')
-                        # height_calc = PeakFunctions.doniach_sunjic_area_to_height(area_calc, sigma, gamma, skew)
-                        # print(f'DS Height inverse: {height_calc}')
-                        # amplitude_calc2 = PeakFunctions.doniach_sunjic_area_to_amplitude(area_calc, sigma, gamma, skew)
-                        # print(f'DS Amplitude calculated from area: {amplitude_calc2}')
-
                         # Calculate height numerically using the SAME x array
                         y_values = model.eval(x=x_values_filtered, amplitude=amplitude, center=center,
                                               sigma=sigma, gamma=gamma, asymmetry=skew)

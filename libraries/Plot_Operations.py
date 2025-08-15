@@ -2102,13 +2102,29 @@ class PlotManager:
 
         # Get the proper energy range from vlines or from stored values
         if window.vline1 is not None and window.vline2 is not None:
-            bg_min_energy = min(window.vline1.get_xdata()[0], window.vline2.get_xdata()[0])
-            bg_max_energy = max(window.vline1.get_xdata()[0], window.vline2.get_xdata()[0])
+            # Convert display positions back to BE for calculations (x_values are always in BE)
+            vline1_be = window.convert_energy_from_display(window.vline1.get_xdata()[0])
+            vline2_be = window.convert_energy_from_display(window.vline2.get_xdata()[0])
+            bg_min_energy = min(vline1_be, vline2_be)
+            bg_max_energy = max(vline1_be, vline2_be)
+
+            # Safety check: ensure the converted range overlaps with actual data
+            data_min = min(x_values)
+            data_max = max(x_values)
+
+            # Clamp the range to actual data bounds to prevent empty arrays
+            bg_min_energy = max(bg_min_energy, data_min)
+            bg_max_energy = min(bg_max_energy, data_max)
+
+            # If range is invalid after clamping, use stored values as fallback
+            if bg_min_energy >= bg_max_energy:
+                bg_min_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg Low')
+                bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
         else:
             bg_min_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg Low')
             bg_max_energy = window.Data['Core levels'][sheet_name]['Background'].get('Bkg High')
 
-        if bg_min_energy is None or bg_max_energy is None or bg_min_energy > bg_max_energy:
+        if bg_min_energy is None or bg_max_energy is None or bg_min_energy >= bg_max_energy:
             # Default to full range if invalid
             bg_min_energy = min(x_values)
             bg_max_energy = max(x_values)
@@ -2121,9 +2137,28 @@ class PlotManager:
             bg_min_energy = min(x_values)
             bg_max_energy = max(x_values)
 
+        # Create mask and ensure we have at least some data points
         mask = (x_values >= bg_min_energy) & (x_values <= bg_max_energy)
+
+        # Safety check: ensure we have at least 2 data points for background calculation
+        if np.sum(mask) < 2:
+            print(f"Warning: Background range too narrow, using full data range")
+            print(f"Range: {bg_min_energy:.2f} - {bg_max_energy:.2f}")
+            print(f"Data range: {min(x_values):.2f} - {max(x_values):.2f}")
+            mask = np.ones(len(x_values), dtype=bool)  # Use full range
+
         x_values_filtered = x_values[mask]
         y_values_filtered = y_values[mask]
+
+        # Additional safety check
+        if len(x_values_filtered) < 2:
+            print("Error: Still no data points after fallback, using minimal range")
+            # Use first and last points as minimal range
+            mask = np.zeros(len(x_values), dtype=bool)
+            mask[0] = True
+            mask[-1] = True
+            x_values_filtered = x_values[mask]
+            y_values_filtered = y_values[mask]
 
         if method == "Shirley":
             background_filtered = BackgroundCalculations.calculate_shirley_background(x_values_filtered,
@@ -2149,31 +2184,16 @@ class PlotManager:
             label = 'Background (Tougaard)'
         elif method == "2x U4-Tougaard":
             background_filtered = BackgroundCalculations.calculate_double_tougaard_background(x_values_filtered,
-                                                                                       y_values_filtered,
-                                                                                       sheet_name,
-                                                                                       window)
+                                                                                              y_values_filtered,
+                                                                                              sheet_name,
+                                                                                              window)
             label = 'Background (Tougaard)'
         elif method == "3x U4-Tougaard":
             background_filtered = BackgroundCalculations.calculate_triple_tougaard_background(x_values_filtered,
-                                                                                       y_values_filtered,
-                                                                                       sheet_name,
-                                                                                       window)
+                                                                                              y_values_filtered,
+                                                                                              sheet_name,
+                                                                                              window)
             label = 'Background (Tougaard)'
-        # elif method == "ALS-Raman":
-        #     # Get ALS parameters if available
-        #     lambda_val = 1000
-        #     p_val = 0.01
-        #
-        #     if hasattr(window, 'fitting_window'):
-        #         if hasattr(window.fitting_window, 'als_lambda'):
-        #             lambda_val = float(window.fitting_window.als_lambda.GetValue())
-        #         if hasattr(window.fitting_window, 'als_p'):
-        #             p_val = float(window.fitting_window.als_p.GetValue())
-        #
-        #     background_filtered = BackgroundCalculations.calculate_als_background(
-        #         x_values_filtered, y_values_filtered, lambda_val=lambda_val, p=p_val
-        #     )
-        #     label = 'Background (ALS)'
         elif method == "ALS-Raman":
             # Get ALS parameters if available
             lambda_val = 1e5
@@ -2195,7 +2215,6 @@ class PlotManager:
                                                                                     y_values_filtered, offset_h,
                                                                                     offset_l)
             label = 'Background (Smart)'
-            # raise ValueError(f"Unknown background method: {method}")
 
         new_background = np.array(window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
         new_background[mask] = background_filtered

@@ -321,10 +321,14 @@ class MouseEventHandler:
                                     # Click not near any vline - move the closest one
                                     if dist1 < dist2:
                                         self.window.moving_vline = self.window.vline1
-                                        core_level_data['Background']['Bkg Low'] = float(x_click)
+                                        # Convert display position back to BE for storage
+                                        be_position = self.window.convert_energy_from_display(x_click)
+                                        core_level_data['Background']['Bkg Low'] = float(be_position)
                                     else:
                                         self.window.moving_vline = self.window.vline2
-                                        core_level_data['Background']['Bkg High'] = float(x_click)
+                                        # Convert display position back to BE for storage
+                                        be_position = self.window.convert_energy_from_display(x_click)
+                                        core_level_data['Background']['Bkg High'] = float(be_position)
 
                                     # Update the vline position immediately
                                     self.window.moving_vline.set_xdata([x_click])
@@ -345,12 +349,17 @@ class MouseEventHandler:
                         # Create vlines if they don't exist
                         if self.window.vline1 is None:
                             self.window.vline1 = self.window.ax.axvline(x_click, color='r', linestyle='--')
-                            core_level_data['Background']['Bkg Low'] = float(x_click)
+                            # Convert display position back to BE for storage
+                            be_position = self.window.convert_energy_from_display(x_click)
+                            core_level_data['Background']['Bkg Low'] = float(be_position)
                             self.window.canvas.draw_idle()
                         elif self.window.vline2 is None and abs(
-                                x_click - core_level_data['Background']['Bkg Low']) > self.window.some_threshold:
+                                x_click - self.window.convert_energy_for_display(
+                                    core_level_data['Background']['Bkg Low'])) > self.window.some_threshold:
                             self.window.vline2 = self.window.ax.axvline(x_click, color='r', linestyle='--')
-                            core_level_data['Background']['Bkg High'] = float(x_click)
+                            # Convert display position back to BE for storage
+                            be_position = self.window.convert_energy_from_display(x_click)
+                            core_level_data['Background']['Bkg High'] = float(be_position)
                             core_level_data['Background']['Bkg Low'], core_level_data['Background'][
                                 'Bkg High'] = sorted([
                                 core_level_data['Background']['Bkg Low'],
@@ -360,8 +369,13 @@ class MouseEventHandler:
                         else:
                             # Both vlines exist but we're here somehow - select closest one
                             if self.window.vline2 is not None:
-                                dist_to_low = abs(x_click - core_level_data['Background']['Bkg Low'])
-                                dist_to_high = abs(x_click - core_level_data['Background']['Bkg High'])
+                                # Convert stored BE values to display coordinates for distance calculation
+                                display_low = self.window.convert_energy_for_display(
+                                    core_level_data['Background']['Bkg Low'])
+                                display_high = self.window.convert_energy_for_display(
+                                    core_level_data['Background']['Bkg High'])
+                                dist_to_low = abs(x_click - display_low)
+                                dist_to_high = abs(x_click - display_high)
 
                                 if dist_to_low < dist_to_high:
                                     self.window.moving_vline = self.window.vline1
@@ -581,10 +595,12 @@ class MouseEventHandler:
                 core_level_data = self.window.Data['Core levels'][sheet_name]
 
                 if self.window.moving_vline in [self.window.vline1, self.window.vline2]:
+                    # Convert display position back to BE for storage
+                    be_position = self.window.convert_energy_from_display(x_click)
                     if self.window.moving_vline == self.window.vline1:
-                        core_level_data['Background']['Bkg Low'] = float(x_click)
+                        core_level_data['Background']['Bkg Low'] = float(be_position)
                     else:
-                        core_level_data['Background']['Bkg High'] = float(x_click)
+                        core_level_data['Background']['Bkg High'] = float(be_position)
 
                     bkg_low = core_level_data['Background']['Bkg Low']
                     bkg_high = core_level_data['Background']['Bkg High']

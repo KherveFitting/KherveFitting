@@ -130,7 +130,7 @@ class BackgroundWindow(wx.Frame):
         clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         # Change the reset button to switch positions button
-        switch_vlines_button = wx.Button(panel, label="Switch \nRegions")
+        switch_vlines_button = wx.Button(panel, label="Switch Regions\n TAB key")
         if 'wxMac' in wx.PlatformInfo:
             switch_vlines_button.SetMinSize((125, 30))
         else:
@@ -1064,9 +1064,13 @@ class BackgroundWindow(wx.Frame):
             vline1_pos = x_min + x_range / 15
             vline2_pos = x_min + 14 * x_range / 15
 
+        # Convert BE positions to display positions
+        vline1_display = self.parent.convert_energy_for_display(vline1_pos)
+        vline2_display = self.parent.convert_energy_for_display(vline2_pos)
+
         # Create new vlines - these will be draggable
-        self.parent.vline1 = self.parent.ax.axvline(vline1_pos, color='r', linestyle='--', alpha=0.7)
-        self.parent.vline2 = self.parent.ax.axvline(vline2_pos, color='r', linestyle='--', alpha=0.7)
+        self.parent.vline1 = self.parent.ax.axvline(vline1_display, color='r', linestyle='--', alpha=0.7)
+        self.parent.vline2 = self.parent.ax.axvline(vline2_display, color='r', linestyle='--', alpha=0.7)
 
         # Add text labels
         self.add_vline_text_labels()

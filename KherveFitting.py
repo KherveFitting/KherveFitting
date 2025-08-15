@@ -1895,9 +1895,13 @@ class MyFrame(wx.Frame):
                 vline1_pos = x_min + x_range / 15
                 vline2_pos = x_min + 14 * x_range / 15
 
-            # Create new vlines
-            self.vline1 = self.ax.axvline(vline1_pos, color='r', linestyle='--', alpha=0.7)
-            self.vline2 = self.ax.axvline(vline2_pos, color='r', linestyle='--', alpha=0.7)
+            # Convert BE positions to display positions
+            vline1_display = self.convert_energy_for_display(vline1_pos)
+            vline2_display = self.convert_energy_for_display(vline2_pos)
+
+            # Create new vlines with converted positions
+            self.vline1 = self.ax.axvline(vline1_display, color='r', linestyle='--', alpha=0.7)
+            self.vline2 = self.ax.axvline(vline2_display, color='r', linestyle='--', alpha=0.7)
 
             # Add text labels for vlines
             self.add_vline_text_labels()
@@ -1909,7 +1913,7 @@ class MyFrame(wx.Frame):
                 self.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(min(vline1_pos, vline2_pos))
                 self.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(max(vline1_pos, vline2_pos))
 
-    def add_vline_text_labels(self):
+    def add_vline_text_labels_OLD_KE(self):
         """Add text labels to vertical lines showing their BE values."""
         if self.vline1 is not None and self.vline2 is not None:
             # Get y-axis range for positioning
@@ -1964,6 +1968,68 @@ class MyFrame(wx.Frame):
                                                 ha='center', va='center',
                                                 color='grey', fontsize=10,
                                                 bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+
+    def add_vline_text_labels(self):
+        """Add text labels to vertical lines showing their values in current energy scale."""
+        if self.vline1 is not None and self.vline2 is not None:
+            # Get y-axis range for positioning
+            y_min, y_max = self.ax.get_ylim()
+            y_range = y_max - y_min
+
+            # Get vline positions (these are in display coordinates)
+            vline1_x = round(self.vline1.get_xdata()[0], 2)
+            vline2_x = round(self.vline2.get_xdata()[0], 2)
+
+            # Determine which is high energy and which is low energy in display scale
+            if self.energy_scale == 'KE':
+                # In KE mode, higher KE appears on right, lower KE on left
+                if vline1_x > vline2_x:
+                    high_energy_x, low_energy_x = vline1_x, vline2_x
+                    high_energy_text_y = y_min + 0.9 * y_range
+                    low_energy_text_y = y_min + 0.8 * y_range
+                else:
+                    high_energy_x, low_energy_x = vline2_x, vline1_x
+                    high_energy_text_y = y_min + 0.9 * y_range
+                    low_energy_text_y = y_min + 0.8 * y_range
+            else:
+                # In BE mode, higher BE appears on right, lower BE on left
+                if vline1_x > vline2_x:
+                    high_energy_x, low_energy_x = vline1_x, vline2_x
+                    high_energy_text_y = y_min + 0.9 * y_range
+                    low_energy_text_y = y_min + 0.8 * y_range
+                else:
+                    high_energy_x, low_energy_x = vline2_x, vline1_x
+                    high_energy_text_y = y_min + 0.9 * y_range
+                    low_energy_text_y = y_min + 0.8 * y_range
+
+            # Remove existing text if any
+            if self.vline1_text is not None:
+                try:
+                    self.vline1_text.remove()
+                except:
+                    pass
+            if self.vline2_text is not None:
+                try:
+                    self.vline2_text.remove()
+                except:
+                    pass
+
+            # Create text labels
+            energy_unit = "KE" if self.energy_scale == 'KE' else "BE"
+
+            self.vline1_text = self.ax.text(vline1_x,
+                                            high_energy_text_y if vline1_x == high_energy_x else low_energy_text_y,
+                                            f'{vline1_x:.2f}',
+                                            ha='center', va='center',
+                                            color='grey', fontsize=10,
+                                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+
+            self.vline2_text = self.ax.text(vline2_x,
+                                            high_energy_text_y if vline2_x == high_energy_x else low_energy_text_y,
+                                            f'{vline2_x:.2f}',
+                                            ha='center', va='center',
+                                            color='grey', fontsize=10,
+                                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
 
     def update_vline_text_labels(self):
         """Update the text labels when vlines are moved."""
@@ -2870,6 +2936,36 @@ class MyFrame(wx.Frame):
             # Window might be closing, ignore errors
             pass
 
+    def convert_energy_for_display(self, be_value):
+        """
+        Generalized function to convert BE to display energy based on current energy scale.
+
+        Args:
+            be_value: Binding Energy value
+
+        Returns:
+            Energy value in current display scale (BE or KE)
+        """
+        if self.energy_scale == 'KE':
+            return self.photons - be_value
+        else:
+            return be_value
+
+    def convert_energy_from_display(self, display_value):
+        """
+        Convert display energy back to BE for storage.
+
+        Args:
+            display_value: Energy value in current display scale
+
+        Returns:
+            Binding Energy value
+        """
+        if self.energy_scale == 'KE':
+            return self.photons - display_value
+        else:
+            return display_value
+
     def set_max_iterations(self, value):
         self.max_iterations = value
 
@@ -3499,11 +3595,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.545 25g07")
+        frame = MyFrame(None, "KherveFitting-v1.60_beta1 25h14")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.545 25g07")
+        frame = MyFrame(None, "KherveFitting-v1.60_beta1 25h14")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.545 25g07")
+        frame = MyFrame(None, "KherveFitting-v1.60_beta1 25h14")
 
     # Apply preferences before showing the frame
     if hasattr(frame, 'times_opened') and frame.times_opened > 1:

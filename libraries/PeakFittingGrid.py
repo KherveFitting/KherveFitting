@@ -574,11 +574,18 @@ class PeakFittingGrid:
             8: '0.3:3',  # Gamma
             9: '0.01:2' # Skew
         }
-        # Check each constraint cell
-        for col_idx in range(2, 10):
-            if not self.window.peak_params_grid.GetCellValue(row, col_idx).strip():
-                # If empty, set default constraint
-                self.window.peak_params_grid.SetCellValue(row, col_idx, default_constraints[col_idx])
+        # Check each constraint cell with bounds checking
+        constraint_row = row + 1
+        max_rows = self.window.peak_params_grid.GetNumberRows()
+        max_cols = self.window.peak_params_grid.GetNumberCols()
+
+        # Only proceed if constraint row exists
+        if constraint_row < max_rows:
+            for col_idx in range(2, min(10, max_cols)):  # Don't exceed column bounds
+                # Check if constraint cell is empty
+                if not self.window.peak_params_grid.GetCellValue(constraint_row, col_idx).strip():
+                    # If empty, set default constraint
+                    self.window.peak_params_grid.SetCellValue(constraint_row, col_idx, default_constraints[col_idx])
 
         # Also update constraints in Data structure
         peak_index = row // 2
@@ -1326,20 +1333,36 @@ class PeakFittingGrid:
             row_constraint = i * 2 + 1  # Constraint row
             peak_label = self.window.peak_params_grid.GetCellValue(row_data, 1)
 
-            # Update main parameters
+            # Update main parameters with safe conversion
+            sigma_str = self.window.peak_params_grid.GetCellValue(row_data, 7)
+            gamma_str = self.window.peak_params_grid.GetCellValue(row_data, 8)
+
+            # def safe_float_convert(value_str):
+            #     """Convert string to float, return 0.0 if it's a constraint string or invalid"""
+            #     if not value_str or ':' in value_str or '*' in value_str or '#' in value_str or '+' in value_str or '-' in value_str:
+            #         return 0.0
+            #     try:
+            #         return float(value_str)
+            #     except ValueError:
+            #         return 0.0
+
+            # Update main parameters with safe conversion
+            sigma_str = self.window.peak_params_grid.GetCellValue(row_data, 7)
+            gamma_str = self.window.peak_params_grid.GetCellValue(row_data, 8)
+
             peaks[peak_label] = {
                 'Position': float(self.window.peak_params_grid.GetCellValue(row_data, 2)),
                 'Height': float(self.window.peak_params_grid.GetCellValue(row_data, 3)),
                 'FWHM': float(self.window.peak_params_grid.GetCellValue(row_data, 4)),
                 'L/G': float(self.window.peak_params_grid.GetCellValue(row_data, 5)),
                 'Area': float(self.window.peak_params_grid.GetCellValue(row_data, 6)),
-                'Sigma': float(self.window.peak_params_grid.GetCellValue(row_data, 7)) if self.window.peak_params_grid.GetCellValue(row_data, 7) else 0.0,
-                'Gamma': float(self.window.peak_params_grid.GetCellValue(row_data, 8)) if self.window.peak_params_grid.GetCellValue(row_data, 8) else 0.0,
+                'Sigma': self.safe_float_convert(sigma_str),  # No self.
+                'Gamma': self.safe_float_convert(gamma_str),  # No self.
                 'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
                 'Fitting Model': self.window.peak_params_grid.GetCellValue(row_data, 13)
             }
-
             # Update constraints
+
             if 'Constraints' not in peaks[peak_label]:
                 peaks[peak_label]['Constraints'] = {}
 
@@ -1472,6 +1495,14 @@ class PeakFittingGrid:
                     self.window.peak_params_grid.SetCellValue(row, 6, "ER! REFRESH PEAK")
             self.window.peak_params_grid.ForceRefresh()
 
+    def safe_float_convert(self, value_str):
+        """Convert string to float, return 0.0 if it's a constraint string or invalid"""
+        if not value_str or ':' in value_str or '*' in value_str or '#' in value_str or '+' in value_str or '-' in value_str:
+            return 2
+        try:
+            return float(value_str)
+        except ValueError:
+            return 2
 
 
 

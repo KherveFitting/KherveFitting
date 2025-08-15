@@ -1608,7 +1608,7 @@ def extract_acquisition_parameters(sheet):
 
     # Extract parameters starting from row 4 (after "Parameter" header in row 3)
     row = 4
-    while row <= sheet.max_row:
+    while row <= 11:  # Limit to row 11 instead of sheet.max_row
         # Parameter name is in acquisition_col (column H)
         param_name = sheet.cell(row=row, column=acquisition_col).value
         # Parameter value is in acquisition_col + 1 (column I)
@@ -1644,6 +1644,7 @@ def extract_acquisition_parameters(sheet):
 def import_avantage_file_direct(window, file_path):
     import re
     import openpyxl
+    import math
     from openpyxl.utils import get_column_letter
 
     wb = openpyxl.load_workbook(file_path)
@@ -1704,7 +1705,15 @@ def import_avantage_file_direct(window, file_path):
                     be_value = sheet.cell(row=row, column=1).value
                     intensity_value = sheet.cell(row=row, column=data_col).value
 
-                    if be_value is None or intensity_value is None:
+                    # Enhanced validation - check for None, NaN, and invalid values
+                    if (be_value is None or intensity_value is None or
+                            (isinstance(be_value, float) and math.isnan(be_value)) or
+                            (isinstance(intensity_value, float) and math.isnan(intensity_value))):
+                        continue
+
+                    # Additional check for string "NaN" or empty strings
+                    if (str(be_value).lower() in ['nan', '', ' '] or
+                            str(intensity_value).lower() in ['nan', '', ' ']):
                         continue
 
                     new_sheet.cell(row=row_new, column=1, value=be_value)
@@ -1743,7 +1752,15 @@ def import_avantage_file_direct(window, file_path):
                 be_value = sheet.cell(row=row, column=1).value
                 intensity_value = sheet.cell(row=row, column=3).value  # Column C
 
-                if be_value is None or intensity_value is None:
+                # Enhanced validation - check for None, NaN, and invalid values
+                if (be_value is None or intensity_value is None or
+                        (isinstance(be_value, float) and math.isnan(be_value)) or
+                        (isinstance(intensity_value, float) and math.isnan(intensity_value))):
+                    continue
+
+                # Additional check for string "NaN" or empty strings
+                if (str(be_value).lower() in ['nan', '', ' '] or
+                        str(intensity_value).lower() in ['nan', '', ' ']):
                     continue
 
                 new_sheet['A{}'.format(row - start_row + 2)] = be_value
@@ -1810,6 +1827,25 @@ def import_avantage_file_direct_xls(window, file_path):
 
             for row_idx in range(start_row, sheet.nrows):
                 row_values = sheet.row_values(row_idx)
+
+                if len(row_values) < 3:  # Need at least BE and intensity columns
+                    continue
+
+                be_value = row_values[0]
+                intensity_value = row_values[2]  # Column C (index 2)
+
+                # Enhanced validation for .xls files
+                if (be_value is None or intensity_value is None or
+                        be_value == '' or intensity_value == '' or
+                        (isinstance(be_value, float) and math.isnan(be_value)) or
+                        (isinstance(intensity_value, float) and math.isnan(intensity_value))):
+                    continue
+
+                # Check for xlrd-specific empty cell types
+                if (be_value == xlrd.empty_cell.value or
+                        intensity_value == xlrd.empty_cell.value):
+                    continue
+
                 new_sheet.append([row_values[0]] + row_values[2:])
 
             for col in new_sheet.iter_cols(min_col=3, max_col=24):

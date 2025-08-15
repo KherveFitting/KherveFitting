@@ -818,9 +818,11 @@ class FittingWindow(wx.Frame):
 
             # Move vLines to the next region's positions
             if self.parent.vline1 is not None:
-                self.parent.vline1.set_xdata([min_range, min_range])
+                min_display = self.parent.convert_energy_for_display(min_range)
+                self.parent.vline1.set_xdata([min_display, min_display])
             if self.parent.vline2 is not None:
-                self.parent.vline2.set_xdata([max_range, max_range])
+                max_display = self.parent.convert_energy_for_display(max_range)
+                self.parent.vline2.set_xdata([max_display, max_display])
 
             # Update text labels
             if hasattr(self.parent, 'update_vline_text_labels'):
@@ -1492,8 +1494,10 @@ class FittingWindow(wx.Frame):
 
                 # Position vLines at first region's range
                 if self.parent.vline1 is not None and self.parent.vline2 is not None:
-                    self.parent.vline1.set_xdata([min_range, min_range])
-                    self.parent.vline2.set_xdata([max_range, max_range])
+                    min_display = self.parent.convert_energy_for_display(min_range)
+                    max_display = self.parent.convert_energy_for_display(max_range)
+                    self.parent.vline1.set_xdata([min_display, min_display])
+                    self.parent.vline2.set_xdata([max_display, max_display])
 
                     # Update text labels
                     if hasattr(self.parent, 'update_vline_text_labels'):
@@ -1938,9 +1942,11 @@ class FittingWindow(wx.Frame):
 
             # Update vlines to match active region positions
             if self.parent.vline1 is not None:
-                self.parent.vline1.set_xdata([min_range, min_range])
+                min_display = self.parent.convert_energy_for_display(min_range)
+                self.parent.vline1.set_xdata([min_display, min_display])
             if self.parent.vline2 is not None:
-                self.parent.vline2.set_xdata([max_range, max_range])
+                max_display = self.parent.convert_energy_for_display(max_range)
+                self.parent.vline2.set_xdata([max_display, max_display])
 
             # Update text labels and redraw
             if hasattr(self.parent, 'update_vline_text_labels'):
@@ -2106,9 +2112,11 @@ class FittingWindow(wx.Frame):
 
             # Move vLines to the selected region's positions
             if self.parent.vline1 is not None:
-                self.parent.vline1.set_xdata([min_range, min_range])
+                min_display = self.parent.convert_energy_for_display(min_range)
+                self.parent.vline1.set_xdata([min_display, min_display])
             if self.parent.vline2 is not None:
-                self.parent.vline2.set_xdata([max_range, max_range])
+                max_display = self.parent.convert_energy_for_display(max_range)
+                self.parent.vline2.set_xdata([max_display, max_display])
 
             # Update text labels
             if hasattr(self.parent, 'update_vline_text_labels'):
@@ -2260,7 +2268,9 @@ class FittingWindow(wx.Frame):
                 new_min = max_val
 
             if self.parent.vline1 is not None:
-                self.parent.vline1.set_xdata([new_min, new_min])
+                # Convert BE value to display position for vLine placement
+                display_pos = self.parent.convert_energy_for_display(new_min)
+                self.parent.vline1.set_xdata([display_pos, display_pos])
 
                 # Update data structure
                 sheet_name = self.parent.sheet_combobox.GetValue()
@@ -2289,7 +2299,7 @@ class FittingWindow(wx.Frame):
         except ValueError:
             pass
 
-    def on_max_range_change(self, event):
+    def on_max_range_change_OLD_BE(self, event):
         if self.updating_range_controls:
             return
 
@@ -2337,6 +2347,52 @@ class FittingWindow(wx.Frame):
         except ValueError:
             pass
 
+    def on_max_range_change(self, event):
+        if self.updating_range_controls:
+            return
+
+        try:
+            # Get display values from text controls
+            new_max_display = float(self.max_range_text.GetValue())
+            min_display = float(self.min_range_text.GetValue())
+
+            # Convert display values to BE for storage and comparison
+            new_max_be = self.parent.convert_energy_from_display(new_max_display)
+            min_be = self.parent.convert_energy_from_display(min_display)
+
+            # Handle order swapping in BE coordinates
+            if new_max_be < min_be:
+                self.updating_range_controls = True
+                self.max_range_text.SetValue(f"{min_display:.2f}")
+                self.min_range_text.SetValue(f"{new_max_display:.2f}")
+                self.updating_range_controls = False
+                new_max_be = min_be
+
+            # Update vLine position using display coordinates
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([new_max_display, new_max_display])
+
+                # Store BE value in data structure
+                sheet_name = self.parent.sheet_combobox.GetValue()
+                if sheet_name in self.parent.Data['Core levels']:
+                    if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                        self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+                    self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_max_be)
+
+                # Update text labels and redraw
+                if hasattr(self.parent, 'update_vline_text_labels'):
+                    self.parent.update_vline_text_labels()
+                self.parent.canvas.draw_idle()
+
+            # Update active range positions and redraw background
+            if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
+                if hasattr(self.parent, 'mouse_handler'):
+                    self.parent.mouse_handler.update_active_region_positions()
+                    self.parent.mouse_handler.redraw_all_regions_background()
+
+        except ValueError:
+            pass
+
     def update_window_data_background_range(self):
         """Update window.Data background range with overall range from all recorded ranges"""
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -2373,10 +2429,14 @@ class FittingWindow(wx.Frame):
 
         try:
             if (self.parent.vline1 is not None and self.parent.vline2 is not None):
-                vline1_pos = self.parent.vline1.get_xdata()[0]
-                vline2_pos = self.parent.vline2.get_xdata()[0]
-                actual_min = min(vline1_pos, vline2_pos)
-                actual_max = max(vline1_pos, vline2_pos)
+                # Get vline display positions
+                vline1_display = self.parent.vline1.get_xdata()[0]
+                vline2_display = self.parent.vline2.get_xdata()[0]
+
+                # The vlines are already positioned in display coordinates,
+                # so these values are correct for the text controls
+                actual_min = min(vline1_display, vline2_display)
+                actual_max = max(vline1_display, vline2_display)
             else:
                 actual_min = 0
                 actual_max = 0
@@ -2437,8 +2497,10 @@ class FittingWindow(wx.Frame):
 
             # Update vlines to region 1 position
             if self.parent.vline1 is not None and self.parent.vline2 is not None:
-                self.parent.vline1.set_xdata([min_range, min_range])
-                self.parent.vline2.set_xdata([max_range, max_range])
+                min_display = self.parent.convert_energy_for_display(min_range)
+                max_display = self.parent.convert_energy_for_display(max_range)
+                self.parent.vline1.set_xdata([min_display, min_display])
+                self.parent.vline2.set_xdata([max_display, max_display])
                 if hasattr(self.parent, 'update_vline_text_labels'):
                     self.parent.update_vline_text_labels()
 
