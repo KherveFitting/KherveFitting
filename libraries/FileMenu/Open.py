@@ -1592,7 +1592,7 @@ def import_mrs_file(window):
 
 
 def extract_acquisition_parameters(sheet):
-    """Extract acquisition parameters from Ovantage sheet"""
+    """Extract acquisition parameters from Avantage sheet"""
     parameters = {}
 
     # Search for "Acquisition Parameters :" in row 1 across all columns
