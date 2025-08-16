@@ -378,7 +378,7 @@ class PlotManager:
                         bg_display = bg_center
 
                     # VBM position line (purple dashed, linewidth 1) - WITH LEGEND
-                    window.ax.axvline(vbm_display, color='purple', linestyle='--',
+                    window.ax.axvline(vbm_display, color='Green', linestyle='--',
                                       linewidth=1, label=f'VBM = {vbm_position:.2f} eV')
 
                     # # Signal center line (red dotted, alpha 0.5) - NO LEGEND
