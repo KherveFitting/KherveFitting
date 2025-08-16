@@ -275,6 +275,69 @@ class PlotManager:
                 self.ax.plot(x_values, normalized_deriv, '-', color=color, label=peak_label)
 
             return background  # Return background unchanged
+        elif fitting_model == "Fermi":
+            # Access Fermi data from window.Data structure
+            sheet_name = window.sheet_combobox.GetValue()
+            if sheet_name in window.Data['Core levels']:
+                fitting_data = window.Data['Core levels'][sheet_name].get('Fitting', {})
+                peaks_data = fitting_data.get('Peaks', {})
+
+                # Find Fermi peak by fitting model instead of fixed name
+                fermi_data = {}
+                for peak_name, peak_info in peaks_data.items():
+                    if peak_info.get('Fitting Model') == 'Fermi':
+                        fermi_data = peak_info
+                        break
+
+                if 'Fitted_X' in fermi_data and 'Fitted_Y' in fermi_data:
+                    fitted_x = np.array(fermi_data['Fitted_X'])
+                    fitted_y = np.array(fermi_data['Fitted_Y'])
+
+                    if window.energy_scale == 'KE':
+                        plot_x = window.photons - fitted_x
+                    else:
+                        plot_x = fitted_x
+
+                    # Plot Fermi fit
+                    if window.energy_scale == 'KE':
+                        self.ax.plot(plot_x, fitted_y, '-', color=color, linewidth=1, label=peak_label)
+                    else:
+                        self.ax.plot(plot_x, fitted_y, '-', color=color, linewidth=1, label=peak_label)
+
+                    # Add center line with position in legend
+                    center_pos = fermi_data.get('Fermi_Center', fermi_data.get('Position', 0))
+                    if window.energy_scale == 'KE':
+                        center_display = window.photons - center_pos
+                    else:
+                        center_display = center_pos
+
+                    # self.ax.axvline(center_display, color='green', linestyle='--',
+                    #                 linewidth=1, alpha=0.7,
+                    #                 label=f'Center: {center_pos:.3f} eV')
+
+                    # Add 16%-84% edge lines with width in meV in legend
+                    width_16_84 = fermi_data.get('Fermi_16_84_Width', fermi_data.get('FWHM', 0))
+                    edge_left = center_pos - width_16_84 / 2
+                    edge_right = center_pos + width_16_84 / 2
+
+                    if window.energy_scale == 'KE':
+                        edge_left_display = window.photons - edge_left
+                        edge_right_display = window.photons - edge_right
+                    else:
+                        edge_left_display = edge_left
+                        edge_right_display = edge_right
+
+                    # Show width in meV in legend
+                    self.ax.axvline(edge_left_display, color='orange', linestyle=':',
+                                    alpha=0.6,
+                                    label=f'16%-84%: {width_16_84 * 1000:.1f} meV')
+                    self.ax.axvline(edge_right_display, color='orange', linestyle=':', alpha=0.6)
+
+                    self.ax.axvline(center_display, color='green', linestyle='--',
+                                    linewidth=1, alpha=0.7,
+                                    label=f'Center: {center_pos:.3f} eV')
+
+            return background  # Return background unchanged
         elif fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
             peak_model = lmfit.models.VoigtModel()
             sigma = float(peak_params.get('sigma', 1.2)) / 2.355
@@ -842,7 +905,9 @@ class PlotManager:
                 continue
             if fitting_model == "D-parameter":
                 cst_unfit = "D-parameter"
-            if fitting_model == "SurveyID":
+            elif fitting_model == "Fermi":
+                cst_unfit = "Fermi"
+            elif fitting_model == "SurveyID":
                 cst_unfit = "SurveyID"
             if 'Labels' in window.Data['Core levels'][sheet_name]:
 
@@ -934,7 +999,9 @@ class PlotManager:
 
 
         # Update overall fit and residuals
-        if cst_unfit in ["Unfitted","D-parameter","SurveyID"] or any(x in sheet_name.lower() for x in ["survey", "wide"]):
+        if cst_unfit in ["Unfitted","D-parameter","Fermi","SurveyID"] or any(x in sheet_name.lower() for x in [
+            "survey", \
+                "wide"]):
             pass
         else:
             window.update_overall_fit_and_residuals()
@@ -1151,7 +1218,7 @@ class PlotManager:
                 gamma = fwhm / 2
                 area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
-            elif window.selected_fitting_method == "D-parameter":
+            elif window.selected_fitting_method in ["D-parameter", "Fermi"]:
                 # return area, 0, 0  # Return original area and zero for normalized/relative areas
                 return 0, 0, 0  # Return original area and zero for normalized/relative areas
             else:  # Default to GL (Height) as a safe bet
@@ -1161,7 +1228,7 @@ class PlotManager:
             peak_y = peak_model.eval(params, x=window.x_values) + window.background
 
             # Update overall fit and residuals
-            if peak_model in ["D-parameter", "SurveyID"]:
+            if peak_model in ["D-parameter", "SurveyID", "Fermi"]:
                 print("")
             else:
                 window.update_overall_fit_and_residuals()
@@ -1321,6 +1388,8 @@ class PlotManager:
             elif fitting_model == "D-parameter":
                 # Skip D-parameter in overall fit calculation
                 continue
+            elif fitting_model == "Fermi":
+                continue
             elif fitting_model == "SurveyID":
                 # Skip D-parameter in overall fit calculation
                 continue
@@ -1378,13 +1447,17 @@ class PlotManager:
                 self.ax.plot(window.photons - window.x_values, overall_fit, color=self.envelope_color,
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
                              linewidth=self.envelope_thickness,
-                             label='D-parameter' if fitting_model == "D-parameter" else 'Overall Fit')
+                             label='D-parameter' if fitting_model == "D-parameter" else
+                                    'Fermi' if fitting_model == "Fermi" else
+                                    'Overall Fit')
             else:
                 # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
                 self.ax.plot(x_plot, y_plot, color=self.envelope_color,
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
                              linewidth=self.envelope_thickness,
-                             label='D-parameter' if fitting_model == "D-parameter" else 'Overall Fit')
+                             label='D-parameter' if fitting_model == "D-parameter" else
+                                    'Fermi' if fitting_model == "Fermi" else
+                                    'Overall Fit')
         except:
             return
 
@@ -1769,7 +1842,7 @@ class PlotManager:
         self.fitting_results_text.set_visible(self.fitting_results_visible)
 
 
-    def toggle_legend(self):
+    def toggle_legend_OLD(self):
         self.legend_visible = (self.legend_visible + 1) % 3
         legend = self.ax.get_legend()
         if legend:
@@ -1792,7 +1865,49 @@ class PlotManager:
                                framealpha=0.1, edgecolor='gray')
         self.canvas.draw_idle()
 
-    def update_legend(self, window):
+    def toggle_legend(self):
+        self.legend_visible = (self.legend_visible + 1) % 3
+
+        # Check if any peak has Fermi fitting model
+        handles, labels = self.ax.get_legend_handles_labels()
+        has_fermi_peak = False
+
+        # Quick check by looking for Fermi-specific labels
+        for label in labels:
+            if 'Center:' in label or '16%-84%:' in label:
+                has_fermi_peak = True
+                break
+
+        # If Fermi peak exists, always show full natural legend regardless of mode
+        if has_fermi_peak:
+            legend = self.ax.get_legend()
+            if legend:
+                legend.set_visible(True)  # Always visible when Fermi present
+            return  # Exit early, ignore legend modes
+
+        # ORIGINAL TOGGLE LOGIC (only when no Fermi)
+        legend = self.ax.get_legend()
+        if legend:
+            if self.legend_visible == 0:
+                legend.set_visible(False)
+            elif self.legend_visible == 1:
+                legend.set_visible(True)
+            else:
+                handles, labels = self.ax.get_legend_handles_labels()
+                filtered_handles = []
+                filtered_labels = []
+                for h, l in zip(handles, labels):
+                    if l not in ["Raw Data", "Background", "Overall Fit"]:
+                        clean_label = re.sub(r'\$.*?\$', '', l)
+                        split_label = clean_label.split()
+                        if len(split_label) > 1 and split_label[1].strip():
+                            filtered_handles.append(h)
+                            filtered_labels.append(l)
+                self.ax.legend(filtered_handles, filtered_labels, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
+        self.canvas.draw_idle()
+
+    def update_legend_OLD(self, window):
         sheet_name = window.sheet_combobox.GetValue()
         handles, labels = self.ax.get_legend_handles_labels()
 
@@ -1800,6 +1915,94 @@ class PlotManager:
         current_core_level = self.extract_core_level_name(sheet_name)
 
         num_peaks = window.peak_params_grid.GetNumberRows() // 2
+        peak_labels = []
+        filtered_peak_labels = []
+        compact_peak_labels = []  # Separate list for compact labels
+
+        for i in range(num_peaks):
+            label = window.peak_params_grid.GetCellValue(i * 2, 1)
+            formatted_label = re.sub(r'(\d+/\d+)', r'$_{\1}$', label)
+
+            # Create compact version for peaks-only mode
+            compact_label = self.make_compact_legend_label(formatted_label, current_core_level)
+
+            clean_label = re.sub(r'\$.*?\$', '', formatted_label)
+            split_label = clean_label.split()
+            if len(split_label) > 1 and split_label[1].strip():
+                peak_labels.append(label)
+                filtered_peak_labels.append(formatted_label)  # Full name for full legend
+                compact_peak_labels.append(compact_label)  # Compact name for peaks-only
+
+        if self.legend_visible == 2:
+            ordered_handles = []
+            for l in peak_labels:
+                for index, label in enumerate(labels):
+                    if label == l:
+                        ordered_handles.append(handles[index])
+                        break
+            if ordered_handles and compact_peak_labels:
+                self.ax.legend(ordered_handles, compact_peak_labels, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
+            else:
+                self.ax.legend().set_visible(False)
+        else:
+            has_overall_fit = "Overall Fit" in labels
+            has_raw_data = "Raw Data" in labels
+
+            legend_order = []
+            legend_order2 = []
+
+            if has_raw_data:
+                legend_order.append("Raw Data")
+                legend_order2.append("Raw Data")
+            legend_order.append("Background")
+            legend_order2.append("Background")
+            if has_overall_fit:
+                legend_order.append("Overall Fit")
+                legend_order2.append("Overall Fit")
+
+            legend_order += peak_labels
+            legend_order2 += filtered_peak_labels  # Use full names for full legend
+
+            if legend_order and self.legend_visible:
+                ordered_handles = []
+                for l in legend_order:
+                    for index, label in enumerate(labels):
+                        if label == l:
+                            ordered_handles.append(handles[index])
+                            break
+                self.ax.legend(ordered_handles, legend_order2, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
+            else:
+                self.ax.legend().remove()
+                self.ax.legend().set_visible(False)
+
+        self.canvas.draw_idle()
+
+    def update_legend(self, window):
+        sheet_name = window.sheet_combobox.GetValue()
+        handles, labels = self.ax.get_legend_handles_labels()
+
+        # Check if any peak has Fermi fitting model
+        has_fermi_peak = False
+        num_peaks = window.peak_params_grid.GetNumberRows() // 2
+        for i in range(num_peaks):
+            fitting_model = window.peak_params_grid.GetCellValue(i * 2, 13)  # Column 13 is fitting model
+            if fitting_model == "Fermi":
+                has_fermi_peak = True
+                break
+
+        # If Fermi peak exists, use natural legend from plot_peak (bypass all modes)
+        if has_fermi_peak:
+            if handles and labels:
+                self.ax.legend(handles, labels, loc='upper left', frameon=True, fancybox=True,
+                               framealpha=0.1, edgecolor='gray')
+            return  # Exit early, ignore legend modes
+
+        # ORIGINAL LEGEND MODE LOGIC (only when no Fermi)
+        # Extract current core level name for compact legend
+        current_core_level = self.extract_core_level_name(sheet_name)
+
         peak_labels = []
         filtered_peak_labels = []
         compact_peak_labels = []  # Separate list for compact labels

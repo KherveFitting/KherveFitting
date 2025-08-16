@@ -290,7 +290,7 @@ def on_sheet_selected(window, event):
                             # window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
-                    elif window.selected_fitting_method == "D-parameter":
+                    elif window.selected_fitting_method in ["D-parameter", "Fermi"]:
                         for col in [2]:  # Columns for Height, FWHM, L/G ratio
                             window.peak_params_grid.SetCellValue(row + 1, col, "0")
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))

@@ -642,7 +642,53 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                     window.Data['Core levels'][sheet_name]['Fitting']:
                 d_param_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks'].get('D-parameter')
                 if d_param_data and 'Derivative' in d_param_data:
-                    existing_df.insert(7, 'Derivative', d_param_data['Derivative'])
+                    existing_df.insert(8, 'Derivative', d_param_data['Derivative'])
+
+        # Handle Fermi fitted curve data (check by grid, not selected_fitting_method)
+        fermi_found = False
+        if window.peak_params_grid.GetNumberRows() > 0:
+            for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+                fitting_model = window.peak_params_grid.GetCellValue(row, 13)
+                if fitting_model == "Fermi":
+                    fermi_found = True
+                    break
+
+        # Handle Fermi fitted curve data - simple padding approach
+        fermi_found = False
+        if window.peak_params_grid.GetNumberRows() > 0:
+            for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+                fitting_model = window.peak_params_grid.GetCellValue(row, 13)
+                if fitting_model == "Fermi":
+                    fermi_found = True
+                    break
+
+        if fermi_found:
+            if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in \
+                    window.Data['Core levels'][sheet_name]['Fitting']:
+                peaks_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                for peak_name, peak_data in peaks_data.items():
+                    if peak_data.get('Fitting Model') == 'Fermi':
+                        if 'Fitted_X' in peak_data and 'Fitted_Y' in peak_data:
+                            # Get dataframe length
+                            df_length = len(existing_df)
+
+                            # Pad Fermi data with NaN to match dataframe length
+                            fitted_x = peak_data['Fitted_X']
+                            fitted_y = peak_data['Fitted_Y']
+
+                            # Create full-length arrays with NaN padding
+                            fermi_x_padded = fitted_x + [np.nan] * (df_length - len(fitted_x))
+                            fermi_y_padded = fitted_y + [np.nan] * (df_length - len(fitted_y))
+
+                            # Truncate if somehow longer than dataframe
+                            fermi_x_padded = fermi_x_padded[:df_length]
+                            fermi_y_padded = fermi_y_padded[:df_length]
+
+                            # existing_df.insert(len(existing_df.columns), 'Fermi_X', fermi_x_padded)
+                            # existing_df.insert(len(existing_df.columns), 'Fermi_Y', fermi_y_padded)
+                            existing_df.insert(8, 'Fermi_X', fermi_x_padded)
+                            existing_df.insert(9, 'Fermi_Y', fermi_y_padded)
+                        break
 
         # Restore experimental data columns if they were present
         if exp_data_columns:

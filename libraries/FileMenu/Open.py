@@ -1712,7 +1712,7 @@ def import_avantage_file_direct(window, file_path):
                         continue
 
                     # Additional check for string "NaN" or empty strings
-                    if (str(be_value).lower() in ['nan', '', ' '] or
+                    if (str(be_value).lower() in ['nan', 'Nan', '#NAME?','', ' '] or
                             str(intensity_value).lower() in ['nan', '', ' ']):
                         continue
 

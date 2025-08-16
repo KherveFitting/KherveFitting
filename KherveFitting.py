@@ -1031,7 +1031,7 @@ class MyFrame(wx.Frame):
                 peaks[peak_label]['Height'] = new_linked_height
         elif height_constraint.startswith(original_peak_letter):
             # Check if model uses height as primary parameter
-            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter"]
+            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter", "Fermi"]
 
             if fitting_model in height_based_models:
                 # Only update height for height-based models
@@ -1153,7 +1153,7 @@ class MyFrame(wx.Frame):
         # EXISTING CODE - Height constraints
         elif height_constraint.startswith(original_peak_letter):
             # Check if model uses height as primary parameter
-            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter"]
+            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter", "Fermi"]
 
             if fitting_model in height_based_models:
                 # Only update height for height-based models
@@ -1178,7 +1178,7 @@ class MyFrame(wx.Frame):
 
         # NEW CODE - Handle cross-core-level height constraints
         elif '_' in height_constraint:
-            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter"]
+            height_based_models = ["GL (Height)", "SGL (Height)", "D-parameter", "Fermi"]
             if fitting_model in height_based_models:
                 new_linked_height = self.evaluate_cross_core_constraint(height_constraint, 'Height')
                 if new_linked_height is not None:
@@ -1380,7 +1380,7 @@ class MyFrame(wx.Frame):
             sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
             gamma = fwhm / 2
             return area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
-        elif model == "D-parameter":
+        elif model in ["D-parameter", "Fermi"]:
             # D-parameter doesn't have an area
             return 0.0
 
@@ -1658,7 +1658,7 @@ class MyFrame(wx.Frame):
             gamma = float(self.peak_params_grid.GetCellValue(row, 8))
             skew = float(self.peak_params_grid.GetCellValue(row, 9))
             area = self.calculate_peak_area(model, height, fwhm, fraction, sigma, gamma, skew)
-        elif model == "D-parameter":
+        elif model in ["D-parameter"," Fermi"]:
             return
         else:
             area = self.calculate_peak_area(model, height, fwhm, fraction)
@@ -2745,6 +2745,8 @@ class MyFrame(wx.Frame):
             return round(area, 2)
         elif model =="D-parameter":
             return
+        elif model =="Fermi":
+            return
         else:
             raise ValueError(f"Unknown fitting model: {model}")
         return round(area, 2)
@@ -3030,7 +3032,7 @@ class MyFrame(wx.Frame):
         sheet_name = self.sheet_combobox.GetValue()
 
         # Skip fit_peaks for D-parameter model
-        if grid_fitting_method not in ["D-parameter", "Unfitted"]:
+        if grid_fitting_method not in ["D-parameter", "Unfitted", "Fermi"]:
             if hasattr(self, 'peak_params_grid') and self.peak_params_grid.GetNumberRows() > 0:
                 from Functions import fit_peaks
                 fit_result = fit_peaks(self, self.peak_params_grid, evaluate=True)
@@ -3595,11 +3597,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.60_beta1 25h14")
+        frame = MyFrame(None, "KherveFitting-v1.60_beta2 25h16")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.60_beta1 25h14")
+        frame = MyFrame(None, "KherveFitting-v1.60_beta2 25h16")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.60_beta1 25h14")
+        frame = MyFrame(None, "KherveFitting-v1.60_beta2 25h16")
 
     # Apply preferences before showing the frame
     if hasattr(frame, 'times_opened') and frame.times_opened > 1:

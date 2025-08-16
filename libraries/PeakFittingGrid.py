@@ -212,6 +212,7 @@ class PeakFittingGrid:
 
         # Set constraint values
         self.window.peak_params_grid.SetReadOnly(row + 1, 0)
+        # self.window.peak_params_grid.SetCellValue(row+1, 1, "Constraints")
         for col in range(self.window.peak_params_grid.GetNumberCols()+1):  # Assuming you have 15 columns in total
             # self.window.peak_params_grid.SetCellBackgroundColour(row + 1, col, wx.Colour(230, 230, 230))
             self.window.peak_params_grid.SetCellBackgroundColour(row + 1, col, wx.Colour(200,245,228))

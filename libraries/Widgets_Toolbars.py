@@ -37,6 +37,7 @@ from libraries.HelpMenu.DownloadStats import show_download_stats_window
 from libraries.FileMenu.Open import import_multiple_kfitting_files
 from libraries.FileMenu.Save import save_vamas_file_dialog
 
+from libraries.ToolsMenu.VB_measurements import VB_measurements
 
 # With conditional imports:
 import platform
@@ -982,6 +983,12 @@ def create_horizontal_toolbar(parent, window):
 
     window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
     window.Bind(wx.EVT_TOOL, lambda evt: open_thickogram_window(window), thickogram_tool)
+
+    # Add tool to toolbar
+    vb_tool = toolbar.AddTool(wx.ID_ANY, 'VB',
+                                   wx.Bitmap(os.path.join(icon_path, "Thicko-3.png"), wx.BITMAP_TYPE_PNG),
+                                   shortHelp='VB Measurements')
+    window.Bind(wx.EVT_TOOL, lambda e: VB_measurements(window, window), vb_tool)
 
     toolbar.AddSeparator()
 

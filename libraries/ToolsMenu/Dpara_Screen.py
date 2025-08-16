@@ -154,6 +154,12 @@ class DParameterWindow(wx.Frame):
         self.parent.peak_params_grid.SetCellValue(row, 5, f"{self.diff_spin.GetValue():.2f}")
         self.parent.peak_params_grid.SetCellValue(row, 13, "D-parameter")
 
+        # Set constraint row background to green (same as other peaks)
+        num_cols = self.parent.peak_params_grid.GetNumberCols()
+        green_color = wx.Colour(200, 245, 228)  # Light green
+        for col in range(num_cols):
+            self.parent.peak_params_grid.SetCellBackgroundColour(row+1, col, green_color)
+
         # Update Data dictionary
         if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
             self.parent.Data['Core levels'][sheet_name]['Fitting'] = {}

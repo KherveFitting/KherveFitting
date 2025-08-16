@@ -15,10 +15,10 @@ class MouseEventHandler:
         if event.inaxes:
             x, y = event.xdata, event.ydata
             if self.window.energy_scale == 'KE':
-                self.window.SetStatusText(f"KE: {x:.1f} eV, I: {int(y)} CPS", 1)
+                self.window.SetStatusText(f"KE: {x:.3f} eV, I: {y:.3f} CPS", 1)
                 self.window.current_energy_value = x
             else:
-                self.window.SetStatusText(f"BE: {x:.1f} eV, I: {int(y)} CPS", 1)
+                self.window.SetStatusText(f"BE: {x:.3f} eV, I: {y:.3f} CPS", 1)
                 self.window.current_energy_value = x
 
     def insert_cross_core_constraint(self, constraint_ref, row, col):
