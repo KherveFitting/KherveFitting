@@ -631,6 +631,9 @@ class MouseEventHandler:
                     self.window.noise_min_energy, self.window.noise_max_energy = sorted(
                         [self.window.noise_min_energy, self.window.noise_max_energy])
 
+            # Update VBM controls during dragging
+            self.update_vbm_controls_from_vlines()
+
             self.window.canvas.draw_idle()
 
         # Update vline text labels when moving vlines
@@ -782,6 +785,8 @@ class MouseEventHandler:
         if (not hasattr(self.window, 'fitting_window') or
                 not hasattr(self.window.fitting_window, 'active_range_index') or
                 self.window.fitting_window.active_range_index < 0):
+            # Still update VBM controls even if no fitting window active
+            self.update_vbm_controls_from_vlines()
             return
 
         # Get current vline positions
@@ -799,7 +804,6 @@ class MouseEventHandler:
         try:
             current_offset_h = float(self.window.fitting_window.offset_h_text.GetValue())
             current_offset_l = float(self.window.fitting_window.offset_l_text.GetValue())
-            # print(f'current_offset_h = {current_offset_h}')
         except (ValueError, AttributeError):
             current_offset_h = 0.0
             current_offset_l = 0.0
@@ -825,8 +829,8 @@ class MouseEventHandler:
             self.window.fitting_window.max_range_text.SetValue(f"{max_pos:.2f}")
             self.window.fitting_window.updating_range_controls = False
 
-            # print(
-            #     f"Updated region {active_idx + 1} positions: {min_pos:.2f} - {max_pos:.2f} with offsets: {current_offset_h:.1f}, {current_offset_l:.1f}")
+        # Update VBM controls if VBM window is open
+        self.update_vbm_controls_from_vlines()
 
     def cleanup_vline_handlers(self):
         """Clean up any existing vline event handlers"""
@@ -847,6 +851,9 @@ class MouseEventHandler:
 
             # Save state after vline movement and background update
             save_state(self.window)
+
+            # Update VBM controls if VBM window is open
+            self.update_vbm_controls_from_vlines()
 
             # Use the correct variable names to disconnect events
             if hasattr(self.window, 'motion_cid'):
@@ -1678,6 +1685,18 @@ class MouseEventHandler:
             })
 
         return peak_data
+
+    def update_vbm_controls_from_vlines(self):
+        """Update VBM controls when vlines move"""
+        if (hasattr(self.window, 'vb_measurements_window') and
+                self.window.vb_measurements_window is not None):
+            try:
+                self.window.vb_measurements_window.update_controls_from_vlines()
+                # print("VBM controls updated")  # Debug line
+            except Exception as e:
+                print(f"Error updating VBM controls: {e}")
+        else:
+            print("No VBM window found")  # Debug line
 
 
 

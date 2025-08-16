@@ -988,7 +988,14 @@ def create_horizontal_toolbar(parent, window):
     vb_tool = toolbar.AddTool(wx.ID_ANY, 'VB',
                                    wx.Bitmap(os.path.join(icon_path, "Thicko-3.png"), wx.BITMAP_TYPE_PNG),
                                    shortHelp='VB Measurements')
-    window.Bind(wx.EVT_TOOL, lambda e: VB_measurements(window, window), vb_tool)
+
+    def open_vb_measurements(event):
+        if not hasattr(window, 'vb_measurements_window') or window.vb_measurements_window is None:
+            window.vb_measurements_window = VB_measurements(window, window)
+        else:
+            window.vb_measurements_window.Raise()
+
+    window.Bind(wx.EVT_TOOL, open_vb_measurements, vb_tool)
 
     toolbar.AddSeparator()
 

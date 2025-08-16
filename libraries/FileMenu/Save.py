@@ -690,6 +690,34 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                             existing_df.insert(9, 'Fermi_Y', fermi_y_padded)
                         break
 
+        # Handle VBM data
+        vbm_found = False
+        if window.peak_params_grid.GetNumberRows() > 0:
+            for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+                fitting_model = window.peak_params_grid.GetCellValue(row, 13)
+                if fitting_model == "VBM":
+                    vbm_found = True
+                    break
+
+        if vbm_found:
+            if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in \
+                    window.Data['Core levels'][sheet_name]['Fitting']:
+                peaks_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                for peak_name, peak_data in peaks_data.items():
+                    if peak_data.get('Fitting Model') == 'VBM':
+                        # Get dataframe length
+                        df_length = len(existing_df)
+
+                        # Add VBM parameters as separate columns
+                        vbm_position = [peak_data.get('Position', 0)] + [np.nan] * (df_length - 1)
+                        edge_center = [peak_data.get('VBM_Edge_Center', 0)] + [np.nan] * (df_length - 1)
+                        bg_center = [peak_data.get('VBM_BG_Center', 0)] + [np.nan] * (df_length - 1)
+
+                        existing_df.insert(8, 'VBM_Position', vbm_position[:df_length])
+                        existing_df.insert(9, 'VBM_Edge_Center', edge_center[:df_length])
+                        existing_df.insert(10, 'VBM_BG_Center', bg_center[:df_length])
+                        break
+
         # Restore experimental data columns if they were present
         if exp_data_columns:
             # Add three separator columns

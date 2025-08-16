@@ -338,6 +338,101 @@ class PlotManager:
                                     label=f'Center: {center_pos:.3f} eV')
 
             return background  # Return background unchanged
+        elif fitting_model == "VBM":
+            # Get VBM data from the Data structure (like Fermi does)
+            sheet_name = window.sheet_combobox.GetValue()
+            if ('Fitting' in window.Data['Core levels'][sheet_name] and
+                    'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
+
+                peaks_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                vbm_data = None
+
+                # Find VBM peak data
+                for peak_name, peak_info in peaks_data.items():
+                    if peak_info.get('Fitting Model') == 'VBM':
+                        vbm_data = peak_info
+                        break
+
+                if vbm_data:
+                    # Get VBM parameters from stored data
+                    vbm_position = vbm_data.get('Position', 0)
+                    edge_center = vbm_data.get('VBM_Edge_Center', 0)
+                    bg_center = vbm_data.get('VBM_BG_Center', 0)
+                    use_bg = bool(vbm_data.get('VBM_Use_BG', False))
+
+                    # Get extrapolation data
+                    signal_coef = vbm_data.get('Signal_Coef')
+                    bg_coef = vbm_data.get('BG_Coef')
+                    x_signal_fit = vbm_data.get('X_Signal_Fit')
+                    y_signal_fit = vbm_data.get('Y_Signal_Fit')
+                    x_bg_fit = vbm_data.get('X_BG_Fit')
+                    y_bg_fit = vbm_data.get('Y_BG_Fit')
+
+                    if window.energy_scale == 'KE':
+                        vbm_display = window.photons - vbm_position
+                        edge_display = window.photons - edge_center
+                        bg_display = window.photons - bg_center
+                    else:
+                        vbm_display = vbm_position
+                        edge_display = edge_center
+                        bg_display = bg_center
+
+                    # VBM position line (purple dashed, linewidth 1) - WITH LEGEND
+                    window.ax.axvline(vbm_display, color='purple', linestyle='--',
+                                      linewidth=1, label=f'VBM = {vbm_position:.2f} eV')
+
+                    # # Signal center line (red dotted, alpha 0.5) - NO LEGEND
+                    # window.ax.axvline(edge_display, color='red', linestyle=':', alpha=0.5)
+                    #
+                    # # Background center line (blue dotted, alpha 0.5) - NO LEGEND
+                    # if use_bg:
+                    #     window.ax.axvline(bg_display, color='blue', linestyle=':', alpha=0.5)
+
+                    # Draw signal extrapolation line (red dashed, linewidth 1, alpha 0.6) - WITH LEGEND
+                    if signal_coef and len(signal_coef) == 2:
+                        x_extrap = np.linspace(min(x_values), max(x_values), 100)
+                        if window.energy_scale == 'KE':
+                            y_extrap = signal_coef[0] * (window.photons - x_extrap) + signal_coef[1]
+                            window.ax.plot(x_extrap, y_extrap, 'r--', linewidth=1, alpha=0.6,
+                                           label='Linear Extrapolation')
+                        else:
+                            y_extrap = signal_coef[0] * x_extrap + signal_coef[1]
+                            window.ax.plot(x_extrap, y_extrap, 'r--', linewidth=1, alpha=0.6,
+                                           label='Linear Extrapolation')
+
+                    # Draw signal fit points (blue circles, markersize 2) - NO LEGEND
+                    if x_signal_fit and y_signal_fit:
+                        x_sig = np.array(x_signal_fit)
+                        y_sig = np.array(y_signal_fit)
+                        if window.energy_scale == 'KE':
+                            window.ax.plot(window.photons - x_sig, y_sig, 'bo', markersize=2)
+                        else:
+                            window.ax.plot(x_sig, y_sig, 'bo', markersize=2)
+
+                    # Draw background extrapolation and points if used
+                    if use_bg and bg_coef and len(bg_coef) == 2:
+                        # Background extrapolation line (blue dashed, linewidth 1) - WITH LEGEND
+                        x_bg_extrap = np.linspace(min(x_values), max(x_values), 100)
+                        if window.energy_scale == 'KE':
+                            y_bg_extrap = bg_coef[0] * (window.photons - x_bg_extrap) + bg_coef[1]
+                            window.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
+                                           label='Background Fit')
+                        else:
+                            y_bg_extrap = bg_coef[0] * x_bg_extrap + bg_coef[1]
+                            window.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
+                                           label='Background Fit')
+
+                        # Draw background fit points (blue circles, markersize 2) - NO LEGEND
+                        if x_bg_fit and y_bg_fit:
+                            x_bg = np.array(x_bg_fit)
+                            y_bg = np.array(y_bg_fit)
+                            if window.energy_scale == 'KE':
+                                window.ax.plot(window.photons - x_bg, y_bg, 'bo', markersize=2)
+                            else:
+                                window.ax.plot(x_bg, y_bg, 'bo', markersize=2)
+
+            # CRITICAL: Return early to avoid peak_model.eval() call
+            return
         elif fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
             peak_model = lmfit.models.VoigtModel()
             sigma = float(peak_params.get('sigma', 1.2)) / 2.355
@@ -907,6 +1002,8 @@ class PlotManager:
                 cst_unfit = "D-parameter"
             elif fitting_model == "Fermi":
                 cst_unfit = "Fermi"
+            elif fitting_model == "VBM":
+                cst_unfit = "VBM"
             elif fitting_model == "SurveyID":
                 cst_unfit = "SurveyID"
             if 'Labels' in window.Data['Core levels'][sheet_name]:
@@ -1389,6 +1486,8 @@ class PlotManager:
                 # Skip D-parameter in overall fit calculation
                 continue
             elif fitting_model == "Fermi":
+                continue
+            elif fitting_model == "VBM":
                 continue
             elif fitting_model == "SurveyID":
                 # Skip D-parameter in overall fit calculation
@@ -1983,23 +2082,25 @@ class PlotManager:
         sheet_name = window.sheet_combobox.GetValue()
         handles, labels = self.ax.get_legend_handles_labels()
 
-        # Check if any peak has Fermi fitting model
+        # Check if any peak has Fermi or VBM fitting model
         has_fermi_peak = False
+        has_vbm_peak = False
         num_peaks = window.peak_params_grid.GetNumberRows() // 2
         for i in range(num_peaks):
             fitting_model = window.peak_params_grid.GetCellValue(i * 2, 13)  # Column 13 is fitting model
             if fitting_model == "Fermi":
                 has_fermi_peak = True
-                break
+            elif fitting_model == "VBM":
+                has_vbm_peak = True
 
-        # If Fermi peak exists, use natural legend from plot_peak (bypass all modes)
-        if has_fermi_peak:
+        # If Fermi or VBM peak exists, use natural legend from plot_peak (bypass all modes)
+        if has_fermi_peak or has_vbm_peak:
             if handles and labels:
                 self.ax.legend(handles, labels, loc='upper left', frameon=True, fancybox=True,
                                framealpha=0.1, edgecolor='gray')
             return  # Exit early, ignore legend modes
 
-        # ORIGINAL LEGEND MODE LOGIC (only when no Fermi)
+        # ORIGINAL LEGEND MODE LOGIC (only when no Fermi or VBM)
         # Extract current core level name for compact legend
         current_core_level = self.extract_core_level_name(sheet_name)
 

@@ -16,8 +16,14 @@ except ImportError:
 
 class VB_measurements(wx.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent, title="VB Measurements", size=(600, 400))
+        super().__init__(parent, title="VB Measurements",
+                         size=(600, 400),
+                         style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
         self.parent = parent  # Main frame
+
+        # Store reference in parent
+        self.parent.vb_measurements_window = self
+
         self.controller = controller
 
         # Fit results storage
@@ -75,6 +81,9 @@ class VB_measurements(wx.Frame):
 
         # Enable background interaction for dragging
         self.parent.background_tab_selected = True
+
+        # Position vLines at control values
+        self.setup_vbm_vlines()
 
         # Force canvas redraw
         self.parent.canvas.draw_idle()
@@ -141,7 +150,7 @@ class VB_measurements(wx.Frame):
         # Background center (initially disabled)
         bg_center_sizer = wx.BoxSizer(wx.HORIZONTAL)
         bg_center_sizer.Add(wx.StaticText(left_panel, label="BG Center (eV):"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        self.vbm_bg_center_ctrl = FS.FloatSpin(left_panel, value=-10.0, min_val=-35.0, max_val=5000.0, increment=0.1,
+        self.vbm_bg_center_ctrl = FS.FloatSpin(left_panel, value=-1.5, min_val=-35.0, max_val=5000.0, increment=0.1,
                                                digits=2)
         self.vbm_bg_center_ctrl.Enable(False)
         bg_center_sizer.Add(self.vbm_bg_center_ctrl, 1, wx.ALL, 5)
@@ -159,6 +168,10 @@ class VB_measurements(wx.Frame):
 
         # Bind checkbox event
         self.vbm_bg_checkbox.Bind(wx.EVT_CHECKBOX, self.OnBgCheckbox)
+
+        # Bind control changes to update vLines
+        self.vbm_edge_ctrl.Bind(FS.EVT_FLOATSPIN, self.OnEdgeCenterChange)
+        self.vbm_bg_center_ctrl.Bind(FS.EVT_FLOATSPIN, self.OnBgCenterChange)
 
         # VBM calculation button
         vbm_btn = wx.Button(left_panel, label="Calculate VBM")
@@ -282,6 +295,7 @@ class VB_measurements(wx.Frame):
             width_16_84 = (kt_fitted / 1000) * np.log(25.5)  # 16%-84% width (DEFAULT)
             width_10_90 = (kt_fitted / 1000) * np.log(81)  # 10%-90% width
             width_20_80 = (kt_fitted / 1000) * np.log(16)  # 20%-80% width
+            width_1_99 = (kt_fitted / 1000) * np.log(9801)  # 1%-99% width (practical full width)
 
             # Calculate fit quality
             ss_res = np.sum(result.residual ** 2)
@@ -290,28 +304,28 @@ class VB_measurements(wx.Frame):
 
             # Display results (16%-84% as main result)
             results_text = f"""Fermi Edge Fit Results:
-                            Model: lmfitxps FermiEdgeModel
-                        
-                            Center Position: {center:.3f} ± {center_err:.3f} eV
-                            Thermal Broadening (kT): {kt_fitted:.1f} meV
-                            Instrumental Resolution (σ): {sigma:.1f} meV
-                            
-                        
-                            Edge Widths:
-                            10%-90%: {width_10_90 * 1000:.1f} meV
-                            16%-84%: {width_16_84 * 1000:.1f} meV ** (default)                            
-                            20%-80%: {width_20_80 * 1000:.1f} meV
-                        
-                            Fit Parameters:
-                            Step Height: {amplitude:.1f}
-                            Background: {background:.1f}
-                        
-                            Fit Quality:
-                            R²: {r_squared:.4f}
-                            χ²: {result.chisqr:.2f}
-                            Reduced χ²: {result.redchi:.2f}
-                        
-                            Note: 16%-84% is the standard thermal width measure."""
+Model: lmfitxps FermiEdgeModel
+
+Center Position: {center:.3f} ± {center_err:.3f} eV
+Thermal Broadening (kT): {kt_fitted:.1f} meV
+Instrumental Resolution (σ): {sigma:.1f} meV
+
+
+Edge Widths:
+10%-90%: {width_10_90 * 1000:.1f} meV
+16%-84%: {width_16_84 * 1000:.1f} meV ** (default)                            
+20%-80%: {width_20_80 * 1000:.1f} meV
+
+Fit Parameters:
+Step Height: {amplitude:.1f}
+Background: {background:.1f}
+
+Fit Quality:
+R²: {r_squared:.4f}
+χ²: {result.chisqr:.2f}
+Reduced χ²: {result.redchi:.2f}
+
+Note: 16%-84% is the standard thermal width measure."""
 
             self.results.SetValue(results_text)
 
@@ -496,76 +510,108 @@ class VB_measurements(wx.Frame):
             n_points = self.vbm_points_ctrl.GetValue()
             use_bg = self.vbm_bg_checkbox.GetValue()
 
-            # Find VBM region around center edge
-            mask = (x_data >= -center_edge) & (x_data <= center_edge)
-            x_vbm = x_data[mask]
-            y_vbm = y_data[mask]
+            # Initialize bg variables (will be updated if use_bg is True)
+            bg_center = self.vbm_bg_center_ctrl.GetValue()
+            bg_points = self.vbm_bg_points_ctrl.GetValue()
 
-            if len(x_vbm) < n_points:
-                wx.MessageBox(f"Insufficient data in range. Need at least {n_points} points.", "Error")
+            # Initialize background fit variables
+            bg_coef = None
+            x_bg_fit = None
+            y_bg_fit = None
+
+            # Find signal edge points centered around center_edge
+            # Find closest index to center_edge
+            center_idx = np.argmin(np.abs(x_data - center_edge))
+
+            # Calculate half-width for centering
+            half_points = n_points // 2
+
+            # Define signal fitting range (centered on center_edge)
+            start_idx = max(0, center_idx - half_points)
+            end_idx = min(len(x_data), center_idx + half_points)
+
+            # Adjust if we hit boundaries
+            actual_points = end_idx - start_idx
+            if actual_points < n_points and start_idx > 0:
+                start_idx = max(0, end_idx - n_points)
+            elif actual_points < n_points and end_idx < len(x_data):
+                end_idx = min(len(x_data), start_idx + n_points)
+
+            # Extract signal fitting data
+            x_signal_fit = x_data[start_idx:end_idx]
+            y_signal_fit = y_data[start_idx:end_idx]
+
+            if len(x_signal_fit) < 3:
+                wx.MessageBox(f"Insufficient signal data points around {center_edge:.2f} eV", "Error")
                 return
 
-            # Find leading edge (signal edge)
-            threshold = 0.1 * (np.max(y_vbm) - np.min(y_vbm)) + np.min(y_vbm)
-            edge_mask = y_vbm > threshold
+            # Fit linear to signal points
+            signal_coef = np.polyfit(x_signal_fit, y_signal_fit, 1)
 
-            if np.any(edge_mask):
-                x_edge = x_vbm[edge_mask]
-                y_edge = y_vbm[edge_mask]
+            # Handle background extrapolation or baseline intersection
+            if use_bg:
+                # Background extrapolation
+                bg_center = self.vbm_bg_center_ctrl.GetValue()
+                bg_points = self.vbm_bg_points_ctrl.GetValue()
 
-                # Fit linear to leading edge (user-defined number of points)
-                n_fit_points = min(n_points, len(x_edge))
-                signal_coef = np.polyfit(x_edge[:n_fit_points], y_edge[:n_fit_points], 1)
+                # Find background points centered around bg_center
+                bg_center_idx = np.argmin(np.abs(x_data - bg_center))
+                bg_half_points = bg_points // 2
 
-                # Handle background extrapolation or baseline intersection
-                if use_bg:
-                    # Background extrapolation
-                    bg_center = self.vbm_bg_center_ctrl.GetValue()
-                    bg_points = self.vbm_bg_points_ctrl.GetValue()
+                bg_start_idx = max(0, bg_center_idx - bg_half_points)
+                bg_end_idx = min(len(x_data), bg_center_idx + bg_half_points)
 
-                    # Find background region
-                    bg_mask = (x_data >= bg_center - 1.0) & (x_data <= bg_center + 1.0)
-                    x_bg = x_data[bg_mask]
-                    y_bg = y_data[bg_mask]
+                # Adjust if we hit boundaries
+                bg_actual_points = bg_end_idx - bg_start_idx
+                if bg_actual_points < bg_points and bg_start_idx > 0:
+                    bg_start_idx = max(0, bg_end_idx - bg_points)
+                elif bg_actual_points < bg_points and bg_end_idx < len(x_data):
+                    bg_end_idx = min(len(x_data), bg_start_idx + bg_points)
 
-                    if len(x_bg) >= bg_points:
-                        # Fit background line
-                        bg_fit_points = min(bg_points, len(x_bg))
-                        bg_coef = np.polyfit(x_bg[:bg_fit_points], y_bg[:bg_fit_points], 1)
+                # Extract background fitting data
+                x_bg_fit = x_data[bg_start_idx:bg_end_idx]
+                y_bg_fit = y_data[bg_start_idx:bg_end_idx]
 
-                        # Find intersection of signal and background lines
-                        # signal_coef[0] * x + signal_coef[1] = bg_coef[0] * x + bg_coef[1]
-                        # (signal_coef[0] - bg_coef[0]) * x = bg_coef[1] - signal_coef[1]
-                        if abs(signal_coef[0] - bg_coef[0]) > 1e-10:  # Avoid division by zero
-                            vbm_position = (bg_coef[1] - signal_coef[1]) / (signal_coef[0] - bg_coef[0])
-                        else:
-                            vbm_position = 0.0  # Lines are parallel
+                if len(x_bg_fit) >= 3:
+                    # Fit background line
+                    bg_coef = np.polyfit(x_bg_fit, y_bg_fit, 1)
 
-                        # Plot background extrapolation line
-                        x_bg_extrap = np.linspace(min(x_data), max(x_data), 100)
-                        y_bg_extrap = bg_coef[0] * x_bg_extrap + bg_coef[1]
-                        bg_line = self.parent.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
-                                                      label=f'Background Fit')[0]
-                        self.vbm_lines.append(bg_line)
+                    # Find intersection of signal and background lines
+                    if abs(signal_coef[0] - bg_coef[0]) > 1e-10:  # Avoid division by zero
+                        vbm_position = (bg_coef[1] - signal_coef[1]) / (signal_coef[0] - bg_coef[0])
                     else:
-                        wx.MessageBox("Insufficient background data points", "Warning")
-                        return
+                        vbm_position = 0.0  # Lines are parallel
+
+                    # Plot background extrapolation line
+                    x_bg_extrap = np.linspace(min(x_data), max(x_data), 100)
+                    y_bg_extrap = bg_coef[0] * x_bg_extrap + bg_coef[1]
+                    bg_line = self.parent.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
+                                                  label=f'Background Fit')[0]
+                    self.vbm_lines.append(bg_line)
+
+                    # Mark background fit points
+                    bg_fit_points_line = self.parent.ax.plot(x_bg_fit, y_bg_fit, 'bo', markersize=2)[0]
+                                                             # label=f'BG Points ({len(x_bg_fit)})')[0]
+                    self.vbm_lines.append(bg_fit_points_line)
                 else:
-                    # Simple baseline intersection (y = 0)
-                    baseline = 0.0  # Intersection with y = 0
-                    vbm_position = -signal_coef[1] / signal_coef[0]  # x where y = 0
+                    wx.MessageBox("Insufficient background data points", "Warning")
+                    return
+            else:
+                # Simple baseline intersection (y = 0)
+                vbm_position = -signal_coef[1] / signal_coef[0]  # x where y = 0
 
-                # Plot signal extrapolation line - FROM POINT 0, not after fit points
-                x_signal_extrap = np.linspace(min(x_data), max(x_data), 100)
-                y_signal_extrap = signal_coef[0] * x_signal_extrap + signal_coef[1]
-                signal_line = self.parent.ax.plot(x_signal_extrap, y_signal_extrap, 'r--', linewidth=1,
-                                                  label='Signal Extrapolation')[0]
-                self.vbm_lines.append(signal_line)
+            # Mark the signal fit points used (centered around center_edge)
+            signal_fit_points_line = self.parent.ax.plot(x_signal_fit, y_signal_fit, 'bo', markersize=2)[0]
+                                                         # label=f'Signal Points ({len(x_signal_fit)})')[0]
+            self.vbm_lines.append(signal_fit_points_line)
 
-                # Mark the fit region used
-                fit_region_line = self.parent.ax.plot(x_edge[:n_fit_points], y_edge[:n_fit_points],
-                                                      'bo', markersize=2, label=f'Fit Points ({n_fit_points})')[0]
-                self.vbm_lines.append(fit_region_line)
+            # Plot signal extrapolation line - FROM FULL RANGE
+            x_signal_extrap = np.linspace(min(x_data), max(x_data), 100)
+            y_signal_extrap = signal_coef[0] * x_signal_extrap + signal_coef[1]
+            signal_line = self.parent.ax.plot(x_signal_extrap, y_signal_extrap, 'r--', linewidth=1, alpha=0.6,
+                                              label='Linear Extrapolation')[0]
+            self.vbm_lines.append(signal_line)
+
 
         elif method == 1:  # Leading Edge Midpoint
             # Find midpoint of leading edge
@@ -589,26 +635,33 @@ class VB_measurements(wx.Frame):
         # Update results
         bg_info = ""
         if use_bg:
-            bg_info = f"\nBackground Center: {bg_center:.2f} eV\nBackground Points: {bg_points}"
+            bg_info = f"\nBackground Center: {bg_center:.2f} eV\nBackground Points: {len(x_bg_fit)} (requested: {bg_points})"
 
         results_text = f"""VBM Analysis Results:
 
-        Method: {self.vbm_method.GetStringSelection()}
-        VBM Position: {vbm_position:.3f} eV
-        Center Edge: ±{center_edge:.1f} eV
-        Signal Fit Points: {n_fit_points}
+        Method: Linear Extrapolation
+        VBM Position: {vbm_position:.2f} eV
+
+        Signal Fitting:
+        Center: {center_edge:.2f} eV
+        Points Used: {len(x_signal_fit)} (requested: {n_points})
+        Range: {x_signal_fit[0]:.2f} to {x_signal_fit[-1]:.2f} eV
+
         Background Extrapolation: {'Yes' if use_bg else 'No'}{bg_info}
 
         Additional Information:
-        Max Intensity: {np.max(y_vbm):.1f}
-        Min Intensity: {np.min(y_vbm):.1f}
-        Signal/Noise: {(np.max(y_vbm) - np.min(y_vbm)) / np.std(y_vbm):.2f}"""
+        Max Intensity: {np.max(y_data):.2f}
+        Min Intensity: {np.min(y_data):.2f}"""
 
         self.results.SetValue(results_text)
 
         # Update legend and redraw
         self.parent.ax.legend()
         self.parent.canvas.draw_idle()
+
+        # Add VBM peak to grid
+        self.add_vbm_peak_to_grid(vbm_position, center_edge, bg_center, n_points, bg_points, use_bg,
+                                  signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit)
 
     def on_close(self, event):
         """Cleanup when closing VB measurements"""
@@ -627,6 +680,10 @@ class VB_measurements(wx.Frame):
             self.parent.vline1_text.set_visible(False)
         if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
             self.parent.vline2_text.set_visible(False)
+
+        # Clear window reference
+        if hasattr(self.parent, 'vb_measurements_window'):
+            self.parent.vb_measurements_window = None
 
         # Redraw canvas
         self.parent.canvas.draw_idle()
@@ -672,3 +729,129 @@ class VB_measurements(wx.Frame):
         enabled = self.vbm_bg_checkbox.GetValue()
         self.vbm_bg_center_ctrl.Enable(enabled)
         self.vbm_bg_points_ctrl.Enable(enabled)
+
+    def OnEdgeCenterChange(self, event):
+        """Update vline1 position when edge center control changes"""
+        if self.parent.vline1 is not None:
+            new_value = self.vbm_edge_ctrl.GetValue()
+            self.parent.vline1.set_xdata([new_value, new_value])
+            if hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+            self.parent.canvas.draw_idle()
+
+    def OnBgCenterChange(self, event):
+        """Update vline2 position when background center control changes"""
+        if self.parent.vline2 is not None:
+            new_value = self.vbm_bg_center_ctrl.GetValue()
+            self.parent.vline2.set_xdata([new_value, new_value])
+            if hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+            self.parent.canvas.draw_idle()
+
+    def update_controls_from_vlines(self):
+        """Update VBM controls when vLines are dragged"""
+        if self.parent.vline1 is not None and self.parent.vline2 is not None:
+            vline1_pos = self.parent.vline1.get_xdata()[0]
+            vline2_pos = self.parent.vline2.get_xdata()[0]
+
+            # vline1 controls Center Edge
+            self.vbm_edge_ctrl.SetValue(round(vline1_pos, 2))
+
+            # vline2 controls BG Center
+            self.vbm_bg_center_ctrl.SetValue(round(vline2_pos, 2))
+
+    def setup_vbm_vlines(self):
+        """Position vLines at current control values"""
+        if self.parent.vline1 is not None and self.parent.vline2 is not None:
+            edge_center = self.vbm_edge_ctrl.GetValue()
+            bg_center = self.vbm_bg_center_ctrl.GetValue()
+
+            self.parent.vline1.set_xdata([edge_center, edge_center])
+            self.parent.vline2.set_xdata([bg_center, bg_center])
+
+            if hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+            self.parent.canvas.draw_idle()
+
+    def add_vbm_peak_to_grid(self, vbm_position, center_edge, bg_center, n_points, bg_points, use_bg, signal_coef=None,
+                             bg_coef=None, x_signal_fit=None, y_signal_fit=None, x_bg_fit=None, y_bg_fit=None):
+        """Add VBM peak to the peak fitting grid"""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Initialize data structure if needed
+        if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
+            self.parent.Data['Core levels'][sheet_name]['Fitting'] = {}
+        if 'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']:
+            self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
+
+        # Remove existing VBM peak if it exists
+        peaks_data = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        vbm_key = None
+        for peak_name, peak_info in peaks_data.items():
+            if peak_info.get('Fitting Model') == 'VBM':
+                vbm_key = peak_name
+                break
+
+        if vbm_key:
+            del peaks_data[vbm_key]
+            # Remove from grid
+            for row in range(self.parent.peak_params_grid.GetNumberRows() - 1, -1, -1):
+                if self.parent.peak_params_grid.GetCellValue(row, 13) == "VBM":
+                    self.parent.peak_params_grid.DeleteRows(row, 2)
+                    break
+
+        # Add new rows to grid
+        self.parent.peak_params_grid.AppendRows(2)
+        row = self.parent.peak_params_grid.GetNumberRows() - 2
+
+        # Get next letter ID
+        letter_id = chr(65 + len(peaks_data))
+
+        # Set grid values
+        self.parent.peak_params_grid.SetCellValue(row, 0, letter_id)  # Letter ID
+        self.parent.peak_params_grid.SetReadOnly(row, 0)
+        self.parent.peak_params_grid.SetCellValue(row, 1, "VBM")  # Label
+        self.parent.peak_params_grid.SetCellValue(row, 2, f"{vbm_position:.2f}")  # Position (VBM position)
+        self.parent.peak_params_grid.SetCellValue(row, 3, f"{center_edge:.2f}")  # Height (Edge Center)
+        self.parent.peak_params_grid.SetCellValue(row, 4, f"{n_points:.2f}")  # FWHM (Edge Points)
+        self.parent.peak_params_grid.SetCellValue(row, 5, f"{bg_center:.2f}")  # L/G (BG Center)
+        self.parent.peak_params_grid.SetCellValue(row, 6, f"{bg_points:.2f}")  # Area (BG Points)
+        self.parent.peak_params_grid.SetCellValue(row, 7, f"{1 if use_bg else 0:.2f}")  # Sigma (Use BG flag)
+        self.parent.peak_params_grid.SetCellValue(row, 13, "VBM")  # Fitting Model
+
+        # Set constraint row background color
+        for col in range(self.parent.peak_params_grid.GetNumberCols()):
+            self.parent.peak_params_grid.SetCellBackgroundColour(row + 1, col, wx.Colour(200, 245, 228))
+            self.parent.peak_params_grid.SetCellBackgroundColour(row, col, wx.WHITE)
+
+        # Store in data structure with extrapolation data
+        vbm_data = {
+            'Position': vbm_position,
+            'Height': center_edge,  # Store edge center as height
+            'FWHM': n_points,  # Store edge points as FWHM
+            'L/G': bg_center,  # Store BG center as L/G
+            'Area': bg_points,  # Store BG points as Area
+            'Sigma': 1 if use_bg else 0,  # Store use_bg flag as Sigma
+            'Gamma': 0.0,
+            'Skew': 0.0,
+            'Fitting Model': 'VBM',
+            'VBM_Edge_Center': center_edge,
+            'VBM_BG_Center': bg_center,
+            'VBM_Edge_Points': n_points,
+            'VBM_BG_Points': bg_points,
+            'VBM_Use_BG': use_bg,
+            'Signal_Coef': signal_coef.tolist() if signal_coef is not None else None,
+            'BG_Coef': bg_coef.tolist() if bg_coef is not None else None,
+            'X_Signal_Fit': x_signal_fit.tolist() if x_signal_fit is not None else None,
+            'Y_Signal_Fit': y_signal_fit.tolist() if y_signal_fit is not None else None,
+            'X_BG_Fit': x_bg_fit.tolist() if x_bg_fit is not None else None,
+            'Y_BG_Fit': y_bg_fit.tolist() if y_bg_fit is not None else None,
+            'Constraints': {}
+        }
+
+        peaks_data["VBM"] = vbm_data
+
+        # Refresh display
+        self.parent.clear_and_replot()
+
+        return True
