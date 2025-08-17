@@ -1359,7 +1359,7 @@ class PeakFittingGrid:
                 'Area': float(self.window.peak_params_grid.GetCellValue(row_data, 6)),
                 'Sigma': self.safe_float_convert(sigma_str),  # No self.
                 'Gamma': self.safe_float_convert(gamma_str),  # No self.
-                'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
+                    'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
                 'Fitting Model': self.window.peak_params_grid.GetCellValue(row_data, 13)
             }
             # Update constraints

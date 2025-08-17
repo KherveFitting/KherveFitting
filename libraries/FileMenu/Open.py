@@ -6,6 +6,7 @@ import wx
 import re
 import sys
 import shutil
+import math
 from vamas import Vamas
 from openpyxl import Workbook
 import numpy as np
@@ -1501,8 +1502,8 @@ def import_mrs_file(window):
 
         # Look for core level identifier in filename
         sheet_name = get_core_level_from_filename(file_path)
-        if "_" in base_name:
-            core_level = base_name.split("_")[1]
+        if "_" in sheet_name:
+            core_level = sheet_name.split("_")[1]
             if core_level.lower() in ["c1s", "o1s", "n1s", "s2p", "su", "vb"]:
                 if core_level.lower() == "su":
                     sheet_name = "Survey"
@@ -1657,15 +1658,34 @@ def import_avantage_file_direct(window, file_path):
         if "Survey" in sheet_name or "Scan" in sheet_name:
             sheets_to_process.append(sheet_name)
 
+    # Track VB and Fermi counts for numbering
+    vb_count = 0
+    fermi_count = 0
+    used_names = set()
+
     for sheet_name in sheets_to_process:
         sheet = wb[sheet_name]
 
         # Extract acquisition parameters
         acquisition_params = extract_acquisition_parameters(sheet)
 
-        # Extract element name (e.g., C1s, O1s)
+        # Extract element name and handle special cases
+        lower_name = sheet_name.lower()
         if "Survey" in sheet_name or "survey" in sheet_name:
             base_name = "Survey"
+        elif any(term in lower_name for term in
+                 ['valence', 'valence band', 'valence scan', 'vb scan', 'vb', 'valence band scan']):
+            if vb_count == 0:
+                base_name = "VB"
+            else:
+                base_name = f"VB{vb_count + 1}"
+            vb_count += 1
+        elif any(term in lower_name for term in ['fermi', 'fermi scan']):
+            if fermi_count == 0:
+                base_name = "Fermi"
+            else:
+                base_name = f"Fermi{fermi_count + 1}"
+            fermi_count += 1
         else:
             parts = sheet_name.split()
             base_name = parts[0]  # Get element (C1s, O1s, etc.)
@@ -1790,23 +1810,44 @@ def import_avantage_file_direct_xls(window, file_path):
     wb_new = openpyxl.Workbook()
     wb_new.remove(wb_new.active)
 
+    # Track VB and Fermi counts for numbering
+    vb_count = 0
+    fermi_count = 0
+
     for sheet_name in wb_xls.sheet_names():
         sheet = wb_xls.sheet_by_name(sheet_name)
-        if "Survey" in sheet_name or "Scan" in sheet_name:
+        if "Survey" in sheet_name or "Scan" in sheet_name or any(term in sheet_name.lower() for term in
+                                                                 ['valence', 'valence band', 'valence scan', 'vb scan',
+                                                                  'vb', 'valence band scan', 'fermi', 'fermi scan']):
+            lower_name = sheet_name.lower()
+
             # Handle Survey sheets
             if "Survey" in sheet_name or "survey" in sheet_name:
-                # Extract number if present in "Survey Scan (2)" format
                 number_match = re.search(r'\((\d+)\)', sheet_name)
                 if number_match:
                     number = number_match.group(1)
                     new_name = f"Survey{number}"
                 else:
                     new_name = "Survey"
+            # Handle Valence Band sheets
+            elif any(term in lower_name for term in
+                     ['valence', 'valence band', 'valence scan', 'vb scan', 'vb', 'valence band scan']):
+                if vb_count == 0:
+                    new_name = "VB"
+                else:
+                    new_name = f"VB{vb_count + 1}"
+                vb_count += 1
+            # Handle Fermi sheets
+            elif any(term in lower_name for term in ['fermi', 'fermi scan']):
+                if fermi_count == 0:
+                    new_name = "Fermi"
+                else:
+                    new_name = f"Fermi{fermi_count + 1}"
+                fermi_count += 1
             else:
                 # Extract element name and number for patterns like "C1s Scan (1)"
                 parts = sheet_name.split()
                 element = parts[0]
-                # Check if there's a number in parentheses
                 number_match = re.search(r'\((\d+)\)', sheet_name)
                 if number_match:
                     number = number_match.group(1)
@@ -2987,6 +3028,10 @@ def normalize_sheet_name(name):
         new_name = 'Wide'
     elif 'su1s' in lower_name or '_su' in lower_name or name.lower().endswith('_su'):
         new_name = 'Survey'
+    elif any(term in lower_name for term in ['valence', 'valence band', 'valence scan', 'vb scan', 'vb', 'valence band scan']):
+        new_name = 'VB'
+    elif any(term in lower_name for term in ['fermi', 'fermi scan']):
+        new_name = 'Fermi'
     else:
         # Remove spaces between element and orbital (e.g., "C 1s" → "C1s")
         match = re.search(r'([A-Z][a-z]?)\s+(\d+[spdf])', name)
@@ -5056,25 +5101,67 @@ def import_multiple_kfitting_files(window):
         # Sort files alphabetically
         excel_files.sort()
 
+        # # Create single combined workbook
+        # combined_file_path = os.path.join(folder_path, "Combined_KherveFitting_Files.xlsx")
+        # combined_wb = openpyxl.Workbook()
+        # combined_wb.remove(combined_wb.active)
+        #
+        # # Store sample names as dictionary for JSON
+        # sample_names_dict = {}
+        #
+        # # Process each file as a separate sample
+        # for sample_idx, excel_file in enumerate(excel_files):
+        #     file_path = os.path.join(folder_path, excel_file)
+        #
+        #     # Remove file extension for cleaner sample names
+        #     sample_name = os.path.splitext(excel_file)[0]
+        #     sample_names_dict[str(sample_idx)] = sample_name
+        #
+        #     # Load the workbook
+        #     wb = openpyxl.load_workbook(file_path)
+        #     process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
+
         # Create single combined workbook
         combined_file_path = os.path.join(folder_path, "Combined_KherveFitting_Files.xlsx")
         combined_wb = openpyxl.Workbook()
         combined_wb.remove(combined_wb.active)
 
-        # Store sample names as dictionary for JSON
-        sample_names_dict = {}
+        # Initialize tracking variables
+        current_row = 0
+        combined_sample_names = {}
+        all_sheet_mappings = {}
 
-        # Process each file as a separate sample
+        # Process each file with proper row numbering and sample names
         for sample_idx, excel_file in enumerate(excel_files):
             file_path = os.path.join(folder_path, excel_file)
+            filename = os.path.splitext(excel_file)[0]
 
-            # Remove file extension for cleaner sample names
-            sample_name = os.path.splitext(excel_file)[0]
-            sample_names_dict[str(sample_idx)] = sample_name
+            # Load original JSON file to get existing sample names
+            original_sample_names = {}
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            if os.path.exists(json_file_path):
+                try:
+                    with open(json_file_path, 'r') as json_file:
+                        individual_json_data = json.load(json_file)
+                        if 'SampleNames' in individual_json_data:
+                            original_sample_names = individual_json_data['SampleNames']
+                except Exception as e:
+                    print(f"Warning: Could not load sample names from {json_file_path}: {e}")
 
-            # Load the workbook
+            # Process Excel file
             wb = openpyxl.load_workbook(file_path)
-            process_kfitting_file_with_sample_number(wb, combined_wb, sample_idx)
+
+            # Modified function call to get sheet mappings
+            current_row, sample_names_for_rows, sheet_mappings = process_kfitting_file_with_sample_number_with_mapping(
+                wb, combined_wb, current_row, original_sample_names, filename)
+
+            # Store sheet mappings for this file
+            all_sheet_mappings.update(sheet_mappings)
+
+            # Update combined sample names
+            combined_sample_names.update(sample_names_for_rows)
+
+            wb.close()
 
         # Save the combined file
         combined_wb.save(combined_file_path)

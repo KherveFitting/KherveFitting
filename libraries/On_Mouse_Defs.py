@@ -1695,8 +1695,8 @@ class MouseEventHandler:
                 # print("VBM controls updated")  # Debug line
             except Exception as e:
                 print(f"Error updating VBM controls: {e}")
-        else:
-            print("No VBM window found")  # Debug line
+        # else:
+        #     print("No VBM window found")  # Debug line
 
 
 
