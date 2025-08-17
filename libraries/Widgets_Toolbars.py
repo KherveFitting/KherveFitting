@@ -986,7 +986,7 @@ def create_horizontal_toolbar(parent, window):
 
     # Add tool to toolbar
     vb_tool = toolbar.AddTool(wx.ID_ANY, 'VB',
-                                   wx.Bitmap(os.path.join(icon_path, "Thicko-3.png"), wx.BITMAP_TYPE_PNG),
+                                   wx.Bitmap(os.path.join(icon_path, "VBM-3.png"), wx.BITMAP_TYPE_PNG),
                                    shortHelp='VB Measurements')
 
     def open_vb_measurements(event):
