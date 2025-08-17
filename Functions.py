@@ -784,7 +784,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                vary=lg_ratio_vary)
                 elif peak_model_choice == "Unfitted":
                     return
-                elif peak_model_choice == "D-parameter":
+                elif peak_model_choice in ["D-parameter", "Fermi", "VBM"]:
                     # Skip fitting for D-parameter
                     return
                 else:
