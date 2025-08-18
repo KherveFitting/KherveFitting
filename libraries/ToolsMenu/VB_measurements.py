@@ -639,19 +639,19 @@ Note: 16%-84% is the standard thermal width measure."""
 
         results_text = f"""VBM Analysis Results:
 
-        Method: Linear Extrapolation
-        VBM Position: {vbm_position:.2f} eV
+Method: Linear Extrapolation
+VBM Position: {vbm_position:.2f} eV
 
-        Signal Fitting:
-        Center: {center_edge:.2f} eV
-        Points Used: {len(x_signal_fit)} (requested: {n_points})
-        Range: {x_signal_fit[0]:.2f} to {x_signal_fit[-1]:.2f} eV
+Signal Fitting:
+Center: {center_edge:.2f} eV
+Points Used: {len(x_signal_fit)} (requested: {n_points})
+Range: {x_signal_fit[0]:.2f} to {x_signal_fit[-1]:.2f} eV
 
-        Background Extrapolation: {'Yes' if use_bg else 'No'}{bg_info}
+Background Extrapolation: {'Yes' if use_bg else 'No'}{bg_info}
 
-        Additional Information:
-        Max Intensity: {np.max(y_data):.2f}
-        Min Intensity: {np.min(y_data):.2f}"""
+Additional Information:
+Max Intensity: {np.max(y_data):.2f}
+Min Intensity: {np.min(y_data):.2f}"""
 
         self.results.SetValue(results_text)
 

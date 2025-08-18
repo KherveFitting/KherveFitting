@@ -1810,6 +1810,8 @@ class BackgroundWindow(wx.Frame):
                 self.move_vlines_to_range(low_pos, high_pos)
                 self.update_range_controls_silent(low_pos, high_pos)
                 self.show_position_feedback("Plot Range (10%-90%)", low_pos, high_pos)
+                # Auto-detect and update area name
+                self.auto_detect_area_name(low_pos, high_pos)
                 # Update core level list if open
                 self.update_core_level_list_if_open()
         else:
@@ -1827,6 +1829,8 @@ class BackgroundWindow(wx.Frame):
                     self.update_range_controls_silent(bkg_low, bkg_high)
                     self.show_position_feedback(current_peak_key, bkg_low, bkg_high)
                     self.highlight_peak_in_grid(current_peak_key)
+                    # Auto-detect and update area name
+                    self.auto_detect_area_name(bkg_low, bkg_high)
                     # Update core level list if open
                     self.update_core_level_list_if_open()
 
@@ -1871,6 +1875,8 @@ class BackgroundWindow(wx.Frame):
                 self.move_vlines_to_range(low_pos, high_pos)
                 self.update_range_controls_silent(low_pos, high_pos)
                 self.show_position_feedback("Plot Range (10%-90%)", low_pos, high_pos)
+                # Auto-detect and update area name
+                self.auto_detect_area_name(low_pos, high_pos)
                 # Update core level list if open
                 self.update_core_level_list_if_open()
         else:
@@ -1888,6 +1894,8 @@ class BackgroundWindow(wx.Frame):
                     self.update_range_controls_silent(bkg_low, bkg_high)
                     self.show_position_feedback(current_peak_key, bkg_low, bkg_high)
                     self.highlight_peak_in_grid(current_peak_key)
+                    # Auto-detect and update area name
+                    self.auto_detect_area_name(bkg_low, bkg_high)
                     # Update core level list if open
                     self.update_core_level_list_if_open()
 
