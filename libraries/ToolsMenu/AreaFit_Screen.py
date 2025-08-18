@@ -1356,19 +1356,28 @@ class BackgroundWindow(wx.Frame):
             'P': {'1s': (2145.00, 2147.00), '2s': (189.00, 191.00), '2p': (129.00, 136.00)},
             'S': {'1s': (2470.00, 2473.00), '2s': (228.00, 230.00), '2p': (162.00, 170.00)},
             'Cl': {'1s': (2822.00, 2824.00), '2s': (270.00, 272.00), '2p': (198.00, 202.00)},
-            'K': {'1s': (3607.00, 3609.00), '2s': (378.00, 380.00), '2p': (293.00, 297.00)},
-            'Ca': {'1s': (4038.00, 4040.00), '2s': (438.00, 440.00), '2p': (346.00, 350.00)},
+            'K': {'1s': (3607.00, 3609.00), '2s': (378.00, 380.00), '2p': (293.00, 297.00), '3s': (34.00, 35.00),
+                  '3p': (18.00, 19.00)},
+            'Ca': {'1s': (4038.00, 4040.00), '2s': (438.00, 440.00), '2p': (346.00, 350.00), '3s': (44.00, 45.00),
+                   '3p': (25.00, 26.00)},
 
             # Transition metals
-            'Ti': {'1s': (4964.00, 4966.00), '2s': (563.00, 565.00), '2p': (455.00, 465.00)},
-            'Cr': {'1s': (5987.00, 5989.00), '2s': (694.00, 696.00), '2p': (574.00, 584.00)},
-            'Mn': {'1s': (6539.00, 6541.00), '2s': (769.00, 771.00), '2p': (639.00, 651.00)},
-            'Fe': {'1s': (7112.00, 7114.00), '2s': (844.00, 846.00), '2p': (706.00, 720.00)},
-            'Co': {'1s': (7709.00, 7711.00), '2s': (925.00, 927.00), '2p': (778.00, 793.00)},
-            'Ni': {'1s': (8333.00, 8335.00), '2s': (1008.00, 1010.00), '2p': (852.00, 870.00)},
-            'Cu': {'1s': (8979.00, 8981.00), '2s': (1096.00, 1098.00), '2p': (932.00, 953.00)},
-            'Zn': {'2s': (1193.00, 1195.00), '2p': (1021.00, 1045.00)},
-            'Ga': {'2s': (1298.00, 1300.00), '2p': (1116.00, 1120.00)},
+            'Ti': {'1s': (4964.00, 4966.00), '2s': (563.00, 565.00), '2p': (455.00, 465.00), '3s': (60.00, 61.00),
+                   '3p': (37.00, 38.00)},
+            'Cr': {'1s': (5987.00, 5989.00), '2s': (694.00, 696.00), '2p': (574.00, 584.00), '3s': (84.00, 85.00),
+                   '3p': (43.00, 45.00)},
+            'Mn': {'1s': (6539.00, 6541.00), '2s': (769.00, 771.00), '2p': (639.00, 651.00), '3s': (82.00, 84.00),
+                   '3p': (47.00, 49.00)},
+            'Fe': {'1s': (7112.00, 7114.00), '2s': (844.00, 846.00), '2p': (706.00, 720.00), '3s': (91.00, 93.00),
+                   '3p': (52.00, 54.00)},
+            'Co': {'1s': (7709.00, 7711.00), '2s': (925.00, 927.00), '2p': (778.00, 793.00), '3s': (101.00, 103.00),
+                   '3p': (58.00, 60.00)},
+            'Ni': {'1s': (8333.00, 8335.00), '2s': (1008.00, 1010.00), '2p': (852.00, 870.00), '3s': (110.00, 112.00),
+                   '3p': (66.00, 68.00)},
+            'Cu': {'1s': (8979.00, 8981.00), '2s': (1096.00, 1098.00), '2p': (932.00, 953.00), '3s': (122.00, 124.00),
+                   '3p': (75.00, 77.00)},
+            'Zn': {'2s': (1193.00, 1195.00), '2p': (1021.00, 1045.00), '3s': (139.00, 141.00), '3p': (88.00, 90.00)},
+            'Ga': {'2s': (1298.00, 1300.00), '2p': (1116.00, 1120.00), '3s': (159.00, 161.00), '3p': (103.00, 105.00)},
             'Ge': {'2s': (1414.00, 1416.00), '2p': (1217.00, 1221.00), '3s': (180.00, 182.00), '3p': (120.00, 122.00)},
             'As': {'2s': (1527.00, 1529.00), '2p': (1323.00, 1327.00), '3s': (204.00, 206.00), '3p': (141.00, 143.00)},
             'Se': {'2s': (1652.00, 1654.00), '2p': (1433.00, 1437.00), '3s': (229.00, 231.00), '3p': (160.00, 162.00),
@@ -1465,10 +1474,30 @@ class BackgroundWindow(wx.Frame):
                    '3d': (670.00, 674.00)}
         }
 
-    def get_priority_orbital(self, element, overlapping_orbitals):
-        """Determine the priority orbital for element detection based on three priority levels."""
+    def get_detected_elements(self):
+        """Get list of elements already detected in the current sheet."""
+        detected_elements = set()
 
-        # Priority Level 1: Primary core levels (highest priority)
+        # Check existing peaks in the grid
+        grid = self.parent.peak_params_grid
+        for row in range(0, grid.GetNumberRows(), 2):
+            peak_name = grid.GetCellValue(row, 1)
+            if peak_name:
+                # Extract element from peak name (e.g., "C1s" -> "C", "Ti2p" -> "Ti")
+                element = ''.join([c for c in peak_name if
+                                   c.isupper() or (c.islower() and peak_name[peak_name.index(c) - 1].isupper())])
+                if element:
+                    detected_elements.add(element)
+
+        return detected_elements
+
+    def get_priority_orbital(self, element, overlapping_orbitals):
+        """Determine the priority orbital for element detection with dynamic priority for detected elements."""
+
+        # Get already detected elements - these get priority 1 for ALL their peaks
+        detected_elements = self.get_detected_elements()
+
+        # Priority Level 1: Primary core levels + ALL peaks from detected elements
         priority_1 = {
             'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s', 'Na': '1s', 'Mg': '1s',
             'K': '2p', 'Ca': '2p', 'Si': '2p', 'P': '2p', 'S': '2p', 'Cl': '2p', 'I': '3d'
@@ -1487,7 +1516,11 @@ class BackgroundWindow(wx.Frame):
             'Gd': '3d', 'Dy': '3d', 'Cs': '3d'
         }
 
-        # Check priorities in order
+        # DYNAMIC PRIORITY: If element is already detected, ALL its orbitals get priority 1
+        if element in detected_elements:
+            return overlapping_orbitals[0]  # Return any orbital since all get priority 1
+
+        # Check static priorities in order
         if element in priority_1 and priority_1[element] in overlapping_orbitals:
             return priority_1[element]
         elif element in priority_2 and priority_2[element] in overlapping_orbitals:
@@ -1508,7 +1541,14 @@ class BackgroundWindow(wx.Frame):
                 return overlapping_orbitals[0]  # Return first available
 
     def get_element_priority_level(self, element, orbital):
-        """Get the priority level (1=highest, 3=lowest) for an element-orbital combination."""
+        """Get the priority level (1=highest, 4=lowest) for an element-orbital combination."""
+
+        # Get already detected elements - these get priority 1 for ALL their peaks
+        detected_elements = self.get_detected_elements()
+
+        # DYNAMIC PRIORITY: If element is already detected, ALL its orbitals get priority 1
+        if element in detected_elements:
+            return 1
 
         # Priority Level 1: Primary core levels (highest priority)
         priority_1 = {
@@ -1672,17 +1712,19 @@ class BackgroundWindow(wx.Frame):
             self.updating_range_controls = False
 
     def auto_detect_area_name(self, vline1_pos, vline2_pos):
-        """Auto-detect and update area name based on vline positions with priority system."""
+        """Auto-detect and update area name based on vline positions with dynamic priority system."""
         range_min = min(vline1_pos, vline2_pos)
         range_max = max(vline1_pos, vline2_pos)
         range_center = (range_min + range_max) / 2
 
         elements_db = self.create_elements_database()
+        detected_elements = self.get_detected_elements()
 
         # Find all overlapping orbitals
         overlapping_matches = {}
 
         # print(f"\n=== DEBUG: Range {range_min:.2f} - {range_max:.2f} (center: {range_center:.2f}) ===")
+        # print(f"Already detected elements: {list(detected_elements)}")
 
         for element, orbitals in elements_db.items():
             overlapping_orbitals = []
@@ -1696,7 +1738,8 @@ class BackgroundWindow(wx.Frame):
                     distance = abs(range_center - be_center)
                     overlapping_orbitals.append(orbital)
                     element_distances[orbital] = distance
-                    # print(f"  {element}{orbital}: center={be_center:.2f}, distance={distance:.2f}")
+                    priority_marker = "★" if element in detected_elements else ""
+                    # print(f"  {element}{orbital}: center={be_center:.2f}, distance={distance:.2f} {priority_marker}")
 
             if overlapping_orbitals:
                 # Use priority system to choose the best orbital
@@ -1706,7 +1749,9 @@ class BackgroundWindow(wx.Frame):
                     'distance': element_distances[priority_orbital],
                     'priority_level': self.get_element_priority_level(element, priority_orbital)
                 }
-                # print(f"  → {element}{priority_orbital} selected (priority level {overlapping_matches[element]['priority_level']}, distance={element_distances[priority_orbital]:.2f})")
+                priority_marker = "★ DETECTED" if element in detected_elements else f"priority {overlapping_matches[element]['priority_level']}"
+                # print(
+                #     f"  → {element}{priority_orbital} selected ({priority_marker}, distance={element_distances[priority_orbital]:.2f})")
 
         # Find the best match considering both priority and distance
         if overlapping_matches:
