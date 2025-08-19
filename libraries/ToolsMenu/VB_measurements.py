@@ -17,7 +17,7 @@ except ImportError:
 class VB_measurements(wx.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, title="VB Measurements",
-                         size=(600, 400),
+                         size=(600, 430),
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
         self.parent = parent  # Main frame
 
@@ -252,7 +252,7 @@ class VB_measurements(wx.Frame):
         left_sizer.Add(fermi_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
         # VBM Section
-        vbm_box = wx.StaticBox(left_panel, label="Valence Band Minimum")
+        vbm_box = wx.StaticBox(left_panel, label="Valence Band Minimum / Cut-Off")
         vbm_sizer = wx.StaticBoxSizer(vbm_box, wx.VERTICAL)
 
         # Method selection
@@ -317,11 +317,19 @@ class VB_measurements(wx.Frame):
         vbm_calc_btn.Bind(wx.EVT_BUTTON, self.OnCalculateVBM)
         vbm_btn_sizer.Add(vbm_calc_btn, 1, wx.ALL, 5)
 
-        remove_vbm_btn = wx.Button(left_panel, label="Remove VBM")
-        remove_vbm_btn.Bind(wx.EVT_BUTTON, self.OnRemoveVBM)
-        vbm_btn_sizer.Add(remove_vbm_btn, 1, wx.ALL, 5)
+        cutoff_calc_btn = wx.Button(left_panel, label="Calculate Cut-Off")
+        cutoff_calc_btn.Bind(wx.EVT_BUTTON, self.OnCalculateCutOff)
+        vbm_btn_sizer.Add(cutoff_calc_btn, 1, wx.ALL, 5)
 
         vbm_sizer.Add(vbm_btn_sizer, 0, wx.EXPAND)
+
+        # Remove button (handles both VBM and Cut-Off)
+        remove_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        remove_vbm_btn = wx.Button(left_panel, label="Remove VBM/Cut-Off")
+        remove_vbm_btn.Bind(wx.EVT_BUTTON, self.OnRemoveVBM)
+        remove_btn_sizer.Add(remove_vbm_btn, 1, wx.ALL, 5)
+
+        vbm_sizer.Add(remove_btn_sizer, 0, wx.EXPAND)
 
         left_sizer.Add(vbm_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
@@ -826,8 +834,8 @@ Min Intensity: {np.min(y_data):.2f}"""
         vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
 
         # Add VBM peak to grid
-        self.add_vbm_peak_to_grid(vbm_position, center_edge, bg_center, n_points, bg_points, use_bg,
-                                  signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit)
+        self.add_peak_to_grid(vbm_position, center_edge, bg_center, n_points, bg_points, use_bg,
+                              signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit, "VBM")
 
         # Restore vlines at their original positions (they were destroyed by clear_and_replot)
         if vline1_x is not None and vline2_x is not None:
@@ -847,27 +855,33 @@ Min Intensity: {np.min(y_data):.2f}"""
         """Remove VBM or CutOff peak from grid and data"""
         sheet_name = self.parent.sheet_combobox.GetValue()
 
-        # Remove from grid - find and delete VBM rows
+        # Remove from grid - find and delete VBM or Cut-Off rows
+        removed_something = False
         for row in range(self.parent.peak_params_grid.GetNumberRows() - 1, -1, -1):
-            if self.parent.peak_params_grid.GetCellValue(row, 13) == "VBM":
+            fitting_model = self.parent.peak_params_grid.GetCellValue(row, 13)
+            if fitting_model in ["VBM", "Cut-Off"]:
                 # Delete both data row and constraint row (2 rows total)
                 self.parent.peak_params_grid.DeleteRows(row, 2)
+                removed_something = True
                 break
+
+        if not removed_something:
+            wx.MessageBox("No VBM or Cut-Off data found to remove", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
 
         # Remove from Data structure
         if sheet_name in self.parent.Data['Core levels']:
             fitting_data = self.parent.Data['Core levels'][sheet_name].get('Fitting', {})
             peaks_data = fitting_data.get('Peaks', {})
 
-            # Find and remove VBM peak by fitting model
-            vbm_key = None
+            # Find and remove VBM or Cut-Off peak by fitting model
+            keys_to_remove = []
             for peak_name, peak_info in peaks_data.items():
-                if peak_info.get('Fitting Model') == 'VBM':
-                    vbm_key = peak_name
-                    break
+                if peak_info.get('Fitting Model') in ['VBM', 'Cut-Off']:
+                    keys_to_remove.append(peak_name)
 
-            if vbm_key:
-                del peaks_data[vbm_key]
+            for key in keys_to_remove:
+                del peaks_data[key]
 
         # Clear results display
         self.results.SetValue("")
@@ -901,7 +915,7 @@ Min Intensity: {np.min(y_data):.2f}"""
         # Force canvas redraw
         self.parent.canvas.draw_idle()
 
-        wx.MessageBox("VBM or CutOff data removed", "Removed", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox("VBM or Cut-Off data removed", "Removed", wx.OK | wx.ICON_INFORMATION)
 
     def add_vline_text_labels(self):
         """Add text labels to vlines showing their positions"""
@@ -1069,9 +1083,10 @@ Min Intensity: {np.min(y_data):.2f}"""
                 self.parent.update_vline_text_labels()
             self.parent.canvas.draw_idle()
 
-    def add_vbm_peak_to_grid(self, vbm_position, center_edge, bg_center, n_points, bg_points, use_bg, signal_coef=None,
-                             bg_coef=None, x_signal_fit=None, y_signal_fit=None, x_bg_fit=None, y_bg_fit=None):
-        """Add VBM peak to the peak fitting grid"""
+    def add_peak_to_grid(self, peak_position, center_edge, bg_center, n_points, bg_points, use_bg, signal_coef=None,
+                         bg_coef=None, x_signal_fit=None, y_signal_fit=None, x_bg_fit=None, y_bg_fit=None,
+                         peak_type="VBM"):
+        """Add VBM or Cut-Off peak to the peak fitting grid"""
         sheet_name = self.parent.sheet_combobox.GetValue()
 
         # Initialize data structure if needed
@@ -1080,19 +1095,19 @@ Min Intensity: {np.min(y_data):.2f}"""
         if 'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']:
             self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
 
-        # Remove existing VBM peak if it exists
+        # Remove existing peak of same type if it exists
         peaks_data = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
-        vbm_key = None
+        existing_key = None
         for peak_name, peak_info in peaks_data.items():
-            if peak_info.get('Fitting Model') == 'VBM':
-                vbm_key = peak_name
+            if peak_info.get('Fitting Model') == peak_type:
+                existing_key = peak_name
                 break
 
-        if vbm_key:
-            del peaks_data[vbm_key]
+        if existing_key:
+            del peaks_data[existing_key]
             # Remove from grid
             for row in range(self.parent.peak_params_grid.GetNumberRows() - 1, -1, -1):
-                if self.parent.peak_params_grid.GetCellValue(row, 13) == "VBM":
+                if self.parent.peak_params_grid.GetCellValue(row, 13) == peak_type:
                     self.parent.peak_params_grid.DeleteRows(row, 2)
                     break
 
@@ -1103,17 +1118,17 @@ Min Intensity: {np.min(y_data):.2f}"""
         # Get next letter ID
         letter_id = chr(65 + len(peaks_data))
 
-        # Set grid values
+        # Set grid values (all in .2f format)
         self.parent.peak_params_grid.SetCellValue(row, 0, letter_id)  # Letter ID
         self.parent.peak_params_grid.SetReadOnly(row, 0)
-        self.parent.peak_params_grid.SetCellValue(row, 1, "VBM")  # Label
-        self.parent.peak_params_grid.SetCellValue(row, 2, f"{vbm_position:.2f}")  # Position (VBM position)
+        self.parent.peak_params_grid.SetCellValue(row, 1, peak_type)  # Label
+        self.parent.peak_params_grid.SetCellValue(row, 2, f"{peak_position:.2f}")  # Position
         self.parent.peak_params_grid.SetCellValue(row, 3, f"{center_edge:.2f}")  # Height (Edge Center)
         self.parent.peak_params_grid.SetCellValue(row, 4, f"{n_points:.2f}")  # FWHM (Edge Points)
         self.parent.peak_params_grid.SetCellValue(row, 5, f"{bg_center:.2f}")  # L/G (BG Center)
         self.parent.peak_params_grid.SetCellValue(row, 6, f"{bg_points:.2f}")  # Area (BG Points)
         self.parent.peak_params_grid.SetCellValue(row, 7, f"{1 if use_bg else 0:.2f}")  # Sigma (Use BG flag)
-        self.parent.peak_params_grid.SetCellValue(row, 13, "VBM")  # Fitting Model
+        self.parent.peak_params_grid.SetCellValue(row, 13, peak_type)  # Fitting Model
 
         # Set constraint row background color
         for col in range(self.parent.peak_params_grid.GetNumberCols()):
@@ -1121,8 +1136,8 @@ Min Intensity: {np.min(y_data):.2f}"""
             self.parent.peak_params_grid.SetCellBackgroundColour(row, col, wx.WHITE)
 
         # Store in data structure with extrapolation data
-        vbm_data = {
-            'Position': vbm_position,
+        peak_data = {
+            'Position': peak_position,
             'Height': center_edge,  # Store edge center as height
             'FWHM': n_points,  # Store edge points as FWHM
             'L/G': bg_center,  # Store BG center as L/G
@@ -1130,12 +1145,12 @@ Min Intensity: {np.min(y_data):.2f}"""
             'Sigma': 1 if use_bg else 0,  # Store use_bg flag as Sigma
             'Gamma': 0.0,
             'Skew': 0.0,
-            'Fitting Model': 'VBM',
-            'VBM_Edge_Center': center_edge,
-            'VBM_BG_Center': bg_center,
-            'VBM_Edge_Points': n_points,
-            'VBM_BG_Points': bg_points,
-            'VBM_Use_BG': use_bg,
+            'Fitting Model': peak_type,
+            f'{peak_type}_Edge_Center': center_edge,
+            f'{peak_type}_BG_Center': bg_center,
+            f'{peak_type}_Edge_Points': n_points,
+            f'{peak_type}_BG_Points': bg_points,
+            f'{peak_type}_Use_BG': use_bg,
             'Signal_Coef': signal_coef.tolist() if signal_coef is not None else None,
             'BG_Coef': bg_coef.tolist() if bg_coef is not None else None,
             'X_Signal_Fit': x_signal_fit.tolist() if x_signal_fit is not None else None,
@@ -1145,10 +1160,7 @@ Min Intensity: {np.min(y_data):.2f}"""
             'Constraints': {}
         }
 
-        peaks_data["VBM"] = vbm_data
-
-        # Refresh display
-        self.parent.clear_and_replot()
+        peaks_data[peak_type] = peak_data
 
         return True
 
@@ -1204,3 +1216,205 @@ Min Intensity: {np.min(y_data):.2f}"""
 
         except Exception as e:
             print(f"Error restoring vlines: {e}")
+
+    def OnCalculateCutOff(self, event):
+        """Calculate cut-off"""
+        x_data, y_data = self.get_current_data()
+        if x_data is None:
+            wx.MessageBox("No active data available", "Error")
+            return
+
+        method = self.vbm_method.GetSelection()
+        center_edge = self.vbm_edge_ctrl.GetValue()
+
+        # Find Cut-Off region (near zero binding energy)
+        mask = (x_data >= -center_edge) & (x_data <= center_edge)
+        x_cutoff = x_data[mask]
+        y_cutoff = y_data[mask]
+
+        if len(x_cutoff) < 5:
+            wx.MessageBox("Insufficient data in Cut-Off range", "Error")
+            return
+
+        # Clear previous Cut-Off lines
+        for line in self.vbm_lines:
+            try:
+                line.remove()
+            except:
+                pass
+        self.vbm_lines.clear()
+
+        if method == 0:  # Linear Extrapolation
+            center_edge = self.vbm_edge_ctrl.GetValue()
+            n_points = self.vbm_points_ctrl.GetValue()
+            use_bg = self.vbm_bg_checkbox.GetValue()
+
+            # Initialize bg variables (will be updated if use_bg is True)
+            bg_center = self.vbm_bg_center_ctrl.GetValue()
+            bg_points = self.vbm_bg_points_ctrl.GetValue()
+
+            # Initialize background fit variables
+            bg_coef = None
+            x_bg_fit = None
+            y_bg_fit = None
+
+            # Find signal edge points centered around center_edge
+            # Find closest index to center_edge
+            center_idx = np.argmin(np.abs(x_data - center_edge))
+
+            # Calculate half-width for centering
+            half_points = n_points // 2
+
+            # Define signal fitting range (centered on center_edge)
+            start_idx = max(0, center_idx - half_points)
+            end_idx = min(len(x_data), center_idx + half_points)
+
+            # Adjust if we hit boundaries
+            actual_points = end_idx - start_idx
+            if actual_points < n_points and start_idx > 0:
+                start_idx = max(0, end_idx - n_points)
+            elif actual_points < n_points and end_idx < len(x_data):
+                end_idx = min(len(x_data), start_idx + n_points)
+
+            # Extract signal fitting data
+            x_signal_fit = x_data[start_idx:end_idx]
+            y_signal_fit = y_data[start_idx:end_idx]
+
+            if len(x_signal_fit) < 3:
+                wx.MessageBox(f"Insufficient signal data points around {center_edge:.2f} eV", "Error")
+                return
+
+            # Fit linear to signal points
+            signal_coef = np.polyfit(x_signal_fit, y_signal_fit, 1)
+
+            # Handle background extrapolation or baseline intersection
+            if use_bg:
+                # Background extrapolation
+                bg_center = self.vbm_bg_center_ctrl.GetValue()
+                bg_points = self.vbm_bg_points_ctrl.GetValue()
+
+                # Find background points centered around bg_center
+                bg_center_idx = np.argmin(np.abs(x_data - bg_center))
+                bg_half_points = bg_points // 2
+
+                bg_start_idx = max(0, bg_center_idx - bg_half_points)
+                bg_end_idx = min(len(x_data), bg_center_idx + bg_half_points)
+
+                # Adjust if we hit boundaries
+                bg_actual_points = bg_end_idx - bg_start_idx
+                if bg_actual_points < bg_points and bg_start_idx > 0:
+                    bg_start_idx = max(0, bg_end_idx - bg_points)
+                elif bg_actual_points < bg_points and bg_end_idx < len(x_data):
+                    bg_end_idx = min(len(x_data), bg_start_idx + bg_points)
+
+                # Extract background fitting data
+                x_bg_fit = x_data[bg_start_idx:bg_end_idx]
+                y_bg_fit = y_data[bg_start_idx:bg_end_idx]
+
+                if len(x_bg_fit) >= 3:
+                    # Fit background line
+                    bg_coef = np.polyfit(x_bg_fit, y_bg_fit, 1)
+
+                    # Find intersection of signal and background lines
+                    if abs(signal_coef[0] - bg_coef[0]) > 1e-10:  # Avoid division by zero
+                        cutoff_position = (bg_coef[1] - signal_coef[1]) / (signal_coef[0] - bg_coef[0])
+                    else:
+                        cutoff_position = 0.0  # Lines are parallel
+
+                    # Plot background extrapolation line
+                    x_bg_extrap = np.linspace(min(x_data), max(x_data), 100)
+                    y_bg_extrap = bg_coef[0] * x_bg_extrap + bg_coef[1]
+                    bg_line = self.parent.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
+                                                  label=f'Background Fit')[0]
+                    self.vbm_lines.append(bg_line)
+
+                    # Mark background fit points
+                    bg_fit_points_line = self.parent.ax.plot(x_bg_fit, y_bg_fit, 'bo', markersize=2)[0]
+                    # label=f'BG Points ({len(x_bg_fit)})')[0]
+                    self.vbm_lines.append(bg_fit_points_line)
+                else:
+                    wx.MessageBox("Insufficient background data points", "Warning")
+                    return
+            else:
+                # Simple baseline intersection (y = 0)
+                cutoff_position = -signal_coef[1] / signal_coef[0]  # x where y = 0
+
+            # Mark the signal fit points used (centered around center_edge)
+            signal_fit_points_line = self.parent.ax.plot(x_signal_fit, y_signal_fit, 'bo', markersize=2)[0]
+            # label=f'Signal Points ({len(x_signal_fit)})')[0]
+            self.vbm_lines.append(signal_fit_points_line)
+
+            # Plot signal extrapolation line - FROM FULL RANGE
+            x_signal_extrap = np.linspace(min(x_data), max(x_data), 100)
+            y_signal_extrap = signal_coef[0] * x_signal_extrap + signal_coef[1]
+            signal_line = self.parent.ax.plot(x_signal_extrap, y_signal_extrap, 'r--', linewidth=1, alpha=0.6,
+                                              label='Linear Extrapolation')[0]
+            self.vbm_lines.append(signal_line)
+
+        elif method == 1:  # Leading Edge Midpoint
+            # Find midpoint of leading edge
+            y_normalized = (y_cutoff - np.min(y_cutoff)) / (np.max(y_cutoff) - np.min(y_cutoff))
+            idx_midpoint = np.argmin(np.abs(y_normalized - 0.5))
+            cutoff_position = x_cutoff[idx_midpoint]
+
+        elif method == 2:  # Derivative Method
+            # Calculate derivative
+            dy_dx = np.gradient(y_cutoff, x_cutoff)
+            # Find maximum derivative (steepest point)
+            idx_max = np.argmax(np.abs(dy_dx))
+            cutoff_position = x_cutoff[idx_max]
+
+        # Add Cut-Off position line
+        cutoff_line = self.parent.ax.axvline(cutoff_position, color='orange',
+                                             linestyle='--', linewidth=1,
+                                             label=f'Cut-Off = {cutoff_position:.3f} eV')
+        self.vbm_lines.append(cutoff_line)
+
+        # Update results
+        bg_info = ""
+        if use_bg:
+            bg_info = f"\nBackground Center: {bg_center:.2f} eV\nBackground Points: {len(x_bg_fit)} (requested: {bg_points})"
+
+        results_text = f"""Cut-Off Analysis Results:
+
+    Method: Linear Extrapolation
+    Cut-Off Position: {cutoff_position:.2f} eV
+
+    Signal Fitting:
+    Center: {center_edge:.2f} eV
+    Points Used: {len(x_signal_fit)} (requested: {n_points})
+    Range: {x_signal_fit[0]:.2f} to {x_signal_fit[-1]:.2f} eV
+
+    Background Extrapolation: {'Yes' if use_bg else 'No'}{bg_info}
+
+    Additional Information:
+    Max Intensity: {np.max(y_data):.2f}
+    Min Intensity: {np.min(y_data):.2f}"""
+
+        self.results.SetValue(results_text)
+
+        # Update legend and redraw
+        self.parent.ax.legend()
+        self.parent.canvas.draw_idle()
+
+        # Store vline positions BEFORE add_peak_to_grid (they get destroyed by clear_and_replot)
+        vline1_x = self.parent.vline1.get_xdata()[0] if self.parent.vline1 else None
+        vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
+
+        # Add Cut-Off peak to grid
+        self.add_peak_to_grid(cutoff_position, center_edge, bg_center, n_points, bg_points, use_bg,
+                              signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit, "Cut-Off")
+
+        # Restore vlines at their original positions (they were destroyed by clear_and_replot)
+        if vline1_x is not None and vline2_x is not None:
+            self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+            self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+            # Recreate text labels
+            self.add_vline_text_labels()
+
+            # Force vlines to be visible
+            self.force_vlines_visible()
+
+        # Force canvas redraw
+        self.parent.canvas.draw_idle()

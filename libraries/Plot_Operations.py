@@ -427,6 +427,95 @@ class PlotManager:
 
             # CRITICAL: Return early to avoid peak_model.eval() call
             return
+        elif fitting_model == "Cut-Off":
+            # Get Cut-Off data from the Data structure (like Fermi does)
+            sheet_name = window.sheet_combobox.GetValue()
+            if ('Fitting' in window.Data['Core levels'][sheet_name] and
+                    'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
+
+                peaks_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                cutoff_data = None
+
+                # Find Cut-Off peak data
+                for peak_name, peak_info in peaks_data.items():
+                    if peak_info.get('Fitting Model') == 'Cut-Off':
+                        cutoff_data = peak_info
+                        break
+
+                if cutoff_data:
+                    # Get Cut-Off parameters from stored data
+                    cutoff_position = cutoff_data.get('Position', 0)
+                    edge_center = cutoff_data.get('Cut-Off_Edge_Center', 0)
+                    bg_center = cutoff_data.get('Cut-Off_BG_Center', 0)
+                    use_bg = bool(cutoff_data.get('Cut-Off_Use_BG', False))
+
+                    # Get extrapolation data
+                    signal_coef = cutoff_data.get('Signal_Coef')
+                    bg_coef = cutoff_data.get('BG_Coef')
+                    x_signal_fit = cutoff_data.get('X_Signal_Fit')
+                    y_signal_fit = cutoff_data.get('Y_Signal_Fit')
+                    x_bg_fit = cutoff_data.get('X_BG_Fit')
+                    y_bg_fit = cutoff_data.get('Y_BG_Fit')
+
+                    if window.energy_scale == 'KE':
+                        cutoff_display = window.photons - cutoff_position
+                        edge_display = window.photons - edge_center
+                        bg_display = window.photons - bg_center
+                    else:
+                        cutoff_display = cutoff_position
+                        edge_display = edge_center
+                        bg_display = bg_center
+
+                    # Cut-Off position line (orange dashed, linewidth 1) - WITH LEGEND
+                    window.ax.axvline(cutoff_display, color='Orange', linestyle='--',
+                                      linewidth=1, label=f'Cut-Off = {cutoff_position:.2f} eV')
+
+                    # Draw signal extrapolation line (red dashed, linewidth 1, alpha 0.6) - WITH LEGEND
+                    if signal_coef and len(signal_coef) == 2:
+                        x_extrap = np.linspace(min(x_values), max(x_values), 100)
+                        if window.energy_scale == 'KE':
+                            y_extrap = signal_coef[0] * (window.photons - x_extrap) + signal_coef[1]
+                            window.ax.plot(x_extrap, y_extrap, 'r--', linewidth=1, alpha=0.6,
+                                           label='Linear Extrapolation')
+                        else:
+                            y_extrap = signal_coef[0] * x_extrap + signal_coef[1]
+                            window.ax.plot(x_extrap, y_extrap, 'r--', linewidth=1, alpha=0.6,
+                                           label='Linear Extrapolation')
+
+                    # Draw signal fit points (blue circles, markersize 2) - NO LEGEND
+                    if x_signal_fit and y_signal_fit:
+                        x_sig = np.array(x_signal_fit)
+                        y_sig = np.array(y_signal_fit)
+                        if window.energy_scale == 'KE':
+                            window.ax.plot(window.photons - x_sig, y_sig, 'bo', markersize=2)
+                        else:
+                            window.ax.plot(x_sig, y_sig, 'bo', markersize=2)
+
+                    # Draw background extrapolation and points if used
+                    if use_bg and bg_coef and len(bg_coef) == 2:
+                        # Background extrapolation line (blue dashed, linewidth 1) - WITH LEGEND
+                        x_bg_extrap = np.linspace(min(x_values), max(x_values), 100)
+                        if window.energy_scale == 'KE':
+                            y_bg_extrap = bg_coef[0] * (window.photons - x_bg_extrap) + bg_coef[1]
+                            window.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
+                                           label='Background Fit')
+                        else:
+                            y_bg_extrap = bg_coef[0] * x_bg_extrap + bg_coef[1]
+                            window.ax.plot(x_bg_extrap, y_bg_extrap, 'b--', linewidth=1,
+                                           label='Background Fit')
+
+                        # Draw background fit points (blue circles, markersize 2) - NO LEGEND
+                        if x_bg_fit and y_bg_fit:
+                            x_bg = np.array(x_bg_fit)
+                            y_bg = np.array(y_bg_fit)
+                            if window.energy_scale == 'KE':
+                                window.ax.plot(window.photons - x_bg, y_bg, 'bo', markersize=2)
+                            else:
+                                window.ax.plot(x_bg, y_bg, 'bo', markersize=2)
+
+            # CRITICAL: Return early to avoid peak_model.eval() call
+            return
+
         elif fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
             peak_model = lmfit.models.VoigtModel()
             sigma = float(peak_params.get('sigma', 1.2)) / 2.355
@@ -998,6 +1087,8 @@ class PlotManager:
                 cst_unfit = "Fermi"
             elif fitting_model == "VBM":
                 cst_unfit = "VBM"
+            elif fitting_model == "Cut-Off":
+                cst_unfit = "Cut Off"
             elif fitting_model == "SurveyID":
                 cst_unfit = "SurveyID"
             if 'Labels' in window.Data['Core levels'][sheet_name]:
@@ -1310,7 +1401,7 @@ class PlotManager:
                 gamma = fwhm / 2
                 area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
                 params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
-            elif window.selected_fitting_method in ["D-parameter", "Fermi"]:
+            elif window.selected_fitting_method in ["D-parameter", "Fermi", "VBM", "Cut-Off"]:
                 # return area, 0, 0  # Return original area and zero for normalized/relative areas
                 return 0, 0, 0  # Return original area and zero for normalized/relative areas
             else:  # Default to GL (Height) as a safe bet
@@ -1320,7 +1411,7 @@ class PlotManager:
             peak_y = peak_model.eval(params, x=window.x_values) + window.background
 
             # Update overall fit and residuals
-            if peak_model in ["D-parameter", "SurveyID", "Fermi"]:
+            if peak_model in ["D-parameter", "SurveyID", "Fermi", "VBM", "Cut-Off"]:
                 print("")
             else:
                 window.update_overall_fit_and_residuals()
@@ -1484,6 +1575,9 @@ class PlotManager:
                 continue
             elif fitting_model == "VBM":
                 continue
+            elif fitting_model == "Cut-Off":
+                # Skip Cut-Off in overall fit calculation
+                continue
             elif fitting_model == "SurveyID":
                 # Skip D-parameter in overall fit calculation
                 continue
@@ -1543,6 +1637,8 @@ class PlotManager:
                              linewidth=self.envelope_thickness,
                              label='D-parameter' if fitting_model == "D-parameter" else
                                     'Fermi' if fitting_model == "Fermi" else
+                                    'VBM' if fitting_model == "VBM" else
+                                    'Cut-Off' if fitting_model == "Cut-Off" else
                                     'Overall Fit')
             else:
                 # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
@@ -1552,6 +1648,7 @@ class PlotManager:
                              label='D-parameter' if fitting_model == "D-parameter" else
                              'Fermi' if fitting_model == "Fermi" else
                              'VBM' if fitting_model == "VBM" else
+                             'Cut-Off' if fitting_model == "Cut-Off" else
                              'Overall Fit')
         except:
             return
@@ -2078,9 +2175,10 @@ class PlotManager:
         sheet_name = window.sheet_combobox.GetValue()
         handles, labels = self.ax.get_legend_handles_labels()
 
-        # Check if any peak has Fermi or VBM fitting model
+        # Check if any peak has Fermi, VBM, or Cut-Off fitting model
         has_fermi_peak = False
         has_vbm_peak = False
+        has_cutoff_peak = False
         num_peaks = window.peak_params_grid.GetNumberRows() // 2
         for i in range(num_peaks):
             fitting_model = window.peak_params_grid.GetCellValue(i * 2, 13)  # Column 13 is fitting model
@@ -2088,9 +2186,11 @@ class PlotManager:
                 has_fermi_peak = True
             elif fitting_model == "VBM":
                 has_vbm_peak = True
+            elif fitting_model == "Cut-Off":
+                has_cutoff_peak = True
 
-        # If Fermi or VBM peak exists, use natural legend from plot_peak (bypass all modes)
-        if has_fermi_peak or has_vbm_peak:
+        # If Fermi, VBM, or Cut-Off peak exists, use natural legend from plot_peak (bypass all modes)
+        if has_fermi_peak or has_vbm_peak or has_cutoff_peak:
             if handles and labels:
                 self.ax.legend(handles, labels, loc='upper left', frameon=True, fancybox=True,
                                framealpha=0.1, edgecolor='gray')

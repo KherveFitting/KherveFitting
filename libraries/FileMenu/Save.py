@@ -684,10 +684,11 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                             fermi_x_padded = fermi_x_padded[:df_length]
                             fermi_y_padded = fermi_y_padded[:df_length]
 
-                            # existing_df.insert(len(existing_df.columns), 'Fermi_X', fermi_x_padded)
-                            # existing_df.insert(len(existing_df.columns), 'Fermi_Y', fermi_y_padded)
-                            existing_df.insert(8, 'Fermi_X', fermi_x_padded)
-                            existing_df.insert(9, 'Fermi_Y', fermi_y_padded)
+                            existing_df.iloc[:, 8] = fermi_x_padded
+                            existing_df.iloc[:, 9] = fermi_y_padded
+                            # Update column names
+                            existing_df.columns.values[8] = 'Fermi_X'
+                            existing_df.columns.values[9] = 'Fermi_Y'
                         break
 
         # Handle VBM data
@@ -713,9 +714,52 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                         edge_center = [peak_data.get('VBM_Edge_Center', 0)] + [np.nan] * (df_length - 1)
                         bg_center = [peak_data.get('VBM_BG_Center', 0)] + [np.nan] * (df_length - 1)
 
-                        existing_df.insert(8, 'VBM_Position', vbm_position[:df_length])
-                        existing_df.insert(9, 'VBM_Edge_Center', edge_center[:df_length])
-                        existing_df.insert(10, 'VBM_BG_Center', bg_center[:df_length])
+                        # existing_df.insert(8, 'VBM_Position', vbm_position[:df_length])
+                        # existing_df.insert(9, 'VBM_Edge_Center', edge_center[:df_length])
+                        # existing_df.insert(10, 'VBM_BG_Center', bg_center[:df_length])
+                        existing_df.iloc[:, 8] = vbm_position[:df_length]
+                        existing_df.iloc[:, 9] = edge_center[:df_length]
+                        existing_df.iloc[:, 10] = bg_center[:df_length]
+
+                        # Also update column names
+                        existing_df.columns.values[8] = 'VBM_Position'
+                        existing_df.columns.values[9] = 'VBM_Edge_Center'
+                        existing_df.columns.values[10] = 'VBM_BG_Center'
+
+                        break
+
+        # Handle Cut-Off data
+        cutoff_found = False
+        if window.peak_params_grid.GetNumberRows() > 0:
+            for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+                fitting_model = window.peak_params_grid.GetCellValue(row, 13)
+                if fitting_model == "Cut-Off":
+                    cutoff_found = True
+                    break
+
+        if cutoff_found:
+            if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in \
+                    window.Data['Core levels'][sheet_name]['Fitting']:
+                peaks_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                for peak_name, peak_data in peaks_data.items():
+                    if peak_data.get('Fitting Model') == 'Cut-Off':
+                        # Get dataframe length
+                        df_length = len(existing_df)
+
+                        # Add Cut-Off parameters as separate columns
+                        cutoff_position = [peak_data.get('Position', 0)] + [np.nan] * (df_length - 1)
+                        edge_center = [peak_data.get('Cut-Off_Edge_Center', 0)] + [np.nan] * (df_length - 1)
+                        bg_center = [peak_data.get('Cut-Off_BG_Center', 0)] + [np.nan] * (df_length - 1)
+
+                        # Determine insertion position (after VBM columns if they exist)
+                        # If no VBM, Cut-Off goes to columns 8-10
+                        existing_df.iloc[:, 8] = cutoff_position[:df_length]
+                        existing_df.iloc[:, 9] = edge_center[:df_length]
+                        existing_df.iloc[:, 10] = bg_center[:df_length]
+
+                        existing_df.columns.values[8] = 'Cut-Off_Position'
+                        existing_df.columns.values[9] = 'Cut-Off_Edge_Center'
+                        existing_df.columns.values[10] = 'Cut-Off_BG_Center'
                         break
 
         # Handle VBM data
@@ -779,15 +823,111 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                         bg_points_x_padded = pad_data(bg_points_x, df_length)
                         bg_points_y_padded = pad_data(bg_points_y, df_length)
 
-                        # Insert VBM data starting from column 10
-                        existing_df.insert(11, 'VBM_Signal_Extrap_X', signal_extrap_x_padded)
-                        existing_df.insert(12, 'VBM_Signal_Extrap_Y', signal_extrap_y_padded)
-                        existing_df.insert(13, 'VBM_Signal_Points_X', signal_points_x_padded)
-                        existing_df.insert(14, 'VBM_Signal_Points_Y', signal_points_y_padded)
-                        existing_df.insert(15, 'VBM_BG_Extrap_X', bg_extrap_x_padded)
-                        existing_df.insert(16, 'VBM_BG_Extrap_Y', bg_extrap_y_padded)
-                        existing_df.insert(17, 'VBM_BG_Points_X', bg_points_x_padded)
-                        existing_df.insert(18, 'VBM_BG_Points_Y', bg_points_y_padded)
+                        # # Insert VBM data starting from column 11
+                        # Direct assignment to columns 11-18
+                        existing_df.iloc[:, 11] = signal_extrap_x_padded
+                        existing_df.iloc[:, 12] = signal_extrap_y_padded
+                        existing_df.iloc[:, 13] = signal_points_x_padded
+                        existing_df.iloc[:, 14] = signal_points_y_padded
+                        existing_df.iloc[:, 15] = bg_extrap_x_padded
+                        existing_df.iloc[:, 16] = bg_extrap_y_padded
+                        existing_df.iloc[:, 17] = bg_points_x_padded
+                        existing_df.iloc[:, 18] = bg_points_y_padded
+
+                        # Update column names
+                        existing_df.columns.values[11] = 'VBM_Signal_Extrap_X'
+                        existing_df.columns.values[12] = 'VBM_Signal_Extrap_Y'
+                        existing_df.columns.values[13] = 'VBM_Signal_Points_X'
+                        existing_df.columns.values[14] = 'VBM_Signal_Points_Y'
+                        existing_df.columns.values[15] = 'VBM_BG_Extrap_X'
+                        existing_df.columns.values[16] = 'VBM_BG_Extrap_Y'
+                        existing_df.columns.values[17] = 'VBM_BG_Points_X'
+                        existing_df.columns.values[18] = 'VBM_BG_Points_Y'
+
+                        break
+
+        # Handle Cut-Off data
+        cutoff_found = False
+        if window.peak_params_grid.GetNumberRows() > 0:
+            for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+                fitting_model = window.peak_params_grid.GetCellValue(row, 13)
+                if fitting_model == "Cut-Off":
+                    cutoff_found = True
+                    break
+
+        if cutoff_found:
+            if 'Fitting' in window.Data['Core levels'][sheet_name] and 'Peaks' in \
+                    window.Data['Core levels'][sheet_name]['Fitting']:
+                peaks_data = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                for peak_name, peak_data in peaks_data.items():
+                    if peak_data.get('Fitting Model') == 'Cut-Off':
+                        # Get dataframe length
+                        df_length = len(existing_df)
+
+                        # Get original data range for extrapolation lines
+                        x_values = window.x_values
+                        x_min, x_max = min(x_values), max(x_values)
+
+                        # Generate signal extrapolation line data
+                        signal_coef = peak_data.get('Signal_Coef')
+                        signal_extrap_x, signal_extrap_y = [], []
+                        if signal_coef and len(signal_coef) == 2:
+                            signal_extrap_x = np.linspace(x_min, x_max, 100).tolist()
+                            signal_extrap_y = [signal_coef[0] * x + signal_coef[1] for x in signal_extrap_x]
+
+                        # Get signal fit points
+                        signal_points_x = peak_data.get('X_Signal_Fit', [])
+                        signal_points_y = peak_data.get('Y_Signal_Fit', [])
+
+                        # Generate background extrapolation line data (if used)
+                        bg_coef = peak_data.get('BG_Coef')
+                        bg_extrap_x, bg_extrap_y = [], []
+                        if bg_coef and len(bg_coef) == 2:
+                            bg_extrap_x = np.linspace(x_min, x_max, 100).tolist()
+                            bg_extrap_y = [bg_coef[0] * x + bg_coef[1] for x in bg_extrap_x]
+
+                        # Get background fit points
+                        bg_points_x = peak_data.get('X_BG_Fit', [])
+                        bg_points_y = peak_data.get('Y_BG_Fit', [])
+
+                        # Pad all data arrays to match dataframe length
+                        def pad_data(data_list, target_length):
+                            if not data_list:
+                                return [np.nan] * target_length
+                            padded = data_list + [np.nan] * (target_length - len(data_list))
+                            return padded[:target_length]
+
+                        # Create padded arrays for all Cut-Off data
+                        signal_extrap_x_padded = pad_data(signal_extrap_x, df_length)
+                        signal_extrap_y_padded = pad_data(signal_extrap_y, df_length)
+                        signal_points_x_padded = pad_data(signal_points_x, df_length)
+                        signal_points_y_padded = pad_data(signal_points_y, df_length)
+                        bg_extrap_x_padded = pad_data(bg_extrap_x, df_length)
+                        bg_extrap_y_padded = pad_data(bg_extrap_y, df_length)
+                        bg_points_x_padded = pad_data(bg_points_x, df_length)
+                        bg_points_y_padded = pad_data(bg_points_y, df_length)
+
+                        # Determine insertion position (after VBM columns if they exist)
+                        start_col = 11
+
+                        existing_df.iloc[:, start_col] = signal_extrap_x_padded
+                        existing_df.iloc[:, start_col + 1] = signal_extrap_y_padded
+                        existing_df.iloc[:, start_col + 2] = signal_points_x_padded
+                        existing_df.iloc[:, start_col + 3] = signal_points_y_padded
+                        existing_df.iloc[:, start_col + 4] = bg_extrap_x_padded
+                        existing_df.iloc[:, start_col + 5] = bg_extrap_y_padded
+                        existing_df.iloc[:, start_col + 6] = bg_points_x_padded
+                        existing_df.iloc[:, start_col + 7] = bg_points_y_padded
+
+                        # Update column names
+                        existing_df.columns.values[start_col] = 'Cut-Off_Signal_Extrap_X'
+                        existing_df.columns.values[start_col + 1] = 'Cut-Off_Signal_Extrap_Y'
+                        existing_df.columns.values[start_col + 2] = 'Cut-Off_Signal_Points_X'
+                        existing_df.columns.values[start_col + 3] = 'Cut-Off_Signal_Points_Y'
+                        existing_df.columns.values[start_col + 4] = 'Cut-Off_BG_Extrap_X'
+                        existing_df.columns.values[start_col + 5] = 'Cut-Off_BG_Extrap_Y'
+                        existing_df.columns.values[start_col + 6] = 'Cut-Off_BG_Points_X'
+                        existing_df.columns.values[start_col + 7] = 'Cut-Off_BG_Points_Y'
                         break
 
         # Restore experimental data columns if they were present
