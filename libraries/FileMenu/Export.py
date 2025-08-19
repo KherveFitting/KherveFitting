@@ -59,6 +59,7 @@ def export_results(window):
     window.results_grid.ForceRefresh()
     window.update_checkboxes_from_data()
 
+    # Calculate atomic percentages automatically after export
     window.update_atomic_percentages()
 
     
@@ -285,12 +286,15 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
     window.results_grid.SetCellValue(row, 5, f"{area:.2f}")
     window.results_grid.SetCellValue(row, 6, "0.00")  # Initial atomic percentage
 
-    # Get checkbox state from the correct Results Table
-    checkbox_state = window.Data[results_table_key]['Peak'][peak_label].get('Checkbox', '0')
+    # Determine checkbox state based on doublet logic
+    checkbox_state = _determine_checkbox_state(window, peak_params['name'], row)
     _set_checkbox(window, row, 7, checkbox_state)
 
+    # Update data structure with the determined checkbox state
+    window.Data[results_table_key]['Peak'][peak_label]['Checkbox'] = checkbox_state
+
     window.results_grid.SetCellValue(row, 8, f"{peak_params['rsf']:.2f}")
-    window.results_grid.SetCellValue(row, 9, "1.0")  # TXFN default value
+    window.results_grid.SetCellValue(row, 9, "1.00")  # TXFN default value
     print(f"Library: {window.library_type}")
     if window.library_type == "Scofield":
         window.results_grid.SetCellValue(row, 10, "KE^0.6")
@@ -337,10 +341,75 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
     window.results_grid.SetCellBackgroundColour(row, 29, wx.Colour(200, 245, 228))
     window.results_grid.SetCellFont(row, 29, bold_font)
 
-
     # Force a refresh of the grid cell to ensure the checkbox is displayed correctly
     window.results_grid.RefreshAttr(row, 7)
 
+def _determine_checkbox_state(window, peak_name, current_row):
+    """Determine if checkbox should be ticked based on doublet logic."""
+    import re
+
+    # Check if it's a non-doublet peak (1s, 2s, etc.) - these should be ticked
+    if re.search(r'\d+s', peak_name):
+        return '1'
+
+    # For doublet peaks, check if this is the second peak of the pair
+    # Get all peak names from the current fitting data to check for doublets
+    num_peaks = window.peak_params_grid.GetNumberRows() // 2
+
+    for i in range(num_peaks):
+        grid_row = i * 2
+        current_peak_name = window.peak_params_grid.GetCellValue(grid_row, 1)
+
+        if current_peak_name == peak_name and i < num_peaks - 1:
+            # Check if this peak and the next one form a doublet
+            next_peak_name = window.peak_params_grid.GetCellValue((i + 1) * 2, 1)
+            if _is_doublet_pair(current_peak_name, next_peak_name):
+                # This is the first peak of a doublet - tick it
+                return '1'
+        elif current_peak_name == peak_name and i > 0:
+            # Check if this peak and the previous one form a doublet
+            prev_peak_name = window.peak_params_grid.GetCellValue((i - 1) * 2, 1)
+            if _is_doublet_pair(prev_peak_name, current_peak_name):
+                # This is the second peak of a doublet - don't tick it
+                return '0'
+
+    # Default to ticked for single peaks or if not part of a doublet
+    return '1'
+
+
+def _is_doublet_pair(first_peak, second_peak):
+    """Check if two peaks form a doublet pair."""
+    import re
+
+    # Extract core level without spin-orbit component
+    def extract_core_level(label):
+        match = re.match(r'([A-Za-z]+\d+[spdf])', label)
+        return match.group(1) if match else label
+
+    first_core_level = extract_core_level(first_peak)
+    second_core_level = extract_core_level(second_peak)
+
+    if first_core_level != second_core_level:
+        return False
+
+    orbital = re.search(r'\d([spdf])', first_core_level)
+    if not orbital:
+        return False
+
+    orbital = orbital.group(1)
+
+    # Check for spin-orbit components
+    def has_component(peak_name, component):
+        return component in peak_name
+
+    if orbital == 'p':
+        return (has_component(first_peak, '3/2') and has_component(second_peak, '1/2'))
+    elif orbital == 'd':
+        return (has_component(first_peak, '5/2') and has_component(second_peak, '3/2'))
+    elif orbital == 'f':
+        return (has_component(first_peak, '7/2') and has_component(second_peak, '5/2'))
+
+    return False
 
 def _set_checkbox(window, row, col, state='0'):
     """Set up a checkbox in the specified grid cell."""

@@ -63,7 +63,7 @@ class VB_measurements(wx.Frame):
 
             self.SetPosition((x, y))
 
-    def force_vlines_visible(self):
+    def force_vlines_visible_OLD(self):
         """Force vLines to be visible specifically for VB measurements"""
         # Initialize vLines if they don't exist
         if self.parent.vline1 is None or self.parent.vline2 is None:
@@ -87,6 +87,83 @@ class VB_measurements(wx.Frame):
 
         # Force canvas redraw
         self.parent.canvas.draw_idle()
+
+    def force_vlines_visible(self):
+        """Force vLines to be visible specifically for VB measurements at 10% and 90% of plot range"""
+        # Initialize vLines if they don't exist
+        if self.parent.vline1 is None or self.parent.vline2 is None:
+            self.parent.initialize_or_restore_background_vlines()
+
+        # Position vLines at 10% and 90% of plot range for VB measurements
+        plot_range = self.get_vb_plot_range_positions()
+        if plot_range:
+            low_pos, high_pos = plot_range
+
+            # Set vLines to 10% and 90% positions
+            if self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([low_pos, low_pos])
+                self.parent.vline1.set_visible(True)
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([high_pos, high_pos])
+                self.parent.vline2.set_visible(True)
+
+            # Update VBM controls to match vLine positions (with .2f format)
+            self.vbm_edge_ctrl.SetValue(float(f"{low_pos:.2f}"))
+            self.vbm_bg_center_ctrl.SetValue(float(f"{high_pos:.2f}"))
+
+        # Override visibility logic by setting them directly visible
+        if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text is not None:
+            self.parent.vline1_text.set_visible(True)
+        if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
+            self.parent.vline2_text.set_visible(True)
+
+        # Enable background interaction for dragging
+        self.parent.background_tab_selected = True
+
+        # Add text labels for vlines
+        self.add_vline_text_labels()
+
+        # Force canvas redraw
+        self.parent.canvas.draw_idle()
+
+    def get_vb_plot_range_positions(self):
+        """Get 10% and 90% positions of current plot X-axis range for VB measurements."""
+        try:
+            # Get current X-axis limits from the plot
+            if hasattr(self.parent, 'ax') and self.parent.ax:
+                xlim = self.parent.ax.get_xlim()
+                x_min, x_max = xlim
+
+                # Calculate the range
+                x_range = x_max - x_min
+
+                # Calculate 10% and 90% positions
+                low_pos = x_min + (0.1 * x_range)  # 10% from left
+                high_pos = x_min + (0.9 * x_range)  # 90% from left
+
+                # Ensure proper order (BE scale is usually decreasing)
+                if low_pos > high_pos:
+                    low_pos, high_pos = high_pos, low_pos
+
+                return (low_pos, high_pos)
+
+        except (AttributeError, Exception):
+            # Fallback to data range if plot limits not available
+            sheet_name = self.parent.sheet_combobox.GetValue()
+            if sheet_name in self.parent.Data['Core levels']:
+                x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                if x_values:
+                    x_min, x_max = min(x_values), max(x_values)
+                    x_range = x_max - x_min
+                    low_pos = x_min + (0.1 * x_range)
+                    high_pos = x_min + (0.9 * x_range)
+
+                    if low_pos > high_pos:
+                        low_pos, high_pos = high_pos, low_pos
+
+                    return (low_pos, high_pos)
+
+        return None
 
     def InitUI(self):
         panel = wx.Panel(self)
@@ -173,10 +250,17 @@ class VB_measurements(wx.Frame):
         self.vbm_edge_ctrl.Bind(FS.EVT_FLOATSPIN, self.OnEdgeCenterChange)
         self.vbm_bg_center_ctrl.Bind(FS.EVT_FLOATSPIN, self.OnBgCenterChange)
 
-        # VBM calculation button
-        vbm_btn = wx.Button(left_panel, label="Calculate VBM")
-        vbm_btn.Bind(wx.EVT_BUTTON, self.OnCalculateVBM)
-        vbm_sizer.Add(vbm_btn, 0, wx.EXPAND | wx.ALL, 5)
+        # VBM buttons
+        vbm_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        vbm_calc_btn = wx.Button(left_panel, label="Calculate VBM")
+        vbm_calc_btn.Bind(wx.EVT_BUTTON, self.OnCalculateVBM)
+        vbm_btn_sizer.Add(vbm_calc_btn, 1, wx.ALL, 5)
+
+        remove_vbm_btn = wx.Button(left_panel, label="Remove VBM")
+        remove_vbm_btn.Bind(wx.EVT_BUTTON, self.OnRemoveVBM)
+        vbm_btn_sizer.Add(remove_vbm_btn, 1, wx.ALL, 5)
+
+        vbm_sizer.Add(vbm_btn_sizer, 0, wx.EXPAND)
 
         left_sizer.Add(vbm_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
@@ -426,9 +510,26 @@ Note: 16%-84% is the standard thermal width measure."""
             # Update plot (same as D-parameter - just draw on canvas)
             self.parent.canvas.draw_idle()
 
+            # Store vline positions BEFORE clear_and_replot (they get destroyed)
+            vline1_x = self.parent.vline1.get_xdata()[0] if self.parent.vline1 else None
+            vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
 
-            # Also trigger plot update through the standard mechanism:
+            # Trigger replot to show Fermi fit
             self.parent.clear_and_replot()
+
+            # Restore vlines at their original positions (they were destroyed by clear_and_replot)
+            if vline1_x is not None and vline2_x is not None:
+                self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+                self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+                # Recreate text labels
+                self.add_vline_text_labels()
+
+                # Force vlines to be visible
+                self.force_vlines_visible()
+
+            # Force canvas redraw
+            self.parent.canvas.draw_idle()
 
             # # Plot fit results on main plot
             # self.plot_thermal_fit(x_fit, result.best_fit, center, width_16_84)
@@ -659,9 +760,122 @@ Min Intensity: {np.min(y_data):.2f}"""
         self.parent.ax.legend()
         self.parent.canvas.draw_idle()
 
+        # Store vline positions BEFORE add_vbm_peak_to_grid (they get destroyed by clear_and_replot)
+        vline1_x = self.parent.vline1.get_xdata()[0] if self.parent.vline1 else None
+        vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
+
         # Add VBM peak to grid
         self.add_vbm_peak_to_grid(vbm_position, center_edge, bg_center, n_points, bg_points, use_bg,
                                   signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit)
+
+        # Restore vlines at their original positions (they were destroyed by clear_and_replot)
+        if vline1_x is not None and vline2_x is not None:
+            self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+            self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+            # Recreate text labels
+            self.add_vline_text_labels()
+
+            # Force vlines to be visible
+            self.force_vlines_visible()
+
+        # Force canvas redraw
+        self.parent.canvas.draw_idle()
+
+    def OnRemoveVBM(self, event):
+        """Remove VBM or CutOff peak from grid and data"""
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Remove from grid - find and delete VBM rows
+        for row in range(self.parent.peak_params_grid.GetNumberRows() - 1, -1, -1):
+            if self.parent.peak_params_grid.GetCellValue(row, 13) == "VBM":
+                # Delete both data row and constraint row (2 rows total)
+                self.parent.peak_params_grid.DeleteRows(row, 2)
+                break
+
+        # Remove from Data structure
+        if sheet_name in self.parent.Data['Core levels']:
+            fitting_data = self.parent.Data['Core levels'][sheet_name].get('Fitting', {})
+            peaks_data = fitting_data.get('Peaks', {})
+
+            # Find and remove VBM peak by fitting model
+            vbm_key = None
+            for peak_name, peak_info in peaks_data.items():
+                if peak_info.get('Fitting Model') == 'VBM':
+                    vbm_key = peak_name
+                    break
+
+            if vbm_key:
+                del peaks_data[vbm_key]
+
+        # Clear results display
+        self.results.SetValue("")
+
+        # Clear VBM lines from plot
+        for line in self.vbm_lines:
+            try:
+                line.remove()
+            except:
+                pass
+        self.vbm_lines.clear()
+
+        # Store vline positions BEFORE clear_and_replot (they get destroyed)
+        vline1_x = self.parent.vline1.get_xdata()[0] if self.parent.vline1 else None
+        vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
+
+        # Trigger replot to remove VBM lines
+        self.parent.clear_and_replot()
+
+        # Restore vlines at their original positions (they were destroyed by clear_and_replot)
+        if vline1_x is not None and vline2_x is not None:
+            self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+            self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+            # Recreate text labels
+            self.add_vline_text_labels()
+
+            # Force vlines to be visible
+            self.force_vlines_visible()
+
+        # Force canvas redraw
+        self.parent.canvas.draw_idle()
+
+        wx.MessageBox("VBM or CutOff data removed", "Removed", wx.OK | wx.ICON_INFORMATION)
+
+    def add_vline_text_labels(self):
+        """Add text labels to vlines showing their positions"""
+        if self.parent.vline1 is not None and self.parent.vline2 is not None:
+            # Get current vline positions
+            vline1_x = self.parent.vline1.get_xdata()[0]
+            vline2_x = self.parent.vline2.get_xdata()[0]
+
+            # Get y-axis limits for positioning text
+            ylim = self.parent.ax.get_ylim()
+            text_y = ylim[1] * 0.95  # Position at 95% of y-axis height
+
+            # Remove existing text labels if they exist
+            if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text is not None:
+                try:
+                    self.parent.vline1_text.remove()
+                except:
+                    pass
+
+            if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
+                try:
+                    self.parent.vline2_text.remove()
+                except:
+                    pass
+
+            # Create new text labels
+            self.parent.vline1_text = self.parent.ax.text(vline1_x, text_y, f'{vline1_x:.2f}',
+                                                          ha='center', va='top', fontsize=8,
+                                                          bbox=dict(boxstyle='round,pad=0.2',
+                                                                    facecolor='white', alpha=0.8))
+
+            self.parent.vline2_text = self.parent.ax.text(vline2_x, text_y, f'{vline2_x:.2f}',
+                                                          ha='center', va='top', fontsize=8,
+                                                          bbox=dict(boxstyle='round,pad=0.2',
+                                                                    facecolor='white', alpha=0.8))
 
     def on_close(self, event):
         """Cleanup when closing VB measurements"""
@@ -719,8 +933,26 @@ Min Intensity: {np.min(y_data):.2f}"""
         # Clear results display
         self.results.SetValue("")
 
+        # Store vline positions BEFORE clear_and_replot (they get destroyed)
+        vline1_x = self.parent.vline1.get_xdata()[0] if self.parent.vline1 else None
+        vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
+
         # Trigger replot to remove Fermi lines
         self.parent.clear_and_replot()
+
+        # Restore vlines at their original positions (they were destroyed by clear_and_replot)
+        if vline1_x is not None and vline2_x is not None:
+            self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
+            self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+            # Recreate text labels
+            self.add_vline_text_labels()
+
+            # Force vlines to be visible
+            self.force_vlines_visible()
+
+        # Force canvas redraw
+        self.parent.canvas.draw_idle()
 
         wx.MessageBox("Fermi edge data removed", "Removed", wx.OK | wx.ICON_INFORMATION)
 
@@ -855,3 +1087,56 @@ Min Intensity: {np.min(y_data):.2f}"""
         self.parent.clear_and_replot()
 
         return True
+
+    def restore_vlines_after_plot(self, vline1_pos, vline2_pos):
+        """Restore vlines at specified positions after plotting"""
+        try:
+            # FIRST: Remove/destroy any existing vlines
+            if self.parent.vline1 is not None:
+                try:
+                    self.parent.vline1.remove()
+                except:
+                    pass
+                self.parent.vline1 = None
+
+            if self.parent.vline2 is not None:
+                try:
+                    self.parent.vline2.remove()
+                except:
+                    pass
+                self.parent.vline2 = None
+
+            # Remove any existing text labels
+            if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text is not None:
+                try:
+                    self.parent.vline1_text.remove()
+                except:
+                    pass
+                self.parent.vline1_text = None
+
+            if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
+                try:
+                    self.parent.vline2_text.remove()
+                except:
+                    pass
+                self.parent.vline2_text = None
+
+            # THEN: Create new vlines at the specified positions
+            self.parent.vline1 = self.parent.ax.axvline(x=vline1_pos, color='red', linestyle='--', alpha=0.7)
+            self.parent.vline2 = self.parent.ax.axvline(x=vline2_pos, color='red', linestyle='--', alpha=0.7)
+
+            # Create new text labels
+            if hasattr(self.parent, 'add_vline_text_labels'):
+                self.parent.add_vline_text_labels()
+            elif hasattr(self.parent, 'update_vline_text_labels'):
+                self.parent.update_vline_text_labels()
+
+            # Make sure they're visible and background tab is selected
+            self.parent.show_hide_vlines()
+            self.parent.background_tab_selected = True
+
+            # Force canvas redraw
+            self.parent.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Error restoring vlines: {e}")

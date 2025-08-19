@@ -287,14 +287,7 @@ class FileManagerWindow(wx.Frame):
         sum_bmp = wx.Bitmap(sum_icon)
         sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
         self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
-        #
-        # sort_icon = os.path.join(icon_path, "Sort-25.png")
-        # if os.path.exists(sort_icon):
-        #     sort_bmp = wx.Bitmap(sort_icon)
-        # else:
-        #     sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
-        # sort_tool = self.toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
-        # self.Bind(wx.EVT_TOOL, self.sort_excel_sheets, sort_tool)
+
 
         # Plot button
         plot_icon = os.path.join(icon_path, "Plot2-25.png")
@@ -3983,7 +3976,7 @@ class FileManagerWindow(wx.Frame):
                             # Fallback to basic calculation
                             continue
 
-                    elif fitting_model in ["D-parameter", "SurveyID"]:
+                    elif fitting_model in ["D-parameter", "SurveyID", "VBM", "Fermi"]:
                         # Skip these models in overall fit calculation
                         continue
 

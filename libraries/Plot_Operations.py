@@ -381,12 +381,6 @@ class PlotManager:
                     window.ax.axvline(vbm_display, color='Green', linestyle='--',
                                       linewidth=1, label=f'VBM = {vbm_position:.2f} eV')
 
-                    # # Signal center line (red dotted, alpha 0.5) - NO LEGEND
-                    # window.ax.axvline(edge_display, color='red', linestyle=':', alpha=0.5)
-                    #
-                    # # Background center line (blue dotted, alpha 0.5) - NO LEGEND
-                    # if use_bg:
-                    #     window.ax.axvline(bg_display, color='blue', linestyle=':', alpha=0.5)
 
                     # Draw signal extrapolation line (red dashed, linewidth 1, alpha 0.6) - WITH LEGEND
                     if signal_coef and len(signal_coef) == 2:
@@ -1096,7 +1090,8 @@ class PlotManager:
 
 
         # Update overall fit and residuals
-        if cst_unfit in ["Unfitted","D-parameter","Fermi","SurveyID"] or any(x in sheet_name.lower() for x in [
+        if cst_unfit in ["Unfitted","D-parameter","Fermi","VBM", "Cut Off","SurveyID"] or any(x in sheet_name.lower()
+                                                                                            for x in [
             "survey", \
                 "wide"]):
             pass
@@ -1555,8 +1550,9 @@ class PlotManager:
                              linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
                              linewidth=self.envelope_thickness,
                              label='D-parameter' if fitting_model == "D-parameter" else
-                                    'Fermi' if fitting_model == "Fermi" else
-                                    'Overall Fit')
+                             'Fermi' if fitting_model == "Fermi" else
+                             'VBM' if fitting_model == "VBM" else
+                             'Overall Fit')
         except:
             return
 
