@@ -63,32 +63,8 @@ class VB_measurements(wx.Frame):
 
             self.SetPosition((x, y))
 
+
     def force_vlines_visible_OLD(self):
-        """Force vLines to be visible specifically for VB measurements"""
-        # Initialize vLines if they don't exist
-        if self.parent.vline1 is None or self.parent.vline2 is None:
-            self.parent.initialize_or_restore_background_vlines()
-
-        # Override visibility logic by setting them directly visible
-        if self.parent.vline1 is not None:
-            self.parent.vline1.set_visible(True)
-        if self.parent.vline2 is not None:
-            self.parent.vline2.set_visible(True)
-        if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text is not None:
-            self.parent.vline1_text.set_visible(True)
-        if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
-            self.parent.vline2_text.set_visible(True)
-
-        # Enable background interaction for dragging
-        self.parent.background_tab_selected = True
-
-        # Position vLines at control values
-        self.setup_vbm_vlines()
-
-        # Force canvas redraw
-        self.parent.canvas.draw_idle()
-
-    def force_vlines_visible(self):
         """Force vLines to be visible specifically for VB measurements at 10% and 90% of plot range"""
         # Initialize vLines if they don't exist
         if self.parent.vline1 is None or self.parent.vline2 is None:
@@ -116,6 +92,91 @@ class VB_measurements(wx.Frame):
             self.parent.vline1_text.set_visible(True)
         if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
             self.parent.vline2_text.set_visible(True)
+
+        # Enable background interaction for dragging
+        self.parent.background_tab_selected = True
+
+        # Add text labels for vlines
+        self.add_vline_text_labels()
+
+        # Force canvas redraw
+        self.parent.canvas.draw_idle()
+
+    def force_vlines_visible(self):
+        """Force vLines to be visible specifically for VB measurements at 10% and 90% of plot range"""
+
+        # Check if vLines are valid and attached to current axis
+        vlines_are_valid = (
+                self.parent.vline1 is not None and
+                self.parent.vline2 is not None and
+                hasattr(self.parent, 'ax') and
+                self.parent.vline1 in self.parent.ax.get_children() and
+                self.parent.vline2 in self.parent.ax.get_children()
+        )
+
+        # If vLines don't exist or are invalid, clean up and recreate them
+        if not vlines_are_valid:
+            # Clean up any invalid vLine references
+            if self.parent.vline1 is not None:
+                try:
+                    self.parent.vline1.remove()
+                except:
+                    pass
+                self.parent.vline1 = None
+
+            if self.parent.vline2 is not None:
+                try:
+                    self.parent.vline2.remove()
+                except:
+                    pass
+                self.parent.vline2 = None
+
+            # Clean up any invalid text labels
+            if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text is not None:
+                try:
+                    self.parent.vline1_text.remove()
+                except:
+                    pass
+                self.parent.vline1_text = None
+
+            if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text is not None:
+                try:
+                    self.parent.vline2_text.remove()
+                except:
+                    pass
+                self.parent.vline2_text = None
+
+            # Create new vLines at 10% and 90% of plot range
+            plot_range = self.get_vb_plot_range_positions()
+            if plot_range:
+                low_pos, high_pos = plot_range
+
+                # Create new vLines
+                self.parent.vline1 = self.parent.ax.axvline(low_pos, color='r', linestyle='--', alpha=0.7)
+                self.parent.vline2 = self.parent.ax.axvline(high_pos, color='r', linestyle='--', alpha=0.7)
+
+                # Update VBM controls to match vLine positions (with .2f format)
+                self.vbm_edge_ctrl.SetValue(float(f"{low_pos:.2f}"))
+                self.vbm_bg_center_ctrl.SetValue(float(f"{high_pos:.2f}"))
+        else:
+            # VLines are valid, just reposition them to 10% and 90%
+            plot_range = self.get_vb_plot_range_positions()
+            if plot_range:
+                low_pos, high_pos = plot_range
+
+                # Set vLines to 10% and 90% positions
+                self.parent.vline1.set_xdata([low_pos, low_pos])
+                self.parent.vline2.set_xdata([high_pos, high_pos])
+
+                # Update VBM controls to match vLine positions (with .2f format)
+                self.vbm_edge_ctrl.SetValue(float(f"{low_pos:.2f}"))
+                self.vbm_bg_center_ctrl.SetValue(float(f"{high_pos:.2f}"))
+
+        # Ensure vLines are visible
+        if self.parent.vline1 is not None:
+            self.parent.vline1.set_visible(True)
+        if self.parent.vline2 is not None:
+            self.parent.vline2.set_visible(True)
 
         # Enable background interaction for dragging
         self.parent.background_tab_selected = True
@@ -899,7 +960,10 @@ Min Intensity: {np.min(y_data):.2f}"""
         if hasattr(self.parent, 'vb_measurements_window'):
             self.parent.vb_measurements_window = None
 
-        # Redraw canvas
+        # Replot data and update legend when closing window
+        self.parent.clear_and_replot()
+
+        # Ensure canvas is redrawn
         self.parent.canvas.draw_idle()
 
         self.Destroy()
