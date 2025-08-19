@@ -325,6 +325,11 @@ def rename_sheet(window, new_sheet_name):
     if not new_sheet_name:
         return
 
+    # Check for single word validation
+    if len(new_sheet_name.split()) > 1:
+        window.show_popup_message2("Invalid Name", "Only one single word is allowed for core levels or sheet names.")
+        return
+
     # Create backup before renaming
     from libraries.Utilities import perform_auto_backup
     perform_auto_backup(window)

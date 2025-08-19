@@ -18,7 +18,7 @@ class FileManagerWindow(wx.Frame):
         if hasattr(parent, 'Data') and 'Core levels' in parent.Data:
             max_index = 0
             for sheet_name in parent.Data['Core levels'].keys():
-                match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+                match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)
                 if match:
                     index_str = match.group(1)
                     index = int(index_str) if index_str else 0
@@ -599,7 +599,7 @@ class FileManagerWindow(wx.Frame):
 
         return sorted(list(unique_levels))
 
-    def extract_base_name(self, sheet_name):
+    def extract_base_name_OLD(self, sheet_name):
         """Extract base core level name without any trailing numbers"""
         # Add support for Raman files with underscores
         if "Raman_" in sheet_name or "Ra_" in sheet_name:
@@ -614,13 +614,42 @@ class FileManagerWindow(wx.Frame):
             return match.group(1)
         return sheet_name
 
+    def extract_base_name(self, sheet_name):
+        """Extract base core level name without any trailing numbers"""
+        # Add support for Raman files with underscores
+        if "Raman_" in sheet_name or "Ra_" in sheet_name:
+            # Special handling for Raman files with underscores
+            base_parts = sheet_name.split('_')
+            if len(base_parts) > 1:
+                return '_'.join(base_parts[:-1]) if base_parts[-1].isdigit() else sheet_name
+
+        # Updated pattern to handle hyphens in core level names like "Cut-Off"
+        match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet_name)
+        if match:
+            return match.group(1)
+        return sheet_name
+
+    def get_max_core_level_row_index_OLD(self):
+        """Get the maximum row index based on core level naming"""
+        max_index = 0
+
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            for sheet_name in self.parent.Data['Core levels'].keys():
+                match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)
+                if match:
+                    index_str = match.group(1)
+                    index = int(index_str) if index_str else 0
+                    max_index = max(max_index, index)
+
+        return max_index
+
     def get_max_core_level_row_index(self):
         """Get the maximum row index based on core level naming"""
         max_index = 0
 
         if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
             for sheet_name in self.parent.Data['Core levels'].keys():
-                match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+                match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)
                 if match:
                     index_str = match.group(1)
                     index = int(index_str) if index_str else 0
@@ -636,7 +665,8 @@ class FileManagerWindow(wx.Frame):
         # Find maximum index across all sheets
         max_index = 0
         for sheet_name in self.parent.Data['Core levels'].keys():
-            match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+            # match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+            match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)  # Updated pattern
             if match:
                 index_str = match.group(1)
                 index = int(index_str) if index_str else 0
@@ -680,7 +710,7 @@ class FileManagerWindow(wx.Frame):
                 index = int(index_str) if index_str else 0
             else:
                 # Original pattern for typical core levels
-                match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet_name)
                 if match:
                     base_name = match.group(1)
                     index_str = match.group(2)
@@ -1085,7 +1115,7 @@ class FileManagerWindow(wx.Frame):
         # Find the earliest available row
         used_rows = []
         for sheet in self.parent.Data['Core levels'].keys():
-            match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet)
+            match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet)
             if match:
                 sheet_base = match.group(1)
                 row_str = match.group(2)
@@ -1845,7 +1875,7 @@ class FileManagerWindow(wx.Frame):
         for sheet_name in clipboard_data.keys():
             # Extract the true base name (e.g., "C1s" from "C1s2")
             # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
-            match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
+            match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
             if match:
                 base_name = match.group(1)
                 if base_name not in core_level_groups:
@@ -1882,7 +1912,7 @@ class FileManagerWindow(wx.Frame):
 
             # Extract base name and determine which group it belongs to
             # match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
-            match_base = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
+            match_base = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
             if match_base:
                 base_name = match_base.group(1)
 
@@ -2204,107 +2234,22 @@ class FileManagerWindow(wx.Frame):
             from libraries.Sheet_Operations import on_sheet_selected
             on_sheet_selected(self.parent, sheet_name)
 
-            dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name}:", "Rename Core Level", sheet_name)
+            dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name} (single word only):", "Rename Core Level",
+                                     sheet_name)
             if dlg.ShowModal() == wx.ID_OK:
                 new_name = dlg.GetValue()
                 if new_name and new_name != sheet_name:
-                    from libraries.Utilities import rename_sheet
-                    rename_sheet(self.parent, new_name)
-
-                    # Reload the grid after renaming
-                    self.populate_grid()
+                    # Check for single word validation
+                    if len(new_name.split()) > 1:
+                        self.parent.show_popup_message2("Invalid Name",
+                                                        "Only single words are allowed for sheet names.")
+                    else:
+                        from libraries.Utilities import rename_sheet
+                        rename_sheet(self.parent, new_name)
+                        # Reload the grid after renaming
+                        self.populate_grid()
             dlg.Destroy()
 
-    def on_delete_OLD(self, event):
-        """Delete selected core level(s)."""
-        # Gather all sheet names to delete
-        sheet_names = []
-
-        # Check if cells are selected
-        selected_cells = []
-        for row in range(self.grid.GetNumberRows()):
-            for col in range(1, len(self.core_levels) + 1):  # Skip sample name column
-                if self.grid.IsInSelection(row, col):
-                    cell_value = self.grid.GetCellValue(row, col)
-                    if cell_value and cell_value in self.parent.Data['Core levels']:
-                        sheet_names.append(cell_value)
-
-        # If no cells selected, try current cursor position
-        if not sheet_names:
-            row = self.grid.GetGridCursorRow()
-            col = self.grid.GetGridCursorCol()
-
-            if col > 0 and col <= len(self.core_levels):
-                cell_value = self.grid.GetCellValue(row, col)
-                if cell_value and cell_value in self.parent.Data['Core levels']:
-                    sheet_names.append(cell_value)
-
-        # Remove duplicates
-        sheet_names = list(set(sheet_names))
-
-        if not sheet_names:
-            self.parent.show_popup_message2("Information", "No core levels selected.")
-            return
-
-        # Confirm deletion
-        if wx.MessageBox(f"Are you sure you want to delete {len(sheet_names)} core level(s)?",
-                         "Confirm Delete", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
-            return
-
-        # Backup before deletion
-        from libraries.Utilities import perform_auto_backup
-        perform_auto_backup(self.parent)
-
-        # Delete the sheets
-        for sheet_name in sheet_names:
-            # Delete the sheet from parent Data
-            if sheet_name in self.parent.Data['Core levels']:
-                del self.parent.Data['Core levels'][sheet_name]
-                self.parent.Data['Number of Core levels'] -= 1
-
-                # Also remove from Excel file if possible
-                try:
-                    import pandas as pd
-                    from openpyxl import load_workbook
-
-                    excel_path = self.parent.Data.get('FilePath', '')
-                    if excel_path and os.path.exists(excel_path):
-                        book = load_workbook(excel_path)
-                        if sheet_name in book.sheetnames:
-                            del book[sheet_name]
-                            book.save(excel_path)
-                except Exception as e:
-                    print(f"Error removing sheet from Excel: {e}")
-
-        # Save JSON file
-        json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-        from libraries.FileMenu.Save import convert_to_serializable_and_round
-        json_data = convert_to_serializable_and_round(self.parent.Data)
-        with open(json_file_path, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
-
-        # Update the parent's combobox
-        if hasattr(self.parent, 'sheet_combobox'):
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            self.parent.sheet_combobox.Clear()
-            for sheet in self.parent.Data['Core levels'].keys():
-                self.parent.sheet_combobox.Append(sheet)
-
-            # Select an available sheet
-            if current_sheet in self.parent.Data['Core levels']:
-                self.parent.sheet_combobox.SetValue(current_sheet)
-            elif self.parent.sheet_combobox.GetCount() > 0:
-                self.parent.sheet_combobox.SetSelection(0)
-                new_sheet = self.parent.sheet_combobox.GetValue()
-                from libraries.Sheet_Operations import on_sheet_selected
-                on_sheet_selected(self.parent, new_sheet)
-
-        # Close and reopen the file manager to refresh all columns
-        self.parent.file_manager = None  # Clear the reference
-        self.Destroy()  # Close current file manager
-        wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
-
-        self.parent.show_popup_message2("Success", f"Deleted {len(sheet_names)} core level(s).")
 
     def on_delete(self, event):
         """Delete selected core level(s)."""
@@ -2644,7 +2589,7 @@ class FileManagerWindow(wx.Frame):
             else:
                 # Regular core level
                 # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
                 if match:
                     base_name, sample_num = match.groups()
                 else:
@@ -4027,147 +3972,6 @@ class FileManagerWindow(wx.Frame):
         exp_window = ExperimentalDescriptionWindow(self, sheet_name)
         exp_window.Show()
 
-    def on_insert_row_OLD(self, target_row):
-        """Insert a new row above the target row, incrementing all higher row numbers"""
-        if wx.MessageBox(f"Insert new row above row {target_row}?\nThis will increment all higher row numbers.",
-                         "Confirm Insert Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
-            return
-
-        # Backup before operation
-        from libraries.Utilities import perform_auto_backup
-        perform_auto_backup(self.parent)
-
-        # Get all core levels and group by row number
-        core_levels_by_row = {}
-        sheets_to_rename = []
-
-        for sheet_name in list(self.parent.Data['Core levels'].keys()):
-            # Handle Raman files with underscore
-            if "Raman_" in sheet_name or "Ra_" in sheet_name:
-                base_parts = sheet_name.split('_')
-                base_name = base_parts[0] + "_" + base_parts[1]
-                if len(base_parts) > 2 and base_parts[2].isdigit():
-                    row_num = int(base_parts[2])
-                else:
-                    row_num = 0
-            else:
-                # Regular core level parsing
-                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
-                if match:
-                    base_name = match.group(1)
-                    row_str = match.group(2)
-                    row_num = int(row_str) if row_str else 0
-                else:
-                    continue
-
-            if row_num >= target_row:
-                sheets_to_rename.append((sheet_name, base_name, row_num))
-
-            if row_num not in core_levels_by_row:
-                core_levels_by_row[row_num] = []
-            core_levels_by_row[row_num].append(sheet_name)
-
-        # Sort sheets to rename by row number (descending to avoid conflicts)
-        sheets_to_rename.sort(key=lambda x: x[2], reverse=True)
-
-        try:
-            import pandas as pd
-            from openpyxl import load_workbook
-
-            file_path = self.parent.Data['FilePath']
-
-            # Read Excel file
-            wb = load_workbook(file_path)
-            data_frames = {}
-
-            # Store data for sheets that will be renamed
-            for sheet_name in self.parent.Data['Core levels']:
-                if sheet_name in wb.sheetnames:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name)
-                    data_frames[sheet_name] = df
-
-            # Rename sheets in reverse order (highest row numbers first)
-            renamed_sheets = {}
-            for old_name, base_name, old_row in sheets_to_rename:
-                new_row = old_row + 1
-
-                # Create new name
-                if "Raman_" in old_name or "Ra_" in old_name:
-                    new_name = f"{base_name}_{new_row}" if new_row > 0 else base_name
-                else:
-                    new_name = f"{base_name}{new_row}" if new_row > 0 else base_name
-
-                # Update Data structure
-                if old_name in self.parent.Data['Core levels']:
-                    core_level_data = self.parent.Data['Core levels'][old_name]
-                    core_level_data['Name'] = new_name
-                    self.parent.Data['Core levels'][new_name] = core_level_data
-                    del self.parent.Data['Core levels'][old_name]
-                    renamed_sheets[old_name] = new_name
-
-            # Update BE corrections - shift row numbers
-            if 'BEcorrections' in self.parent.Data:
-                new_be_corrections = {}
-                for row_str, correction in self.parent.Data['BEcorrections'].items():
-                    row_num = int(row_str)
-                    if row_num >= target_row:
-                        new_be_corrections[str(row_num + 1)] = correction
-                    else:
-                        new_be_corrections[row_str] = correction
-                self.parent.Data['BEcorrections'] = new_be_corrections
-
-            # Update sample names - shift row numbers
-            new_sample_names = {}
-            for row_str, name in self.sample_names.items():
-                row_num = int(row_str)
-                if row_num >= target_row:
-                    new_sample_names[str(row_num + 1)] = name
-                else:
-                    new_sample_names[row_str] = name
-            self.sample_names = new_sample_names
-            self.parent.Data['SampleNames'] = self.sample_names
-
-            # Write Excel file with new sheet names
-            with pd.ExcelWriter(file_path, engine='openpyxl', mode='w') as writer:
-                # Write all sheets with updated names
-                for old_name, df in data_frames.items():
-                    if old_name in renamed_sheets:
-                        new_name = renamed_sheets[old_name]
-                        df.to_excel(writer, sheet_name=new_name, index=False)
-                    else:
-                        df.to_excel(writer, sheet_name=old_name, index=False)
-
-            # Update parent combobox
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            self.parent.sheet_combobox.Clear()
-            for sheet_name in sorted(self.parent.Data['Core levels'].keys()):
-                self.parent.sheet_combobox.Append(sheet_name)
-
-            # Update current selection if it was renamed
-            if current_sheet in renamed_sheets:
-                new_current = renamed_sheets[current_sheet]
-                self.parent.sheet_combobox.SetValue(new_current)
-            elif current_sheet in self.parent.Data['Core levels']:
-                self.parent.sheet_combobox.SetValue(current_sheet)
-            elif self.parent.sheet_combobox.GetCount() > 0:
-                self.parent.sheet_combobox.SetSelection(0)
-
-            # Save JSON file
-            json_file_path = os.path.splitext(file_path)[0] + '.json'
-            from libraries.FileMenu.Save import convert_to_serializable_and_round
-            json_data = convert_to_serializable_and_round(self.parent.Data)
-            with open(json_file_path, 'w') as json_file:
-                json.dump(json_data, json_file, indent=2)
-
-            # Refresh grid
-            self.populate_grid()
-
-            # self.parent.show_popup_message2("Success", f"Inserted row above row {target_row}. "
-            #                                            f"{len(sheets_to_rename)} sheets renamed.")
-
-        except Exception as e:
-            self.parent.show_popup_message2("Error", f"Error inserting row: {str(e)}")
 
     def on_insert_row(self, target_row):
         """Insert a new row above the target row, incrementing all higher row numbers"""
@@ -4190,7 +3994,7 @@ class FileManagerWindow(wx.Frame):
                     row_num = 0
             else:
                 # Regular core level parsing
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
                 if match:
                     base_name = match.group(1)
                     row_str = match.group(2)
@@ -4287,181 +4091,6 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             wx.MessageBox(f"Error inserting row: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-    def on_delete_row_OLD(self, target_row):
-        """Delete all core levels in the target row and decrement higher row numbers"""
-        # Find sheets in target row
-        sheets_in_row = []
-        for col in range(1, len(self.core_levels) + 1):
-            cell_value = self.grid.GetCellValue(target_row, col)
-            if cell_value and cell_value in self.parent.Data['Core levels']:
-                sheets_in_row.append(cell_value)
-
-        # Handle empty row case
-        if not sheets_in_row:
-            if wx.MessageBox(f"Delete empty row {target_row}?\n"
-                             f"This will decrement all higher row numbers.",
-                             "Confirm Delete Empty Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
-                return
-            sheets_to_delete = set()
-        else:
-            # Confirm deletion for non-empty row
-            if wx.MessageBox(f"Delete all {len(sheets_in_row)} core level(s) in row {target_row}?\n"
-                             f"This will decrement all higher row numbers.\n\n"
-                             f"Sheets to delete: {', '.join(sheets_in_row)}",
-                             "Confirm Delete Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
-                return
-            sheets_to_delete = set(sheets_in_row)
-
-        # Backup before operation
-        from libraries.Utilities import perform_auto_backup
-        perform_auto_backup(self.parent)
-
-        # Get all core levels and identify sheets to rename
-        sheets_to_rename = []
-
-        for sheet_name in list(self.parent.Data['Core levels'].keys()):
-            # Handle Raman files with underscore
-            if "Raman_" in sheet_name or "Ra_" in sheet_name:
-                base_parts = sheet_name.split('_')
-                base_name = base_parts[0] + "_" + base_parts[1]
-                if len(base_parts) > 2 and base_parts[2].isdigit():
-                    row_num = int(base_parts[2])
-                else:
-                    row_num = 0
-            else:
-                # Regular core level parsing
-                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
-                if match:
-                    base_name = match.group(1)
-                    row_str = match.group(2)
-                    row_num = int(row_str) if row_str else 0
-                else:
-                    continue
-
-            if row_num > target_row:
-                sheets_to_rename.append((sheet_name, base_name, row_num))
-
-        # Sort sheets to rename by row number (ascending to avoid conflicts)
-        sheets_to_rename.sort(key=lambda x: x[2])
-
-        try:
-            import pandas as pd
-            from openpyxl import load_workbook
-
-            file_path = self.parent.Data['FilePath']
-
-            # Read Excel file
-            wb = load_workbook(file_path)
-            data_frames = {}
-
-            # Store data for sheets that will be kept
-            for sheet_name in self.parent.Data['Core levels']:
-                if sheet_name not in sheets_to_delete and sheet_name in wb.sheetnames:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name)
-                    data_frames[sheet_name] = df
-
-            # Delete sheets from Data structure (only if row wasn't empty)
-            for sheet_name in sheets_to_delete:
-                if sheet_name in self.parent.Data['Core levels']:
-                    del self.parent.Data['Core levels'][sheet_name]
-                    self.parent.Data['Number of Core levels'] -= 1
-
-            # Rename sheets with higher row numbers (decrement by 1)
-            renamed_sheets = {}
-            for old_name, base_name, old_row in sheets_to_rename:
-                new_row = old_row - 1
-
-                # Create new name
-                if "Raman_" in old_name or "Ra_" in old_name:
-                    new_name = f"{base_name}_{new_row}" if new_row > 0 else base_name
-                else:
-                    new_name = f"{base_name}{new_row}" if new_row > 0 else base_name
-
-                # Update Data structure
-                if old_name in self.parent.Data['Core levels']:
-                    core_level_data = self.parent.Data['Core levels'][old_name]
-                    core_level_data['Name'] = new_name
-                    self.parent.Data['Core levels'][new_name] = core_level_data
-                    del self.parent.Data['Core levels'][old_name]
-                    renamed_sheets[old_name] = new_name
-
-                    # Update data_frames dict
-                    if old_name in data_frames:
-                        data_frames[new_name] = data_frames[old_name]
-                        del data_frames[old_name]
-
-            # Update BE corrections - remove target row and shift higher rows
-            if 'BEcorrections' in self.parent.Data:
-                new_be_corrections = {}
-                for row_str, correction in self.parent.Data['BEcorrections'].items():
-                    row_num = int(row_str)
-                    if row_num == target_row:
-                        continue  # Skip deleted row
-                    elif row_num > target_row:
-                        new_be_corrections[str(row_num - 1)] = correction
-                    else:
-                        new_be_corrections[row_str] = correction
-                self.parent.Data['BEcorrections'] = new_be_corrections
-
-            # Update sample names - remove target row and shift higher rows
-            new_sample_names = {}
-            for row_str, name in self.sample_names.items():
-                row_num = int(row_str)
-                if row_num == target_row:
-                    continue  # Skip deleted row
-                elif row_num > target_row:
-                    new_sample_names[str(row_num - 1)] = name
-                else:
-                    new_sample_names[row_str] = name
-            self.sample_names = new_sample_names
-            self.parent.Data['SampleNames'] = self.sample_names
-
-            # Write Excel file with updated sheet names (excluding deleted sheets)
-            with pd.ExcelWriter(file_path, engine='openpyxl', mode='w') as writer:
-                for sheet_name, df in data_frames.items():
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-            # Update parent combobox
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            self.parent.sheet_combobox.Clear()
-            for sheet_name in sorted(self.parent.Data['Core levels'].keys()):
-                self.parent.sheet_combobox.Append(sheet_name)
-
-            # Update current selection
-            if current_sheet in sheets_to_delete:
-                # Current sheet was deleted, select first available
-                if self.parent.sheet_combobox.GetCount() > 0:
-                    self.parent.sheet_combobox.SetSelection(0)
-                    from libraries.Sheet_Operations import on_sheet_selected
-                    on_sheet_selected(self.parent, self.parent.sheet_combobox.GetValue())
-            elif current_sheet in renamed_sheets:
-                # Current sheet was renamed
-                new_current = renamed_sheets[current_sheet]
-                self.parent.sheet_combobox.SetValue(new_current)
-            elif current_sheet in self.parent.Data['Core levels']:
-                self.parent.sheet_combobox.SetValue(current_sheet)
-
-            # Save JSON file
-            json_file_path = os.path.splitext(file_path)[0] + '.json'
-            from libraries.FileMenu.Save import convert_to_serializable_and_round
-            json_data = convert_to_serializable_and_round(self.parent.Data)
-            with open(json_file_path, 'w') as json_file:
-                json.dump(json_data, json_file, indent=2)
-
-            # Refresh grid
-            self.populate_grid()
-
-            # if sheets_to_delete:
-            #     self.parent.show_popup_message2("Success",
-            #                                     f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
-            #                                     f"{len(sheets_to_rename)} sheets renumbered.")
-            # else:
-            #     self.parent.show_popup_message2("Success", f"Deleted empty row {target_row}. "
-            #                                                f"{len(sheets_to_rename)} sheets renumbered.")
-
-        except Exception as e:
-            self.parent.show_popup_message2("Error", f"Error deleting row: {str(e)}")
 
     def on_delete_row(self, target_row):
         """Delete all core levels in the target row and decrement higher row numbers"""
@@ -4506,7 +4135,7 @@ class FileManagerWindow(wx.Frame):
                     row_num = 0
             else:
                 # Regular core level parsing
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
                 if match:
                     base_name = match.group(1)
                     row_str = match.group(2)
@@ -4670,7 +4299,7 @@ class FileManagerWindow(wx.Frame):
                 smoothed_y = gaussian_filter(y, sigma=1)
 
                 # Get base name for new sheet
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
                 base_name = match.group(1) if match else sheet_name
 
                 # Use existing utility method to find next available name
@@ -4714,7 +4343,7 @@ class FileManagerWindow(wx.Frame):
 
             # Select first new smoothed sheet
             if selected_sheets:
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
+                match = re.match(r'([A-Za-z-]+\d*[spdfg]*)', selected_sheets[0])
                 base_name = match.group(1) if match else selected_sheets[0]
                 plot_mod = PlotModWindow(self.parent)
                 new_name = plot_mod.get_earliest_row_name(base_name)
@@ -4769,7 +4398,7 @@ class FileManagerWindow(wx.Frame):
                 multiplied_y = [val * 1000 for val in y]
 
                 # Get base name for new sheet
-                match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)', sheet_name)
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
                 base_name = match.group(1) if match else sheet_name
 
                 # Use existing utility method to find next available name
@@ -4813,7 +4442,7 @@ class FileManagerWindow(wx.Frame):
 
             # Select first new multiplied sheet
             if selected_sheets:
-                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', selected_sheets[0])
+                match = re.match(r'([A-Za-z-]+\d*[spdfg]*)', selected_sheets[0])
                 base_name = match.group(1) if match else selected_sheets[0]
                 plot_mod = PlotModWindow(self.parent)
                 new_name = plot_mod.get_earliest_row_name(base_name)

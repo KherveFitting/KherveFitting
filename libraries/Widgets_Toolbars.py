@@ -916,12 +916,16 @@ def create_horizontal_toolbar(parent, window):
                 pass
 
         # Show dialog with current sheet name pre-populated
-        dlg = wx.TextEntryDialog(window, 'Enter new sheet name:', 'Rename Sheet', current_sheet_name)
+        dlg = wx.TextEntryDialog(window, 'Enter new sheet name (single word only):', 'Rename Sheet', current_sheet_name)
         if dlg.ShowModal() == wx.ID_OK:
             new_name = dlg.GetValue()
             if new_name and new_name != current_sheet_name:
-                from libraries.Utilities import rename_sheet
-                rename_sheet(window, new_name)
+                # Check for single word validation
+                if len(new_name.split()) > 1:
+                    window.show_popup_message2("Invalid Name", "Only a single word is allowed for sheet names or core levels.")
+                else:
+                    from libraries.Utilities import rename_sheet
+                    rename_sheet(window, new_name)
         dlg.Destroy()
 
     crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',

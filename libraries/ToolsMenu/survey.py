@@ -264,6 +264,8 @@ class PeriodicTableWindow(wx.Frame):
         self.remove_all_btn = wx.Button(panel, label="Clear All List")
         self.remove_last_label_btn = wx.Button(panel, label="Clear Last Label")
         self.remove_all_labels_btn = wx.Button(panel, label="Clear All Labels")
+        self.auto_id_button = wx.Button(panel, label="Auto ID")
+
 
         # Bind events
         self.add_labels_btn.Bind(wx.EVT_BUTTON, self.OnAddLabels)
@@ -272,6 +274,7 @@ class PeriodicTableWindow(wx.Frame):
         self.remove_all_btn.Bind(wx.EVT_BUTTON, self.OnRemoveAll)
         self.remove_last_label_btn.Bind(wx.EVT_BUTTON, self.OnRemoveLastLabel)
         self.remove_all_labels_btn.Bind(wx.EVT_BUTTON, self.OnRemoveAllLabels)
+        self.auto_id_button.Bind(wx.EVT_BUTTON, self.on_auto_id)
 
         button_sizer.Add(self.add_labels_btn, pos=(0, 0), flag=wx.EXPAND)
         button_sizer.Add(self.add_peak_btn, pos=(0, 1), flag=wx.EXPAND)
@@ -279,6 +282,7 @@ class PeriodicTableWindow(wx.Frame):
         button_sizer.Add(self.remove_all_btn, pos=(1, 1), flag=wx.EXPAND)
         button_sizer.Add(self.remove_last_label_btn, pos=(2, 0), flag=wx.EXPAND)
         button_sizer.Add(self.remove_all_labels_btn, pos=(2, 1), flag=wx.EXPAND)
+        button_sizer.Add(self.auto_id_button, pos=(3, 0), flag=wx.EXPAND)
 
         right_sizer.Add(button_sizer, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -1486,8 +1490,12 @@ class PeriodicTableWindow(wx.Frame):
 
         self.parent_window.canvas.draw_idle()
 
-
-
+    def on_auto_id(self, event):
+        """Launch automatic survey identification"""
+        from libraries.ToolsMenu.AutoID import AutoSurveyID
+        auto_id = AutoSurveyID(self.parent_window)
+        auto_id.run()
+        self.Close()
 
     def Close(self, force=False):
         self.reset_all_buttons()

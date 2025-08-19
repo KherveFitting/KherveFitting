@@ -38,7 +38,7 @@ def populate_results_grid(window):
         # Populate the grid
         for row, (peak_label, peak_data) in enumerate(results.items()):
             window.results_grid.SetCellValue(row, 0, peak_data.get('Name', ''))
-            window.results_grid.SetCellValue(row, 1, str(peak_data.get('Position', '')))
+            window.results_grid.SetCellValue(row, 1, f"{peak_data.get('Position', 0):.2f}")
             window.results_grid.SetCellValue(row, 2, str(peak_data.get('Height', '')))
             window.results_grid.SetCellValue(row, 3, str(peak_data.get('FWHM', '')))
             window.results_grid.SetCellValue(row, 4, str(peak_data.get('L/G', '')))
