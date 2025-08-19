@@ -3,6 +3,7 @@ from libraries.FileMenu.Save import save_state
 from Functions import remove_peak
 import numpy as np
 import time
+from libraries.ToolsMenu.AutoID import AutoSurveyID
 
 class BackgroundWindow(wx.Frame):
     def __init__(self, parent, *args, **kw):
@@ -116,19 +117,26 @@ class BackgroundWindow(wx.Frame):
         self.tougaard_fit_btn.Bind(wx.EVT_BUTTON, self.on_tougaard_model)
 
         # Add remove last peak button
-        remove_peak_button = wx.Button(panel, label="Remove\nLast Area")
+        remove_peak_button = wx.Button(panel, label="Remove Last\nBackground / Area")
         if 'wxMac' in wx.PlatformInfo:
             remove_peak_button.SetMinSize((90, 30))
         else:
             remove_peak_button.SetMinSize((90, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
-        clear_background_button = wx.Button(panel, label="Clear\nAll")
+        # clear_background_button = wx.Button(panel, label="Clear\nAll")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     clear_background_button.SetMinSize((125, 30))
+        # else:
+        #     clear_background_button.SetMinSize((110, 35))
+        # clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
+
+        auto_id_button = wx.Button(panel, label="Automatic\nIdentification")
         if 'wxMac' in wx.PlatformInfo:
-            clear_background_button.SetMinSize((125, 30))
+            auto_id_button.SetMinSize((125, 30))
         else:
-            clear_background_button.SetMinSize((110, 35))
-        clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
+            auto_id_button.SetMinSize((110, 35))
+        auto_id_button.Bind(wx.EVT_BUTTON, self.on_auto_id)
 
         # Change the reset button to switch positions button
         switch_vlines_button = wx.Button(panel, label="Switch Regions\n TAB key")
@@ -217,7 +225,7 @@ class BackgroundWindow(wx.Frame):
 
             # sizer.Add(export_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(core_level_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(remove_peak_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(auto_id_button, pos=(10, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
             # Seventh row: Remove peak and Export buttons
@@ -225,7 +233,8 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(switch_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             sizer.Add(background_only_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(clear_background_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            # sizer.Add(clear_background_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
         else:  # For Windows
             # First row: Method
             sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -266,7 +275,7 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
             sizer.Add(switch_vlines_button, pos=(10, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(remove_peak_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=0)
+            sizer.Add(auto_id_button, pos=(10, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
             # Seventh row: Remove peak and Export buttons
@@ -280,7 +289,9 @@ class BackgroundWindow(wx.Frame):
             # Sixth row: Background and Clear Background buttons
             # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
             sizer.Add(background_only_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
 
 
         # Initially disable all Tougaard controls
@@ -2254,6 +2265,29 @@ class BackgroundWindow(wx.Frame):
         # if hasattr(self, 'core_level_list_window') and self.core_level_list_window:
         #     self.core_level_list_window.Close()
         #     self.core_level_list_window = None
+
+    def on_auto_id(self, event):
+        """Run Auto ID functionality for survey/wide scan identification"""
+        try:
+            sheet_name = self.parent.sheet_combobox.GetValue()
+
+            # Check if this is a survey or wide scan
+            if not any(x in sheet_name.lower() for x in ['survey', 'wide']):
+                wx.MessageBox("Auto ID is only available for Survey or Wide scan sheets", "Info",
+                              wx.OK | wx.ICON_INFORMATION)
+                return
+
+            # Import and run AutoSurveyID
+            from libraries.ToolsMenu.AutoID import AutoSurveyID
+            auto_id = AutoSurveyID(self.parent)
+            auto_id.run()
+
+
+
+        except ImportError:
+            wx.MessageBox("AutoID module not found", "Error", wx.OK | wx.ICON_ERROR)
+        except Exception as e:
+            wx.MessageBox(f"Auto ID failed: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
     def get_linux_desktop(self):

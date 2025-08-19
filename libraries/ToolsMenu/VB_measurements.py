@@ -228,6 +228,7 @@ class VB_measurements(wx.Frame):
 
     def InitUI(self):
         panel = wx.Panel(self)
+        panel.SetBackgroundColour(wx.Colour(240, 225, 225))  # Orange background
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Left side - Controls

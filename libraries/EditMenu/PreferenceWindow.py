@@ -1331,7 +1331,7 @@ class PreferenceWindow(wx.Frame):
         self.parent.library_data = load_library_data()  # Reload library
         self.parent.show_popup_message2("Success", "Library converted to Parquet")
 
-    def on_view_library(self, evt):
+    def on_view_library_OLD(self, evt):
         import math  # Add this import at the top
 
         instrument = self.instrument_combo.GetValue()
@@ -1392,6 +1392,11 @@ class PreferenceWindow(wx.Frame):
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(grid, 1, wx.EXPAND | wx.ALL, 5)
         dlg.SetSizer(sizer)
+        dlg.ShowModal()
+        dlg.Destroy()
+
+    def on_view_library(self, event):
+        dlg = LibraryViewDialog(self, self.parent.library_data, self.parent.current_instrument)
         dlg.ShowModal()
         dlg.Destroy()
 
@@ -1499,6 +1504,176 @@ class PreferenceWindow(wx.Frame):
             return 'xfce'
 
         return 'unknown'
+
+
+class LibraryViewDialog(wx.Dialog):
+    def __init__(self, parent, library_data, instrument):
+        super().__init__(parent, title="Library Data - Read only version", size=(900, 600))
+
+        self.library_data = library_data
+        self.instrument = instrument
+        self.ds_instrument = instrument + "_DS"
+
+        # Sorting state
+        self.sort_column = None
+        self.sort_ascending = True
+        self.data_list = []
+
+        self.create_grid()
+        self.populate_data()
+        self.update_grid()
+
+    def create_grid(self):
+        panel = wx.Panel(self)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Add debug info
+        debug_text = wx.StaticText(panel,
+                                   label=f"Instrument: {self.instrument}, Total entries: {len(self.library_data)}")
+        sizer.Add(debug_text, 0, wx.ALL, 5)
+
+        self.grid = wx.grid.Grid(panel)
+        self.grid.CreateGrid(0, 6)
+
+        self.grid.SetColLabelValue(0, "Element")
+        self.grid.SetColLabelValue(1, "Position (eV)")
+        self.grid.SetColLabelValue(2, "RSF Library")
+        self.grid.SetColLabelValue(3, "RSF")
+        self.grid.SetColLabelValue(4, "DS Library")
+        self.grid.SetColLabelValue(5, "DS")
+
+        self.grid.SetColSize(0, 100)
+        self.grid.SetColSize(1, 100)
+        self.grid.SetColSize(2, 150)
+        self.grid.SetColSize(3, 100)
+        self.grid.SetColSize(4, 150)
+        self.grid.SetColSize(5, 100)
+
+        self.grid.EnableEditing(False)
+
+        # Bind column click event for sorting
+        self.grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_CLICK, self.on_column_click)
+
+        sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 5)
+        panel.SetSizer(sizer)
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(panel, 1, wx.EXPAND)
+        self.SetSizer(main_sizer)
+
+    def populate_data(self):
+        """Populate data list from library_data"""
+        self.data_list = []
+
+        print(f"DEBUG: Looking for instrument: {self.instrument}")
+        print(f"DEBUG: Total library entries: {len(self.library_data)}")
+
+        # Get all available instruments first
+        all_instruments = set()
+        for data in self.library_data.values():
+            all_instruments.update(data.keys())
+        print(f"DEBUG: Available instruments: {sorted(list(all_instruments))}")
+
+        found_count = 0
+        for element_orbital, data in sorted(self.library_data.items()):
+            element, orbital = element_orbital
+
+            # Check if the main instrument exists
+            if self.instrument in data:
+                found_count += 1
+                values = data[self.instrument]
+
+                # Format position value
+                position_value = f"{values['position']:.2f}" if values['position'] is not None else "0.00"
+
+                # Format RSF value
+                rsf_value = f"{values['rsf']:.2f}" if values['rsf'] is not None else "0.00"
+
+                # Try to get DS values - be flexible about DS instrument
+                ds_value = "---"
+                ds_instrument_name = self.ds_instrument
+
+                # Check for DS data in various formats
+                if self.ds_instrument in data:
+                    ds_values = data[self.ds_instrument]
+                    if ds_values['ds'] is not None:
+                        ds_value = f"{ds_values['ds']:.2f}"
+                    ds_instrument_name = self.ds_instrument
+                else:
+                    # Try fallback DS instruments
+                    fallback_ds = ["C-Al1486", "Al1486_DS", "DS"]
+                    for fallback in fallback_ds:
+                        if fallback in data and data[fallback].get('ds') is not None:
+                            ds_value = f"{data[fallback]['ds']:.2f}"
+                            ds_instrument_name = fallback
+                            break
+
+                self.data_list.append([
+                    f"{element} {orbital}",
+                    position_value,
+                    self.instrument,
+                    rsf_value,
+                    ds_instrument_name,
+                    ds_value
+                ])
+
+        print(f"DEBUG: Found {found_count} entries with instrument {self.instrument}")
+        print(f"DEBUG: Final data list has {len(self.data_list)} entries")
+
+    def update_grid(self):
+        """Update grid with sorted data"""
+        # Sort data if column is selected
+        if self.sort_column is not None:
+            # For numeric columns (Position, RSF and DS), convert to float for proper sorting
+            if self.sort_column in [1, 3, 5]:
+                def sort_key(x):
+                    try:
+                        return float(x[self.sort_column]) if x[self.sort_column] not in ["---", "0.00"] else 0.0
+                    except (ValueError, TypeError):
+                        return 0.0
+
+                self.data_list.sort(key=sort_key, reverse=not self.sort_ascending)
+            else:
+                self.data_list.sort(
+                    key=lambda x: x[self.sort_column],
+                    reverse=not self.sort_ascending
+                )
+
+        # Clear existing rows
+        if self.grid.GetNumberRows() > 0:
+            self.grid.DeleteRows(0, self.grid.GetNumberRows())
+
+        # Add rows
+        for row_data in self.data_list:
+            self.grid.AppendRows(1)
+            row_num = self.grid.GetNumberRows() - 1
+            for col, value in enumerate(row_data):
+                self.grid.SetCellValue(row_num, col, str(value))
+
+        self.grid.ForceRefresh()
+
+    def on_column_click(self, event):
+        """Handle column header click for sorting"""
+        col = event.GetCol()
+        if col == -1:  # Row label clicked
+            return
+
+        # Toggle sort direction if same column
+        if self.sort_column == col:
+            self.sort_ascending = not self.sort_ascending
+        else:
+            self.sort_column = col
+            self.sort_ascending = True
+
+        # Update column labels to show sort direction
+        for i in range(self.grid.GetNumberCols()):
+            label = self.grid.GetColLabelValue(i)
+            label = label.replace(" ▲", "").replace(" ▼", "")
+            if i == col:
+                label += " ▲" if self.sort_ascending else " ▼"
+            self.grid.SetColLabelValue(i, label)
+
+        self.update_grid()
 
 
 
