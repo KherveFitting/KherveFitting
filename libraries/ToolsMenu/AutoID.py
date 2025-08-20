@@ -1546,9 +1546,8 @@ class AutoIDWindow(wx.Frame):
 
         # Create step tabs with new logic
         self.step_pages = []
-        step_names = ["1. Find Peaks", "2. Peak Dismissal", "3. Find Usual's", "4. Most commons Core levels",
-                      "5. Others",
-                      "6. Final Results"]
+        step_names = ["1. Find Peaks", "2. Peak Width", "3. Usual's", "4. Most commons",
+                      "5. Others", "6. Final Checked", "7. Results"]
 
         for i, name in enumerate(step_names):
             page = self.create_step_page(self.notebook, name)
@@ -1556,7 +1555,7 @@ class AutoIDWindow(wx.Frame):
             self.step_pages.append(page)
 
         # Set Final tab as active by default
-        self.notebook.SetSelection(5)  # Index 5 = Final tab
+        self.notebook.SetSelection(6)  # Index 6 = Final tab
 
         lists_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
 
@@ -1566,10 +1565,12 @@ class AutoIDWindow(wx.Frame):
         # Layout
         main_sizer.Add(method_sizer, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(param_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(manual_sizer, 0, wx.EXPAND | wx.ALL, 5)
+
         main_sizer.Add(lists_sizer, 1, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(self.status_text, 0, wx.EXPAND | wx.ALL, 5)
+
 
         panel.SetSizer(main_sizer)
         self.SetSize((650, 700))
@@ -1737,7 +1738,7 @@ class AutoIDWindow(wx.Frame):
             # Find all peaks
             self.all_peaks = self.find_peaks_with_params(x_values, y_values)
             self.assigned_peaks = set()
-            self.step_assignments = [{} for _ in range(5)]
+            self.step_assignments = [{} for _ in range(7)]  # Assignments for each step
 
             # Run the 4-step identification process
             self.run_systematic_identification()
@@ -1836,12 +1837,12 @@ class AutoIDWindow(wx.Frame):
             return 2.0  # Default fallback
 
     def run_systematic_identification(self):
-        """Run the systematic 5-step identification process"""
+        """Run the systematic 6-step identification process"""
 
         # Step 1: Show all peaks with possibilities (no assignments) - ORDERED BY PROMINENCE
         self.step1_all_peaks()
 
-        # Step 2: Peak dismissal for width filtering - NEW STEP
+        # Step 2: Peak dismissal for width filtering
         self.step2_peak_dismissal()
 
         # Step 3: Priority 1 elements with companions - ORDERED BY PROMINENCE
@@ -1853,8 +1854,11 @@ class AutoIDWindow(wx.Frame):
         # Step 5: Remaining unassigned peaks - ORDERED BY PROMINENCE
         self.step5_remaining_peaks()
 
+        # Step 6: Peak assignment dismissal - NEW STEP
+        self.step6_peak_assignment_dismissal()
+
         # Final: Compile all assignments - ORDERED BY PROMINENCE
-        self.step6_final_compilation()
+        self.step7_final_compilation()
 
     def step1_all_peaks(self):
         """Step 1: List all peaks with possible assignments, ordered by prominence"""
@@ -2078,16 +2082,164 @@ class AutoIDWindow(wx.Frame):
 
         self.populate_step_page(4, step4_data)
 
-    def step6_final_compilation(self):
-        """Step 6: Final compilation of all assignments - ordered by prominence"""
-        self.status_text.SetLabel("Step 6: Compiling final results...")
+    def step6_peak_assignment_dismissal(self):
+        """Step 6: Dismiss non-main orbital assignments if main peak not found"""
+        self.status_text.SetLabel("Step 6: Peak assignment dismissal...")
+
+        step6_data = []
+        dismissed_assignments = []
+
+        # Define which orbitals require main orbitals - FIXED MAP
+        secondary_to_main_map = {
+            '3p': '3d',  # Ba3p requires Ba3d
+            '4d': '4f',  # Ir4d requires Ir4f
+            '2s': '2p',  # F2s requires F2p (NOT F1s)
+            '3s': '3p',  # 3s requires 3p
+            '4p': '4d',  # 4p requires 4d - THIS CATCHES Au4p
+            '5d': '5f',  # 5d requires 5f
+            '2p1': '2p3',  # 2p1/2 requires 2p3/2
+        }
+
+        # Collect all currently assigned peaks with their assignments
+        assigned_elements_orbitals = set()
+        print("=== Step 6: Collecting all assignments ===")
+
+        # Check steps 2, 3, 4 (Usual's, Most commons, Others)
+        for step_idx in [2, 3, 4]:
+            if step_idx >= len(self.step_pages):
+                continue
+
+            page = self.step_pages[step_idx]
+            peak_list = page.peak_list
+            step_name = ["", "", "Usual's", "Most commons", "Others"][step_idx]
+
+            for row in range(peak_list.GetItemCount()):
+                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
+                if assigned and assigned != "" and assigned != "DISMISSED":
+                    assigned_elements_orbitals.add(assigned)
+                    print(f"  Found assignment: {assigned} (from {step_name})")
+
+        print(f"  Total assignments found: {assigned_elements_orbitals}")
+
+        # Now check assignments for dismissal and MODIFY original lists
+        print("=== Step 6: Starting dismissal checks ===")
+        for step_idx in [2, 3, 4]:
+            if step_idx >= len(self.step_pages):
+                continue
+
+            page = self.step_pages[step_idx]
+            peak_list = page.peak_list
+            step_name = ["", "", "Usual's", "Most commons", "Others"][step_idx]
+
+            print(f"  Checking step {step_idx} ({step_name}) - {peak_list.GetItemCount()} rows")
+
+            for row in range(peak_list.GetItemCount()):
+                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
+                print(f"    Row {row}: assigned='{assigned}'")
+
+                if assigned and assigned != "" and assigned != "DISMISSED":
+
+                    # Parse assignment using FIXED regex
+                    import re
+                    match = re.match(r'^([A-Za-z]+)(\\d+[a-z]+\\d*(?:/\\d+)?)$', assigned)
+                    if not match:
+                        print(f"    ✗ Regex failed for: {assigned}")
+                        continue
+
+                    element = match.group(1)
+                    orbital = match.group(2)
+                    orbital_normalized = orbital.replace('/2', '').replace('3/2', '3').replace('1/2', '1')
+
+                    print(f"    ✓ Parsed: {assigned} -> element='{element}', orbital='{orbital_normalized}'")
+
+                    # Check if this orbital requires a main orbital
+                    if orbital_normalized in secondary_to_main_map:
+                        main_orbital = secondary_to_main_map[orbital_normalized]
+                        main_assignment = f"{element}{main_orbital}"
+
+                        print(f"      Secondary orbital '{orbital_normalized}' requires main: '{main_assignment}'")
+
+                        # Check if main orbital has been assigned
+                        main_found = False
+                        for existing in assigned_elements_orbitals:
+                            existing_match = re.match(r'^([A-Za-z]+)(\\d*[a-z]+\\d*(?:/\\d+)?)$', existing)
+                            if existing_match:
+                                existing_element = existing_match.group(1)
+                                existing_orbital = existing_match.group(2).replace('/2', '').replace('3/2',
+                                                                                                     '3').replace('1/2',
+                                                                                                                  '1')
+
+                                if existing_element == element and existing_orbital == main_orbital:
+                                    main_found = True
+                                    print(f"      ✓ Found main orbital: {existing}")
+                                    break
+
+                        if not main_found:
+                            print(f"      ✗ Main orbital '{main_assignment}' NOT found - DISMISSING {assigned}")
+
+                            # MODIFY the original list - mark as DISMISSED
+                            peak_list.SetItem(row, 5, "DISMISSED")  # Update Assigned To column
+                            peak_list.SetItem(row, 6, f"No {main_assignment} found")  # Update Companion
+
+                            # Color it red
+                            peak_list.SetItemBackgroundColour(row, wx.Colour(255, 200, 200))
+
+                            # Track for step 6 display
+                            position_text = peak_list.GetItem(row, 1).GetText()
+                            position = float(position_text)
+
+                            # Find original peak data
+                            original_peak = None
+                            for peak in self.all_peaks:
+                                if abs(peak['position'] - position) < 0.1:
+                                    original_peak = peak
+                                    break
+
+                            if original_peak:
+                                dismissed_assignments.append(assigned)
+                                step6_data.append({
+                                    'peak': original_peak,
+                                    'assigned': "DISMISSED",
+                                    'confidence': 0,
+                                    'companion': f"No {main_assignment} found",
+                                    'possible': f"{assigned} (dismissed - missing main peak)"
+                                })
+
+                                # Remove from assigned peaks set
+                                self.assigned_peaks.discard(original_peak['index'])
+                        else:
+                            print(f"      ✓ Main orbital '{main_assignment}' found - keeping {assigned}")
+                    else:
+                        print(f"      ℹ Orbital '{orbital_normalized}' doesn't require main peak")
+                else:
+                    if assigned == "DISMISSED":
+                        print(f"    - Row {row}: already dismissed")
+                    else:
+                        print(f"    - Row {row}: empty assignment")
+
+        print("=== Step 6: Dismissal checks complete ===")
+
+        # SORT STEP6 DATA BY PROMINENCE
+        step6_data.sort(key=lambda x: x['peak']['prominence'], reverse=True)
+        self.populate_step_page(5, step6_data)  # Tab 5: "6. Final Checked"
+
+        if dismissed_assignments:
+            print(f"=== Step 6: Dismissed {len(dismissed_assignments)} assignments ===")
+            for assignment in dismissed_assignments:
+                print(f"  Dismissed: {assignment}")
+        else:
+            print("=== Step 6: No assignments dismissed ===")
+
+    def step7_final_compilation(self):
+        """Step 7: Final compilation of all assignments - ordered by prominence"""
+        self.status_text.SetLabel("Step 7: Compiling final results...")
 
         final_data = []
         seen_positions = set()  # Track positions to avoid duplicates
 
-        # Collect all assigned peaks from all steps (skip step 1 - peak dismissal)
-        for step_idx in range(6):  # Now we have 6 total steps (0-5)
-            if step_idx == 1:  # Skip peak dismissal step
+        # Collect all assigned peaks from all steps (skip step 1 - peak dismissal and step 6 - assignment dismissal)
+        for step_idx in range(7):  # Now we have 7 total steps (0-6)
+            if step_idx in [1, 5]:  # Skip peak dismissal (step 1) and assignment dismissal (step 5)
                 continue
 
             if step_idx >= len(self.step_pages):
@@ -2140,7 +2292,7 @@ class AutoIDWindow(wx.Frame):
         # SORT FINAL DATA BY PROMINENCE (highest first)
         final_data.sort(key=lambda x: x['peak']['prominence'], reverse=True)
 
-        self.populate_step_page(5, final_data)  # Tab 5: "6. Final Results"
+        self.populate_step_page(6, final_data)  # Tab 6: "7. Final Results"
 
     def populate_step_page(self, step_index, data_list):
         """Populate a step page with peak data including checkboxes"""
@@ -2323,6 +2475,13 @@ class AutoIDWindow(wx.Frame):
                     if 'Peaks' in self.parent.Data['Core levels'][sheet_name]['Fitting']:
                         self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
 
+                # CLEAR EXISTING BACKGROUND DATA - RESET TO RAW DATA
+                if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+                    # Reset background to raw data to clear any previous processing
+                    raw_data = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                    self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = raw_data.copy()
+                    print(f"=== AutoID: Reset background to raw data ===")
+
             # Reset peak count
             self.parent.peak_count = 0
 
@@ -2346,15 +2505,14 @@ class AutoIDWindow(wx.Frame):
                 }
 
             # Get current data
-            sheet_name = self.parent.sheet_combobox.GetValue()
             x_values = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
             y_values_raw = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
 
             from scipy.ndimage import gaussian_filter1d
             y_values = gaussian_filter1d(y_values_raw, sigma=1.0)
 
-            # Create peaks and measure areas
-            self.auto_survey_id.create_peaks_and_measure(identified_elements, x_values, y_values, sheet_name)
+            # Create peaks and measure areas - use RAW data for background calculations
+            self.auto_survey_id.create_peaks_and_measure(identified_elements, x_values, y_values_raw, sheet_name)
 
             # Update the main window - PRESERVE VLINES
             self.parent.peak_params_grid.ForceRefresh()
@@ -2380,6 +2538,8 @@ class AutoIDWindow(wx.Frame):
 
         except Exception as e:
             wx.MessageBox(f"Failed to create regions: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
 
     def on_add_manual_peak(self, event):
         """Add a manual peak and re-run identification"""
