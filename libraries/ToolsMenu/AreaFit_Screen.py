@@ -2298,7 +2298,7 @@ class BackgroundWindow(wx.Frame):
         #     self.core_level_list_window = None
 
     def on_auto_id(self, event):
-        """Run Auto ID functionality for survey/wide scan identification"""
+        """Open Auto ID window for survey/wide scan identification"""
         try:
             sheet_name = self.parent.sheet_combobox.GetValue()
 
@@ -2308,12 +2308,10 @@ class BackgroundWindow(wx.Frame):
                               wx.OK | wx.ICON_INFORMATION)
                 return
 
-            # Import and run AutoSurveyID
-            from libraries.ToolsMenu.AutoID import AutoSurveyID
-            auto_id = AutoSurveyID(self.parent)
-            auto_id.run()
-
-
+            # Import and open AutoID window
+            from libraries.ToolsMenu.AutoID import AutoIDWindow
+            auto_id_window = AutoIDWindow(self.parent)
+            auto_id_window.Show()
 
         except ImportError:
             wx.MessageBox("AutoID module not found", "Error", wx.OK | wx.ICON_ERROR)
