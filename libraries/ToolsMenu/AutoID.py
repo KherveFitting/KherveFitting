@@ -42,8 +42,6 @@ class AutoSurveyID:
     def run(self):
         """Main execution method"""
         try:
-
-
             sheet_name = self.parent.sheet_combobox.GetValue()
 
             # Check if this is a survey
@@ -69,6 +67,19 @@ class AutoSurveyID:
 
             # Save state before making changes
             save_state(self.parent)
+
+            # Store vLine positions BEFORE any operations that might destroy them
+            vline1_x = None
+            vline2_x = None
+            if hasattr(self.parent, 'vline1') and self.parent.vline1 is not None:
+                vline1_x = self.parent.vline1.get_xdata()[0]
+            if hasattr(self.parent, 'vline2') and self.parent.vline2 is not None:
+                vline2_x = self.parent.vline2.get_xdata()[0]
+
+            # DELETE WHOLE PREVIOUS BACKGROUND - reset to raw data
+            if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_values_raw.tolist()
+                print("Cleared previous background - reset to raw data")
 
             # Clear existing peaks in grid
             self.clear_peak_grid()
@@ -96,6 +107,36 @@ class AutoSurveyID:
 
             # Update legend to include new peaks
             self.parent.plot_manager.update_legend(self.parent)
+
+            # REINITIALIZE VLINES after clear_and_replot destroys them
+            if (hasattr(self.parent, 'background_window') and
+                    self.parent.background_window is not None and
+                    hasattr(self.parent, 'area_tab_selected') and
+                    self.parent.area_tab_selected):
+
+                # Reinitialize vLines using the area screen method
+                if hasattr(self.parent.background_window, 'initialize_or_restore_area_vlines'):
+                    self.parent.background_window.initialize_or_restore_area_vlines()
+
+                # If we had stored positions, restore them
+                if vline1_x is not None and vline2_x is not None:
+                    if self.parent.vline1 is not None:
+                        self.parent.vline1.set_xdata([vline1_x, vline1_x])
+                    if self.parent.vline2 is not None:
+                        self.parent.vline2.set_xdata([vline2_x, vline2_x])
+
+                    # Update text labels
+                    if hasattr(self.parent.background_window, 'update_vline_text_labels'):
+                        self.parent.background_window.update_vline_text_labels()
+
+                    # Update range controls
+                    if hasattr(self.parent.background_window, 'update_range_controls_from_data'):
+                        self.parent.background_window.update_range_controls_from_data()
+
+                # Reset mouse interaction system
+                if hasattr(self.parent, 'mouse_handler'):
+                    self.parent.mouse_handler.cleanup_vline_handlers()
+                    self.parent.moving_vline = None
 
             # Force canvas redraw
             self.parent.canvas.draw_idle()

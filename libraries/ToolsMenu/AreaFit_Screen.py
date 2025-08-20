@@ -839,9 +839,40 @@ class BackgroundWindow(wx.Frame):
         except (ValueError, IndexError):
             pass
 
-
     def on_remove_peak(self, event):
+        """Remove last background/area and properly reinitialize vLines"""
+        # Store vLine positions before removal
+        vline1_x = None
+        vline2_x = None
+        if self.parent.vline1 is not None:
+            vline1_x = self.parent.vline1.get_xdata()[0]
+        if self.parent.vline2 is not None:
+            vline2_x = self.parent.vline2.get_xdata()[0]
+
+        # Call the remove peak function
+        # from libraries.Peak_Functions import remove_peak
         remove_peak(self.parent)
+
+        # Reinitialize vLines after remove_peak calls clear_and_replot
+        if hasattr(self, 'initialize_or_restore_area_vlines'):
+            self.initialize_or_restore_area_vlines()
+
+        # Restore original positions if they existed
+        if vline1_x is not None and vline2_x is not None:
+            if self.parent.vline1 is not None:
+                self.parent.vline1.set_xdata([float(f"{vline1_x:.2f}"), float(f"{vline1_x:.2f}")])
+            if self.parent.vline2 is not None:
+                self.parent.vline2.set_xdata([float(f"{vline2_x:.2f}"), float(f"{vline2_x:.2f}")])
+
+            # Update text labels and range controls
+            self.update_vline_text_labels()
+            self.update_range_controls_from_data()
+
+        # Reset mouse interaction system
+        if hasattr(self.parent, 'mouse_handler'):
+            self.parent.mouse_handler.cleanup_vline_handlers()
+            self.parent.moving_vline = None
+
         save_state(self.parent)
 
 
