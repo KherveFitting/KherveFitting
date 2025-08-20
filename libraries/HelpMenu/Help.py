@@ -427,10 +427,13 @@ Version 1.505-1.590
 - Added export peak fitted CasaXPS files - Beta
 - Added better background management
 - Added Thickogram - Beta
+- Added VBM / Cut-off / Fermi measurement
+- Added Automatic Survey identification
 - Added possibility to constraint to other core levels
 - Improve right click Menu in the peak fitting grid with other core level constraints
 - Improve vLines in background creation
 - Improve the AreaFit window 
+- Improve RSD calculation
 - Added several ways to import multiple files
 - Added noise creation in plotMod - HIDDEN DANGEROUS
 - Added voigt model creation in PlotMod - HIDDEN DANGEROUS

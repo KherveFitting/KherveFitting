@@ -479,7 +479,7 @@ class PeakFunctions:
 
 
     @staticmethod
-    def calculate_rsd(y_experimental, y_fitted):
+    def calculate_rsd_BEF_v1_6(y_experimental, y_fitted):
         residuals = y_experimental - y_fitted
         n = len(residuals)
         denominator = y_experimental
@@ -489,6 +489,32 @@ class PeakFunctions:
 
         # rsd2 = np.sqrt(np.mean(residuals ** 2)) / np.mean(y_experimental) * 100
         # print(f"RSD: {rsd2}")
+        return rsd
+
+    @staticmethod
+    def calculate_rsd(y_experimental, y_fitted):
+        """
+        Calculate weighted RSD for XPS data using Poisson statistics weighting.
+        Returns RSD as a percentage.
+        """
+        residuals = y_experimental - y_fitted
+
+        # Protect against zero/negative values (common in XPS background regions)
+        safe_denominator = np.maximum(y_experimental, 1.0)
+
+        # Calculate weighted residuals (Poisson weighting: 1/sqrt(signal))
+        weighted_residuals = residuals / np.sqrt(safe_denominator)
+
+        # Calculate weighted RMS error
+        weighted_rms = np.sqrt(np.mean(weighted_residuals ** 2))
+
+        # Convert to relative percentage
+        mean_signal = np.mean(y_experimental)
+        if mean_signal > 0:
+            rsd = (weighted_rms / np.sqrt(mean_signal)) * 100.0
+        else:
+            rsd = 0.0
+
         return rsd
 
     @staticmethod

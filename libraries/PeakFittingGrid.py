@@ -549,6 +549,9 @@ class PeakFittingGrid:
         # print(self.window.Data)
         self.window.show_hide_vlines()
 
+        # Update the peak split and ratios
+        self.window.update_ratios()
+
         # Call the method to clear and replot everything
         self.window.clear_and_replot()
 
