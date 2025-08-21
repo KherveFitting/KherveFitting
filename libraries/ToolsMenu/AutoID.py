@@ -2122,6 +2122,7 @@ class AutoIDWindow(wx.Frame):
         print(f"  Total assignments found: {assigned_elements_orbitals}")
 
         # Now check assignments for dismissal and MODIFY original lists
+        # Now check assignments for dismissal and MODIFY original lists
         print("=== Step 6: Starting dismissal checks ===")
         for step_idx in [2, 3, 4]:
             if step_idx >= len(self.step_pages):
@@ -2135,87 +2136,89 @@ class AutoIDWindow(wx.Frame):
 
             for row in range(peak_list.GetItemCount()):
                 assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
-                print(f"    Row {row}: assigned='{assigned}'")
 
                 if assigned and assigned != "" and assigned != "DISMISSED":
 
-                    # Parse assignment using FIXED regex
-                    import re
-                    match = re.match(r'^([A-Za-z]+)(\\d+[a-z]+\\d*(?:/\\d+)?)$', assigned)
-                    if not match:
-                        print(f"    ✗ Regex failed for: {assigned}")
-                        continue
+                    # Debug the assignment string
+                    print(f"    Row {row}: assigned='{assigned}', len={len(assigned)}")
 
-                    element = match.group(1)
-                    orbital = match.group(2)
-                    orbital_normalized = orbital.replace('/2', '').replace('3/2', '3').replace('1/2', '1')
+                    # Simple parsing - find where digits start
+                    digit_start = -1
+                    for i, char in enumerate(assigned):
+                        if char.isdigit():
+                            digit_start = i
+                            break
 
-                    print(f"    ✓ Parsed: {assigned} -> element='{element}', orbital='{orbital_normalized}'")
+                    if digit_start > 0:
+                        element = assigned[:digit_start]
+                        orbital = assigned[digit_start:]
 
-                    # Check if this orbital requires a main orbital
-                    if orbital_normalized in secondary_to_main_map:
-                        main_orbital = secondary_to_main_map[orbital_normalized]
-                        main_assignment = f"{element}{main_orbital}"
+                        # Normalize orbital (remove /2 variations)
+                        orbital_normalized = orbital.replace('/2', '').replace('3/2', '3').replace('1/2', '1')
 
-                        print(f"      Secondary orbital '{orbital_normalized}' requires main: '{main_assignment}'")
+                        print(f"    ✓ Parsed: element='{element}', orbital='{orbital_normalized}'")
 
-                        # Check if main orbital has been assigned
-                        main_found = False
-                        for existing in assigned_elements_orbitals:
-                            existing_match = re.match(r'^([A-Za-z]+)(\\d*[a-z]+\\d*(?:/\\d+)?)$', existing)
-                            if existing_match:
-                                existing_element = existing_match.group(1)
-                                existing_orbital = existing_match.group(2).replace('/2', '').replace('3/2',
-                                                                                                     '3').replace('1/2',
-                                                                                                                  '1')
+                        # Check if this orbital requires a main orbital
+                        if orbital_normalized in secondary_to_main_map:
+                            main_orbital = secondary_to_main_map[orbital_normalized]
+                            main_assignment = f"{element}{main_orbital}"
 
-                                if existing_element == element and existing_orbital == main_orbital:
-                                    main_found = True
-                                    print(f"      ✓ Found main orbital: {existing}")
-                                    break
+                            print(f"      Secondary orbital '{orbital_normalized}' requires main: '{main_assignment}'")
 
-                        if not main_found:
-                            print(f"      ✗ Main orbital '{main_assignment}' NOT found - DISMISSING {assigned}")
+                            # Check if main orbital has been assigned
+                            main_found = False
+                            for existing in assigned_elements_orbitals:
+                                # Parse existing assignment
+                                existing_digit_start = -1
+                                for i, char in enumerate(existing):
+                                    if char.isdigit():
+                                        existing_digit_start = i
+                                        break
 
-                            # MODIFY the original list - mark as DISMISSED
-                            peak_list.SetItem(row, 5, "DISMISSED")  # Update Assigned To column
-                            peak_list.SetItem(row, 6, f"No {main_assignment} found")  # Update Companion
+                                if existing_digit_start > 0:
+                                    existing_element = existing[:existing_digit_start]
+                                    existing_orbital = existing[existing_digit_start:].replace('/2', '').replace('3/2',
+                                                                                                                 '3').replace(
+                                        '1/2', '1')
 
-                            # Color it red
-                            peak_list.SetItemBackgroundColour(row, wx.Colour(255, 200, 200))
+                                    if existing_element == element and existing_orbital == main_orbital:
+                                        main_found = True
+                                        print(f"        ✓ Found main orbital: {existing}")
+                                        break
 
-                            # Track for step 6 display
-                            position_text = peak_list.GetItem(row, 1).GetText()
-                            position = float(position_text)
+                            if not main_found:
+                                print(f"      ✗ Main orbital '{main_assignment}' NOT found - DISMISSING {assigned}")
 
-                            # Find original peak data
-                            original_peak = None
-                            for peak in self.all_peaks:
-                                if abs(peak['position'] - position) < 0.1:
-                                    original_peak = peak
-                                    break
+                                # MODIFY the original list - mark as DISMISSED
+                                peak_list.SetItem(row, 5, "DISMISSED")  # Update Assigned To column
+                                peak_list.SetItem(row, 6, f"No {main_assignment} found")  # Update Companion
 
-                            if original_peak:
+                                # Color it red
+                                peak_list.SetItemBackgroundColour(row, wx.Colour(255, 200, 200))
+
+                                # Track dismissal
                                 dismissed_assignments.append(assigned)
-                                step6_data.append({
-                                    'peak': original_peak,
-                                    'assigned': "DISMISSED",
-                                    'confidence': 0,
-                                    'companion': f"No {main_assignment} found",
-                                    'possible': f"{assigned} (dismissed - missing main peak)"
-                                })
 
-                                # Remove from assigned peaks set
-                                self.assigned_peaks.discard(original_peak['index'])
+                                # Remove from assigned peaks set and add to step6 data
+                                position_text = peak_list.GetItem(row, 1).GetText()
+                                position = float(position_text)
+                                for peak in self.all_peaks:
+                                    if abs(peak['position'] - position) < 0.1:
+                                        self.assigned_peaks.discard(peak['index'])
+                                        step6_data.append({
+                                            'peak': peak,
+                                            'assigned': "DISMISSED",
+                                            'confidence': 0,
+                                            'companion': f"No {main_assignment} found",
+                                            'possible': f"{assigned} (dismissed - missing main peak)"
+                                        })
+                                        break
+                            else:
+                                print(f"      ✓ Main orbital '{main_assignment}' found - keeping {assigned}")
                         else:
-                            print(f"      ✓ Main orbital '{main_assignment}' found - keeping {assigned}")
+                            print(f"      ℹ Orbital '{orbital_normalized}' doesn't require main peak")
                     else:
-                        print(f"      ℹ Orbital '{orbital_normalized}' doesn't require main peak")
-                else:
-                    if assigned == "DISMISSED":
-                        print(f"    - Row {row}: already dismissed")
-                    else:
-                        print(f"    - Row {row}: empty assignment")
+                        print(f"    ✗ No digits found in assignment: {assigned}")
 
         print("=== Step 6: Dismissal checks complete ===")
 
