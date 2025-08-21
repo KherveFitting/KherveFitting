@@ -1391,7 +1391,7 @@ class BackgroundWindow(wx.Frame):
             'N': {'1s': (397.00, 407.00)},
             'O': {'1s': (528.00, 538.00)},
             'F': {'1s': (684.00, 688.00)},
-            'Na': {'1s': (1071.00, 1072.00), 'kll': (497.00, 505.00)},
+            'Na': {'1s': (1071.00, 1072.00), 'kll': (491.00, 501.00)},
             'Mg': {'1s': (1303.00, 1304.00), '2s': (88.00, 90.00), '2p': (50.00, 51.00)},
             'Al': {'1s': (1559.00, 1560.00), '2s': (117.00, 119.00), '2p': (72.00, 75.00)},
             'Si': {'1s': (1838.00, 1840.00), '2s': (149.00, 151.00), '2p': (99.00, 103.00)},
@@ -1541,14 +1541,15 @@ class BackgroundWindow(wx.Frame):
 
         # Priority Level 1: Primary core levels + ALL peaks from detected elements
         priority_1 = {
-            'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s', 'Na': '1s', 'Mg': '1s',
+            'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s', 'Na': ['1s', 'kll'],'Mg': '1s',
             'K': '2p', 'Ca': '2p', 'Si': '2p', 'P': '2p', 'S': '2p', 'Cl': '2p', 'I': '3d'
         }
 
         # Priority Level 2: Transition metals and common elements
         priority_2 = {
             'Ti': '2p', 'V': '2p', 'Cr': '2p', 'Mn': '2p', 'Fe': '2p', 'Co': '2p',
-            'Ni': '2p', 'Cu': '2p', 'Zn': '2p', 'Ag': '3d', 'Au': '4f', 'In': '3d', 'Sn': '3d'
+            'Ni': '2p', 'Cu': '2p', 'Zn': '2p', 'Ag': '3d', 'Au': '4f', 'In': '3d', 'Sn': '3d',
+            'Na': 'kll'
         }
 
         # Priority Level 3: Less common elements
@@ -1594,14 +1595,15 @@ class BackgroundWindow(wx.Frame):
 
         # Priority Level 1: Primary core levels (highest priority)
         priority_1 = {
-            'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s', 'Na': '1s', 'Mg': '1s',
+            'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s', 'Na': ['1s', 'kll'], 'Mg': '1s',
             'K': '2p', 'Ca': '2p', 'Si': '2p', 'P': '2p', 'S': '2p', 'Cl': '2p', 'I': '3d'
         }
 
         # Priority Level 2: Transition metals and common elements
         priority_2 = {
             'Ti': '2p', 'V': '2p', 'Cr': '2p', 'Mn': '2p', 'Fe': '2p', 'Co': '2p',
-            'Ni': '2p', 'Cu': '2p', 'Zn': '2p', 'Ag': '3d', 'Au': '4f', 'In': '3d', 'Sn': '3d'
+            'Ni': '2p', 'Cu': '2p', 'Zn': '2p', 'Ag': '3d', 'Au': '4f', 'In': '3d', 'Sn': '3d',
+            'Na': 'kll'
         }
 
         # Priority Level 3: Less common elements
@@ -1754,7 +1756,7 @@ class BackgroundWindow(wx.Frame):
             self.updating_range_controls = False
 
     def auto_detect_area_name(self, vline1_pos, vline2_pos):
-        """Auto-detect and update area name based on vline positions with dynamic priority system."""
+        """Auto-detect and update area name based on vline positions using decision metric."""
         range_min = min(vline1_pos, vline2_pos)
         range_max = max(vline1_pos, vline2_pos)
         range_center = (range_min + range_max) / 2
@@ -1764,9 +1766,6 @@ class BackgroundWindow(wx.Frame):
 
         # Find all overlapping orbitals
         overlapping_matches = {}
-
-        # print(f"\n=== DEBUG: Range {range_min:.2f} - {range_max:.2f} (center: {range_center:.2f}) ===")
-        # print(f"Already detected elements: {list(detected_elements)}")
 
         for element, orbitals in elements_db.items():
             overlapping_orbitals = []
@@ -1780,31 +1779,36 @@ class BackgroundWindow(wx.Frame):
                     distance = abs(range_center - be_center)
                     overlapping_orbitals.append(orbital)
                     element_distances[orbital] = distance
-                    priority_marker = "★" if element in detected_elements else ""
-                    # print(f"  {element}{orbital}: center={be_center:.2f}, distance={distance:.2f} {priority_marker}")
 
             if overlapping_orbitals:
                 # Use priority system to choose the best orbital
                 priority_orbital = self.get_priority_orbital(element, overlapping_orbitals)
+                distance = element_distances[priority_orbital]
+
+                # Calculate decision value using your formula
+                decision = self.calculate_decision_value(element, priority_orbital, distance)
+
                 overlapping_matches[element] = {
                     'orbital': priority_orbital,
-                    'distance': element_distances[priority_orbital],
+                    'distance': distance,
+                    'decision': decision,  # ← NEW DECISION VALUE
                     'priority_level': self.get_element_priority_level(element, priority_orbital)
                 }
-                priority_marker = "★ DETECTED" if element in detected_elements else f"priority {overlapping_matches[element]['priority_level']}"
-                # print(
-                #     f"  → {element}{priority_orbital} selected ({priority_marker}, distance={element_distances[priority_orbital]:.2f})")
 
-        # Find the best match considering both priority and distance
+        # Find the best match using decision value (lower is better)
         if overlapping_matches:
-            # Sort by priority level first, then by distance
+            # Calculate decision values for all matches
+            for element in overlapping_matches:
+                match_data = overlapping_matches[element]
+                decision = self.calculate_decision_value(element, match_data['orbital'], match_data['distance'])
+                overlapping_matches[element]['decision'] = decision
+
+            # Sort by decision value - lowest decision wins
             best_element = min(overlapping_matches.keys(),
-                               key=lambda e: (
-                               overlapping_matches[e]['priority_level'], overlapping_matches[e]['distance']))
+                               key=lambda e: overlapping_matches[e]['decision'])
             best_orbital = overlapping_matches[best_element]['orbital']
             best_match = f"{best_element}{best_orbital}"
 
-            # print(f"=== FINAL CHOICE: {best_match} ===\n")
             self.peak_label_text.SetValue(best_match)
 
     def on_key_press(self, event):
@@ -2237,7 +2241,7 @@ class BackgroundWindow(wx.Frame):
         self.core_level_list_window.Show()
 
     def get_all_possible_core_levels(self, vline1_pos, vline2_pos):
-        """Get all possible core levels in the range, sorted by priority and distance."""
+        """Get all possible core levels in the range, sorted by decision value."""
         range_min = min(vline1_pos, vline2_pos)
         range_max = max(vline1_pos, vline2_pos)
         range_center = (range_min + range_max) / 2
@@ -2253,6 +2257,7 @@ class BackgroundWindow(wx.Frame):
                 if not (range_max < be_min or range_min > be_max):
                     distance = abs(range_center - be_center)
                     priority_level = self.get_element_priority_level(element, orbital)
+                    decision = self.calculate_decision_value(element, orbital, distance)
 
                     all_matches.append({
                         'name': f"{element}{orbital}",
@@ -2261,34 +2266,57 @@ class BackgroundWindow(wx.Frame):
                         'center': be_center,
                         'range': (be_min, be_max),
                         'distance': distance,
-                        'priority_level': priority_level
+                        'priority_level': priority_level,
+                        'decision': decision
                     })
 
-        # Sort by priority level first, then by distance
-        all_matches.sort(key=lambda x: (x['priority_level'], x['distance']))
+        # Sort by decision value (lower is better)
+        all_matches.sort(key=lambda x: x['decision'])
 
         return all_matches
 
     def get_element_priority_level(self, element, orbital):
         """Get priority level for element-orbital combination."""
         # Common/important elements get higher priority (lower number)
-        common_elements = {'C': 1, 'O': 1, 'N': 1, 'Si': 2, 'Al': 2, 'Ca': 2, 'Fe': 2, 'Cu': 3, 'Zn': 3}
+        common_elements = {'C': 1, 'O': 1, 'N': 1, 'Si': 2, 'P': 2, 'Ca': 2, 'Na': 2, 'Fe': 3, 'Cr': 3, 'Ti': 3,
+                           'Cu': 3, 'Ag': 3, 'Au': 3, 'Zn': 3, 'Co': 3, 'Ni': 3, 'Mn': 3, 'Al': 3, 'Mg': 3, }
         element_priority = common_elements.get(element, 4)
 
         # Common orbitals get higher priority
-        orbital_priority = {'1s': 1, '2p': 1, '2s': 2, '3p': 3, '3s': 4}.get(orbital, 5)
+        orbital_priority = {'1s': 1, '2p': 1, '3d': 1, '4f': 1, 'kll': 2, '2s': 2, '3p': 2, '4d': 2, '3s': 3,
+                            '4p': 3}.get(orbital, 4)
 
         return element_priority + orbital_priority
 
     def get_priority_orbital(self, element, orbitals):
         """Choose the best orbital for an element based on priority."""
-        priority_order = ['1s', '2p', '2s', '3p', '3s', '4p', '4s']
+        priority_order = ['1s', '2p', '3d', '4f', 'kll', '2s', '4d', '3p', '3s', '4p', '4s']
 
         for priority_orbital in priority_order:
             if priority_orbital in orbitals:
                 return priority_orbital
 
         return orbitals[0] if orbitals else None
+
+    def calculate_decision_value(self, element, orbital, distance):
+        """Calculate decision value based on distance and priorities."""
+        # Get individual priorities
+        common_elements = {'C': 1, 'O': 1, 'N': 1, 'Si': 2, 'P': 2, 'Ca': 2, 'Na': 2, 'Fe': 3, 'Cr': 3, 'Ti': 3,
+                           'Cu': 3, 'Ag': 3, 'Au': 3, 'Zn': 3, 'Co': 3, 'Ni': 3, 'Mn': 3, 'Al': 3, 'Mg': 3, }
+        priority_element = common_elements.get(element, 4)
+
+        orbital_priorities = {'1s': 1, '2p': 1, '3d': 1, '4f': 1, 'kll': 2, '2s': 2, '3p': 2, '4d': 2, '3s': 3,
+                              '4p': 3}
+        priority_orbital = orbital_priorities.get(orbital, 5)
+
+        # Handle division by zero and negative denominators
+        orbital_denominator = max(0.1, 5 - priority_orbital)  # Prevent division by zero/negative
+        element_denominator = max(0.1, 5 - priority_element)  # Prevent division by zero
+
+        # Calculate decision value (lower is better)
+        decision = (distance / orbital_denominator) + (distance / element_denominator)
+
+        return decision
 
     def on_core_level_selected(self, core_level_name):
         """Called when a core level is selected from the list."""
@@ -2350,13 +2378,13 @@ class BackgroundWindow(wx.Frame):
 
 
 class CoreLevelListWindow(wx.Frame):
-    """Window showing list of possible core levels for current range."""
-
     def __init__(self, parent, possible_matches):
         self.parent = parent
         self.possible_matches = possible_matches
+        self.sort_column = 3  # Default sort by Distance column
+        self.sort_ascending = True
 
-        super().__init__(None, title="Core Level Candidates",
+        super().__init__(None, title="Core Level List",
                          style=(wx.DEFAULT_FRAME_STYLE & ~wx.RESIZE_BORDER) | wx.STAY_ON_TOP)
 
         self.init_ui()
@@ -2369,27 +2397,20 @@ class CoreLevelListWindow(wx.Frame):
         # Set yellow background to match AreaFit Screen
         panel.SetBackgroundColour(wx.Colour(250, 250, 230))
 
-        # Create list control
+        # Create list control with sortable columns
         self.list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.list_ctrl.InsertColumn(0, "Core Level", width=80)
-        self.list_ctrl.InsertColumn(1, "BE Center", width=80)
-        self.list_ctrl.InsertColumn(2, "Range", width=100)
-        self.list_ctrl.InsertColumn(3, "Distance", width=70)
+        self.list_ctrl.InsertColumn(0, "Core Level", width=70)
+        self.list_ctrl.InsertColumn(1, "BE Center", width=70)
+        self.list_ctrl.InsertColumn(2, "Range", width=70)
+        self.list_ctrl.InsertColumn(3, "Distance", width=60)
+        self.list_ctrl.InsertColumn(4, "Decision", width=60)
 
-        # Populate list
-        for i, match in enumerate(self.possible_matches):
-            index = self.list_ctrl.InsertItem(i, match['name'])
-            self.list_ctrl.SetItem(index, 1, f"{match['center']:.1f}")
-            self.list_ctrl.SetItem(index, 2, f"{match['range'][0]:.0f}-{match['range'][1]:.0f}")
-            self.list_ctrl.SetItem(index, 3, f"{match['distance']:.1f}")
+        # Bind column click event for sorting
+        self.list_ctrl.Bind(wx.EVT_LIST_COL_CLICK, self.on_column_click)
 
-            # Highlight the top choice
-            if i == 0:
-                self.list_ctrl.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))
-
-        # Select first item
-        if self.list_ctrl.GetItemCount() > 0:
-            self.list_ctrl.Select(0)
+        # Sort by distance initially and populate list
+        self.sort_data()
+        self.populate_list()
 
         # Buttons
         select_btn = wx.Button(panel, label="Apply")
@@ -2412,7 +2433,61 @@ class CoreLevelListWindow(wx.Frame):
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        self.SetSize((350, 300))
+        self.SetSize((390, 300))
+
+    def on_column_click(self, event):
+        """Handle column click for sorting."""
+        clicked_col = event.GetColumn()
+
+        # Toggle sort order if same column, otherwise sort ascending
+        if self.sort_column == clicked_col:
+            self.sort_ascending = not self.sort_ascending
+        else:
+            self.sort_column = clicked_col
+            self.sort_ascending = True
+
+        self.sort_data()
+        self.populate_list()
+
+    def sort_data(self):
+        """Sort possible_matches based on current sort column and order."""
+        if self.sort_column == 0:  # Core Level (string)
+            self.possible_matches.sort(key=lambda x: x['name'], reverse=not self.sort_ascending)
+        elif self.sort_column == 1:  # BE Center (float)
+            self.possible_matches.sort(key=lambda x: x['center'], reverse=not self.sort_ascending)
+        elif self.sort_column == 2:  # Range (sort by range center)
+            self.possible_matches.sort(key=lambda x: (x['range'][0] + x['range'][1]) / 2,
+                                       reverse=not self.sort_ascending)
+        elif self.sort_column == 3:  # Distance (float)
+            self.possible_matches.sort(key=lambda x: x['distance'], reverse=not self.sort_ascending)
+        elif self.sort_column == 4:  # Decision (float) ← NEW SORTING OPTION
+            self.possible_matches.sort(key=lambda x: x.get('decision', 999), reverse=not self.sort_ascending)
+
+    def populate_list(self):
+        """Populate the list control with sorted data."""
+        # Clear existing items
+        self.list_ctrl.DeleteAllItems()
+
+        # Populate with matches using .2f format
+        for i, match in enumerate(self.possible_matches):
+            index = self.list_ctrl.InsertItem(i, match['name'])
+            self.list_ctrl.SetItem(index, 1, f"{match['center']:.2f}")
+            self.list_ctrl.SetItem(index, 2, f"{match['range'][0]:.0f}-{match['range'][1]:.0f}")
+            self.list_ctrl.SetItem(index, 3, f"{match['distance']:.2f}")
+
+            # Add decision value if available
+            if 'decision' in match:
+                self.list_ctrl.SetItem(index, 4, f"{match['decision']:.2f}")  # ← NEW DECISION COLUMN
+            else:
+                self.list_ctrl.SetItem(index, 4, "N/A")
+
+            # Highlight the top choice
+            if i == 0:
+                self.list_ctrl.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))
+
+        # Select first item
+        if self.list_ctrl.GetItemCount() > 0:
+            self.list_ctrl.Select(0)
 
     def position_window(self):
         """Position window on top-right of parent AreaFit window."""
@@ -2448,24 +2523,8 @@ class CoreLevelListWindow(wx.Frame):
     def update_list(self, new_possible_matches):
         """Update the list with new possible matches."""
         self.possible_matches = new_possible_matches
-
-        # Clear existing items
-        self.list_ctrl.DeleteAllItems()
-
-        # Populate with new matches
-        for i, match in enumerate(self.possible_matches):
-            index = self.list_ctrl.InsertItem(i, match['name'])
-            self.list_ctrl.SetItem(index, 1, f"{match['center']:.1f}")
-            self.list_ctrl.SetItem(index, 2, f"{match['range'][0]:.0f}-{match['range'][1]:.0f}")
-            self.list_ctrl.SetItem(index, 3, f"{match['distance']:.1f}")
-
-            # Highlight the top choice
-            if i == 0:
-                self.list_ctrl.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))
-
-        # Select first item if available
-        if self.list_ctrl.GetItemCount() > 0:
-            self.list_ctrl.Select(0)
+        self.sort_data()
+        self.populate_list()
 
     def on_close(self, event):
         """Handle window close event."""

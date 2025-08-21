@@ -10,6 +10,10 @@ import platform
 class MouseEventHandler:
     def __init__(self, window):
         self.window = window
+        # Add these new variables for CTRL+drag functionality
+        self.ctrl_drag_active = False
+        self.vline_gap = 0.0
+        self.ctrl_drag_reference_pos = 0.0
 
     def on_mouse_move(self, event):
         if event.inaxes:
@@ -119,7 +123,50 @@ class MouseEventHandler:
             if self.window.zoom_mode:
                 return  # Exit early, don't process vLine clicks during zoom
 
-            if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
+            # CTRL+DRAG FUNCTIONALITY - Try multiple CTRL key detection methods
+            ctrl_detected = (
+                    event.key == 'ctrl' or
+                    event.key == 'control' or
+                    (event.key and 'ctrl' in str(event.key).lower()) or
+                    (event.key and 'control' in str(event.key).lower())
+            )
+
+            if (event.button == 1 and ctrl_detected and
+                    (self.window.background_tab_selected or
+                     (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected))):
+
+
+
+                # Check if both vlines exist
+                if self.window.vline1 is not None and self.window.vline2 is not None:
+                    vline1_x = self.window.vline1.get_xdata()[0]
+                    vline2_x = self.window.vline2.get_xdata()[0]
+
+                    # Calculate current gap between vlines (maintain sign/order)
+                    self.vline_gap = vline2_x - vline1_x
+                    self.ctrl_drag_reference_pos = x_click
+                    self.ctrl_drag_active = True
+
+                    # Explicitly prevent normal vline movement
+                    self.window.moving_vline = None
+
+                    # Clean up any existing handlers first
+                    if hasattr(self.window, 'motion_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                        delattr(self.window, 'motion_cid')
+                    if hasattr(self.window, 'release_cid'):
+                        self.window.canvas.mpl_disconnect(self.window.release_cid)
+                        delattr(self.window, 'release_cid')
+
+                    # Set up motion and release handlers
+                    self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                    self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+
+                    return  # CRITICAL: Exit here to prevent any other vline logic
+                else:
+                    print("CTRL detected but vlines don't exist")
+
+            elif event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
                 # Store current vline positions
                 current_vline1_pos = None
                 current_vline2_pos = None
@@ -495,7 +542,81 @@ class MouseEventHandler:
         self.window.refresh_vline_text_labels()
 
     def on_motion(self, event):
-        if event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
+        # CTRL+DRAG MOTION HANDLING - MUST BE FIRST
+        if self.ctrl_drag_active and event.inaxes:
+            if self.window.vline1 is not None and self.window.vline2 is not None:
+
+                # Calculate mouse movement delta
+                mouse_delta = event.xdata - self.ctrl_drag_reference_pos
+
+                # Get current vline1 position as reference
+                current_vline1_x = self.window.vline1.get_xdata()[0]
+
+                # Calculate new positions
+                new_vline1_x = current_vline1_x + mouse_delta
+                new_vline2_x = new_vline1_x + self.vline_gap  # Maintain exact gap
+
+                # Update both vline positions simultaneously
+                self.window.vline1.set_xdata([new_vline1_x, new_vline1_x])
+                self.window.vline2.set_xdata([new_vline2_x, new_vline2_x])
+
+                # Update range controls
+                if hasattr(self.window, 'fitting_window') and self.window.fitting_window:
+                    min_pos = min(new_vline1_x, new_vline2_x)
+                    max_pos = max(new_vline1_x, new_vline2_x)
+
+                    try:
+                        self.window.fitting_window.updating_range_controls = True
+                        self.window.fitting_window.min_range_text.SetValue(f"{min_pos:.2f}")
+                        self.window.fitting_window.max_range_text.SetValue(f"{max_pos:.2f}")
+                        self.window.fitting_window.updating_range_controls = False
+                    except:
+                        pass
+
+                # UPDATE VLINE TEXT LABELS - Try multiple methods
+                try:
+                    # Method 1: Direct update if method exists
+                    if hasattr(self.window, 'update_vline_text_labels'):
+                        self.window.update_vline_text_labels()
+
+                    # Method 2: Refresh if method exists
+                    if hasattr(self.window, 'refresh_vline_text_labels'):
+                        self.window.refresh_vline_text_labels()
+
+                    # Method 3: Update text positions directly if text objects exist
+                    if hasattr(self.window, 'vline1_text') and self.window.vline1_text:
+                        y_pos = self.window.vline1_text.get_position()[1]
+                        self.window.vline1_text.set_position((new_vline1_x, y_pos))
+
+                    if hasattr(self.window, 'vline2_text') and self.window.vline2_text:
+                        y_pos = self.window.vline2_text.get_position()[1]
+                        self.window.vline2_text.set_position((new_vline2_x, y_pos))
+
+                    # Method 4: Update text content if text objects exist
+                    if hasattr(self.window, 'vline1_text') and self.window.vline1_text:
+                        self.window.vline1_text.set_text(f"{new_vline1_x:.1f}")
+
+                    if hasattr(self.window, 'vline2_text') and self.window.vline2_text:
+                        self.window.vline2_text.set_text(f"{new_vline2_x:.1f}")
+
+                except Exception as e:
+                    print(f"Error updating vline text labels: {e}")
+
+                # Update auto-detection for area fitting
+                if hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected:
+                    if hasattr(self.window.fitting_window, 'auto_detect_area_name'):
+                        self.window.fitting_window.auto_detect_area_name(new_vline1_x, new_vline2_x)
+                    if hasattr(self.window.fitting_window, 'update_core_level_list_if_open'):
+                        self.window.fitting_window.update_core_level_list_if_open()
+
+                # Update reference position for smooth dragging
+                self.ctrl_drag_reference_pos = event.xdata
+
+                # Redraw canvas
+                self.window.canvas.draw_idle()
+
+                return  # CRITICAL: Exit here to prevent normal motion handling
+        elif event.button == 1 and event.key == 'shift' and self.window.background_tab_selected:
             # Store current vline positions
             current_vline1_pos = None
             current_vline2_pos = None
@@ -845,7 +966,48 @@ class MouseEventHandler:
         self.window.moving_vline = None
 
     def on_release(self, event):
-        if self.window.moving_vline is not None:
+
+        if self.ctrl_drag_active:
+            print(f"CTRL+drag ended")
+
+            # Reset CTRL+drag state
+            self.ctrl_drag_active = False
+            self.vline_gap = 0.0
+            self.ctrl_drag_reference_pos = 0.0
+
+            # Ensure moving_vline is None to prevent conflicts
+            self.window.moving_vline = None
+
+            # UPDATE BACKGROUND - Use the same logic as single vline dragging
+            if (self.window.background_tab_selected and
+                    hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
+
+                # Update active region positions with new vLine positions (same as single vline)
+                self.update_active_region_positions()
+
+                # Redraw all regions in sequence (same as single vline)
+                self.redraw_all_regions_background()
+
+            # Alternative background update for other cases
+            elif (self.window.background_tab_selected and
+                  hasattr(self.window, 'background_method') and
+                  self.window.background_method == "Multi-Regions Smart"):
+                if hasattr(self.window, 'plot_manager'):
+                    self.window.plot_manager.plot_background(self.window)
+
+            # Save state after movement
+            save_state(self.window)
+
+            # Clean up motion and release handlers
+            if hasattr(self.window, 'motion_cid'):
+                self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                delattr(self.window, 'motion_cid')
+            if hasattr(self.window, 'release_cid'):
+                self.window.canvas.mpl_disconnect(self.window.release_cid)
+                delattr(self.window, 'release_cid')
+
+            return  # CRITICAL: Exit here to prevent normal release handling
+        elif self.window.moving_vline is not None:
             # Store which vline was moved before resetting to None
             moved_vline = self.window.moving_vline
 
