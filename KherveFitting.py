@@ -2751,8 +2751,26 @@ class MyFrame(wx.Frame):
             raise ValueError(f"Unknown fitting model: {model}")
         return round(area, 2)
 
+    def on_auto_id(self, event):
+        """Open Auto ID window for survey/wide scan identification"""
+        try:
+            sheet_name = self.sheet_combobox.GetValue()
 
+            # Check if this is a survey or wide scan
+            if not any(x in sheet_name.lower() for x in ['survey', 'wide']):
+                wx.MessageBox("Auto ID is only available for Survey or Wide scan sheets", "Info",
+                              wx.OK | wx.ICON_INFORMATION)
+                return
 
+            # Import and open AutoID window
+            from libraries.ToolsMenu.AutoID import AutoIDWindow
+            auto_id_window = AutoIDWindow(self)
+            auto_id_window.Show()
+
+        except ImportError:
+            wx.MessageBox("AutoID module not found", "Error", wx.OK | wx.ICON_ERROR)
+        except Exception as e:
+            wx.MessageBox(f"Auto ID failed: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
     def update_ratios(self):
