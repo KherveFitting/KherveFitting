@@ -1006,7 +1006,7 @@ def create_horizontal_toolbar(parent, window):
 
     # Add AutoID tool
     auto_id_tool = toolbar.AddTool(wx.ID_ANY, 'Auto ID',
-                                   wx.Bitmap(os.path.join(icon_path, "ID-3.png"), wx.BITMAP_TYPE_PNG),
+                                   wx.Bitmap(os.path.join(icon_path, "IDauto-3.png"), wx.BITMAP_TYPE_PNG),
                                    shortHelp="Automatic element identification for survey scans")
     window.Bind(wx.EVT_TOOL, lambda event: window.on_auto_id(event), auto_id_tool)
 

@@ -267,6 +267,34 @@ class AutoSurveyID:
 
         return peaks_found
 
+    def calculate_decision_value(self, element, orbital, distance):
+        """Calculate decision value based on distance and priorities (lower is better)."""
+        # Get individual priorities - match priority system from AreaFit_Screen
+        common_elements = {
+            'C': 1, 'O': 1, 'N': 1, 'Si': 2, 'P': 2, 'Ca': 2, 'Na': 2, 'Fe': 3, 'Cr': 3, 'Ti': 3,
+            'Cu': 3, 'Ag': 3, 'Au': 3, 'Zn': 3, 'Co': 3, 'Ni': 3, 'Mn': 3, 'Al': 3, 'Mg': 3,
+            'F': 1, 'K': 2, 'S': 2, 'Cl': 2, 'V': 3, 'Sb': 4, 'Ba': 4,
+            'Ta': 3, 'W': 3, 'Re': 4, 'Ir': 3, 'Pt': 4, 'La': 3, 'Ce': 3, 'Pr': 4, 'Nd': 4, 'Hf': 4
+        }
+        priority_element = common_elements.get(element, 4)
+
+        orbital_priorities = {
+            '1s': 1, '2p': 1, '3d': 1, '4f': 1, 'kll': 2, '2s': 2, '3p': 2, '4d': 2,
+            '3s': 3, '4p': 3, '4s': 4, 'lmm': 3
+        }
+        priority_orbital = orbital_priorities.get(orbital, 5)
+
+        # Handle division by zero and negative denominators
+        orbital_denominator = max(0.1, 5 - priority_orbital)  # Higher priority = larger denominator
+        element_denominator = max(0.1, 5 - priority_element)  # Higher priority = larger denominator
+
+        # Calculate decision value (lower is better)
+        decision = (distance / orbital_denominator) + (distance / element_denominator)
+
+        return decision
+
+
+
     def identify_elements(self, peaks_found, x_data, y_data):
         """Identify elements from found peaks using AreaFit_Screen database approach"""
         print(f"\n=== Element Identification (AreaFit_Screen Database) ===")
@@ -1294,7 +1322,7 @@ class AutoSurveyID:
 
         return validation_peaks
 
-    def get_possible_assignments(self, peak_position, tolerance=6.0):
+    def get_possible_assignments_OLD(self, peak_position, tolerance=6.0):
         """Get all possible core level assignments for a peak position, sorted by likelihood"""
         elements_db = self.get_core_level_ranges()
         possible = []
@@ -1329,6 +1357,33 @@ class AutoSurveyID:
 
         # Sort by likelihood (highest first)
         possible.sort(key=lambda x: x['likelihood'], reverse=True)
+        return possible
+
+    def get_possible_assignments(self, peak_position, tolerance=6.0):
+        """Get all possible core level assignments for a peak position, sorted by decision value"""
+        elements_db = self.get_core_level_ranges()
+        possible = []
+
+        for element, orbitals in elements_db.items():
+            for orbital, (be_min, be_max) in orbitals.items():
+                be_center = (be_min + be_max) / 2
+                distance = abs(peak_position - be_center)
+
+                if distance <= tolerance:
+                    # Calculate decision value using the improved method (lower is better)
+                    decision = self.calculate_decision_value(element, orbital, distance)
+
+                    possible.append({
+                        'element': element,
+                        'orbital': orbital,
+                        'position': be_center,
+                        'distance': distance,
+                        'decision': decision,  # Changed from 'likelihood'
+                        'assignment': f"{element}{orbital}"
+                    })
+
+        # Sort by decision value (lower is better)
+        possible.sort(key=lambda x: x['decision'])
         return possible
 
 
@@ -1441,8 +1496,8 @@ class AutoIDWindow(wx.Frame):
         # Parameters for peak finding
         self.prominence = 0.01
         self.width = 0.6
-        self.width_max = 70.0
-        self.distance = 5.0
+        self.width_max = 10.0
+        self.distance = 30.0
         self.tolerance = 12
 
         # Step data storage
@@ -1451,8 +1506,18 @@ class AutoIDWindow(wx.Frame):
         self.step_assignments = [{} for _ in range(5)]  # Assignments for each step
         self.peak_widths = {}  # Store calculated peak widths
 
+        # Initialize highlight tracking
+        self.peak_highlight = None
+        self.peak_center_line = None
+
         self.init_ui()
         self.position_window()
+
+        # Bind peak list events AFTER creating all pages
+        self.bind_peak_list_events()
+
+        # Bind close event
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def init_ui(self):
         """Initialize the user interface"""
@@ -1465,7 +1530,7 @@ class AutoIDWindow(wx.Frame):
         method_box = wx.StaticBox(panel, label="Identification Method")
         method_sizer = wx.StaticBoxSizer(method_box, wx.VERTICAL)
 
-        self.method_choice = wx.Choice(panel, choices=["Improved Systematic Method"])
+        self.method_choice = wx.Choice(panel, choices=["Method 1 GK 25/08/25"])
         self.method_choice.SetSelection(0)
         method_sizer.Add(self.method_choice, 0, wx.EXPAND | wx.ALL, 5)
 
@@ -1576,25 +1641,26 @@ class AutoIDWindow(wx.Frame):
         self.SetSize((650, 700))
 
     def create_step_page(self, parent, title):
-        """Create a page for a step with enhanced peak list including checkboxes"""
+        """Create a page for a step with enhanced peak list including clickable columns and checkbox toggling"""
         page = wx.Panel(parent)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Peak list with reordered columns (no Manual column)
+        # Peak list with UPDATED column names and sorting capability
         peak_box = wx.StaticBox(page, label=f"{title} - Peak Analysis")
         peak_sizer = wx.StaticBoxSizer(peak_box, wx.VERTICAL)
 
         peak_list = wx.ListCtrl(page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        peak_list.InsertColumn(0, "T", width=20)
+        peak_list.InsertColumn(0, "", width=25)  # Tick/Untick column
         peak_list.InsertColumn(1, "BE (eV)", width=60)
         peak_list.InsertColumn(2, "Width (eV)", width=70)
-        peak_list.InsertColumn(3, "Prominence", width=85)
-        peak_list.InsertColumn(4, "Confidence", width=85)  # MOVED AFTER PROMINENCE
-        peak_list.InsertColumn(5, "Assigned To", width=85)
-        peak_list.InsertColumn(6, "Companion", width=85)
-        peak_list.InsertColumn(7, "Possibility", width=85)
-        # REMOVED Manual column
+        peak_list.InsertColumn(3, "Signal", width=60)  # ← Changed from "Prominence"
+        peak_list.InsertColumn(4, "Score", width=55)  # ← Changed from "Confidence"
+        peak_list.InsertColumn(5, "Peak", width=65)  # ← Changed from "Assigned To"
+        peak_list.InsertColumn(6, "Companion", width=65)
+        peak_list.InsertColumn(7, "Possibility", width=120)
+        peak_list.InsertColumn(8, "Distance", width=120)
+        peak_list.InsertColumn(9, "Decision", width=120)
 
         peak_sizer.Add(peak_list, 1, wx.EXPAND | wx.ALL, 5)
 
@@ -1624,26 +1690,46 @@ class AutoIDWindow(wx.Frame):
         page.assign_btn = assign_btn
         page.remove_btn = remove_btn
 
+        # Add sorting state
+        page.sort_column = -1
+        page.sort_ascending = True
+        page.original_data = []  # Store original data for sorting
+
         # Bind events
         assign_btn.Bind(wx.EVT_BUTTON, lambda evt: self.on_force_assignment(evt, page))
         remove_btn.Bind(wx.EVT_BUTTON, lambda evt: self.on_remove_peak(evt, page))
         peak_list.Bind(wx.EVT_LIST_ITEM_SELECTED, lambda evt: self.on_peak_selected(evt, page))
-
-        # BIND ENTER KEY TO TOGGLE CHECKBOX
         peak_list.Bind(wx.EVT_KEY_DOWN, lambda evt: self.on_key_down(evt, page))
+
+        # NEW: Add column click for sorting
+        peak_list.Bind(wx.EVT_LIST_COL_CLICK, lambda evt: self.on_column_click(evt, page))
+
+        # NEW: Add left click for checkbox toggling
+        peak_list.Bind(wx.EVT_LEFT_UP, lambda evt: self.on_list_click(evt, page))
 
         return page
 
     def position_window(self):
-        """Position window relative to parent"""
+        """Position window centered on main frame"""
         if self.parent:
             parent_pos = self.parent.GetPosition()
             parent_size = self.parent.GetSize()
-            new_x = parent_pos.x + parent_size.width + 10
-            new_y = parent_pos.y
+            my_size = self.GetSize()
+
+            # Calculate center position
+            new_x = parent_pos.x + (parent_size.width - my_size.width) // 2
+            new_y = parent_pos.y + (parent_size.height - my_size.height) // 2
+
+            # Ensure window stays on screen
+            new_x = max(0, new_x)
+            new_y = max(0, new_y)
+
             self.SetPosition((new_x, new_y))
-        else:
-            self.Center()
+
+            # Keep window on top
+            self.SetWindowStyle(self.GetWindowStyle() | wx.STAY_ON_TOP)
+
+            print(f"Positioned AutoID window at center: ({new_x}, {new_y})")
 
     def on_key_down(self, event, page):
         """Handle key press events - Enter toggles checkbox"""
@@ -1860,17 +1946,142 @@ class AutoIDWindow(wx.Frame):
         # Final: Compile all assignments - ORDERED BY PROMINENCE
         self.step7_final_compilation()
 
+    def get_original_possibilities(self, peak, assigned_element_orbital):
+        """Get original possibilities with assigned one moved to front"""
+        if not hasattr(self, 'original_possibilities'):
+            return assigned_element_orbital if assigned_element_orbital else ""
+
+        original = self.original_possibilities.get(peak['index'], "")
+
+        if not original or not assigned_element_orbital:
+            return original
+
+        if assigned_element_orbital not in original:
+            return original
+
+        # Split possibilities and reorder to put assigned one first
+        possibilities = [p.strip() for p in original.split(',')]
+
+        # Remove assigned from list and put it at the front
+        if assigned_element_orbital in possibilities:
+            possibilities.remove(assigned_element_orbital)
+
+        reordered = [assigned_element_orbital] + possibilities
+        return ", ".join(reordered)
+
+    def calculate_peak_metrics(self, peak, assigned_element_orbital=""):
+        """Calculate distance and decision values for ALL possibilities of a peak"""
+
+        # Get all possible assignments for this peak
+        possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+
+        if not possible:
+            return "N/A", "N/A"
+
+        detailed_possibilities = []
+
+        # Calculate distance and decision for ALL possibilities (up to 5)
+        for possibility in possible[:5]:
+            assignment = possibility['assignment']
+            distance = possibility['distance']
+
+            # Parse assignment to get element and orbital
+            element = None
+            orbital = None
+
+            # Try digit-based parsing first (Ti2p, Ca2p, etc.)
+            digit_start = -1
+            for i, char in enumerate(assignment):
+                if char.isdigit():
+                    digit_start = i
+                    break
+
+            if digit_start > 0:
+                # Standard photoelectron peak
+                element = assignment[:digit_start]
+                orbital = assignment[digit_start:]
+            else:
+                # Check for Auger peaks
+                auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv']
+                for suffix in auger_suffixes:
+                    if assignment.lower().endswith(suffix):
+                        element = assignment[:-len(suffix)]
+                        orbital = suffix
+                        break
+
+            if element and orbital:
+                # Calculate decision value using existing method
+                decision = self.auto_survey_id.calculate_decision_value(element, orbital, distance)
+
+                # Mark assigned peaks with *
+                marker = "*" if assignment == assigned_element_orbital else ""
+                detailed_possibilities.append(f"{assignment}{marker}({distance:.2f}/{decision:.2f})")
+            else:
+                # Fallback if parsing fails
+                marker = "*" if assignment == assigned_element_orbital else ""
+                detailed_possibilities.append(f"{assignment}{marker}({distance:.2f}/N/A)")
+
+        # Join all detailed possibilities
+        combined_info = ", ".join(detailed_possibilities)
+
+        # Return as single combined column for distance, and separate decision values
+        distance_values = [f"{p['distance']:.2f}" for p in possible[:5]]
+        decision_values = []
+
+        for possibility in possible[:5]:
+            assignment = possibility['assignment']
+            distance = possibility['distance']
+
+            # Parse and calculate decision (same logic as above)
+            element = None
+            orbital = None
+            digit_start = -1
+            for i, char in enumerate(assignment):
+                if char.isdigit():
+                    digit_start = i
+                    break
+
+            if digit_start > 0:
+                element = assignment[:digit_start]
+                orbital = assignment[digit_start:]
+            else:
+                auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv']
+                for suffix in auger_suffixes:
+                    if assignment.lower().endswith(suffix):
+                        element = assignment[:-len(suffix)]
+                        orbital = suffix
+                        break
+
+            if element and orbital:
+                decision = self.auto_survey_id.calculate_decision_value(element, orbital, distance)
+                decision_values.append(f"{decision:.2f}")
+            else:
+                decision_values.append("N/A")
+
+        return ", ".join(distance_values), ", ".join(decision_values)
     def step1_all_peaks(self):
         """Step 1: List all peaks with possible assignments, ordered by prominence"""
         self.status_text.SetLabel("Step 1: Analyzing all peaks...")
 
         step1_data = []
 
+        # Initialize storage for original possibilities
+        self.original_possibilities = {}
+
         # ALL PEAKS ALREADY SORTED BY PROMINENCE in find_peaks_with_params
         for peak in self.all_peaks:
+
+            # FILTER OUT LOW ENERGY PEAKS (below 25 eV)
+            if peak['position'] < 25.0:
+                print(f"  Skipping peak at {peak['position']:.2f} eV (below 25 eV threshold)")
+                continue
+
             # Get possible assignments
             possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
             possible_text = ", ".join([p['assignment'] for p in possible[:5]])
+
+            # Store original possibilities for this peak
+            self.original_possibilities[peak['index']] = possible_text
 
             step1_data.append({
                 'peak': peak,
@@ -1883,10 +2094,131 @@ class AutoIDWindow(wx.Frame):
         self.populate_step_page(0, step1_data)
 
     def step2_peak_dismissal(self):
-        """Step 2: Show dismissed peaks that are too wide"""
-        self.status_text.SetLabel("Step 2: Peak dismissal - width filtering...")
+        """Step 2: Element frequency analysis + dismissed peaks"""
+        self.status_text.SetLabel("Step 2: Element frequency analysis and peak dismissal...")
 
         step2_data = []
+
+        # ===== NEW: ELEMENT FREQUENCY ANALYSIS =====
+        print("=== Step 2: Element Frequency Analysis ===")
+
+        # Count element occurrences across all peak possibilities
+        element_frequency = {}  # element -> {peaks: [peak_info], orbitals: [orbitals]}
+
+        for peak in self.all_peaks:
+            if peak['position'] < 20.0:  # Skip low energy peaks
+                continue
+
+            # Get possibilities for this peak
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+
+            for possibility in possible[:5]:  # Top 5 possibilities
+                assignment = possibility['assignment']
+
+                # Parse element from assignment
+                element = None
+                digit_start = -1
+                for i, char in enumerate(assignment):
+                    if char.isdigit():
+                        digit_start = i
+                        break
+
+                if digit_start > 0:
+                    # Standard photoelectron peak (Ti2p, Mo3d, etc.)
+                    element = assignment[:digit_start]
+                    orbital = assignment[digit_start:]
+                else:
+                    # Check for Auger peaks
+                    auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv']
+                    for suffix in auger_suffixes:
+                        if assignment.lower().endswith(suffix):
+                            element = assignment[:-len(suffix)]
+                            orbital = suffix
+                            break
+
+                if element:
+                    if element not in element_frequency:
+                        element_frequency[element] = {'peaks': [], 'orbitals': set(), 'assignments': []}
+
+                    # Avoid counting same element from same peak multiple times
+                    peak_already_counted = any(p['index'] == peak['index'] for p in element_frequency[element]['peaks'])
+                    if not peak_already_counted:
+                        element_frequency[element]['peaks'].append(peak)
+                        element_frequency[element]['orbitals'].add(orbital)
+                        element_frequency[element]['assignments'].append(assignment)
+
+        # Analyze frequency and assign confidence levels
+        high_priority_elements = set()  # 2 occurrences
+        certainty_elements = set()  # 3+ occurrences
+
+        print("Element frequency analysis:")
+        for element, data in element_frequency.items():
+            count = len(data['peaks'])
+            orbitals = list(data['orbitals'])
+
+            if count >= 3:
+                certainty_elements.add(element)
+                priority_level = "CERTAINTY"
+                confidence_boost = 30
+            elif count >= 2:
+                high_priority_elements.add(element)
+                priority_level = "HIGH PRIORITY"
+                confidence_boost = 20
+            else:
+                priority_level = "normal"
+                confidence_boost = 0
+
+            if count >= 2:
+                print(
+                    f"  {element}: {count} peaks, orbitals: {orbitals} → {priority_level} (+{confidence_boost} confidence)")
+
+        # Store frequency data for use in later steps
+        self.element_frequency_data = {
+            'high_priority': high_priority_elements,
+            'certainty': certainty_elements,
+            'all_frequency': element_frequency
+        }
+
+        # ===== FREQUENCY-BASED AUTO ASSIGNMENTS =====
+        print("=== Step 2: Frequency-based assignments ===")
+
+        # Auto-assign CERTAINTY elements (3+ occurrences)
+        for element in certainty_elements:
+            element_data = element_frequency[element]
+
+            # Sort peaks by prominence and assign the most prominent one
+            element_peaks = sorted(element_data['peaks'], key=lambda x: x['prominence'], reverse=True)
+
+            for peak in element_peaks:
+                if peak['index'] not in self.assigned_peaks:
+                    # Get the best assignment for this element from this peak
+                    possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+
+                    best_assignment = None
+                    for possibility in possible:
+                        if possibility['assignment'].startswith(element):
+                            best_assignment = possibility['assignment']
+                            break
+
+                    if best_assignment:
+                        # High confidence assignment due to frequency
+                        confidence = 95  # Very high confidence for certainty elements
+
+                        step2_data.append({
+                            'peak': peak,
+                            'assigned': best_assignment,
+                            'confidence': confidence,
+                            'companion': f"CERTAINTY ({len(element_peaks)} peaks)",
+                            'possible': self.get_original_possibilities(peak, best_assignment)
+                        })
+
+                        self.assigned_peaks.add(peak['index'])
+                        print(
+                            f"  ✓ AUTO-ASSIGNED {best_assignment} at {peak['position']:.2f} eV (CERTAINTY - {len(element_peaks)} peaks)")
+                        break  # Only assign one peak per certainty element
+
+        # ===== ORIGINAL DISMISSED PEAKS LOGIC =====
+        print("=== Step 2: Dismissed peaks (width filtering) ===")
 
         if hasattr(self, 'dismissed_peaks'):
             for peak in self.dismissed_peaks:
@@ -1895,19 +2227,20 @@ class AutoIDWindow(wx.Frame):
                     'assigned': "DISMISSED",
                     'confidence': 0,
                     'companion': peak['dismiss_reason'],
-                    'possible': "Too wide for XPS"
+                    'possible': self.get_original_possibilities(peak, "DISMISSED")
                 })
 
+        # SORT BY PROMINENCE
+        step2_data.sort(key=lambda x: x['peak']['prominence'], reverse=True)
         self.populate_step_page(1, step2_data)
 
     def step3_priority1_with_companions(self):
-        """Step 2: Priority 1 elements with companion verification - ordered by prominence"""
-        self.status_text.SetLabel("Step 2: Processing Priority 1 elements...")
+        """Step 3: Priority 1 elements with companion verification - FIXED for Na"""
+        self.status_text.SetLabel("Step 3: Processing Priority 1 elements...")
 
         step2_data = []
-        # Start with peaks ordered by prominence
         remaining_peaks = [p for p in self.all_peaks if p['index'] not in self.assigned_peaks]
-        remaining_peaks.sort(key=lambda x: x['prominence'], reverse=True)  # ENSURE PROMINENCE ORDER
+        remaining_peaks.sort(key=lambda x: x['prominence'], reverse=True)
 
         # Process Priority 1 elements
         for peak in remaining_peaks[:]:
@@ -1924,10 +2257,22 @@ class AutoIDWindow(wx.Frame):
                 if element in self.auto_survey_id.priority_1_elements:
                     main_orbital = self.auto_survey_id.priority_1_elements[element]
 
-                    if orbital == main_orbital:
+                    # FIXED: Handle Na special case where main_orbital is a list
+                    is_main_orbital = False
+                    if isinstance(main_orbital, list):
+                        # Na case: ['1s', 'kll']
+                        is_main_orbital = orbital in main_orbital
+                        print(
+                            f"  Checking {element}{orbital}: orbital '{orbital}' in {main_orbital} = {is_main_orbital}")
+                    else:
+                        # Normal case: single orbital string
+                        is_main_orbital = orbital == main_orbital
+
+                    if is_main_orbital:
                         companion_found = False
                         companion_text = ""
                         confidence = 50  # Base confidence
+                        assignment = f"{element}{orbital}"  # ← DEFINE assignment EARLY
 
                         # Look for companions
                         if orbital == '1s':
@@ -1936,8 +2281,18 @@ class AutoIDWindow(wx.Frame):
                             if auger:
                                 companion_found = True
                                 companion_text = f"{element}{auger['orbital']}"
-                                self.assigned_peaks.add(auger['peak']['index'])
                                 confidence = 90
+
+                                # ADD AUGER PEAK AS SEPARATE ENTRY (Fix for Bug 2)
+                                auger_assignment = f"{element}{auger['orbital']}"
+                                step2_data.append({
+                                    'peak': auger['peak'],
+                                    'assigned': auger_assignment,  # ← FIXED: Use auger_assignment
+                                    'confidence': 85,
+                                    'companion': f"Companion to {assignment}",
+                                    'possible': self.get_original_possibilities(auger['peak'], auger_assignment)
+                                })
+                                self.assigned_peaks.add(auger['peak']['index'])
 
                         elif orbital == '2p':
                             # Look for 2s companion
@@ -1945,8 +2300,42 @@ class AutoIDWindow(wx.Frame):
                             if companion:
                                 companion_found = True
                                 companion_text = f"{element}{companion['orbital']}"
-                                self.assigned_peaks.add(companion['peak']['index'])
                                 confidence = 85
+
+                                # ADD COMPANION PEAK AS SEPARATE ENTRY (Fix for Bug 2)
+                                companion_assignment = f"{element}{companion['orbital']}"
+                                step2_data.append({
+                                    'peak': companion['peak'],
+                                    'assigned': companion_assignment,  # ← FIXED: Use companion_assignment
+                                    'confidence': 80,
+                                    'companion': f"Companion to {assignment}",
+                                    'possible': self.get_original_possibilities(companion['peak'], companion_assignment)
+                                })
+                                self.assigned_peaks.add(companion['peak']['index'])
+
+                        elif orbital == 'kll':
+                            # Na Auger peak found - look for Na1s companion
+                            na1s_companion = None
+                            for comp_peak in remaining_peaks:
+                                if abs(comp_peak['position'] - 1071) <= 4.0:  # Na1s around 1071 eV
+                                    na1s_companion = comp_peak
+                                    break
+
+                            if na1s_companion:
+                                companion_found = True
+                                companion_text = f"{element}1s"
+                                confidence = 90
+
+                                # ADD Na1s PEAK AS SEPARATE ENTRY
+                                na1s_assignment = f"{element}1s"
+                                step2_data.append({
+                                    'peak': na1s_companion,
+                                    'assigned': na1s_assignment,  # ← FIXED: Use na1s_assignment
+                                    'confidence': 85,
+                                    'companion': f"Companion to {assignment}",
+                                    'possible': self.get_original_possibilities(na1s_companion, na1s_assignment)
+                                })
+                                self.assigned_peaks.add(na1s_companion['index'])
 
                         # Calculate final confidence
                         final_confidence = self.auto_survey_id.calculate_confidence_score(
@@ -1956,15 +2345,16 @@ class AutoIDWindow(wx.Frame):
                         # Assign this peak
                         if companion_found or peak['prominence'] > 0.02:
                             self.assigned_peaks.add(peak['index'])
-                            assignment = f"{element}{orbital}"
 
                             step2_data.append({
                                 'peak': peak,
-                                'assigned': assignment,
-                                'confidence': int(final_confidence),
+                                'assigned': assignment,  # ← NOW assignment is defined
+                                'confidence': int(final_confidence),  # ← NOW final_confidence is defined
                                 'companion': companion_text,
-                                'possible': f"{element}{orbital} (assigned)"
+                                'possible': self.get_original_possibilities(peak, assignment)
                             })
+
+                            print(f"✓ ASSIGNED {assignment} at {peak['position']:.2f} eV (Priority 1)")
                             break
 
         # SORT STEP2 DATA BY PROMINENCE
@@ -2039,7 +2429,7 @@ class AutoIDWindow(wx.Frame):
                             'assigned': assignment,
                             'confidence': int(final_confidence),
                             'companion': companion_text,
-                            'possible': f"{element}{orbital} (assigned)"
+                            'possible': self.get_original_possibilities(peak, assignment) # Use original possibilities
                         })
                         break
 
@@ -2077,31 +2467,34 @@ class AutoIDWindow(wx.Frame):
                 'assigned': assignment,
                 'confidence': confidence,
                 'companion': "",
-                'possible': possible_text
+                'possible': self.get_original_possibilities(peak, assignment) if assignment else possible_text  # ← NEW
             })
 
         self.populate_step_page(4, step4_data)
 
     def step6_peak_assignment_dismissal(self):
-        """Step 6: Dismiss non-main orbital assignments if main peak not found"""
-        self.status_text.SetLabel("Step 6: Peak assignment dismissal...")
+        """Step 6: Enhanced reassignment to detected elements + dismissal checks"""
+        self.status_text.SetLabel("Step 6: Peak reassignment and dismissal...")
 
         step6_data = []
         dismissed_assignments = []
+        reassigned_peaks = []
 
-        # Define which orbitals require main orbitals - FIXED MAP
-        secondary_to_main_map = {
-            '3p': '3d',  # Ba3p requires Ba3d
-            '4d': '4f',  # Ir4d requires Ir4f
-            '2s': '2p',  # F2s requires F2p (NOT F1s)
-            '3s': '3p',  # 3s requires 3p
-            '4p': '4d',  # 4p requires 4d - THIS CATCHES Au4p
-            '5d': '5f',  # 5d requires 5f
-            '2p1': '2p3',  # 2p1/2 requires 2p3/2
+        # Define hierarchical main orbital requirements (any of these will satisfy)
+        secondary_orbital_hierarchy = {
+            '3p': ['3d', '2p', '1s'],  # 3p needs 3d OR 2p OR 1s
+            '3s': ['3d', '2p', '1s'],  # 3s needs 3d OR 2p OR 1s
+            '4d': ['4f', '3d', '2p', '1s'],  # 4d needs 4f OR 3d OR 2p OR 1s
+            '4p': ['4f', '4d', '3d', '2p', '1s'],  # 4p needs any main orbital
+            '2s': ['2p', '1s'],  # 2s needs 2p OR 1s
+            '5d': ['5f', '4f', '3d', '2p', '1s'],  # 5d needs any main orbital
+            '2p1': ['2p3', '2p'],  # 2p1/2 needs 2p3/2 OR 2p
         }
 
         # Collect all currently assigned peaks with their assignments
         assigned_elements_orbitals = set()
+        detected_elements = set()  # Track which elements have been detected
+
         print("=== Step 6: Collecting all assignments ===")
 
         # Check steps 2, 3, 4 (Usual's, Most commons, Others)
@@ -2117,32 +2510,8 @@ class AutoIDWindow(wx.Frame):
                 assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
                 if assigned and assigned != "" and assigned != "DISMISSED":
                     assigned_elements_orbitals.add(assigned)
-                    print(f"  Found assignment: {assigned} (from {step_name})")
 
-        print(f"  Total assignments found: {assigned_elements_orbitals}")
-
-        # Now check assignments for dismissal and MODIFY original lists
-        # Now check assignments for dismissal and MODIFY original lists
-        print("=== Step 6: Starting dismissal checks ===")
-        for step_idx in [2, 3, 4]:
-            if step_idx >= len(self.step_pages):
-                continue
-
-            page = self.step_pages[step_idx]
-            peak_list = page.peak_list
-            step_name = ["", "", "Usual's", "Most commons", "Others"][step_idx]
-
-            print(f"  Checking step {step_idx} ({step_name}) - {peak_list.GetItemCount()} rows")
-
-            for row in range(peak_list.GetItemCount()):
-                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
-
-                if assigned and assigned != "" and assigned != "DISMISSED":
-
-                    # Debug the assignment string
-                    print(f"    Row {row}: assigned='{assigned}', len={len(assigned)}")
-
-                    # Simple parsing - find where digits start
+                    # Extract element name and add to detected elements
                     digit_start = -1
                     for i, char in enumerate(assigned):
                         if char.isdigit():
@@ -2151,22 +2520,324 @@ class AutoIDWindow(wx.Frame):
 
                     if digit_start > 0:
                         element = assigned[:digit_start]
-                        orbital = assigned[digit_start:]
+                        detected_elements.add(element)
 
-                        # Normalize orbital (remove /2 variations)
-                        orbital_normalized = orbital.replace('/2', '').replace('3/2', '3').replace('1/2', '1')
+                    print(f"  Found assignment: {assigned} (from {step_name}) -> element {element} detected")
 
-                        print(f"    ✓ Parsed: element='{element}', orbital='{orbital_normalized}'")
+        print(f"  Total assignments found: {assigned_elements_orbitals}")
+        print(f"  Detected elements: {detected_elements}")
 
-                        # Check if this orbital requires a main orbital
-                        if orbital_normalized in secondary_to_main_map:
-                            main_orbital = secondary_to_main_map[orbital_normalized]
-                            main_assignment = f"{element}{main_orbital}"
+        # ===== NEW: REASSIGNMENT TO DETECTED ELEMENTS =====
+        print("=== Step 6: Checking for reassignments to detected elements ===")
 
-                            print(f"      Secondary orbital '{orbital_normalized}' requires main: '{main_assignment}'")
+        for step_idx in [2, 3, 4]:
+            if step_idx >= len(self.step_pages):
+                continue
 
-                            # Check if main orbital has been assigned
-                            main_found = False
+            page = self.step_pages[step_idx]
+            peak_list = page.peak_list
+            step_name = ["", "", "Usual's", "Most commons", "Others"][step_idx]
+
+            for row in range(peak_list.GetItemCount()):
+                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
+                position_text = peak_list.GetItem(row, 1).GetText()  # Column 1 = Position
+                possibilities_text = peak_list.GetItem(row, 7).GetText()  # Column 7 = Possibilities
+
+                if assigned and assigned != "" and assigned != "DISMISSED":
+
+                    # Parse current assignment
+                    digit_start = -1
+                    for i, char in enumerate(assigned):
+                        if char.isdigit():
+                            digit_start = i
+                            break
+
+                    if digit_start <= 0:
+                        continue
+
+                    current_element = assigned[:digit_start]
+                    current_orbital = assigned[digit_start:]
+
+                    print(f"    Checking {assigned} (current: {current_element}{current_orbital})")
+                    print(f"      Possibilities: {possibilities_text}")
+
+                    # BUILD DETECTED ELEMENTS EXCLUDING THE CURRENT ASSIGNMENT
+                    detected_from_others = set()
+                    for other_assignment in assigned_elements_orbitals:
+                        if other_assignment != assigned:  # ← EXCLUDE current assignment
+                            # Parse other assignment
+                            other_digit_start = -1
+                            for i, char in enumerate(other_assignment):
+                                if char.isdigit():
+                                    other_digit_start = i
+                                    break
+
+                            if other_digit_start > 0:
+                                other_element = other_assignment[:other_digit_start]
+                                detected_from_others.add(other_element)
+
+                    print(f"      Elements detected from OTHER peaks: {detected_from_others}")
+
+                    # Parse possibilities to find detected elements
+                    if possibilities_text:
+                        possibilities = [p.strip() for p in possibilities_text.split(',')]
+
+                        best_detected_match = None
+                        best_confidence_boost = 0
+
+                        for possibility in possibilities:
+                            # IMPROVED PARSING: Handle both photoelectron (Ti2p) and Auger (Calmm) peaks
+                            poss_element = None
+                            poss_orbital = None
+
+                            # First try digit-based parsing (Ti2p, Ca2p, etc.)
+                            poss_digit_start = -1
+                            for i, char in enumerate(possibility):
+                                if char.isdigit():
+                                    poss_digit_start = i
+                                    break
+
+                            if poss_digit_start > 0:
+                                # Standard photoelectron peak (e.g., Ti2p, Ca2p)
+                                poss_element = possibility[:poss_digit_start]
+                                poss_orbital = possibility[poss_digit_start:]
+                            else:
+                                # Check for Auger peaks (element + auger_type)
+                                auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv', 'kln', 'klm']
+
+                                for suffix in auger_suffixes:
+                                    if possibility.lower().endswith(suffix):
+                                        poss_element = possibility[:-len(suffix)]
+                                        poss_orbital = suffix
+                                        print(
+                                            f"          → Parsed Auger: '{possibility}' = element '{poss_element}' + orbital '{poss_orbital}'")
+                                        break
+
+                            if poss_element and poss_orbital:
+                                print(f"          → Parsed: element='{poss_element}', orbital='{poss_orbital}'")
+                                print(
+                                    f"          → Element '{poss_element}' in detected? {poss_element in detected_from_others}")
+
+                                # Check if this element is detected from OTHER peaks
+                                if poss_element in detected_from_others and poss_element != current_element:
+                                    print(
+                                        f"        ✓ Found better match: {possibility} (element {poss_element} detected from other peaks)")
+
+                                    # Calculate priority boost based on orbital importance
+                                    orbital_priority = {
+                                        '1s': 50, '2p': 45, '3d': 40, '4f': 35,
+                                        '2s': 30, '3p': 25, '4d': 20, '3s': 15, '4p': 10,
+                                        # Add Auger priorities
+                                        'kll': 35, 'lmm': 30, 'mnn': 25, 'mvv': 20, 'mnv': 15
+                                    }
+
+                                    orbital_clean = poss_orbital.replace('/2', '').replace('3/2', '3').replace('1/2',
+                                                                                                               '1')
+                                    confidence_boost = orbital_priority.get(orbital_clean, 5)
+
+                                    if confidence_boost > best_confidence_boost:
+                                        best_detected_match = possibility
+                                        best_confidence_boost = confidence_boost
+                                        print(
+                                            f"          → New best: {best_detected_match} (boost: +{best_confidence_boost})")
+                                else:
+                                    print(f"          ✗ Element '{poss_element}' not detected from other peaks")
+                            else:
+                                print(f"          ⚠ Could not parse possibility: '{possibility}'")
+
+                        # If we found a better match with a detected element
+                        if best_detected_match:
+                            old_assignment = assigned
+                            new_assignment = best_detected_match
+
+                            print(
+                                f"      ✓ REASSIGNING: {old_assignment} → {new_assignment} (element detected from other peaks)")
+
+                            # Update the assignment
+                            peak_list.SetItem(row, 5, new_assignment)  # Update Assigned To
+
+                            # Calculate new confidence (boost for detected element)
+                            old_confidence_text = peak_list.GetItem(row, 4).GetText()
+                            try:
+                                old_confidence = int(old_confidence_text)
+                                new_confidence = min(95, old_confidence + best_confidence_boost)
+                                peak_list.SetItem(row, 4, str(new_confidence))
+                            except ValueError:
+                                new_confidence = 80
+                                peak_list.SetItem(row, 4, "80")
+
+                            # Update companion info - FIXED to handle Auger peaks
+                            new_element = None
+
+                            # Try digit-based parsing first (Ti2p, Ca2p, etc.)
+                            digit_pos = -1
+                            for i, char in enumerate(new_assignment):
+                                if char.isdigit():
+                                    digit_pos = i
+                                    break
+
+                            if digit_pos > 0:
+                                # Standard photoelectron peak
+                                new_element = new_assignment[:digit_pos]
+                            else:
+                                # Check for Auger peaks
+                                auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv', 'kln', 'klm']
+                                for suffix in auger_suffixes:
+                                    if new_assignment.lower().endswith(suffix):
+                                        new_element = new_assignment[:-len(suffix)]
+                                        break
+
+                            if new_element:
+                                peak_list.SetItem(row, 6,
+                                                  f"Reassigned to detected {new_element} (+{best_confidence_boost})")
+                            else:
+                                peak_list.SetItem(row, 6, f"Reassigned (+{best_confidence_boost})")
+
+                            # Color it blue for reassignment
+                            peak_list.SetItemBackgroundColour(row, wx.Colour(200, 220, 255))
+
+                            # Track reassignment
+                            reassigned_peaks.append({
+                                'old': old_assignment,
+                                'new': new_assignment,
+                                'position': position_text,
+                                'confidence_boost': best_confidence_boost
+                            })
+
+                            # Update our tracking sets
+                            assigned_elements_orbitals.discard(old_assignment)
+                            assigned_elements_orbitals.add(new_assignment)
+                        else:
+                            print(f"      → No better matches with elements detected from other peaks")
+                    else:
+                        print(f"      → No possibilities available")
+
+        # ===== NEW: REMOVE DUPLICATE ASSIGNMENTS =====
+        print("=== Step 6: Checking for duplicate assignments ===")
+
+        # Collect all current assignments with their peak info
+        assignment_to_peaks = {}  # assignment -> [(peak_info, step_idx, row), ...]
+
+        for step_idx in [2, 3, 4]:
+            if step_idx >= len(self.step_pages):
+                continue
+
+            page = self.step_pages[step_idx]
+            peak_list = page.peak_list
+            step_name = ["", "", "Usual's", "Most commons", "Others"][step_idx]
+
+            for row in range(peak_list.GetItemCount()):
+                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
+                position_text = peak_list.GetItem(row, 1).GetText()  # Column 1 = Position
+                prominence_text = peak_list.GetItem(row, 3).GetText()  # Column 3 = Prominence
+
+                if assigned and assigned != "" and assigned != "DISMISSED":
+                    try:
+                        position = float(position_text)
+                        prominence = float(prominence_text)
+
+                        if assigned not in assignment_to_peaks:
+                            assignment_to_peaks[assigned] = []
+
+                        assignment_to_peaks[assigned].append({
+                            'position': position,
+                            'prominence': prominence,
+                            'step_idx': step_idx,
+                            'row': row,
+                            'page': page,
+                            'peak_list': peak_list
+                        })
+                    except ValueError:
+                        pass
+
+        # Find and resolve duplicates
+        for assignment, peaks_info in assignment_to_peaks.items():
+            if len(peaks_info) > 1:
+                print(f"  Found duplicate assignment '{assignment}' in {len(peaks_info)} peaks:")
+
+                # Sort by prominence (highest first)
+                peaks_info.sort(key=lambda x: x['prominence'], reverse=True)
+
+                # Keep the most prominent, dismiss the rest
+                for i, peak_info in enumerate(peaks_info):
+                    if i == 0:
+                        print(
+                            f"    ✓ KEEPING: {assignment} at {peak_info['position']:.2f} eV (prominence: {peak_info['prominence']:.4f})")
+                    else:
+                        print(
+                            f"    ✗ DISMISSING: {assignment} at {peak_info['position']:.2f} eV (prominence: {peak_info['prominence']:.4f}) - duplicate")
+
+                        # Dismiss the duplicate
+                        peak_info['peak_list'].SetItem(peak_info['row'], 5, "DISMISSED")
+                        peak_info['peak_list'].SetItem(peak_info['row'], 6, f"Duplicate {assignment} (less prominent)")
+                        peak_info['peak_list'].SetItemBackgroundColour(peak_info['row'], wx.Colour(255, 200, 200))
+
+                        dismissed_assignments.append(f"{assignment} (duplicate)")
+
+        # ===== EXISTING: ENHANCEMENT AND DISMISSAL LOGIC =====
+        print("=== Step 6: Starting enhancement and dismissal checks ===")
+
+        for step_idx in [2, 3, 4]:
+            if step_idx >= len(self.step_pages):
+                continue
+
+            page = self.step_pages[step_idx]
+            peak_list = page.peak_list
+            step_name = ["", "", "Usual's", "Most commons", "Others"][step_idx]
+
+            for row in range(peak_list.GetItemCount()):
+                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
+                position_text = peak_list.GetItem(row, 1).GetText()  # Column 1 = Position
+
+                if assigned and assigned != "" and assigned != "DISMISSED":
+
+                    # Parse assignment
+                    digit_start = -1
+                    for i, char in enumerate(assigned):
+                        if char.isdigit():
+                            digit_start = i
+                            break
+
+                    if digit_start <= 0:
+                        continue
+
+                    element = assigned[:digit_start]
+                    orbital = assigned[digit_start:]
+                    orbital_normalized = orbital.replace('/2', '').replace('3/2', '3').replace('1/2', '1')
+
+                    # Skip if this was already processed in reassignment (has blue color)
+                    try:
+                        current_color = peak_list.GetItemBackgroundColour(row)
+                        if current_color == wx.Colour(200, 220, 255):  # Blue = reassigned
+                            continue
+                    except:
+                        pass
+
+                    # ENHANCEMENT: If element is detected, boost confidence
+                    if element in detected_elements:
+                        current_confidence = peak_list.GetItem(row, 4).GetText()
+                        try:
+                            confidence_val = int(current_confidence)
+                            boosted_confidence = min(95, confidence_val + 15)  # +15 boost, max 95
+                            peak_list.SetItem(row, 4, str(boosted_confidence))
+                            peak_list.SetItem(row, 6, f"Element {element} detected (+15 confidence)")
+                            peak_list.SetItemBackgroundColour(row, wx.Colour(200, 255, 200))  # Green
+                            print(
+                                f"      ✓ BOOSTED confidence: {confidence_val} → {boosted_confidence} (element detected)")
+                        except ValueError:
+                            pass
+
+                    # DISMISSAL: Check if secondary orbital needs main orbital
+                    elif orbital_normalized in secondary_orbital_hierarchy:
+                        required_orbitals = secondary_orbital_hierarchy[orbital_normalized]
+
+                        # Check if ANY of the required main orbitals has been assigned
+                        main_found = False
+                        found_main = None
+
+                        for required_orbital in required_orbitals:
+                            main_assignment = f"{element}{required_orbital}"
+
                             for existing in assigned_elements_orbitals:
                                 # Parse existing assignment
                                 existing_digit_start = -1
@@ -2181,57 +2852,45 @@ class AutoIDWindow(wx.Frame):
                                                                                                                  '3').replace(
                                         '1/2', '1')
 
-                                    if existing_element == element and existing_orbital == main_orbital:
+                                    if existing_element == element and existing_orbital == required_orbital:
                                         main_found = True
-                                        print(f"        ✓ Found main orbital: {existing}")
+                                        found_main = existing
                                         break
 
-                            if not main_found:
-                                print(f"      ✗ Main orbital '{main_assignment}' NOT found - DISMISSING {assigned}")
+                            if main_found:
+                                break
 
-                                # MODIFY the original list - mark as DISMISSED
-                                peak_list.SetItem(row, 5, "DISMISSED")  # Update Assigned To column
-                                peak_list.SetItem(row, 6, f"No {main_assignment} found")  # Update Companion
+                        if not main_found:
+                            print(f"      ✗ NO main orbital found for {element} - DISMISSING {assigned}")
 
-                                # Color it red
-                                peak_list.SetItemBackgroundColour(row, wx.Colour(255, 200, 200))
+                            # MODIFY the original list - mark as DISMISSED
+                            peak_list.SetItem(row, 5, "DISMISSED")  # Update Assigned To column
+                            peak_list.SetItem(row, 6, f"No main {element} peak found")  # Update Companion
 
-                                # Track dismissal
-                                dismissed_assignments.append(assigned)
+                            # Color it red
+                            peak_list.SetItemBackgroundColour(row, wx.Colour(255, 200, 200))
 
-                                # Remove from assigned peaks set and add to step6 data
-                                position_text = peak_list.GetItem(row, 1).GetText()
-                                position = float(position_text)
-                                for peak in self.all_peaks:
-                                    if abs(peak['position'] - position) < 0.1:
-                                        self.assigned_peaks.discard(peak['index'])
-                                        step6_data.append({
-                                            'peak': peak,
-                                            'assigned': "DISMISSED",
-                                            'confidence': 0,
-                                            'companion': f"No {main_assignment} found",
-                                            'possible': f"{assigned} (dismissed - missing main peak)"
-                                        })
-                                        break
-                            else:
-                                print(f"      ✓ Main orbital '{main_assignment}' found - keeping {assigned}")
-                        else:
-                            print(f"      ℹ Orbital '{orbital_normalized}' doesn't require main peak")
-                    else:
-                        print(f"    ✗ No digits found in assignment: {assigned}")
-
-        print("=== Step 6: Dismissal checks complete ===")
+                            # Track dismissal
+                            dismissed_assignments.append(assigned)
 
         # SORT STEP6 DATA BY PROMINENCE
         step6_data.sort(key=lambda x: x['peak']['prominence'], reverse=True)
         self.populate_step_page(5, step6_data)  # Tab 5: "6. Final Checked"
 
+        # Print summary
+        if reassigned_peaks:
+            print(f"=== Step 6: Reassigned {len(reassigned_peaks)} peaks to detected elements ===")
+            for reassignment in reassigned_peaks:
+                print(
+                    f"  Reassigned: {reassignment['old']} → {reassignment['new']} (+{reassignment['confidence_boost']} confidence)")
+
         if dismissed_assignments:
             print(f"=== Step 6: Dismissed {len(dismissed_assignments)} assignments ===")
             for assignment in dismissed_assignments:
                 print(f"  Dismissed: {assignment}")
-        else:
-            print("=== Step 6: No assignments dismissed ===")
+
+        if not reassigned_peaks and not dismissed_assignments:
+            print("=== Step 6: No reassignments or dismissals ===")
 
     def step7_final_compilation(self):
         """Step 7: Final compilation of all assignments - ordered by prominence"""
@@ -2240,9 +2899,10 @@ class AutoIDWindow(wx.Frame):
         final_data = []
         seen_positions = set()  # Track positions to avoid duplicates
 
-        # Collect all assigned peaks from all steps (skip step 1 - peak dismissal and step 6 - assignment dismissal)
+        # Collect all assigned peaks from all steps
         for step_idx in range(7):  # Now we have 7 total steps (0-6)
-            if step_idx in [1, 5]:  # Skip peak dismissal (step 1) and assignment dismissal (step 5)
+            if step_idx in [0,
+                            5]:  # FIXED: Skip only step 0 (Find Peaks - no assignments) and step 5 (Final Checked - duplicate processing)
                 continue
 
             if step_idx >= len(self.step_pages):
@@ -2250,11 +2910,15 @@ class AutoIDWindow(wx.Frame):
 
             page = self.step_pages[step_idx]
             peak_list = page.peak_list
+            step_name = ["Find Peaks", "Peak Width", "Usual's", "Most commons", "Others", "Final Checked", "Results"][
+                step_idx]
+
+            print(f"  Collecting from step {step_idx} ({step_name}): {peak_list.GetItemCount()} rows")
 
             for row in range(peak_list.GetItemCount()):
-                # FIXED COLUMN INDICES:
-                # 0: Create, 1: Position, 2: Width, 3: Prominence, 4: Confidence, 5: Assigned To, 6: Companion, 7: Possible
-                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Assigned To
+                # UPDATED COLUMN INDICES for new column layout:
+                # 0: T, 1: BE (eV), 2: Width (eV), 3: Signal, 4: Score, 5: Peak, 6: Companion, 7: Possibility, 8: Distance, 9: Decision
+                assigned = peak_list.GetItem(row, 5).GetText()  # Column 5 = Peak (assigned to)
 
                 if assigned and assigned != "" and assigned != "DISMISSED":
                     position_text = peak_list.GetItem(row, 1).GetText()
@@ -2263,12 +2927,13 @@ class AutoIDWindow(wx.Frame):
                     # Avoid duplicates - skip if we've already seen this position
                     position_key = round(position, 1)  # Round to avoid floating point issues
                     if position_key in seen_positions:
+                        print(f"    Skipping duplicate at {position:.1f} eV: {assigned}")
                         continue
                     seen_positions.add(position_key)
 
                     width = peak_list.GetItem(row, 2).GetText()
                     prominence = peak_list.GetItem(row, 3).GetText()
-                    confidence_text = peak_list.GetItem(row, 4).GetText()  # Column 4 = Confidence
+                    confidence_text = peak_list.GetItem(row, 4).GetText()  # Column 4 = Score
                     companion = peak_list.GetItem(row, 6).GetText()  # Column 6 = Companion
 
                     # Find the original peak data
@@ -2282,28 +2947,41 @@ class AutoIDWindow(wx.Frame):
                         confidence = int(confidence_text) if confidence_text.isdigit() else 0
 
                         # Set create_region based on confidence - low confidence peaks appear but aren't ticked
-                        original_peak['create_region'] = confidence >= 40  # Only tick if confidence >= 40
+                        original_peak['create_region'] = confidence >= 60  # Updated threshold
+
+                        # GET ORIGINAL POSSIBILITIES FROM STEP 1 (NOT MODIFIED ONES)
+                        original_possibilities = self.original_possibilities.get(original_peak['index'], assigned)
 
                         final_data.append({
                             'peak': original_peak,
                             'assigned': assigned,
                             'confidence': confidence,
                             'companion': companion,
-                            'possible': assigned  # Use the assignment as the "possible" text
+                            'possible': original_possibilities  # Use original from step 1
                         })
+
+                        print(f"    Added: {assigned} at {position:.2f} eV (confidence: {confidence}) from {step_name}")
+
+        print(f"  Total peaks collected: {len(final_data)}")
 
         # SORT FINAL DATA BY PROMINENCE (highest first)
         final_data.sort(key=lambda x: x['peak']['prominence'], reverse=True)
 
-        self.populate_step_page(6, final_data)  # Tab 6: "7. Final Results"
+        self.populate_step_page(6, final_data)  # Tab 6: "7. Results"
 
     def populate_step_page(self, step_index, data_list):
-        """Populate a step page with peak data including checkboxes"""
+        """Populate a step page with peak data including checkboxes, distance, and decision"""
         if step_index >= len(self.step_pages):
             return
 
         page = self.step_pages[step_index]
         peak_list = page.peak_list
+
+        # DETECT COMPANIONS AFTER ALL ASSIGNMENTS ARE MADE
+        data_list = self.detect_companions_post_assignment(data_list)
+
+        # Store original data for sorting
+        page.original_data = data_list.copy()
 
         # Clear existing items
         peak_list.DeleteAllItems()
@@ -2311,18 +2989,25 @@ class AutoIDWindow(wx.Frame):
         # Add data - ALL DATA ALREADY SORTED BY PROMINENCE
         for i, data in enumerate(data_list):
             peak = data['peak']
+            assigned = data['assigned']
 
-            # Check if peak should be ticked based on confidence and create_region setting
-            should_tick = peak.get('create_region', True) and data['confidence'] >= 30
-            index = peak_list.InsertItem(i, "☑" if should_tick else "☐")
+            # Calculate distance and decision values
+            distance_str, decision_str = self.calculate_peak_metrics(peak, assigned)
+
+            # Check if peak should be ticked - UPDATED THRESHOLD TO 60
+            should_tick = peak.get('create_region', True) and data['confidence'] >= 60
+            tick_text = "☑" if should_tick else "☐"
+
+            index = peak_list.InsertItem(i, tick_text)
             peak_list.SetItem(index, 1, f"{peak['position']:.2f}")
             peak_list.SetItem(index, 2, f"{peak['width']:.2f}")
             peak_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
-            peak_list.SetItem(index, 4, str(data['confidence']))  # CONFIDENCE AFTER PROMINENCE
-            peak_list.SetItem(index, 5, data['assigned'])  # ASSIGNED TO
-            peak_list.SetItem(index, 6, data['companion'])  # COMPANION
-            peak_list.SetItem(index, 7, data['possible'])  # POSSIBLE CORE LEVELS
-            # REMOVED Manual column
+            peak_list.SetItem(index, 4, str(data['confidence']))
+            peak_list.SetItem(index, 5, data['assigned'])
+            peak_list.SetItem(index, 6, self.format_companion_text(data['companion']))  # ← Now with better logic
+            peak_list.SetItem(index, 7, data['possible'])
+            peak_list.SetItem(index, 8, distance_str)
+            peak_list.SetItem(index, 9, decision_str)
 
             # Color code by confidence
             if data['confidence'] >= 80:
@@ -2333,7 +3018,6 @@ class AutoIDWindow(wx.Frame):
                 peak_list.SetItemBackgroundColour(index, wx.Colour(255, 230, 200))  # Orange
             elif data['confidence'] > 0:
                 peak_list.SetItemBackgroundColour(index, wx.Colour(255, 200, 200))  # Red
-
     def requires_main_peak(self, element, orbital):
         """Check if orbital requires main peak to be found first"""
         main_peak_map = {
@@ -2568,7 +3252,7 @@ class AutoIDWindow(wx.Frame):
         except ValueError:
             wx.MessageBox("Please enter a valid binding energy", "Invalid Input", wx.OK | wx.ICON_ERROR)
 
-    def on_peak_selected(self, event, page):
+    def on_peak_selected_OLD(self, event, page):
         """Handle peak selection"""
         selected = event.GetIndex()
         if selected >= 0:
@@ -2581,17 +3265,48 @@ class AutoIDWindow(wx.Frame):
                 page.core_level_choice.SetSelection(0)
 
     def on_force_assignment(self, event, page):
-        """Force assignment of selected peak"""
-        selected_peak = page.peak_list.GetFirstSelected()
-        if selected_peak >= 0:
-            selected_core_level = page.core_level_choice.GetStringSelection()
-            if selected_core_level:
-                page.peak_list.SetItem(selected_peak, 5, selected_core_level)  # Column 5 = Assigned To
-                page.peak_list.SetItem(selected_peak, 4, "100")  # Column 4 = Confidence
-                wx.MessageBox(f"Peak manually assigned to {selected_core_level}", "Assignment Updated",
-                              wx.OK | wx.ICON_INFORMATION)
-        else:
+        """Handle force assignment button click"""
+        selected_index = page.peak_list.GetFirstSelected()
+        selected_assignment = page.core_level_choice.GetStringSelection()
+
+        if selected_index == -1:
             wx.MessageBox("Please select a peak first", "No Peak Selected", wx.OK | wx.ICON_WARNING)
+            return
+
+        if not selected_assignment:
+            wx.MessageBox("Please select an assignment from the dropdown", "No Assignment Selected",
+                          wx.OK | wx.ICON_WARNING)
+            return
+
+        # Update the assignment in the list
+        page.peak_list.SetItem(selected_index, 5, selected_assignment)  # Peak column
+
+        # Calculate new metrics for the forced assignment
+        if hasattr(page, 'original_data') and selected_index < len(page.original_data):
+            peak_data = page.original_data[selected_index]
+            peak = peak_data['peak']
+
+            # Update the underlying data
+            page.original_data[selected_index]['assigned'] = selected_assignment
+
+            # Recalculate distance and decision
+            distance_str, decision_str = self.calculate_peak_metrics(peak, selected_assignment)
+            page.peak_list.SetItem(selected_index, 8, distance_str)
+            page.peak_list.SetItem(selected_index, 9, decision_str)
+
+            # Set high confidence for manual assignments
+            page.peak_list.SetItem(selected_index, 4, "95")  # Score
+            page.original_data[selected_index]['confidence'] = 95
+
+            # Update companion info
+            page.peak_list.SetItem(selected_index, 6, "Manual assignment")
+
+            # Color it differently for manual assignments
+            page.peak_list.SetItemBackgroundColour(selected_index, wx.Colour(200, 200, 255))  # Blue
+
+            print(f"Force assigned peak {selected_index} to {selected_assignment}")
+
+        event.Skip()
 
     def on_remove_peak(self, event, page):
         """Remove selected peak"""
@@ -2604,3 +3319,317 @@ class AutoIDWindow(wx.Frame):
                 position_float = float(position)
                 self.all_peaks = [p for p in self.all_peaks if abs(p['position'] - position_float) > 0.1]
                 self.run_systematic_identification()
+
+    def bind_peak_list_events(self):
+        """Bind click events to all peak lists"""
+        for page in self.step_pages:
+            if hasattr(page, 'peak_list'):
+                page.peak_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_peak_selected)
+
+    def on_peak_selected(self, event, page=None):  # ← Add default page=None
+        """Handle peak selection and populate force assignment combo"""
+
+        # Handle case where page isn't passed (shouldn't happen but safety check)
+        if page is None:
+            print("WARNING: on_peak_selected called without page argument")
+            event.Skip()
+            return
+
+        selected_index = event.GetIndex()
+
+        if selected_index != -1 and hasattr(page, 'original_data') and selected_index < len(page.original_data):
+            # Get the selected peak data
+            peak_data = page.original_data[selected_index]
+            peak = peak_data['peak']
+
+            # Get all possible assignments for this peak
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+
+            # Populate the combo box with possibilities
+            choices = [p['assignment'] for p in possible[:10]]  # Top 10 possibilities
+
+            # Clear and populate combo box
+            page.core_level_choice.Clear()
+            for choice in choices:
+                page.core_level_choice.Append(choice)
+
+            # Highlight the peak region on the plot
+            position_text = page.peak_list.GetItem(selected_index, 1).GetText()
+            width_text = page.peak_list.GetItem(selected_index, 2).GetText()
+
+            try:
+                position = float(position_text)
+                width = float(width_text)
+                self.highlight_peak_region(position, width)
+            except ValueError:
+                pass
+
+            print(f"Selected peak at {peak['position']:.2f} eV - {len(choices)} possibilities loaded")
+
+        event.Skip()
+
+    def highlight_peak_region(self, center, width):
+        """Highlight peak region on the plot with transparent pink overlay"""
+        try:
+            # Clear any existing highlights
+            self.clear_peak_highlight()
+
+            # Calculate region bounds (center ± width/2)
+            half_width = width / 2.0
+            x_min = center - 2*width
+            x_max = center + width
+
+            # Get the plot axes
+            ax = self.parent.figure.gca()
+
+            # Get y-axis limits for the highlight
+            y_min, y_max = ax.get_ylim()
+
+            # Create transparent pink highlight
+            self.peak_highlight = ax.axvspan(x_min, x_max,
+                                             alpha=0.3,
+                                             color='hotpink',
+                                             zorder=1)
+
+            # # Add vertical lines at peak center
+            # self.peak_center_line = ax.axvline(center,
+            #                                    color='red',
+            #                                    linestyle='--',
+            #                                    alpha=0.7,
+            #                                    linewidth=2,
+            #                                    zorder=2)
+
+            # Refresh the plot
+            self.parent.canvas.draw()
+
+            print(f"Highlighted peak: {center:.2f} eV (width: {width:.2f} eV)")
+
+        except Exception as e:
+            print(f"Error highlighting peak: {e}")
+
+    def clear_peak_highlight(self):
+        """Clear any existing peak highlights"""
+        try:
+            if hasattr(self, 'peak_highlight') and self.peak_highlight:
+                self.peak_highlight.remove()
+                self.peak_highlight = None
+
+            if hasattr(self, 'peak_center_line') and self.peak_center_line:
+                self.peak_center_line.remove()
+                self.peak_center_line = None
+
+            # Refresh the plot
+            self.parent.canvas.draw()
+
+        except Exception as e:
+            print(f"Error clearing peak highlight: {e}")
+
+    def on_column_click(self, event, page):
+        """Handle column header clicks for sorting"""
+        col = event.GetColumn()
+
+        # Toggle sort order if same column, otherwise sort ascending
+        if page.sort_column == col:
+            page.sort_ascending = not page.sort_ascending
+        else:
+            page.sort_column = col
+            page.sort_ascending = True
+
+        # Sort the data
+        self.sort_page_data(page, col, page.sort_ascending)
+
+        print(f"Sorted by column {col} ({'ascending' if page.sort_ascending else 'descending'})")
+
+    def sort_page_data(self, page, col, ascending):
+        """Sort page data by specified column"""
+        if not hasattr(page, 'original_data') or not page.original_data:
+            return
+
+        data_list = page.original_data.copy()
+
+        # Define sort keys for each column
+        sort_keys = {
+            0: lambda x: x['peak'].get('create_region', False),  # T (ticked status)
+            1: lambda x: x['peak']['position'],  # BE (eV)
+            2: lambda x: x['peak']['width'],  # Width (eV)
+            3: lambda x: x['peak']['prominence'],  # Signal
+            4: lambda x: x['confidence'],  # Score
+            5: lambda x: x['assigned'],  # Peak
+            6: lambda x: x['companion'],  # Companion
+            7: lambda x: x['possible'],  # Possibility
+            8: lambda x: self.get_first_distance(x['peak']),  # Distance (first value)
+            9: lambda x: self.get_first_decision(x['peak'], x['assigned'])  # Decision (first value)
+        }
+
+        if col in sort_keys:
+            try:
+                data_list.sort(key=sort_keys[col], reverse=not ascending)
+
+                # Repopulate the list with sorted data
+                self.populate_sorted_page(page, data_list)
+
+            except Exception as e:
+                print(f"Error sorting: {e}")
+
+    def get_first_distance(self, peak):
+        """Get first distance value for sorting"""
+        try:
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+            return possible[0]['distance'] if possible else 999
+        except:
+            return 999
+
+    def get_first_decision(self, peak, assigned):
+        """Get first decision value for sorting"""
+        try:
+            distance_str, decision_str = self.calculate_peak_metrics(peak, assigned)
+            first_decision = decision_str.split(',')[0].strip()
+            return float(first_decision) if first_decision != "N/A" else 999
+        except:
+            return 999
+
+    def populate_sorted_page(self, page, data_list):
+        """Repopulate page with sorted data"""
+        peak_list = page.peak_list
+        peak_list.DeleteAllItems()
+
+        # Use the same logic as populate_step_page but with sorted data
+        for i, data in enumerate(data_list):
+            peak = data['peak']
+            assigned = data['assigned']
+
+            # Calculate distance and decision values
+            distance_str, decision_str = self.calculate_peak_metrics(peak, assigned)
+
+            # Check if peak should be ticked - UPDATED THRESHOLD
+            should_tick = peak.get('create_region', True) and data['confidence'] >= 60  # ← Changed from 30 to 60
+            tick_text = "☑" if should_tick else "☐"
+
+            index = peak_list.InsertItem(i, tick_text)
+            peak_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            peak_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            peak_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
+            peak_list.SetItem(index, 4, str(data['confidence']))
+            peak_list.SetItem(index, 5, data['assigned'])
+            peak_list.SetItem(index, 6, self.format_companion_text(data['companion']))  # ← NEW formatting
+            peak_list.SetItem(index, 7, data['possible'])
+            peak_list.SetItem(index, 8, distance_str)
+            peak_list.SetItem(index, 9, decision_str)
+
+            # Color code by confidence
+            if data['confidence'] >= 80:
+                peak_list.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))  # Green
+            elif data['confidence'] >= 60:
+                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 255, 200))  # Yellow
+            elif data['confidence'] >= 40:
+                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 230, 200))  # Orange
+            elif data['confidence'] > 0:
+                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 200, 200))  # Red
+
+    def on_list_click(self, event, page):
+        """Handle mouse clicks on list items for checkbox toggling"""
+        pos = event.GetPosition()
+        item, flags = page.peak_list.HitTest(pos)
+
+        if item != wx.NOT_FOUND:
+            # Check if click was in the T column (first column)
+            rect = page.peak_list.GetItemRect(item)
+            if pos.x <= 30:  # First column width + margin
+                # Toggle checkbox
+                current_text = page.peak_list.GetItem(item, 0).GetText()
+                new_text = "☐" if current_text == "☑" else "☑"
+                page.peak_list.SetItem(item, 0, new_text)
+
+                # Update the underlying data
+                if hasattr(page, 'original_data') and item < len(page.original_data):
+                    page.original_data[item]['peak']['create_region'] = (new_text == "☑")
+
+                print(f"Toggled peak {item}: {current_text} → {new_text}")
+
+        event.Skip()  # Allow other events to process
+
+    def format_companion_text(self, companion_text):
+        """Simple pass-through for companion text - no reformatting needed"""
+        if not companion_text:
+            return ""
+
+        # Just return as-is since detect_companions_post_assignment handles all formatting
+        return companion_text
+
+    def detect_companions_post_assignment(self, step_data):
+        """Count total peaks per element and show +N for additional peaks"""
+
+        # Count total assigned peaks per element
+        element_counts = {}
+
+        for data in step_data:
+            assigned = data['assigned']
+            if assigned and assigned != "DISMISSED":
+                # Parse element from assignment
+                element = None
+                digit_start = -1
+                for i, char in enumerate(assigned):
+                    if char.isdigit():
+                        digit_start = i
+                        break
+
+                if digit_start > 0:
+                    # Standard photoelectron peak (Ti2p, Mo3d, etc.)
+                    element = assigned[:digit_start]
+                else:
+                    # Check for Auger peaks (Calmm, Nakll, etc.)
+                    auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv']
+                    for suffix in auger_suffixes:
+                        if assigned.lower().endswith(suffix):
+                            element = assigned[:-len(suffix)]
+                            break
+
+                if element:
+                    element_counts[element] = element_counts.get(element, 0) + 1
+
+        # Update companion text for each peak
+        for data in step_data:
+            assigned = data['assigned']
+            if assigned and assigned != "DISMISSED":
+                # Parse element from assignment
+                element = None
+                digit_start = -1
+                for i, char in enumerate(assigned):
+                    if char.isdigit():
+                        digit_start = i
+                        break
+
+                if digit_start > 0:
+                    element = assigned[:digit_start]
+                else:
+                    auger_suffixes = ['kll', 'lmm', 'mnn', 'mvv', 'mnv']
+                    for suffix in auger_suffixes:
+                        if assigned.lower().endswith(suffix):
+                            element = assigned[:-len(suffix)]
+                            break
+
+                if element:
+                    total_peaks = element_counts.get(element, 1)
+                    additional_peaks = total_peaks - 1  # Subtract self
+
+                    # Set companion text based on additional peaks
+                    if additional_peaks > 0:
+                        data['companion'] = f"+{additional_peaks}"
+                    else:
+                        # Check for special cases (reassignments, etc.)
+                        original_companion = data.get('companion', '')
+                        if 'Reassigned' in original_companion:
+                            data['companion'] = original_companion.replace("Reassigned to detected ", "→ ")
+                        elif 'CERTAINTY' in original_companion:
+                            data['companion'] = original_companion
+                        else:
+                            data['companion'] = ""
+
+        return step_data
+
+    def OnClose(self, event):
+        """Handle dialog close event"""
+        # Clear any peak highlights before closing
+        self.clear_peak_highlight()
+
+        self.Destroy()
