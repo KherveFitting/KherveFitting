@@ -10,7 +10,7 @@ class AutoSurveyID:
     def __init__(self, parent):
         self.parent = parent
         self.library_data = load_library_data()
-        self.use_main_library = False  # Default to hardcoded ranges
+        self.use_main_library = True  # Default to hardcoded ranges
 
         # Priority lists from AreaFit_Screen
         self.priority_1_elements = {
@@ -43,26 +43,74 @@ class AutoSurveyID:
     def get_core_level_ranges_from_library(self, max_energy=1400.0, tolerance=15.0):
         """Get core level ranges from main library data with calculated ranges"""
         elements_db = {}
+        photon_energy = getattr(self.parent, 'photons', 1486.6)  # Get current photon energy
 
         for (element, orbital), data in self.library_data.items():
-            # Get instrument data
-            instrument = self.parent.current_instrument
+            # Force use of A-ALTHERMO1 instrument for main library
+            instrument = 'A-ALTHERMO1'
             if instrument not in data:
-                instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
+                # Fallback to current instrument if A-ALTHERMO1 not available
+                instrument = self.parent.current_instrument
+                if instrument not in data:
+                    instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
 
             if 'position' in data[instrument]:
                 position = float(data[instrument]['position'])
 
-                if position <= max_energy:
+                # Check if this is an Auger orbital with expanded patterns
+                orbital_lower = orbital.lower()
+                is_auger = self.is_auger_orbital_expanded(orbital_lower)
+
+                if is_auger:
+                    # Convert KE to BE using the special formula for Auger
+                    binding_energy = photon_energy - position + 0
+                    print(f"Auger {element}{orbital}: KE={position:.2f} -> BE={binding_energy:.2f}")
+                else:
+                    # Regular photoelectron peaks - position is already in BE
+                    binding_energy = position
+
+                if binding_energy <= max_energy and binding_energy > 0:
                     if element not in elements_db:
                         elements_db[element] = {}
 
-                    # Create range around position with tolerance
-                    be_min = position - tolerance
-                    be_max = position + tolerance
+                    # Create range around converted position with tolerance
+                    be_min = float(f"{binding_energy - tolerance:.2f}")
+                    be_max = float(f"{binding_energy + tolerance:.2f}")
                     elements_db[element][orbital] = (be_min, be_max)
 
         return elements_db
+
+    def is_auger_orbital_expanded(self, orbital_lower):
+        """Check if orbital represents an Auger peak with expanded patterns"""
+        import re
+
+        # Common Auger peak patterns including numbered variants
+        auger_patterns = [
+            'kll', 'klm', 'kmm', 'lmm', 'lmv', 'mnn', 'mvv', 'nvv',
+            'noo', 'moo', 'lll', 'mmm', 'nnn', 'mnv'
+        ]
+
+        # Check for basic patterns
+        for pattern in auger_patterns:
+            if pattern in orbital_lower:
+                return True
+
+        # Check for numbered Auger patterns like KL1, KL2, LM1, MN1, etc.
+        auger_numbered_pattern = re.compile(r'[klmno]{2}\d+')
+        if auger_numbered_pattern.search(orbital_lower):
+            return True
+
+        # Check for patterns like KLL1, LMM1, MNN1, etc.
+        auger_triple_numbered = re.compile(r'[klmno]{3}\d+')
+        if auger_triple_numbered.search(orbital_lower):
+            return True
+
+        return False
+
+    def is_auger_orbital(self, orbital):
+        """Check if orbital represents an Auger peak"""
+        orbital_lower = orbital.lower()
+        return self.is_auger_orbital_expanded(orbital_lower)
 
     def run(self):
         """Main execution method"""
@@ -1414,103 +1462,106 @@ class AutoSurveyID:
 
 
     def get_core_level_ranges(self, max_energy=1400.0):
-        """Hardcoded database of core levels with binding energy ranges for fine-tuning"""
+        """Get core level ranges from selected database source"""
 
-        """Get core level ranges, excluding orbitals above max_energy eV"""
-        elements_db = {
-            # Light elements
-            'C': {'1s': (276.0, 295.0),'kll' :(1205,1235) , '2s': (20.0, 25.0)},        # DONE
-            'N': {'1s': (395.0, 405.0),'2s': (25.0, 30.0)},
-            'O': {'1s': (521.0, 538.0), 'kll': (969,980) ,'2s': (35.0, 45.0)},          # DONE
-            'F': {'1s': (675.00, 700.00), '2s': (45.0, 55.0)},
-            'Na': {'1s': (1060.50, 1081.50), 'kll': (491.00, 501.00)},                  # DONE
-            'Mg': {'1s': (1292.50, 1317.50), '2s': (85.0, 95.0), '2p': (45.0, 55.0)},
-            'Al': {'2s': (115.0, 125.0), '2p': (70.0, 78.0)},
-            'Si': {'2s': (145.0, 155.0), '2p': (98.0, 106.0)},  # DONE
-            'P': {'2s': (180.0, 200.0), '2p': (125.0, 141.0)},
-            'S': {'2s': (217.50, 242.50), '2p': (158.0, 170.0), 'lmm': (1330, 1350)},   # DONE
-            'Cl': {'2s': (257.50, 282.50), '2p': (187.50, 212.50)},
-            'K': {'2s': (367.50, 392.50), '2p': (282.50, 307.50)},
-            'Ca': {'lmm':(1187,1208),'2s': (428.0, 452.0), '2p': (343.0, 362.0)},       # DONE
+        if self.use_main_library:
+            return self.get_core_level_ranges_from_library(max_energy)
+        else:
+            # Hardcoded database for fine-tuning
+            elements_db = {
+                # Light elements
+                'C': {'1s': (276.0, 295.0),'kll' :(1205,1235) , '2s': (20.0, 25.0)},        # DONE
+                'N': {'1s': (395.0, 405.0),'2s': (25.0, 30.0)},
+                'O': {'1s': (521.0, 538.0), 'kll': (969,980) ,'2s': (35.0, 45.0)},          # DONE
+                'F': {'1s': (675.00, 700.00), '2s': (45.0, 55.0)},
+                'Na': {'1s': (1060.50, 1081.50), 'kll': (491.00, 501.00)},                  # DONE
+                'Mg': {'1s': (1292.50, 1317.50), '2s': (85.0, 95.0), '2p': (45.0, 55.0)},
+                'Al': {'2s': (115.0, 125.0), '2p': (70.0, 78.0)},
+                'Si': {'2s': (145.0, 155.0), '2p': (98.0, 106.0)},  # DONE
+                'P': {'2s': (180.0, 200.0), '2p': (125.0, 141.0)},
+                'S': {'2s': (217.50, 242.50), '2p': (158.0, 170.0), 'lmm': (1330, 1350)},   # DONE
+                'Cl': {'2s': (257.50, 282.50), '2p': (187.50, 212.50)},
+                'K': {'2s': (367.50, 392.50), '2p': (282.50, 307.50)},
+                'Ca': {'lmm':(1187,1208),'2s': (428.0, 452.0), '2p': (343.0, 362.0)},       # DONE
 
-            # Transition metals
+                # Transition metals
 
-            'Ti': {'2s': (554.20, 568.20), '2p': (451.70, 465.70), '2p1/2': (453.20, 467.20), '2p3/2': (447.00, 461.00), '3s': (52.00, 66.00), '3p': (26.40, 40.40), 'LMN3': (1099.70, 1113.70), 'LMN4': (1121.70, 1135.70)},
-            'V': {'2s': (602.50, 627.50), '2p': (507.50, 532.50), '2p1/2': (512.90, 526.90), '2p3/2': (505.20, 519.20), '3s': (65.0, 75.0), '3p': (35.0, 45.0), 'LMN1': (974.30, 988.30), 'LMN2': (1011.30, 1025.30), 'LMN3': (1045.80, 1059.80), 'LMN4': (1052.10, 1066.10), 'LMN5': (1072.00, 1086.00), 'LMN6': (1084.10, 1098.10)},
-            'Cr': {'2s': (677.50, 702.50), '2p': (567.50, 592.50), '2p1/2': (576.70, 590.70), '2p3/2': (567.30, 581.30), '3s': (70.0, 80.0), '3p': (40.0, 50.0), 'LMN1': (913.10, 927.10), 'LMN2': (955.10, 969.10), 'LMN3': (995.10, 1009.10), 'LMN4': (1025.10, 1039.10), 'LMN5': (1037.10, 1051.10)},
-            'Mn': {'2s': (757.50, 782.50), '2p': (633.50, 658.50), '2p1/2': (643.00, 657.00), '2p3/2': (631.80, 645.80), '3s': (80.0, 90.0), '3p': (45.0, 55.0), 'LMN1': (849.10, 863.10), 'LMN2': (897.10, 911.10), 'LMN3': (942.10, 956.10)},
-            'Fe': {'2s': (837.50, 862.50), '2p': (710.00, 735.00)},
-            'Co': {'2s': (917.50, 942.50), '2p': (772.50, 797.50), '3s': (100.0, 110.0), '3p': (55.0, 65.0)},
-            'Ni': {'2s': (993.0, 1026.0), '2p': (840.0, 885.0), '3s': (110.0, 120.0), '3p': (65.0, 75.0)},  # DONE
-            'Cu': {'2s': (1082.50, 1107.50), '2p': (927.50, 952.50), '3s': (120.0, 130.0), '3p': (70.0, 80.0)},
-            'Zn': {'2s': (1182.50, 1207.50), '2p': (1007.50, 1032.50), '3s': (135.0, 145.0), '3p': (85.0, 95.0)},
+                'Ti': {'2s': (554.20, 568.20), '2p': (451.70, 465.70), '2p1/2': (453.20, 467.20), '2p3/2': (447.00, 461.00), '3s': (52.00, 66.00), '3p': (26.40, 40.40), 'LMN3': (1099.70, 1113.70), 'LMN4': (1121.70, 1135.70)},
+                'V': {'2s': (602.50, 627.50), '2p': (507.50, 532.50), '2p1/2': (512.90, 526.90), '2p3/2': (505.20, 519.20), '3s': (65.0, 75.0), '3p': (35.0, 45.0), 'LMN1': (974.30, 988.30), 'LMN2': (1011.30, 1025.30), 'LMN3': (1045.80, 1059.80), 'LMN4': (1052.10, 1066.10), 'LMN5': (1072.00, 1086.00), 'LMN6': (1084.10, 1098.10)},
+                'Cr': {'2s': (677.50, 702.50), '2p': (567.50, 592.50), '2p1/2': (576.70, 590.70), '2p3/2': (567.30, 581.30), '3s': (70.0, 80.0), '3p': (40.0, 50.0), 'LMN1': (913.10, 927.10), 'LMN2': (955.10, 969.10), 'LMN3': (995.10, 1009.10), 'LMN4': (1025.10, 1039.10), 'LMN5': (1037.10, 1051.10)},
+                'Mn': {'2s': (757.50, 782.50), '2p': (633.50, 658.50), '2p1/2': (643.00, 657.00), '2p3/2': (631.80, 645.80), '3s': (80.0, 90.0), '3p': (45.0, 55.0), 'LMN1': (849.10, 863.10), 'LMN2': (897.10, 911.10), 'LMN3': (942.10, 956.10)},
+                'Fe': {'2s': (837.50, 862.50), '2p': (710.00, 735.00)},
+                'Co': {'2s': (917.50, 942.50), '2p': (772.50, 797.50), '3s': (100.0, 110.0), '3p': (55.0, 65.0)},
+                'Ni': {'2s': (993.0, 1026.0), '2p': (840.0, 885.0), '3s': (110.0, 120.0), '3p': (65.0, 75.0)},  # DONE
+                'Cu': {'2s': (1082.50, 1107.50), '2p': (927.50, 952.50), '3s': (120.0, 130.0), '3p': (70.0, 80.0)},
+                'Zn': {'2s': (1182.50, 1207.50), '2p': (1007.50, 1032.50), '3s': (135.0, 145.0), '3p': (85.0, 95.0)},
 
-            'Ga': {'2s': (1286.50, 1311.50), '2p': (1105.50, 1130.50), '3s': (159.00, 161.00), '3p': (103.00, 105.00)},
-            'Ge': {'2p': (1206.50, 1231.50), '3s': (180.00, 182.00), '3p': (120.00, 122.00)},
-            'As': {'2p': (1312.50, 1337.50), '3s': (192.50, 217.50), '3p': (141.00, 143.00)},
-            'Se': {'3s': (217.50, 242.50), '3p': (160.00, 162.00), '3d': (55.00, 59.00)},
-            'Br': {'3s': (245.50, 270.50), '3p': (182.00, 184.00), '3d': (67.00, 71.00)},
-            'Sr': {'3s': (346.50, 371.50), '3p': (257.50, 282.50), '3d': (132.00, 136.00)},
-            'Y': {'3s': (380.50, 405.50), '3p': (286.50, 311.50), '3d': (158.00, 160.00)},
-            'Nb': {'3s': (456.50, 481.50), '3p': (348.50, 373.50), '3d': (190.50, 215.50)},
-            'Zr': {'3s': (418.50, 443.50), '3p': (331.50, 356.50), '3d': (177.00, 181.00)},
-            'Mo': {'4s': (52.40, 72.40), '4p': (25.50, 45.50),'3s': (494.00, 520.00), '3p': (378.00, 425.00),
-            '3p3/2': (392.00, 396.00), '3p1/2': (409.00,413.00), '3d': (221.00, 238.00)},
-            # DONE
-            'Ru': {'3s': (574.50, 599.50), '3p': (449.50, 474.50), '3d': (269.50, 294.50)},
-            'Rh': {'3s': (616.50, 641.50), '3p': (484.50, 509.50), '3d': (296.50, 321.50)},
-            'Pd': {'3s': (659.50, 684.50), '3p': (520.50, 545.50), '3d': (324.50, 349.50)},
-            'Ag': {'3s': (357.50, 382.50), '3p': (357.50, 382.50), '3d': (359.00, 384.00)},
-            'Cd': {'3s': (760.50, 785.50), '3p': (606.50, 631.50), '3d': (394.50, 419.50)},
-            'In': {'3s': (812.50, 837.50), '3p': (652.50, 677.50), '3d': (432.50, 457.50)},
-            'Sn': {'3s': (872.50, 897.50), '3p': (702.50, 727.50), '3d': (472.50, 497.50)},
-            'Sb': {'3s': (932.50, 957.50), '3p': (752.50, 777.50), '3d': (517.50, 542.50)},
-            'Te': {'3s': (994.50, 1019.50), '3p': (808.50, 833.50), '3d': (562.50, 587.50)},
-            'I': {'3s': (1057.50, 1082.50), '3p': (862.50, 887.50), '3d': (607.50, 632.50)},
+                'Ga': {'2s': (1286.50, 1311.50), '2p': (1105.50, 1130.50), '3s': (159.00, 161.00), '3p': (103.00, 105.00)},
+                'Ge': {'2p': (1206.50, 1231.50), '3s': (180.00, 182.00), '3p': (120.00, 122.00)},
+                'As': {'2p': (1312.50, 1337.50), '3s': (192.50, 217.50), '3p': (141.00, 143.00)},
+                'Se': {'3s': (217.50, 242.50), '3p': (160.00, 162.00), '3d': (55.00, 59.00)},
+                'Br': {'3s': (245.50, 270.50), '3p': (182.00, 184.00), '3d': (67.00, 71.00)},
+                'Sr': {'3s': (346.50, 371.50), '3p': (257.50, 282.50), '3d': (132.00, 136.00)},
+                'Y': {'3s': (380.50, 405.50), '3p': (286.50, 311.50), '3d': (158.00, 160.00)},
+                'Nb': {'3s': (456.50, 481.50), '3p': (348.50, 373.50), '3d': (190.50, 215.50)},
+                'Zr': {'3s': (418.50, 443.50), '3p': (331.50, 356.50), '3d': (177.00, 181.00)},
+                'Mo': {'4s': (52.40, 72.40), '4p': (25.50, 45.50),'3s': (494.00, 520.00), '3p': (378.00, 425.00),
+                '3p3/2': (392.00, 396.00), '3p1/2': (409.00,413.00), '3d': (221.00, 238.00)},
+                # DONE
+                'Ru': {'3s': (574.50, 599.50), '3p': (449.50, 474.50), '3d': (269.50, 294.50)},
+                'Rh': {'3s': (616.50, 641.50), '3p': (484.50, 509.50), '3d': (296.50, 321.50)},
+                'Pd': {'3s': (659.50, 684.50), '3p': (520.50, 545.50), '3d': (324.50, 349.50)},
+                'Ag': {'3s': (357.50, 382.50), '3p': (357.50, 382.50), '3d': (359.00, 384.00)},
+                'Cd': {'3s': (760.50, 785.50), '3p': (606.50, 631.50), '3d': (394.50, 419.50)},
+                'In': {'3s': (812.50, 837.50), '3p': (652.50, 677.50), '3d': (432.50, 457.50)},
+                'Sn': {'3s': (872.50, 897.50), '3p': (702.50, 727.50), '3d': (472.50, 497.50)},
+                'Sb': {'3s': (932.50, 957.50), '3p': (752.50, 777.50), '3d': (517.50, 542.50)},
+                'Te': {'3s': (994.50, 1019.50), '3p': (808.50, 833.50), '3d': (562.50, 587.50)},
+                'I': {'3s': (1057.50, 1082.50), '3p': (862.50, 887.50), '3d': (607.50, 632.50)},
 
-            # Heavy elements (removed high energy orbitals > 9000eV)
-            'Cs': {'3s': (1205.50, 1230.50), '3p': (1053.50, 1078.50), '3d': (720.50, 745.50)},
-            'Ba': {'3s': (1281.50, 1306.50), '3p': (1125.50, 1150.50), '3d': (775.00, 800.00)},
+                # Heavy elements (removed high energy orbitals > 9000eV)
+                'Cs': {'3s': (1205.50, 1230.50), '3p': (1053.50, 1078.50), '3d': (720.50, 745.50)},
+                'Ba': {'3s': (1281.50, 1306.50), '3p': (1125.50, 1150.50), '3d': (775.00, 800.00)},
 
-            # Lanthanides (removed high energy orbitals > 9000eV)
-            'La': {'3p': (1197.50, 1222.50), '3d': (831.00, 856.00)},
-            'Ce': {'3p': (1262.50, 1287.50), '3d': (884.50, 909.50)},
-            'Pr': {'3d': (928.50, 953.50)},
-            'Nd': {'3d': (978.00, 1003.00)},
-            'Pm': {'3d': (1025.00, 1050.00)},
-            'Sm': {'3d': (1078.50, 1103.50)},
-            'Eu': {'3d': (1128.50, 1153.50)},
-            'Gd': {'3d': (1182.50, 1207.50)},
-            'Tb': {'3d': (1238.50, 1263.50)},
+                # Lanthanides (removed high energy orbitals > 9000eV)
+                'La': {'3p': (1197.50, 1222.50), '3d': (831.00, 856.00)},
+                'Ce': {'3p': (1262.50, 1287.50), '3d': (884.50, 909.50)},
+                'Pr': {'3d': (928.50, 953.50)},
+                'Nd': {'3d': (978.00, 1003.00)},
+                'Pm': {'3d': (1025.00, 1050.00)},
+                'Sm': {'3d': (1078.50, 1103.50)},
+                'Eu': {'3d': (1128.50, 1153.50)},
+                'Gd': {'3d': (1182.50, 1207.50)},
+                'Tb': {'3d': (1238.50, 1263.50)},
 
-            # Heavy transition metals (< 9000eV only)
-            'Hf': {'4s': (650.00, 675.00), '4p': (370.00, 395.00), '4d': (210.00, 235.00), '4f': (14.00, 17.00)},
-            'Ta': {'4s': (698.00, 723.00), '4p': (395.00, 420.00), '4d': (220.00, 245.00), '4f': (22.00, 25.00)},
-            'W': {'4s': (746.00, 771.00), '4p': (413.00, 438.00), '4d': (233.00, 258.00), '4f': (31.00, 34.00)},
-            'Re': {'4s': (615.00, 640.00),
-                   '4p': (435.00, 460.00), '4d': (245.00, 270.00), '4f': (40.00, 43.00)},
-            'Os': {'4s': (648.00, 673.00), '4p': (460.00, 485.00), '4d': (268.00, 293.00), '4f': (51.00, 54.00)},
-            'Ir': {'4s': (681.00, 706.00), '4p': (485.00, 510.00), '4d': (301.00, 326.00), '4f': (61.00, 64.00)},
-            'Pt': {'4s': (715.00, 740.00), '4p': (509.00, 534.00), '4d': (304.00, 329.00), '4f': (71.00, 74.00)},
-            'Au': {'4s': (737.50, 762.50), '4p': (537.50, 562.50), '4f': (79.0, 95.0)},
-            'Hg': {'4s': (790.00, 815.00), '4p': (562.00, 587.00), '4d': (348.00, 373.00), '4f': (101.00, 104.00)},
-            'Tl': {'4s': (836.00, 861.00), '4p': (598.00, 623.00), '4d': (376.00, 401.00), '4f': (118.00, 121.00)},
-            'Pb': {'4s': (884.00, 909.00), '4p': (634.00, 659.00), '4d': (402.00, 427.00), '4f': (137.00, 140.00)},
-            'Bi': {'4s': (928.00, 953.00), '4p': (670.00, 695.00), '4d': (430.00, 455.00), '4f': (157.00, 160.00)}
-        }
+                # Heavy transition metals (< 9000eV only)
+                'Hf': {'4s': (650.00, 675.00), '4p': (370.00, 395.00), '4d': (210.00, 235.00), '4f': (14.00, 17.00)},
+                'Ta': {'4s': (698.00, 723.00), '4p': (395.00, 420.00), '4d': (220.00, 245.00), '4f': (22.00, 25.00)},
+                'W': {'4s': (746.00, 771.00), '4p': (413.00, 438.00), '4d': (233.00, 258.00), '4f': (31.00, 34.00)},
+                'Re': {'4s': (615.00, 640.00),
+                       '4p': (435.00, 460.00), '4d': (245.00, 270.00), '4f': (40.00, 43.00)},
+                'Os': {'4s': (648.00, 673.00), '4p': (460.00, 485.00), '4d': (268.00, 293.00), '4f': (51.00, 54.00)},
+                'Ir': {'4s': (681.00, 706.00), '4p': (485.00, 510.00), '4d': (301.00, 326.00), '4f': (61.00, 64.00)},
+                'Pt': {'4s': (715.00, 740.00), '4p': (509.00, 534.00), '4d': (304.00, 329.00), '4f': (71.00, 74.00)},
+                'Au': {'4s': (737.50, 762.50), '4p': (537.50, 562.50), '4f': (79.0, 95.0)},
+                'Hg': {'4s': (790.00, 815.00), '4p': (562.00, 587.00), '4d': (348.00, 373.00), '4f': (101.00, 104.00)},
+                'Tl': {'4s': (836.00, 861.00), '4p': (598.00, 623.00), '4d': (376.00, 401.00), '4f': (118.00, 121.00)},
+                'Pb': {'4s': (884.00, 909.00), '4p': (634.00, 659.00), '4d': (402.00, 427.00), '4f': (137.00, 140.00)},
+                'Bi': {'4s': (928.00, 953.00), '4p': (670.00, 695.00), '4d': (430.00, 455.00), '4f': (157.00, 160.00)}
+            }
 
-        # Filter out high energy orbitals
-        filtered_db = {}
-        for element, orbitals in elements_db.items():
-            filtered_orbitals = {}
-            for orbital, (be_min, be_max) in orbitals.items():
-                if be_min <= max_energy:
-                    filtered_orbitals[orbital] = (be_min, be_max)
+            # Filter out high energy orbitals
+            filtered_db = {}
+            for element, orbitals in elements_db.items():
+                filtered_orbitals = {}
+                for orbital, (be_min, be_max) in orbitals.items():
+                    if be_min <= max_energy:
+                        filtered_orbitals[orbital] = (be_min, be_max)
 
-            if filtered_orbitals:
-                filtered_db[element] = filtered_orbitals
+                if filtered_orbitals:
+                    filtered_db[element] = filtered_orbitals
 
-        return filtered_db
+            return filtered_db
 
 
 class AutoIDWindow(wx.Frame):
@@ -1563,7 +1614,17 @@ class AutoIDWindow(wx.Frame):
         self.method_choice.SetSelection(0)
         method_sizer.Add(self.method_choice, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Peak finding parameters - MORE COMPACT (2 per row)
+        # Add library source selection
+        library_label = wx.StaticText(panel, label="Database Source:")
+        self.library_combo = wx.ComboBox(panel, choices=["Hardcoded Ranges", "Main Library"],
+                                         style=wx.CB_READONLY, value="Main Library")
+        self.library_combo.Bind(wx.EVT_COMBOBOX, self.on_library_change)
+
+        # Add to sizer
+        method_sizer.Add(library_label, 0, wx.ALL, 5)
+        method_sizer.Add(self.library_combo, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Peak finding parameters
         param_box = wx.StaticBox(panel, label="Peak Finding Parameters")
         param_sizer = wx.StaticBoxSizer(param_box, wx.VERTICAL)
 
@@ -1668,6 +1729,13 @@ class AutoIDWindow(wx.Frame):
 
         panel.SetSizer(main_sizer)
         self.SetSize((650, 700))
+
+    def on_library_change(self, event):
+        """Handle library source change"""
+        selection = self.library_combo.GetSelection()
+        self.auto_survey_id.use_main_library = (selection == 1)
+        print(f"Switched to {'Main Library' if self.auto_survey_id.use_main_library else 'Hardcoded Ranges'}")
+
 
     def create_step_page(self, parent, title):
         """Create a page for a step with enhanced peak list including clickable columns and checkbox toggling"""
@@ -2011,7 +2079,7 @@ class AutoIDWindow(wx.Frame):
         detailed_possibilities = []
 
         # Calculate distance and decision for ALL possibilities (up to 5)
-        for possibility in possible[:5]:
+        for possibility in possible:  # All possibilities within tolerance
             assignment = possibility['assignment']
             distance = possibility['distance']
 
@@ -2058,7 +2126,7 @@ class AutoIDWindow(wx.Frame):
         distance_values = [f"{p['distance']:.2f}" for p in possible[:5]]
         decision_values = []
 
-        for possibility in possible[:5]:
+        for possibility in possible:  # All possibilities within tolerance
             assignment = possibility['assignment']
             distance = possibility['distance']
 
@@ -2108,7 +2176,7 @@ class AutoIDWindow(wx.Frame):
 
             # Get possible assignments
             possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
-            possible_text = ", ".join([p['assignment'] for p in possible[:5]])
+            possible_text = ", ".join([p['assignment'] for p in possible])  # Show all within tolerance
 
             # Store original possibilities for this peak
             self.original_possibilities[peak['index']] = possible_text
@@ -2142,7 +2210,7 @@ class AutoIDWindow(wx.Frame):
             # Get possibilities for this peak
             possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
 
-            for possibility in possible[:5]:  # Top 5 possibilities
+            for possibility in possible:  # All possibilities within tolerance  # Top 5 possibilities
                 assignment = possibility['assignment']
 
                 # Parse element from assignment
@@ -3382,7 +3450,7 @@ class AutoIDWindow(wx.Frame):
             possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
 
             # Populate the combo box with possibilities
-            choices = [p['assignment'] for p in possible[:10]]  # Top 10 possibilities
+            choices = [p['assignment'] for p in possible]  # All possibilities within tolerance
 
             # Clear and populate combo box
             page.core_level_choice.Clear()
