@@ -10,6 +10,7 @@ class AutoSurveyID:
     def __init__(self, parent):
         self.parent = parent
         self.library_data = load_library_data()
+        self.use_main_library = False  # Default to hardcoded ranges
 
         # Priority lists from AreaFit_Screen
         self.priority_1_elements = {
@@ -39,6 +40,30 @@ class AutoSurveyID:
         # Minimum intensity threshold (2% of max)
         self.min_intensity_threshold = 0.02
 
+    def get_core_level_ranges_from_library(self, max_energy=1400.0, tolerance=15.0):
+        """Get core level ranges from main library data with calculated ranges"""
+        elements_db = {}
+
+        for (element, orbital), data in self.library_data.items():
+            # Get instrument data
+            instrument = self.parent.current_instrument
+            if instrument not in data:
+                instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
+
+            if 'position' in data[instrument]:
+                position = float(data[instrument]['position'])
+
+                if position <= max_energy:
+                    if element not in elements_db:
+                        elements_db[element] = {}
+
+                    # Create range around position with tolerance
+                    be_min = position - tolerance
+                    be_max = position + tolerance
+                    elements_db[element][orbital] = (be_min, be_max)
+
+        return elements_db
+
     def run(self):
         """Main execution method"""
         try:
@@ -60,6 +85,7 @@ class AutoSurveyID:
             # Apply Gaussian smoothing with width 1
             from scipy.ndimage import gaussian_filter1d
             y_values = gaussian_filter1d(y_values_raw, sigma=1.0)
+            # y_values = y_values_raw
             print(f"Applied Gaussian smoothing (sigma=1.0) to survey data")
 
             print(f"\n=== AutoID Starting for {sheet_name} ===")
@@ -291,8 +317,8 @@ class AutoSurveyID:
         # Calculate decision value (lower is better)
         decision = (distance / orbital_denominator) + (distance / element_denominator)
 
-        return decision
-
+        # return decision
+        return distance
 
 
     def identify_elements(self, peaks_found, x_data, y_data):
@@ -1408,10 +1434,11 @@ class AutoSurveyID:
             'Ca': {'lmm':(1187,1208),'2s': (428.0, 452.0), '2p': (343.0, 362.0)},       # DONE
 
             # Transition metals
-            'Ti': {'2s': (551.00, 576.00), '2p': (453.00, 478.00), '3s': (60.00, 61.00), '3p': (37.00, 38.00)},
-            'V': {'2s': (602.50, 627.50), '2p': (507.50, 532.50), '3s': (65.0, 75.0), '3p': (35.0, 45.0)},
-            'Cr': {'2s': (677.50, 702.50), '2p': (567.50, 592.50), '3s': (70.0, 80.0), '3p': (40.0, 50.0)},
-            'Mn': {'2s': (757.50, 782.50), '2p': (633.50, 658.50), '3s': (80.0, 90.0), '3p': (45.0, 55.0)},
+
+            'Ti': {'2s': (554.20, 568.20), '2p': (451.70, 465.70), '2p1/2': (453.20, 467.20), '2p3/2': (447.00, 461.00), '3s': (52.00, 66.00), '3p': (26.40, 40.40), 'LMN3': (1099.70, 1113.70), 'LMN4': (1121.70, 1135.70)},
+            'V': {'2s': (602.50, 627.50), '2p': (507.50, 532.50), '2p1/2': (512.90, 526.90), '2p3/2': (505.20, 519.20), '3s': (65.0, 75.0), '3p': (35.0, 45.0), 'LMN1': (974.30, 988.30), 'LMN2': (1011.30, 1025.30), 'LMN3': (1045.80, 1059.80), 'LMN4': (1052.10, 1066.10), 'LMN5': (1072.00, 1086.00), 'LMN6': (1084.10, 1098.10)},
+            'Cr': {'2s': (677.50, 702.50), '2p': (567.50, 592.50), '2p1/2': (576.70, 590.70), '2p3/2': (567.30, 581.30), '3s': (70.0, 80.0), '3p': (40.0, 50.0), 'LMN1': (913.10, 927.10), 'LMN2': (955.10, 969.10), 'LMN3': (995.10, 1009.10), 'LMN4': (1025.10, 1039.10), 'LMN5': (1037.10, 1051.10)},
+            'Mn': {'2s': (757.50, 782.50), '2p': (633.50, 658.50), '2p1/2': (643.00, 657.00), '2p3/2': (631.80, 645.80), '3s': (80.0, 90.0), '3p': (45.0, 55.0), 'LMN1': (849.10, 863.10), 'LMN2': (897.10, 911.10), 'LMN3': (942.10, 956.10)},
             'Fe': {'2s': (837.50, 862.50), '2p': (710.00, 735.00)},
             'Co': {'2s': (917.50, 942.50), '2p': (772.50, 797.50), '3s': (100.0, 110.0), '3p': (55.0, 65.0)},
             'Ni': {'2s': (993.0, 1026.0), '2p': (840.0, 885.0), '3s': (110.0, 120.0), '3p': (65.0, 75.0)},  # DONE
@@ -1427,7 +1454,9 @@ class AutoSurveyID:
             'Y': {'3s': (380.50, 405.50), '3p': (286.50, 311.50), '3d': (158.00, 160.00)},
             'Nb': {'3s': (456.50, 481.50), '3p': (348.50, 373.50), '3d': (190.50, 215.50)},
             'Zr': {'3s': (418.50, 443.50), '3p': (331.50, 356.50), '3d': (177.00, 181.00)},
-            'Mo': {'3s': (494.00, 520.00), '3p': (378.00, 425.00), '3d': (221.00, 238.00)},  # DONE
+            'Mo': {'4s': (52.40, 72.40), '4p': (25.50, 45.50),'3s': (494.00, 520.00), '3p': (378.00, 425.00),
+            '3p3/2': (392.00, 396.00), '3p1/2': (409.00,413.00), '3d': (221.00, 238.00)},
+            # DONE
             'Ru': {'3s': (574.50, 599.50), '3p': (449.50, 474.50), '3d': (269.50, 294.50)},
             'Rh': {'3s': (616.50, 641.50), '3p': (484.50, 509.50), '3d': (296.50, 321.50)},
             'Pd': {'3s': (659.50, 684.50), '3p': (520.50, 545.50), '3d': (324.50, 349.50)},
@@ -1497,7 +1526,7 @@ class AutoIDWindow(wx.Frame):
         self.prominence = 0.01
         self.width = 0.6
         self.width_max = 10.0
-        self.distance = 30.0
+        self.distance = 60.0
         self.tolerance = 12
 
         # Step data storage
@@ -1820,6 +1849,7 @@ class AutoIDWindow(wx.Frame):
 
             from scipy.ndimage import gaussian_filter1d
             y_values = gaussian_filter1d(y_values_raw, sigma=1.0)
+            # y_values = y_values_raw
 
             # Find all peaks
             self.all_peaks = self.find_peaks_with_params(x_values, y_values)
@@ -2182,12 +2212,13 @@ class AutoIDWindow(wx.Frame):
         # ===== FREQUENCY-BASED AUTO ASSIGNMENTS =====
         print("=== Step 2: Frequency-based assignments ===")
 
-        # Auto-assign CERTAINTY elements (3+ occurrences)
+        # Auto-assign CERTAINTY elements (3+ occurrences) - ASSIGN ALL PEAKS
         for element in certainty_elements:
             element_data = element_frequency[element]
 
-            # Sort peaks by prominence and assign the most prominent one
+            # Sort peaks by prominence but assign ALL of them
             element_peaks = sorted(element_data['peaks'], key=lambda x: x['prominence'], reverse=True)
+            assigned_count = 0
 
             for peak in element_peaks:
                 if peak['index'] not in self.assigned_peaks:
@@ -2195,27 +2226,32 @@ class AutoIDWindow(wx.Frame):
                     possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
 
                     best_assignment = None
+                    best_distance = float('inf')
+
+                    # Find the best assignment for this element based on distance only
                     for possibility in possible:
                         if possibility['assignment'].startswith(element):
-                            best_assignment = possibility['assignment']
-                            break
+                            if possibility['distance'] < best_distance:
+                                best_assignment = possibility['assignment']
+                                best_distance = possibility['distance']
 
                     if best_assignment:
                         # High confidence assignment due to frequency
                         confidence = 95  # Very high confidence for certainty elements
+                        assigned_count += 1
 
                         step2_data.append({
                             'peak': peak,
                             'assigned': best_assignment,
                             'confidence': confidence,
-                            'companion': f"CERTAINTY ({len(element_peaks)} peaks)",
+                            'companion': f"CERTAINTY ({len(element_peaks)} peaks) - Peak {assigned_count}",
                             'possible': self.get_original_possibilities(peak, best_assignment)
                         })
 
                         self.assigned_peaks.add(peak['index'])
                         print(
-                            f"  ✓ AUTO-ASSIGNED {best_assignment} at {peak['position']:.2f} eV (CERTAINTY - {len(element_peaks)} peaks)")
-                        break  # Only assign one peak per certainty element
+                            f"  ✓ AUTO-ASSIGNED {best_assignment} at {peak['position']:.2f} eV (CERTAINTY - Peak {assigned_count}/{len(element_peaks)})")
+                        # Removed break - now assigns ALL peaks for this element
 
         # ===== ORIGINAL DISMISSED PEAKS LOGIC =====
         print("=== Step 2: Dismissed peaks (width filtering) ===")
@@ -3493,6 +3529,9 @@ class AutoIDWindow(wx.Frame):
         peak_list = page.peak_list
         peak_list.DeleteAllItems()
 
+        # Update original_data to match the new sorted order
+        page.original_data = data_list.copy()
+
         # Use the same logic as populate_step_page but with sorted data
         for i, data in enumerate(data_list):
             peak = data['peak']
@@ -3522,9 +3561,9 @@ class AutoIDWindow(wx.Frame):
             elif data['confidence'] >= 60:
                 peak_list.SetItemBackgroundColour(index, wx.Colour(255, 255, 200))  # Yellow
             elif data['confidence'] >= 40:
-                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 230, 200))  # Orange
-            elif data['confidence'] > 0:
-                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 200, 200))  # Red
+                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 200, 200))  # Light red
+            else:
+                peak_list.SetItemBackgroundColour(index, wx.Colour(255, 150, 150))  # Red
 
     def on_list_click(self, event, page):
         """Handle mouse clicks on list items for checkbox toggling"""
