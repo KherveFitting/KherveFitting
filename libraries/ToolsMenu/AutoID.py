@@ -1563,8 +1563,73 @@ class AutoSurveyID:
 
             return filtered_db
 
+    def create_regions_from_assignments(self, selected_peaks):
+        """Create regions from assigned peaks"""
+        sheet_name = self.parent.sheet_combobox.GetValue()
 
-class AutoIDWindow(wx.Frame):
+        # Clear existing peaks
+        if hasattr(self.parent, 'peak_params_grid'):
+            self.parent.peak_params_grid.DeleteRows(0, self.parent.peak_params_grid.GetNumberRows())
+
+        # Reset peak count
+        self.parent.peak_count = 0
+
+        for peak_data in selected_peaks:
+            assignment = peak_data['assignment']
+            position = peak_data['position']
+
+            # Get RSF from library
+            rsf = self._get_rsf_for_assignment(assignment)
+
+            # Create peak entry
+            self.parent.peak_count += 1
+            row = (self.parent.peak_count - 1) * 2
+
+            # Add peak to grid with library RSF
+            self.parent.peak_params_grid.AppendRows(2)
+            self.parent.peak_params_grid.SetCellValue(row, 0, assignment)
+            self.parent.peak_params_grid.SetCellValue(row, 1, "Voigt")
+            self.parent.peak_params_grid.SetCellValue(row, 2, f"{position:.2f}")
+            self.parent.peak_params_grid.SetCellValue(row, 3, f"{1000.0:.2f}")  # Default height
+            self.parent.peak_params_grid.SetCellValue(row, 4, f"{2.0:.2f}")  # Default FWHM
+            self.parent.peak_params_grid.SetCellValue(row, 5, f"{30.0:.2f}")  # Default L/G ratio
+            self.parent.peak_params_grid.SetCellValue(row, 6, f"{2000.0:.2f}")  # Default area
+            self.parent.peak_params_grid.SetCellValue(row, 7, f"{rsf:.2f}")  # Library RSF
+
+            # Set constraints row
+            self.parent.peak_params_grid.SetCellValue(row + 1, 0, "Constraints")
+            for col in range(1, 8):
+                self.parent.peak_params_grid.SetCellValue(row + 1, col, "Fixed" if col <= 5 else "")
+
+    def _get_rsf_for_assignment(self, assignment):
+        """Get RSF for assignment - helper method"""
+        if not assignment:
+            return 1.0
+
+        import re
+        match = re.match(r'([A-Z][a-z]?)(.+)', assignment)
+        if not match:
+            return 1.0
+
+        element, orbital = match.groups()
+        key = (element, orbital)
+
+        if key in self.library_data:
+            instrument = 'A-ALTHERMO1'
+            data = self.library_data[key]
+
+            if instrument not in data:
+                instrument = self.parent.current_instrument
+                if instrument not in data:
+                    instrument = next(iter(data))
+
+            if 'rsf' in data[instrument]:
+                return float(data[instrument]['rsf'])
+
+        return 1.0
+
+
+class AutoIDWindow_OLD(wx.Frame):
     """Auto ID configuration and step-by-step identification window"""
 
     def __init__(self, parent):
@@ -1602,7 +1667,7 @@ class AutoIDWindow(wx.Frame):
     def init_ui(self):
         """Initialize the user interface"""
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(250, 250, 230))
+        panel.SetBackgroundColour(wx.Colour(230, 250, 230))
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -3356,17 +3421,7 @@ class AutoIDWindow(wx.Frame):
         except ValueError:
             wx.MessageBox("Please enter a valid binding energy", "Invalid Input", wx.OK | wx.ICON_ERROR)
 
-    def on_peak_selected_OLD(self, event, page):
-        """Handle peak selection"""
-        selected = event.GetIndex()
-        if selected >= 0:
-            possible_text = page.peak_list.GetItem(selected, 7).GetText()  # Column 7 = Possible Core Levels
-            possible_levels = [level.strip() for level in possible_text.split(",") if level.strip()]
 
-            page.core_level_choice.Clear()
-            page.core_level_choice.AppendItems(possible_levels)
-            if possible_levels:
-                page.core_level_choice.SetSelection(0)
 
     def on_force_assignment(self, event, page):
         """Handle force assignment button click"""
@@ -3740,3 +3795,1797 @@ class AutoIDWindow(wx.Frame):
         self.clear_peak_highlight()
 
         self.Destroy()
+
+
+class AutoIDWindow(wx.Frame):
+    """Auto ID configuration window - simplified with 2 tabs"""
+
+    def __init__(self, parent):
+        super().__init__(None, title="Automatic Element Identification -- Beta --",
+                         style=wx.DEFAULT_FRAME_STYLE)
+        self.parent = parent
+        self.auto_survey_id = AutoSurveyID(parent)
+
+        # Parameters for peak finding - Updated defaults
+        self.prominence = 0.01  # 1% of max peak
+        self.width = 0.6
+        self.width_max = 10.0
+        self.distance = 5.0  # Changed from 30.0 to 5.0
+        self.tolerance = 12
+
+        # Data storage
+        self.all_peaks = []
+        self.assigned_peaks = set()
+
+        # Initialize process description window and method references
+        self.process_desc_window = None
+        self.current_method = None
+
+        self.init_ui()
+        self.position_window()
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+    def init_ui(self):
+        """Initialize the user interface"""
+        panel = wx.Panel(self)
+        panel.SetBackgroundColour(wx.Colour(240, 230, 230))
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Method selection
+        method_box = wx.StaticBox(panel, label="Identification Method")
+        method_sizer = wx.StaticBoxSizer(method_box, wx.VERTICAL)
+
+        self.method_choice = wx.Choice(panel, choices=["Method 1 GK 25/08/25", "Method 2 GK 25/08/25"])
+        self.method_choice.SetSelection(1)
+        method_sizer.Add(self.method_choice, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Database source selection
+        library_label = wx.StaticText(panel, label="Database Source:")
+        self.library_combo = wx.ComboBox(panel, choices=["Hardcoded Ranges", "Main Library"],
+                                         style=wx.CB_READONLY, value="Main Library")
+        self.library_combo.Bind(wx.EVT_COMBOBOX, self.on_library_change)
+        method_sizer.Add(library_label, 0, wx.ALL, 5)
+        method_sizer.Add(self.library_combo, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Peak finding parameters - compact layout
+        param_box = wx.StaticBox(panel, label="Peak Finding Parameters")
+        param_sizer = wx.StaticBoxSizer(param_box, wx.VERTICAL)
+
+        param_grid = wx.FlexGridSizer(3, 4, 5, 5)
+        param_grid.AddGrowableCol(1)
+        param_grid.AddGrowableCol(3)
+
+        # Parameters
+        param_grid.Add(wx.StaticText(panel, label="Prominence:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")  # Show 3 decimal places for small values
+        param_grid.Add(self.prominence_ctrl, 0, wx.EXPAND)
+
+        param_grid.Add(wx.StaticText(panel, label="Width (min):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.width_ctrl = wx.TextCtrl(panel, value=f"{self.width:.1f}")
+        param_grid.Add(self.width_ctrl, 0, wx.EXPAND)
+
+        param_grid.Add(wx.StaticText(panel, label="Width (max):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.width_max_ctrl = wx.TextCtrl(panel, value=f"{self.width_max:.1f}")
+        param_grid.Add(self.width_max_ctrl, 0, wx.EXPAND)
+
+        param_grid.Add(wx.StaticText(panel, label="Distance:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.distance_ctrl = wx.TextCtrl(panel, value=f"{self.distance:.1f}")
+        param_grid.Add(self.distance_ctrl, 0, wx.EXPAND)
+
+        param_grid.Add(wx.StaticText(panel, label="Tolerance (eV):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.tolerance_ctrl = wx.TextCtrl(panel, value=f"{self.tolerance:.1f}")
+        param_grid.Add(self.tolerance_ctrl, 0, wx.EXPAND)
+
+        param_sizer.Add(param_grid, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Add help text for parameters
+        help_text = wx.StaticText(panel, label="Prominence: fraction of max peak (0.01 = 1%), Width: in eV, Distance: minimum peak separation in points")
+        help_text.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_NORMAL))
+        param_sizer.Add(help_text, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Control buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.run_btn = wx.Button(panel, label="Run Identification")
+        self.run_btn.Bind(wx.EVT_BUTTON, self.on_run)
+        button_sizer.Add(self.run_btn, 0, wx.ALL, 5)
+
+        self.create_regions_btn = wx.Button(panel, label="Create Background / Area")
+        self.create_regions_btn.Bind(wx.EVT_BUTTON, self.on_create_regions)
+        self.create_regions_btn.Enable(False)
+        button_sizer.Add(self.create_regions_btn, 0, wx.ALL, 5)
+
+        self.select_all_btn = wx.Button(panel, label="Select All")
+        self.select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
+        button_sizer.Add(self.select_all_btn, 0, wx.ALL, 5)
+
+        self.deselect_all_btn = wx.Button(panel, label="Deselect All")
+        self.deselect_all_btn.Bind(wx.EVT_BUTTON, self.on_deselect_all)
+        button_sizer.Add(self.deselect_all_btn, 0, wx.ALL, 5)
+
+        # Process description button
+        self.process_desc_btn = wx.Button(panel, label="Process Description")
+        self.process_desc_btn.Bind(wx.EVT_BUTTON, self.on_show_process_description)
+        button_sizer.Add(self.process_desc_btn, 0, wx.ALL, 5)
+
+        # Create notebook with only 2 tabs
+        self.notebook = wx.Notebook(panel)
+
+        # Tab 1: Find Peaks
+        self.peaks_page = self.create_peaks_page()
+        self.notebook.AddPage(self.peaks_page, "Find Peaks")
+
+        # Tab 2: Results
+        self.results_page = self.create_results_page()
+        self.notebook.AddPage(self.results_page, "Results")
+        self.notebook.SetSelection(1)
+
+        # Status text
+        self.status_text = wx.StaticText(panel, label="Ready to run identification...")
+
+        # Layout
+        main_sizer.Add(method_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(param_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(button_sizer, 0, wx.CENTER | wx.ALL, 5)
+        main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(self.status_text, 0, wx.EXPAND | wx.ALL, 5)
+
+        panel.SetSizer(main_sizer)
+        self.SetSize((700, 800))
+
+    def create_peaks_page(self):
+        """Create the Find Peaks page"""
+        page = wx.Panel(self.notebook)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Peak list
+        self.peaks_list = wx.ListCtrl(page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.peaks_list.AppendColumn("✓", width=30)
+        self.peaks_list.AppendColumn("B.E. (eV)", width=80)
+        self.peaks_list.AppendColumn("Width", width=60)
+        self.peaks_list.AppendColumn("Signal", width=80)
+        self.peaks_list.AppendColumn("Possibilities", width=200)
+        self.peaks_list.AppendColumn("Distance", width=80)
+
+        # Bind events
+        self.peaks_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_peak_selected)
+        self.peaks_list.Bind(wx.EVT_LEFT_DCLICK, self.on_peak_double_click)
+        self.peaks_list.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        page.Bind(wx.EVT_KEY_DOWN, self.on_key_down)  # Also bind to page for focus issues
+
+        # Manual assignment controls
+        manual_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        manual_sizer.Add(wx.StaticText(page, label="Force Assignment:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+
+        self.core_level_choice = wx.ComboBox(page, style=wx.CB_DROPDOWN)
+        manual_sizer.Add(self.core_level_choice, 1, wx.EXPAND | wx.ALL, 5)
+
+        self.force_assign_btn = wx.Button(page, label="Assign")
+        self.force_assign_btn.Bind(wx.EVT_BUTTON, self.on_force_assign)
+        manual_sizer.Add(self.force_assign_btn, 0, wx.ALL, 5)
+
+        sizer.Add(self.peaks_list, 1, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(manual_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        page.SetSizer(sizer)
+
+        # Store reference for key handling
+        self.peaks_page = page
+        return page
+
+    def create_results_page(self):
+        """Create the Results page"""
+        page = wx.Panel(self.notebook)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Results list
+        self.results_list = wx.ListCtrl(page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.results_list.AppendColumn("✓", width=30)
+        self.results_list.AppendColumn("B.E. (eV)", width=80)
+        self.results_list.AppendColumn("Width", width=60)
+        self.results_list.AppendColumn("Signal", width=80)
+        self.results_list.AppendColumn("Assigned To", width=120)
+        self.results_list.AppendColumn("RSF", width=60)
+        self.results_list.AppendColumn("Confidence", width=80)
+
+        # Bind events
+        self.results_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_result_selected)
+        self.results_list.Bind(wx.EVT_LEFT_DCLICK, self.on_result_double_click)
+        self.results_list.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        page.Bind(wx.EVT_KEY_DOWN, self.on_key_down)  # Also bind to page
+
+        sizer.Add(self.results_list, 1, wx.EXPAND | wx.ALL, 5)
+        page.SetSizer(sizer)
+
+        # Store reference for key handling
+        self.results_page = page
+        return page
+
+    def on_peak_selected(self, event):
+        """Handle peak selection - highlight on plot"""
+        selected_index = event.GetIndex()
+
+        # Get the actual peak from sorted list (not original index)
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+        non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+
+        if selected_index < len(non_dismissed_peaks):
+            peak = non_dismissed_peaks[selected_index]
+
+            # Get all possible assignments for this peak
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+
+            # Populate the combo box with possibilities
+            choices = [p['assignment'] for p in possible]
+            self.core_level_choice.Clear()
+            for choice in choices:
+                self.core_level_choice.Append(choice)
+
+            # Store the actual peak reference for assignment
+            self.selected_peak = peak
+
+            # Highlight the peak region on the plot
+            self.highlight_peak_region(peak['position'], peak['width'])
+
+    def on_key_down(self, event):
+        """Handle key press events - show peak range when key pressed"""
+        key_code = event.GetKeyCode()
+
+        # Get currently selected peak
+        current_tab = self.notebook.GetSelection()
+        peak_list = self.peaks_list if current_tab == 0 else self.results_list
+
+        selected = peak_list.GetFirstSelected()
+        if selected != wx.NOT_FOUND:
+            # Get the actual peak from sorted list
+            sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+            non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+
+            if selected < len(non_dismissed_peaks):
+                peak = non_dismissed_peaks[selected]
+
+                if key_code == wx.WXK_RETURN or key_code == wx.WXK_NUMPAD_ENTER:
+                    # Toggle checkbox
+                    current_text = peak_list.GetItem(selected, 0).GetText()
+                    new_text = "✓" if current_text != "✓" else ""
+                    peak_list.SetItem(selected, 0, new_text)
+
+                    # Update peak data
+                    peak['create_region'] = (new_text == "✓")
+
+                # Always highlight peak range when any key is pressed
+                self.highlight_peak_region(peak['position'], peak['width'])
+
+        event.Skip()
+
+    def highlight_peak_region(self, position, width):
+        """Highlight peak region on plot - centered at peak with double width"""
+        try:
+            ax = self.parent.ax
+
+            # Clear previous highlights
+            self.clear_peak_highlight()
+
+            # Calculate range: center at peak position, width = 2 * peak_width
+            half_range = 2*width  # This gives us double the peak width total
+            x_min = position - half_range
+            x_max = position + half_range
+
+            # Add vertical lines at peak center
+            self.peak_center_line = ax.axvline(x=position, color='hotpink', linestyle='dashdot', alpha=0.8, linewidth=1)
+
+            # Add shaded region
+            y_limits = ax.get_ylim()
+            self.peak_highlight = ax.axvspan(x_min, x_max, alpha=0.2, color='yellow',
+                                             label=f'Peak at {position:.2f} eV')
+
+            # Refresh the plot
+            self.parent.canvas.draw_idle()
+
+            print(f"Highlighted peak at {position:.2f} eV, range: {x_min:.2f} - {x_max:.2f} eV")
+
+        except Exception as e:
+            print(f"Error highlighting peak: {e}")
+
+    def clear_peak_highlight(self):
+        """Clear peak highlighting"""
+        try:
+            if hasattr(self, 'peak_highlight') and self.peak_highlight:
+                self.peak_highlight.remove()
+                self.peak_highlight = None
+
+            if hasattr(self, 'peak_center_line') and self.peak_center_line:
+                self.peak_center_line.remove()
+                self.peak_center_line = None
+
+        except Exception as e:
+            print(f"Error clearing highlight: {e}")
+
+    def on_peak_double_click(self, event):
+        """Handle double click on peak list item - toggle checkbox"""
+        # For double-click, we need to use HitTest to get the item
+        pos = event.GetPosition()
+        item, flags = self.peaks_list.HitTest(pos)
+
+        # Get the actual peak from sorted list
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+        non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+
+        if item != wx.NOT_FOUND and item < len(non_dismissed_peaks):
+            peak = non_dismissed_peaks[item]
+
+            # Toggle checkbox
+            current_text = self.peaks_list.GetItem(item, 0).GetText()
+            new_text = "✓" if current_text != "✓" else ""
+            self.peaks_list.SetItem(item, 0, new_text)
+
+            # Update peak data
+            peak['create_region'] = (new_text == "✓")
+
+    def on_result_double_click(self, event):
+        """Handle double click on results list item - toggle checkbox"""
+        # For double-click, we need to use HitTest to get the item
+        pos = event.GetPosition()
+        item, flags = self.results_list.HitTest(pos)
+
+        # Get the actual peak from sorted list
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+        non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+
+        if item != wx.NOT_FOUND and item < len(non_dismissed_peaks):
+            peak = non_dismissed_peaks[item]
+
+            # Toggle checkbox
+            current_text = self.results_list.GetItem(item, 0).GetText()
+            new_text = "✓" if current_text != "✓" else ""
+            self.results_list.SetItem(item, 0, new_text)
+
+            # Update peak data
+            peak['create_region'] = (new_text == "✓")
+
+    def on_force_assign(self, event):
+        """Handle manual peak assignment"""
+        assignment = self.core_level_choice.GetValue()
+        if not assignment:
+            wx.MessageBox("Please select an assignment", "No Assignment")
+            return
+
+        # Use the stored selected peak instead of index
+        if not hasattr(self, 'selected_peak') or not self.selected_peak:
+            wx.MessageBox("Please select a peak first", "No Peak Selected")
+            return
+
+        # Assign the peak
+        peak = self.selected_peak
+        peak['assignment'] = assignment
+        peak['confidence'] = 100  # Manual assignment = 100% confidence
+        peak['assigned'] = True
+        peak['locked'] = True
+
+        # Update results display
+        self._update_results_display()
+
+        wx.MessageBox(f"Assigned peak at {peak['position']:.2f} eV to {assignment}", "Assignment Complete")
+
+    def _get_rsf_for_assignment(self, assignment):
+        """Get RSF from library for assignment"""
+        if not assignment:
+            return 1.0
+
+        # Parse element and orbital
+        import re
+        match = re.match(r'([A-Z][a-z]?)(.+)', assignment)
+        if not match:
+            return 1.0
+
+        element, orbital = match.groups()
+        key = (element, orbital)
+
+        if key in self.auto_survey_id.library_data:
+            instrument = 'A-ALTHERMO1'
+            data = self.auto_survey_id.library_data[key]
+
+            if instrument not in data:
+                instrument = self.auto_survey_id.parent.current_instrument
+                if instrument not in data:
+                    instrument = next(iter(data))
+
+            if 'rsf' in data[instrument]:
+                try:
+                    return float(data[instrument]['rsf'])
+                except (ValueError, TypeError):
+                    return 1.0
+
+        return 1.0
+
+    def _update_results_display(self):
+        """Update the results list display"""
+        # Clear results list
+        self.results_list.DeleteAllItems()
+
+        # Sort peaks by binding energy
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+
+        for peak in sorted_peaks:
+            # Skip dismissed peaks
+            if peak.get('dismissed'):
+                continue
+
+            assignment = peak.get('assignment', '')
+            rsf = self._get_rsf_for_assignment(assignment) if assignment else 1.0
+            confidence = peak.get('confidence', 0)
+
+            index = self.results_list.GetItemCount()
+            self.results_list.InsertItem(index, "✓" if peak.get('create_region') else "")
+            self.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            self.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            self.results_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
+            self.results_list.SetItem(index, 4, assignment)
+            self.results_list.SetItem(index, 5, f"{rsf:.2f}")
+            self.results_list.SetItem(index, 6, f"{confidence}")
+
+            # Color code by confidence
+            if confidence >= 90:
+                self.results_list.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))  # Green
+            elif confidence >= 70:
+                self.results_list.SetItemBackgroundColour(index, wx.Colour(255, 255, 200))  # Yellow
+            elif confidence > 0:
+                self.results_list.SetItemBackgroundColour(index, wx.Colour(255, 230, 200))  # Orange
+
+    def on_result_selected(self, event):
+        """Handle result selection - highlight peak"""
+        selected_index = event.GetIndex()
+
+        # Get the actual peak from sorted list (not original index)
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+        non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+
+        if selected_index < len(non_dismissed_peaks):
+            peak = non_dismissed_peaks[selected_index]
+            self.highlight_peak_region(peak['position'], peak['width'])
+
+    def on_library_change(self, event):
+        """Handle library source change"""
+        selection = self.library_combo.GetSelection()
+        self.auto_survey_id.use_main_library = (selection == 1)
+        print(f"Switched to {'Main Library' if self.auto_survey_id.use_main_library else 'Hardcoded Ranges'}")
+
+
+    def on_show_process_description(self, event):
+        """Show process description window"""
+
+        # Get initial description
+        if hasattr(self, 'current_method') and self.current_method:
+            description = self.current_method.get_process_description()
+        else:
+            description = "No identification process has been run yet.\n\nClick 'Run Identification' first to see process details."
+
+        # Create or show existing window
+        if self.process_desc_window is None or not self.process_desc_window:
+            self.process_desc_window = ProcessDescriptionDialog(self, description)
+            self.process_desc_window.Show()
+        else:
+            # Window exists, just update and bring to front
+            self.process_desc_window.update_description(description)
+            self.process_desc_window.Raise()
+
+    def refresh_process_description(self):
+        """Refresh process description - called by description window"""
+        if hasattr(self, 'current_method') and self.current_method and self.process_desc_window:
+            description = self.current_method.get_process_description()
+            self.process_desc_window.update_description(description)
+
+    def update_process_description(self):
+        """Update process description if window is open"""
+        if self.process_desc_window and hasattr(self, 'current_method') and self.current_method:
+            description = self.current_method.get_process_description()
+            self.process_desc_window.update_description(description)
+
+    def on_run(self, event):
+        """Run the selected identification method"""
+        method_selection = self.method_choice.GetSelection()
+
+        # Update parameters with proper handling
+        try:
+            self.prominence = float(self.prominence_ctrl.GetValue())
+            self.width = float(self.width_ctrl.GetValue())
+            self.width_max = float(self.width_max_ctrl.GetValue())
+            self.distance = float(self.distance_ctrl.GetValue())
+            self.tolerance = float(self.tolerance_ctrl.GetValue())
+
+            # Validate parameters
+            if self.prominence <= 0 or self.prominence > 1:
+                wx.MessageBox("Prominence should be between 0 and 1 (e.g., 0.01 for 1%)", "Invalid Parameter")
+                return
+
+            if self.width_max <= self.width:
+                wx.MessageBox("Width max should be greater than width min", "Invalid Parameter")
+                return
+
+            # Debug: Print the actual values being used
+            print(f"DEBUG: Using parameters - Prominence: {self.prominence}, Width: {self.width}-{self.width_max} eV, Distance: {self.distance}")
+
+        except ValueError:
+            wx.MessageBox("Please enter valid numeric values for all parameters", "Invalid Parameters")
+            return
+
+        # Run the selected method
+        if method_selection == 0:
+            self.current_method = Method1Identifier(self)
+            self.current_method.run()
+        else:
+            self.current_method = Method2Identifier(self)
+            self.current_method.run()
+
+        # Update process description if window is open
+        self.update_process_description()
+
+        self.create_regions_btn.Enable(True)
+
+    def on_select_all(self, event):
+        """Select all peaks in current tab"""
+        current_page = self.notebook.GetSelection()
+        peak_list = self.peaks_list if current_page == 0 else self.results_list
+
+        for row in range(peak_list.GetItemCount()):
+            peak_list.SetItem(row, 0, "✓")
+
+    def on_deselect_all(self, event):
+        """Deselect all peaks in current tab"""
+        current_page = self.notebook.GetSelection()
+        peak_list = self.peaks_list if current_page == 0 else self.results_list
+
+        for row in range(peak_list.GetItemCount()):
+            peak_list.SetItem(row, 0, "")
+
+    def on_create_regions(self, event):
+        """Create regions for selected peaks"""
+        # Get selected peaks from results tab
+        selected_peaks = []
+        for row in range(self.results_list.GetItemCount()):
+            if self.results_list.GetItem(row, 0).GetText() == "✓":
+                position = float(self.results_list.GetItem(row, 1).GetText())
+                assignment = self.results_list.GetItem(row, 4).GetText()
+                selected_peaks.append({
+                    'position': position,
+                    'assignment': assignment
+                })
+
+        if not selected_peaks:
+            wx.MessageBox("Please select peaks to create regions for", "No Selection")
+            return
+
+        # Create regions using existing AutoSurveyID logic
+        self.auto_survey_id.create_regions_from_assignments(selected_peaks)
+        wx.MessageBox(f"Created {len(selected_peaks)} regions", "Success")
+
+    def position_window(self):
+        """Position window at center of parent"""
+        if self.parent:
+            parent_pos = self.parent.GetPosition()
+            parent_size = self.parent.GetSize()
+            my_size = self.GetSize()
+
+            new_x = parent_pos.x + (parent_size.width - my_size.width) // 2
+            new_y = parent_pos.y + (parent_size.height - my_size.height) // 2
+
+            self.SetPosition((max(0, new_x), max(0, new_y)))
+
+    def OnClose(self, event):
+        """Handle dialog close event"""
+        # Clear any peak highlights before closing
+        self.clear_peak_highlight()
+
+        # Close process description window if open
+        if self.process_desc_window:
+            self.process_desc_window.Close()
+
+        self.Destroy()
+
+
+class ProcessDescriptionDialog(wx.Frame):
+    """Frame to show process description - non-modal, updates only when needed"""
+
+    def __init__(self, parent, initial_description="No process run yet."):
+        super().__init__(parent, title="Process Description", size=(800, 600),
+                         style=wx.DEFAULT_FRAME_STYLE)
+
+        panel = wx.Panel(self)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Manual refresh button
+        refresh_btn = wx.Button(panel, label="Refresh")
+        refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh)
+
+        # Text control for description
+        self.text_ctrl = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self.text_ctrl.SetValue(initial_description)
+
+        # Close button
+        close_btn = wx.Button(panel, label="Close")
+        close_btn.Bind(wx.EVT_BUTTON, self.on_close)
+
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        button_sizer.Add(refresh_btn, 0, wx.ALL, 5)
+        button_sizer.AddStretchSpacer()
+        button_sizer.Add(close_btn, 0, wx.ALL, 5)
+
+        sizer.Add(button_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(self.text_ctrl, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Store process description window reference
+        self.process_desc_window = None
+        self.current_method = None
+
+        panel.SetSizer(sizer)
+        self.Center()
+
+    def update_description(self, description):
+        """Update the description text from external source"""
+        self.text_ctrl.SetValue(description)
+        # Scroll to bottom to show latest updates
+        self.text_ctrl.SetInsertionPointEnd()
+
+    def on_refresh(self, event):
+        """Manual refresh button - ask parent to update"""
+        parent = self.GetParent()
+        if hasattr(parent, 'refresh_process_description'):
+            parent.refresh_process_description()
+
+    def on_close(self, event):
+        """Close the window"""
+        self.Close()
+
+
+class Method1Identifier:
+    """Method 1 GK 25/08/25 - Basic identification"""
+
+    def __init__(self, parent_window):
+        self.parent_window = parent_window
+        self.auto_survey_id = parent_window.auto_survey_id
+        self.process_log = []
+        self.has_run = False  # Track if process has been run
+
+    def run(self):
+        """Run Method 1 identification process"""
+        self.process_log = []
+        self.has_run = True  # Mark as run
+
+        # Step 1: Find peaks
+        self._find_peaks()
+
+        # Step 2: Get possibilities and populate tables
+        self._analyze_peaks()
+
+        # Update status
+        self.parent_window.status_text.SetLabel(f"Method 1 complete. Found {len(self.parent_window.all_peaks)} peaks.")
+    def _find_peaks(self):
+        """Find peaks - using existing AutoIDWindow logic"""
+        self.process_log.append("=== Peak Finding ===")
+
+        sheet_name = self.auto_survey_id.parent.sheet_combobox.GetValue()
+
+        if sheet_name not in self.auto_survey_id.parent.Data['Core levels']:
+            self.process_log.append("ERROR: No data found for selected sheet")
+            return
+
+        x_values = np.array(self.auto_survey_id.parent.Data['Core levels'][sheet_name]['B.E.'])
+        y_values_raw = np.array(self.auto_survey_id.parent.Data['Core levels'][sheet_name]['Raw Data'])
+
+        # Apply Gaussian smoothing like the original
+        from scipy.ndimage import gaussian_filter1d
+        y_values = gaussian_filter1d(y_values_raw, sigma=1.0)
+
+        # Calculate normalized prominence threshold (as percentage of max peak)
+        max_intensity = np.max(y_values)
+        prominence_threshold = self.parent_window.prominence * max_intensity
+
+        # Convert width from eV to data points
+        eV_per_point = abs(x_values[1] - x_values[0])  # eV per data point
+        width_min_points = self.parent_window.width / eV_per_point
+        width_max_points = self.parent_window.width_max / eV_per_point
+
+        self.process_log.append(f"Max intensity: {max_intensity:.2f}")
+        self.process_log.append(f"Prominence threshold: {self.parent_window.prominence} * {max_intensity:.2f} = {prominence_threshold:.2f}")
+        self.process_log.append(f"eV per point: {eV_per_point:.4f}")
+        self.process_log.append(f"Width min: {self.parent_window.width:.1f} eV = {width_min_points:.1f} points")
+        self.process_log.append(f"Width max: {self.parent_window.width_max:.1f} eV = {width_max_points:.1f} points")
+
+        # Use ALL the parameters from peak finding with proper conversions
+        peaks, properties = find_peaks(y_values,
+                                       prominence=prominence_threshold,
+                                       width=(width_min_points, width_max_points),  # Convert eV to points
+                                       distance=self.parent_window.distance)  # Distance is in points, keep as is
+
+        # Calculate peak widths like the original
+        from scipy.signal import peak_widths
+        widths_half = peak_widths(y_values, peaks, rel_height=0.5)
+
+        # Store peaks with all properties like original
+        self.parent_window.all_peaks = []
+        for i, peak_idx in enumerate(peaks):
+            # Convert width from data points to eV
+            width_points = widths_half[0][i]
+            width_eV = width_points * eV_per_point  # Convert to eV
+
+            # Calculate normalized prominence (as fraction of max intensity)
+            normalized_prominence = properties['prominences'][i] / max_intensity
+
+            peak_data = {
+                'index': i,
+                'position': float(f"{x_values[peak_idx]:.2f}"),
+                'intensity': float(f"{y_values[peak_idx]:.2f}"),
+                'prominence': float(f"{normalized_prominence:.4f}"),  # Store as normalized fraction
+                'width': float(f"{width_eV:.2f}"),
+                'create_region': False,
+                'peak_idx': peak_idx  # Store original index for highlighting
+            }
+            self.parent_window.all_peaks.append(peak_data)
+
+        self.process_log.append(f"Found {len(self.parent_window.all_peaks)} peaks using:")
+        self.process_log.append(f"  - Prominence >= {self.parent_window.prominence} ({prominence_threshold:.2f} counts)")
+        self.process_log.append(f"  - Width: {self.parent_window.width} - {self.parent_window.width_max} eV")
+        self.process_log.append(f"  - Distance >= {self.parent_window.distance} points")
+
+        # Debug: Show actual widths found
+        for peak in self.parent_window.all_peaks:
+            self.process_log.append(f"  Peak at {peak['position']:.2f} eV: width = {peak['width']:.2f} eV, prominence = {peak['prominence']:.4f}")
+
+    def _analyze_peaks(self):
+        """Analyze peaks and populate tables"""
+        self.process_log.append("=== Analyzing Peaks ===")
+
+        # Clear existing lists
+        self.parent_window.peaks_list.DeleteAllItems()
+        self.parent_window.results_list.DeleteAllItems()
+
+        # Sort peaks by binding energy
+        sorted_peaks = sorted(self.parent_window.all_peaks, key=lambda x: x['position'])
+
+        for peak in sorted_peaks:
+            # Get possible assignments
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+            possibilities_text = ", ".join([p['assignment'] for p in possible])
+            distances_text = ", ".join([f"{p['distance']:.1f}" for p in possible])
+
+            # Add to Find Peaks tab
+            index = self.parent_window.peaks_list.GetItemCount()
+            self.parent_window.peaks_list.InsertItem(index, "")
+            self.parent_window.peaks_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            self.parent_window.peaks_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            self.parent_window.peaks_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
+            self.parent_window.peaks_list.SetItem(index, 4, possibilities_text)
+            self.parent_window.peaks_list.SetItem(index, 5, distances_text)
+
+            # Add to Results tab (initially unassigned)
+            index = self.parent_window.results_list.GetItemCount()
+            self.parent_window.results_list.InsertItem(index, "")
+            self.parent_window.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            self.parent_window.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            self.parent_window.results_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
+            self.parent_window.results_list.SetItem(index, 4, "")  # Not assigned yet
+            self.parent_window.results_list.SetItem(index, 5, "1.00")  # Default RSF
+            self.parent_window.results_list.SetItem(index, 6, "0")  # No confidence yet
+
+        self.process_log.append(f"Populated tables with {len(sorted_peaks)} peaks ordered by binding energy")
+
+        def get_process_description(self):
+            """Get the process description for Method 1"""
+            if not self.has_run:
+                return """METHOD 1 GK 25/08/25 - Basic Peak Identification
+
+    Status: Not yet run
+
+    Click 'Run Identification' to execute Method 1 and see detailed process information.
+
+    Method 1 Process:
+    1. Find Peaks: Uses scipy.find_peaks with user-defined parameters
+    2. Peak Analysis: Orders peaks by binding energy and shows possibilities
+    3. Manual Assignment: User can manually assign peaks using the interface
+
+    """
+
+            description = """METHOD 1 GK 25/08/25 - Basic Peak Identification
+
+    Process Steps:
+    1. Find Peaks: Uses scipy.find_peaks with user-defined parameters
+       - Prominence threshold to identify significant peaks
+       - Width constraints to filter peak shapes  
+       - Distance parameter to avoid peak clustering
+
+    2. Peak Analysis:
+       - Orders peaks by binding energy (ascending)
+       - Shows all possible assignments within tolerance
+       - Displays position, width, signal strength, and possibilities
+       - No automatic assignments made
+
+    3. Results Table:
+       - Same peaks as Find Peaks tab
+       - Ready for manual assignment
+       - Shows RSF values from main library when assigned
+
+    Process Log:
+    """
+            description += "\n".join(self.process_log)
+            return description
+
+
+class Method2Identifier:
+    """Method 2 GK 25/08/25 - Advanced identification with automatic assignments"""
+
+    def __init__(self, parent_window):
+        self.parent_window = parent_window
+        self.auto_survey_id = parent_window.auto_survey_id
+        self.process_log = []
+        self.has_run = True  # Track if process has been run
+
+    def run(self):
+        """Run Method 2 identification process"""
+        self.process_log = []
+
+        # Step 1: Find peaks (same as Method 1)
+        self._find_peaks()
+
+        # Step 2: Dismiss wide peaks
+        self._dismiss_wide_peaks()
+
+        # Step 3: Look for usual suspects
+        self._identify_usual_suspects()
+
+        # Step 4: Check companions for remaining peaks
+        self._check_companions()
+
+        # Update tables and status
+        self._populate_results()
+        self.parent_window.status_text.SetLabel(f"Method 2 complete. Analyzed {len(self.parent_window.all_peaks)} peaks.")
+
+    def _find_peaks(self):
+        """Find peaks - same as Method 1"""
+        # Use Method 1's peak finding
+        method1 = Method1Identifier(self.parent_window)
+        method1._find_peaks()
+        self.process_log.extend(method1.process_log)
+
+    def _dismiss_wide_peaks(self):
+        """Dismiss peaks wider than width_max"""
+        self.process_log.append("=== Step 2: Dismissing Wide Peaks ===")
+        self.process_log.append(f"Width threshold: {self.parent_window.width_max:.1f} eV")
+
+        dismissed_count = 0
+        for peak in self.parent_window.all_peaks:
+            self.process_log.append(f"Checking peak at {peak['position']:.2f} eV: width = {peak['width']:.2f} eV")
+
+            if peak['width'] > self.parent_window.width_max:
+                peak['dismissed'] = True
+                peak['dismiss_reason'] = f"Too wide ({peak['width']:.2f} > {self.parent_window.width_max:.1f})"
+                dismissed_count += 1
+                self.process_log.append(f"  ✗ DISMISSED: Peak too wide ({peak['width']:.2f} eV > {self.parent_window.width_max:.1f} eV)")
+            else:
+                self.process_log.append(f"  ✓ KEPT: Peak width OK ({peak['width']:.2f} eV <= {self.parent_window.width_max:.1f} eV)")
+
+        self.process_log.append(f"Dismissed {dismissed_count} peaks due to excessive width")
+
+    def _identify_usual_suspects(self):
+        """Look for the usual suspects with automatic assignment"""
+        self.process_log.append("=== Step 3: Looking for Usual Suspects ===")
+
+        # O1s + Okll
+        self._check_oxygen()
+        # C1s + Ckll
+        self._check_carbon()
+        # Na1s + Nakll
+        self._check_sodium()
+        # Si2p + Si2s with RSF ratio check
+        self._check_silicon()
+        # P2p + P2s, S2p + S2s, etc.
+        self._check_2p_2s_pairs()
+        # Mg1s, F1s
+        self._check_single_peaks()
+        # Ag3d + Ag3p + Ag3s
+        self._check_silver()
+        # Au4f + Au4p + Au4s
+        self._check_gold()
+        # Cu2p (split into 3/2 and 1/2)
+        self._check_copper()
+        # Zn2p (split into 3/2 and 1/2)
+        self._check_zinc()
+
+    def _check_oxygen(self):
+        """Look for O1s (525-535) and Okll"""
+        self.process_log.append("=== CHECKING FOR OXYGEN ===")
+
+        # Find O1s candidate
+        o1s_candidates = [p for p in self.parent_window.all_peaks
+                          if 525 <= p['position'] <= 535
+                          and not p.get('assigned')
+                          and not p.get('dismissed')]
+
+        self.process_log.append(f"Searching for O1s in range 525-535 eV...")
+        self.process_log.append(f"Found {len(o1s_candidates)} candidate peaks in O1s range")
+
+        for candidate in o1s_candidates:
+            self.process_log.append(f"  - Peak at {candidate['position']:.2f} eV, prominence: {candidate['prominence']:.4f}")
+
+        # Filter by prominence
+        prominent_candidates = [p for p in o1s_candidates if p['prominence'] >= 0.15]
+
+        if not prominent_candidates:
+            self.process_log.append("No prominent O1s peaks found (prominence < 0.15)")
+            return
+
+        # Get most prominent
+        o1s_peak = max(prominent_candidates, key=lambda x: x['prominence'])
+        self.process_log.append(f"Selected most prominent O1s candidate: {o1s_peak['position']:.2f} eV (prominence: {o1s_peak['prominence']:.4f})")
+
+        # Look for Okll
+        okll_position = self._get_auger_position('O', 'kll')
+        self.process_log.append(f"Looking for Okll at expected position: {okll_position:.2f} eV (±4.0 eV tolerance)")
+
+        if okll_position:
+            okll_peak = self._find_peak_near_position(okll_position, tolerance=4.0)
+            if okll_peak:
+                self.process_log.append(f"Found Okll peak at {okll_peak['position']:.2f} eV (expected: {okll_position:.2f})")
+                self._assign_peak(o1s_peak, 'O1s', confidence=95, locked=True)
+                self._assign_peak(okll_peak, 'Okll', confidence=95, locked=True)
+                self.process_log.append("✓ ASSIGNED: O1s + Okll pair with HIGH CONFIDENCE (95%)")
+            else:
+                self.process_log.append("Okll peak not found in expected range")
+                self._assign_peak(o1s_peak, 'O1s', confidence=85, locked=True)
+                self.process_log.append("✓ ASSIGNED: O1s only with GOOD CONFIDENCE (85%)")
+        else:
+            self.process_log.append("Could not determine Okll expected position from library")
+
+    def _check_carbon(self):
+        """Look for C1s (282-293) and Ckll"""
+        self.process_log.append("Checking for Carbon...")
+
+        c1s_peak = self._find_peak_in_range(282, 293)
+        if c1s_peak:
+            ckll_position = self._get_auger_position('C', 'kll')
+            if ckll_position:
+                ckll_peak = self._find_peak_near_position(ckll_position, tolerance=4.0)
+                if ckll_peak:
+                    self._assign_peak(c1s_peak, 'C1s', confidence=95, locked=True)
+                    self._assign_peak(ckll_peak, 'Ckll', confidence=95, locked=True)
+                    self.process_log.append(f"✓ Assigned C1s at {c1s_peak['position']:.2f} and Ckll at {ckll_peak['position']:.2f}")
+                else:
+                    self._assign_peak(c1s_peak, 'C1s', confidence=85, locked=True)
+                    self.process_log.append(f"✓ Assigned C1s at {c1s_peak['position']:.2f} (no Ckll found)")
+
+    def _check_sodium(self):
+        """Look for Na1s around 1072 and Nakll"""
+        self.process_log.append("=== CHECKING FOR SODIUM ===")
+
+        # Find Na1s candidate
+        na1s_candidates = [p for p in self.parent_window.all_peaks
+                           if abs(p['position'] - 1072) <= 6.0
+                           and not p.get('assigned')
+                           and not p.get('dismissed')]
+
+        self.process_log.append(f"Searching for Na1s around 1072 eV (±6.0 eV tolerance)...")
+        self.process_log.append(f"Found {len(na1s_candidates)} candidate peaks in Na1s range")
+
+        for candidate in na1s_candidates:
+            self.process_log.append(f"  - Peak at {candidate['position']:.2f} eV, prominence: {candidate['prominence']:.4f}")
+
+        if not na1s_candidates:
+            self.process_log.append("No Na1s peaks found")
+            return
+
+        # Get closest to expected position
+        na1s_peak = min(na1s_candidates, key=lambda x: abs(x['position'] - 1072))
+        self.process_log.append(f"Selected closest Na1s candidate: {na1s_peak['position']:.2f} eV")
+
+        # Look for Nakll - check multiple Auger patterns
+        nakll_patterns = ['kll', 'KL1', 'KLL1']  # Multiple possible patterns
+        nakll_found = False
+
+        for pattern in nakll_patterns:
+            self.process_log.append(f"Looking for Na{pattern} Auger peak...")
+            nakll_position = self._get_auger_position('Na', pattern.lower())
+
+            if nakll_position:
+                self.process_log.append(f"Expected Na{pattern} position: {nakll_position:.2f} eV")
+                nakll_peak = self._find_peak_near_position(nakll_position, tolerance=6.0)  # Increased tolerance
+
+                if nakll_peak:
+                    self.process_log.append(f"Found Na{pattern} peak at {nakll_peak['position']:.2f} eV")
+
+                    # Check if this peak has NaKLL or NaKL1 in possibilities
+                    possible = self.auto_survey_id.get_possible_assignments(nakll_peak['position'], self.parent_window.tolerance)
+                    na_auger_possibilities = [p for p in possible if p['element'] == 'Na' and 'k' in p['orbital'].lower()]
+
+                    if na_auger_possibilities:
+                        best_na_auger = na_auger_possibilities[0]  # Get best match
+                        self.process_log.append(f"Peak has Na Auger possibilities: {[p['assignment'] for p in na_auger_possibilities]}")
+
+                        self._assign_peak(na1s_peak, 'Na1s', confidence=95, locked=True)
+                        self._assign_peak(nakll_peak, best_na_auger['assignment'], confidence=95, locked=True)
+                        self.process_log.append(f"✓ ASSIGNED: Na1s at {na1s_peak['position']:.2f} and {best_na_auger['assignment']} at {nakll_peak['position']:.2f}")
+                        nakll_found = True
+                        break
+                    else:
+                        self.process_log.append(f"Peak found but no Na Auger assignments available")
+                else:
+                    self.process_log.append(f"No Na{pattern} peak found in expected range")
+
+        if not nakll_found:
+            # Assign Na1s anyway
+            self._assign_peak(na1s_peak, 'Na1s', confidence=90, locked=True)
+            self.process_log.append("✓ ASSIGNED: Na1s only (no Auger companion found)")
+
+            # Debug: Show what peaks are available in the Auger range
+            auger_range_peaks = [p for p in self.parent_window.all_peaks
+                                 if 490 <= p['position'] <= 510 and not p.get('assigned')]
+            if auger_range_peaks:
+                self.process_log.append("DEBUG: Peaks in Na Auger range (490-510 eV):")
+                for peak in auger_range_peaks:
+                    possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+                    possibilities = ", ".join([p['assignment'] for p in possible[:3]])
+                    self.process_log.append(f"  - {peak['position']:.2f} eV: {possibilities}")
+
+    def _check_silicon(self):
+        """Look for Si2p (94-105) and Si2s (~150) with RSF ratio check"""
+        self.process_log.append("Checking for Silicon...")
+
+        si2p_peak = self._find_peak_in_range(94, 105)
+        if si2p_peak:
+            si2s_position = self._get_library_position('Si', '2s')
+            if si2s_position:
+                si2s_peak = self._find_peak_near_position(si2s_position, tolerance=4.0)
+                if si2s_peak:
+                    # Check RSF ratio
+                    if self._check_rsf_ratio('Si', '2p', '2s', si2p_peak, si2s_peak):
+                        self._assign_peak(si2p_peak, 'Si2p', confidence=95, locked=True)
+                        self._assign_peak(si2s_peak, 'Si2s', confidence=95, locked=True)
+                        self.process_log.append(f"✓ Assigned Si2p at {si2p_peak['position']:.2f} and Si2s at {si2s_peak['position']:.2f} (RSF ratio OK)")
+                    else:
+                        self.process_log.append(f"✗ Si peaks found but RSF ratio doesn't match")
+                else:
+                    self._assign_peak(si2p_peak, 'Si2p', confidence=75)
+                    self.process_log.append(f"? Possible Si2p at {si2p_peak['position']:.2f} (no Si2s confirmation)")
+
+    def _check_2p_2s_pairs(self):
+        """Check P2p+P2s, S2p+S2s, Cl2p+Cl2s, Ca2p+Ca2s, K2p+K2s, Al2p+Al2s"""
+        elements = ['P', 'S', 'Cl', 'Ca', 'K', 'Al']
+
+        for element in elements:
+            self.process_log.append(f"=== CHECKING FOR {element.upper()} ===")
+
+            # Get expected positions from library
+            p2p_pos = self._get_library_position(element, '2p')
+            p2s_pos = self._get_library_position(element, '2s')
+
+            if p2p_pos and p2s_pos:
+                self.process_log.append(f"Expected positions: {element}2p at {p2p_pos:.2f} eV, {element}2s at {p2s_pos:.2f} eV")
+
+                p2p_peak = self._find_peak_near_position(p2p_pos, tolerance=5.0)
+                p2s_peak = self._find_peak_near_position(p2s_pos, tolerance=5.0)
+
+                if p2p_peak and p2s_peak:
+                    self.process_log.append(f"Found both peaks: {element}2p at {p2p_peak['position']:.2f} eV (prominence: {p2p_peak['prominence']:.4f})")
+                    self.process_log.append(f"                   {element}2s at {p2s_peak['position']:.2f} eV (prominence: {p2s_peak['prominence']:.4f})")
+
+                    if self._check_rsf_ratio(element, '2p', '2s', p2p_peak, p2s_peak):
+                        self._assign_peak(p2p_peak, f'{element}2p', confidence=95, locked=True)
+                        self._assign_peak(p2s_peak, f'{element}2s', confidence=95, locked=True)
+                        self.process_log.append(f"✓ ASSIGNED: {element}2p at {p2p_peak['position']:.2f} and {element}2s at {p2s_peak['position']:.2f} (RSF ratio OK)")
+
+                        # Check for 3p and 3s if 2p prominence > 0.2 (20%) and element is not Al
+                        if element != 'Al' and p2p_peak['prominence'] > 0.2:
+                            self.process_log.append(f"{element}2p is intense (prominence: {p2p_peak['prominence']:.4f} > 0.2) - checking for 3p and 3s...")
+                            self._check_3p_3s_companions(element, p2p_peak)
+                        elif element == 'Al':
+                            self.process_log.append(f"Skipping 3p/3s check for Al (excluded by design)")
+                        else:
+                            self.process_log.append(f"{element}2p not intense enough (prominence: {p2p_peak['prominence']:.4f} <= 0.2) - skipping 3p/3s check")
+
+                    else:
+                        self.process_log.append(f"✗ RSF ratio check failed for {element}2p/2s pair")
+                elif p2p_peak and not p2s_peak:
+                    self.process_log.append(f"Found only {element}2p at {p2p_peak['position']:.2f} eV - {element}2s missing")
+                elif p2s_peak and not p2p_peak:
+                    self.process_log.append(f"Found only {element}2s at {p2s_peak['position']:.2f} eV - {element}2p missing")
+                else:
+                    self.process_log.append(f"Neither {element}2p nor {element}2s found in expected positions")
+            else:
+                missing = []
+                if not p2p_pos:
+                    missing.append(f"{element}2p")
+                if not p2s_pos:
+                    missing.append(f"{element}2s")
+                self.process_log.append(f"Library positions not found for: {', '.join(missing)}")
+
+    def _check_3p_3s_companions(self, element, p2p_peak):
+        """Check for 3p and 3s companions for intense 2p peaks"""
+        self.process_log.append(f"  Searching for {element}3p and {element}3s companions...")
+        self.process_log.append(f"  Reference 2p peak: {element}2p at {p2p_peak['position']:.2f} eV, prominence: {p2p_peak['prominence']:.4f}")
+
+        # Get expected positions for 3p and 3s
+        p3p_pos = self._get_library_position(element, '3p')
+        p3s_pos = self._get_library_position(element, '3s')
+
+        companions_found = 0
+
+        # Check for 3p
+        if p3p_pos:
+            self.process_log.append(f"  Expected {element}3p position: {p3p_pos:.2f} eV")
+            p3p_peak = self._find_peak_near_position(p3p_pos, tolerance=4.0)
+
+            if p3p_peak:
+                self.process_log.append(f"  Found peak near {element}3p position:")
+                self.process_log.append(f"    - Position: {p3p_peak['position']:.2f} eV (distance: {abs(p3p_peak['position'] - p3p_pos):.2f} eV)")
+                self.process_log.append(f"    - Prominence: {p3p_peak['prominence']:.4f}")
+                self.process_log.append(f"    - Already assigned: {p3p_peak.get('assigned', False)}")
+                self.process_log.append(f"    - Assignment: {p3p_peak.get('assignment', 'None')}")
+
+                if not p3p_peak.get('assigned'):
+                    # Get RSF values for debugging
+                    rsf_2p = self._get_rsf_for_assignment(f'{element}2p')
+                    rsf_3p = self._get_rsf_for_assignment(f'{element}3p')
+
+                    self.process_log.append(f"    - RSF values: {element}2p = {rsf_2p:.3f}, {element}3p = {rsf_3p:.3f}")
+
+                    if rsf_2p > 0 and rsf_3p > 0:
+                        expected_ratio = rsf_2p / rsf_3p
+                        observed_ratio = (p2p_peak['prominence']*p2p_peak['width']) / (p3p_peak['prominence']*p3p_peak['width'])
+                        ratio_check = 0.2 <= (observed_ratio / expected_ratio) <= 5.0
+
+                        self.process_log.append(f"    - Expected intensity ratio (2p/3p): {expected_ratio:.3f}")
+                        self.process_log.append(f"    - Observed intensity ratio (2p/3p): {observed_ratio:.3f}")
+                        self.process_log.append(f"    - Ratio within acceptable range (0.5-2.0x expected): {ratio_check}")
+
+                        if ratio_check:
+                            self._assign_peak(p3p_peak, f'{element}3p', confidence=85, locked=True)
+                            self.process_log.append(f"  ✓ ASSIGNED: {element}3p at {p3p_peak['position']:.2f} eV (RSF ratio OK)")
+                            companions_found += 1
+                        else:
+                            self.process_log.append(f"  ✗ {element}3p RSF ratio check FAILED: observed/expected = {observed_ratio / expected_ratio:.3f}")
+                    else:
+                        self.process_log.append(f"  ✗ Missing RSF values - cannot check ratio")
+                else:
+                    self.process_log.append(f"  - {element}3p peak already assigned to: {p3p_peak.get('assignment', 'Unknown')}")
+            else:
+                self.process_log.append(f"  - No peak found near expected {element}3p position {p3p_pos:.2f} eV (±4.0 eV)")
+
+                # Debug: Show what peaks ARE in that range
+                nearby_peaks = [p for p in self.parent_window.all_peaks
+                                if abs(p['position'] - p3p_pos) <= 6.0 and not p.get('dismissed')]
+                if nearby_peaks:
+                    self.process_log.append(f"  - Peaks in wider range (±6.0 eV):")
+                    for peak in nearby_peaks:
+                        status = "ASSIGNED" if peak.get('assigned') else "UNASSIGNED"
+                        assignment = f" -> {peak.get('assignment', 'None')}" if peak.get('assigned') else ""
+                        self.process_log.append(f"    * {peak['position']:.2f} eV (prominence: {peak['prominence']:.4f}) [{status}]{assignment}")
+        else:
+            self.process_log.append(f"  - No library position found for {element}3p")
+
+        # Check for 3s (similar detailed logging)
+        if p3s_pos:
+            self.process_log.append(f"  Expected {element}3s position: {p3s_pos:.2f} eV")
+            p3s_peak = self._find_peak_near_position(p3s_pos, tolerance=4.0)
+
+            if p3s_peak:
+                self.process_log.append(f"  Found peak near {element}3s position:")
+                self.process_log.append(f"    - Position: {p3s_peak['position']:.2f} eV (distance: {abs(p3s_peak['position'] - p3s_pos):.2f} eV)")
+                self.process_log.append(f"    - Prominence: {p3s_peak['prominence']:.4f}")
+                self.process_log.append(f"    - Already assigned: {p3s_peak.get('assigned', False)}")
+
+                if not p3s_peak.get('assigned'):
+                    # Check RSF ratio between 2p and 3s
+                    rsf_2p = self._get_rsf_for_assignment(f'{element}2p')
+                    rsf_3s = self._get_rsf_for_assignment(f'{element}3s')
+
+                    self.process_log.append(f"    - RSF values: {element}2p = {rsf_2p:.3f}, {element}3s = {rsf_3s:.3f}")
+    def _check_single_peaks(self):
+        """Check Mg1s and F1s"""
+        self.process_log.append("Checking for Mg1s and F1s...")
+
+        # Mg1s
+        mg1s_pos = self._get_library_position('Mg', '1s')
+        if mg1s_pos:
+            mg1s_peak = self._find_peak_near_position(mg1s_pos, tolerance=5.0)
+            if mg1s_peak and mg1s_peak['width'] < 3.0:  # Sharp peak check
+                self._assign_peak(mg1s_peak, 'Mg1s', confidence=90, locked=True)
+                self.process_log.append(f"✓ Assigned Mg1s at {mg1s_peak['position']:.2f}")
+
+        # F1s
+        f1s_pos = self._get_library_position('F', '1s')
+        if f1s_pos:
+            f1s_peak = self._find_peak_near_position(f1s_pos, tolerance=5.0)
+            if f1s_peak and f1s_peak['width'] < 3.0:  # Sharp peak check
+                self._assign_peak(f1s_peak, 'F1s', confidence=90, locked=True)
+                self.process_log.append(f"✓ Assigned F1s at {f1s_peak['position']:.2f}")
+
+    def _check_silver(self):
+        """Check Ag3d + Ag3p + Ag3s with RSF ratios"""
+        self.process_log.append("Checking for Silver...")
+
+        ag3d_pos = self._get_library_position('Ag', '3d')
+        if ag3d_pos:
+            ag3d_peak = self._find_peak_near_position(ag3d_pos, tolerance=5.0)
+            if ag3d_peak:
+                ag3p_pos = self._get_library_position('Ag', '3p')
+                ag3s_pos = self._get_library_position('Ag', '3s')
+
+                ag3p_peak = self._find_peak_near_position(ag3p_pos, tolerance=4.0) if ag3p_pos else None
+                ag3s_peak = self._find_peak_near_position(ag3s_pos, tolerance=4.0) if ag3s_pos else None
+
+                # Check ratios and assign
+                if ag3p_peak and ag3s_peak:
+                    self._assign_peak(ag3d_peak, 'Ag3d', confidence=95, locked=True)
+                    self._assign_peak(ag3p_peak, 'Ag3p', confidence=95, locked=True)
+                    self._assign_peak(ag3s_peak, 'Ag3s', confidence=95, locked=True)
+                    self.process_log.append(f"✓ Assigned Ag3d, Ag3p, Ag3s peaks")
+                elif ag3p_peak:
+                    self._assign_peak(ag3d_peak, 'Ag3d', confidence=85, locked=True)
+                    self._assign_peak(ag3p_peak, 'Ag3p', confidence=85, locked=True)
+                    self.process_log.append(f"✓ Assigned Ag3d and Ag3p peaks")
+
+    def _check_gold(self):
+        """Check Au4f + Au4p with Au4s for intense Au4f"""
+        self.process_log.append("Checking for Gold...")
+
+        au4f_pos = self._get_library_position('Au', '4f')
+        if au4f_pos:
+            au4f_peak = self._find_peak_near_position(au4f_pos, tolerance=5.0)
+            if au4f_peak:
+                au4p_pos = self._get_library_position('Au', '4p')
+                au4p_peak = self._find_peak_near_position(au4p_pos, tolerance=4.0) if au4p_pos else None
+
+                if au4p_peak:
+                    self._assign_peak(au4f_peak, 'Au4f', confidence=95, locked=True)
+                    self._assign_peak(au4p_peak, 'Au4p', confidence=95, locked=True)
+
+                    # Check for Au4s if Au4f is very intense (>0.3)
+                    if au4f_peak['prominence'] > 0.3:
+                        au4s_pos = self._get_library_position('Au', '4s')
+                        if au4s_pos:
+                            au4s_peak = self._find_peak_near_position(au4s_pos, tolerance=4.0)
+                            if au4s_peak:
+                                self._assign_peak(au4s_peak, 'Au4s', confidence=90, locked=True)
+                                self.process_log.append(f"✓ Assigned Au4f, Au4p, Au4s peaks (intense Au4f)")
+                            else:
+                                self.process_log.append(f"✓ Assigned Au4f, Au4p peaks (no Au4s found despite intense Au4f)")
+                    else:
+                        self.process_log.append(f"✓ Assigned Au4f, Au4p peaks")
+
+    def _check_copper(self):
+        """Check Cu2p and split into Cu2p3/2 and Cu2p1/2"""
+        self.process_log.append("Checking for Copper...")
+
+        cu2p_pos = self._get_library_position('Cu', '2p')
+        if cu2p_pos:
+            # Look for Cu2p region (broader search for doublet)
+            cu2p_peak = self._find_peak_near_position(cu2p_pos, tolerance=8.0)
+            if cu2p_peak:
+                # Check for doublet structure
+                cu2p32_pos = self._get_library_position('Cu', '2p3/2')
+                cu2p12_pos = self._get_library_position('Cu', '2p1/2')
+
+                if cu2p32_pos and cu2p12_pos:
+                    cu2p32_peak = self._find_peak_near_position(cu2p32_pos, tolerance=3.0)
+                    cu2p12_peak = self._find_peak_near_position(cu2p12_pos, tolerance=3.0)
+
+                    if cu2p32_peak and cu2p12_peak:
+                        self._assign_peak(cu2p32_peak, 'Cu2p3/2', confidence=95, locked=True)
+                        self._assign_peak(cu2p12_peak, 'Cu2p1/2', confidence=95, locked=True)
+                        self.process_log.append(f"✓ Assigned Cu2p3/2 at {cu2p32_peak['position']:.2f} and Cu2p1/2 at {cu2p12_peak['position']:.2f}")
+                    else:
+                        self._assign_peak(cu2p_peak, 'Cu2p', confidence=75)
+                        self.process_log.append(f"? Possible Cu2p at {cu2p_peak['position']:.2f} (doublet not resolved)")
+
+    def _check_zinc(self):
+        """Check Zn2p and split into Zn2p3/2 and Zn2p1/2"""
+        self.process_log.append("Checking for Zinc...")
+
+        zn2p_pos = self._get_library_position('Zn', '2p')
+        if zn2p_pos:
+            zn2p_peak = self._find_peak_near_position(zn2p_pos, tolerance=8.0)
+            if zn2p_peak:
+                zn2p32_pos = self._get_library_position('Zn', '2p3/2')
+                zn2p12_pos = self._get_library_position('Zn', '2p1/2')
+
+                if zn2p32_pos and zn2p12_pos:
+                    zn2p32_peak = self._find_peak_near_position(zn2p32_pos, tolerance=3.0)
+                    zn2p12_peak = self._find_peak_near_position(zn2p12_pos, tolerance=3.0)
+
+                    if zn2p32_peak and zn2p12_peak:
+                        self._assign_peak(zn2p32_peak, 'Zn2p3/2', confidence=95, locked=True)
+                        self._assign_peak(zn2p12_peak, 'Zn2p1/2', confidence=95, locked=True)
+                        self.process_log.append(f"✓ Assigned Zn2p3/2 at {zn2p32_peak['position']:.2f} and Zn2p1/2 at {zn2p12_peak['position']:.2f}")
+                    else:
+                        self._assign_peak(zn2p_peak, 'Zn2p', confidence=75)
+                        self.process_log.append(f"? Possible Zn2p at {zn2p_peak['position']:.2f} (doublet not resolved)")
+
+    def _check_companions(self):
+        """Check companions for remaining unassigned peaks"""
+        self.process_log.append("=== Step 4: Checking Companions for Remaining Peaks ===")
+
+        # Get unassigned peaks sorted by prominence
+        unassigned_peaks = [p for p in self.parent_window.all_peaks if not p.get('assigned') and not p.get('dismissed')]
+        unassigned_peaks.sort(key=lambda x: x['prominence'], reverse=True)
+
+        for peak in unassigned_peaks:
+            if peak.get('assigned'):  # Skip if assigned during this loop
+                continue
+
+            # Get possible assignments
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+
+            for assignment in possible[:3]:  # Check top 3 possibilities
+                element = assignment['element']
+                orbital = assignment['orbital']
+
+                # Special handling for transition metals (Cr, Fe, Co, Ni, Cu)
+                if element in ['Cr', 'Fe', 'Co', 'Ni', 'Cu'] and orbital == '2p':
+                    if self._check_transition_metal_companions(peak, element):
+                        break
+
+                # Check for Ce3d/La3d with 4d companions
+                elif element in ['Ce', 'La'] and orbital == '3d':
+                    if self._check_lanthanide_companions(peak, element):
+                        break
+
+                # General companion checking
+                else:
+                    if self._check_general_companions(peak, element, orbital):
+                        break
+
+    def _check_transition_metal_companions(self, peak, element):
+        """Check transition metal 2p with doublet structure and Auger companions"""
+        self.process_log.append(f"=== CHECKING {element.upper()}2P COMPANIONS ===")
+
+        # First, check if this is a 2p peak above 400 eV (transition metals)
+        if peak['position'] > 400:
+            self.process_log.append(f"2p peak above 400 eV detected - checking for doublet structure...")
+
+            # Look for 2p3/2 and 2p1/2 doublet
+            doublet_found = self._check_2p_doublet(peak, element)
+
+            if doublet_found:
+                # If doublet is confirmed, also look for supporting evidence
+                self.process_log.append(f"2p doublet confirmed for {element} - looking for additional confirmation...")
+
+                # Look for Auger companions as additional evidence
+                auger_found = self._check_auger_companions(element)
+
+                # Look for 3p companion if 2p is intense
+                if peak['prominence'] > 0.15:  # 15% threshold for 3p search
+                    self._check_3p_companion(element)
+
+                return True
+            else:
+                self.process_log.append(f"No clear 2p doublet found for {element} - trying Auger confirmation...")
+
+        # Fallback to original Auger-based assignment for unclear cases
+        return self._check_auger_companions(element, peak)
+
+    def _check_2p_doublet(self, main_peak, element):
+        """Check for 2p3/2 and 2p1/2 doublet structure"""
+        self.process_log.append(f"Searching for {element}2p3/2 and {element}2p1/2 doublet...")
+
+        # Get expected positions for 2p3/2 and 2p1/2
+        p2p32_pos = self._get_library_position(element, '2p3/2')
+        p2p12_pos = self._get_library_position(element, '2p1/2')
+
+        if not p2p32_pos or not p2p12_pos:
+            self.process_log.append(f"Expected positions not found in library for {element}2p doublet")
+            return False
+
+        # Expected separation and intensity ratio
+        expected_separation = abs(p2p12_pos - p2p32_pos)
+        self.process_log.append(f"Expected positions: 2p3/2 at {p2p32_pos:.2f} eV, 2p1/2 at {p2p12_pos:.2f} eV")
+        self.process_log.append(f"Expected separation: {expected_separation:.2f} eV")
+
+        # Look for both components with reasonable tolerance
+        tolerance = max(3.0, expected_separation * 0.3)  # At least 3 eV or 30% of separation
+
+        p2p32_peak = self._find_peak_near_position(p2p32_pos, tolerance=tolerance)
+        p2p12_peak = self._find_peak_near_position(p2p12_pos, tolerance=tolerance)
+
+        if p2p32_peak and p2p12_peak:
+            # Check if both peaks are unassigned
+            if p2p32_peak.get('assigned') or p2p12_peak.get('assigned'):
+                self.process_log.append("One or both doublet peaks already assigned")
+                return False
+
+            # Check intensity ratio (2p3/2 should be ~2x more intense than 2p1/2)
+            intensity_ratio = p2p32_peak['prominence'] / p2p12_peak['prominence']
+            expected_ratio = 2.0  # Theoretical ratio for 2p3/2 : 2p1/2
+
+            self.process_log.append(f"Found potential doublet:")
+            self.process_log.append(f"  - 2p3/2 candidate at {p2p32_peak['position']:.2f} eV (prominence: {p2p32_peak['prominence']:.4f})")
+            self.process_log.append(f"  - 2p1/2 candidate at {p2p12_peak['position']:.2f} eV (prominence: {p2p12_peak['prominence']:.4f})")
+            self.process_log.append(f"  - Intensity ratio: {intensity_ratio:.2f} (expected: ~{expected_ratio:.1f})")
+            self.process_log.append(f"  - Actual separation: {abs(p2p32_peak['position'] - p2p12_peak['position']):.2f} eV")
+
+            # Check if ratio is reasonable (allow 50% deviation from theoretical)
+            ratio_ok = 1.0 <= intensity_ratio <= 3.5
+
+            if ratio_ok:
+                # Assign both peaks with high confidence
+                self._assign_peak(p2p32_peak, f'{element}2p3/2', confidence=95, locked=True)
+                self._assign_peak(p2p12_peak, f'{element}2p1/2', confidence=95, locked=True)
+
+                self.process_log.append(f"✓ ASSIGNED: {element}2p3/2 and {element}2p1/2 doublet (HIGH CONFIDENCE)")
+                self.process_log.append(f"  Ratio check: {intensity_ratio:.2f} is within acceptable range (1.0-3.5)")
+
+                return True
+            else:
+                self.process_log.append(f"✗ Intensity ratio {intensity_ratio:.2f} outside acceptable range (1.0-3.5)")
+
+        elif p2p32_peak and not p2p12_peak:
+            self.process_log.append(f"Found only 2p3/2 candidate at {p2p32_peak['position']:.2f} eV - 2p1/2 missing")
+        elif p2p12_peak and not p2p32_peak:
+            self.process_log.append(f"Found only 2p1/2 candidate at {p2p12_peak['position']:.2f} eV - 2p3/2 missing")
+        else:
+            self.process_log.append("No doublet components found in expected positions")
+
+    def _check_auger_companions(self, element, main_peak=None):
+        """Check for Auger companions (separated from doublet checking)"""
+        self.process_log.append(f"Checking {element} Auger companions...")
+
+        # Look for main Auger peak for this element
+        auger_orbitals = ['lmm', 'mnn']  # Most intense Auger
+        auger_found = False
+
+        for auger_orbital in auger_orbitals:
+            auger_pos = self._get_auger_position(element, auger_orbital)
+            if auger_pos:
+                auger_peak = self._find_peak_near_position(auger_pos, tolerance=4.0)
+                if auger_peak and not auger_peak.get('assigned'):
+                    self.process_log.append(f"Found {element}{auger_orbital} Auger peak at {auger_peak['position']:.2f} eV")
+
+                    # For doublet cases, we don't need RSF ratio check since doublet already confirmed
+                    # For single peak cases, check RSF ratio if main_peak provided
+                    assign_auger = True
+                    if main_peak:
+                        assign_auger = self._check_rsf_ratio(element, '2p', auger_orbital, main_peak, auger_peak)
+
+                    if assign_auger:
+                        if not main_peak:
+                            # Doublet case - Auger provides additional confirmation
+                            self._assign_peak(auger_peak, f'{element}{auger_orbital}', confidence=90, locked=True)
+                            self.process_log.append(f"✓ ASSIGNED: {element}{auger_orbital} as supporting evidence")
+                        else:
+                            # Single peak case - assign both main peak and Auger
+                            self._assign_peak(main_peak, f'{element}2p', confidence=85, locked=True)
+                            self._assign_peak(auger_peak, f'{element}{auger_orbital}', confidence=85, locked=True)
+                            self.process_log.append(f"✓ ASSIGNED: {element}2p with {element}{auger_orbital} companion")
+
+                        auger_found = True
+                        break
+
+        return auger_found
+
+    def _check_3p_companion(self, element):
+        """Check for 3p companion for intense 2p peaks"""
+        self.process_log.append(f"Checking for {element}3p companion (2p is intense)...")
+
+        p3p_pos = self._get_library_position(element, '3p')
+        if p3p_pos:
+            p3p_peak = self._find_peak_near_position(p3p_pos, tolerance=4.0)
+            if p3p_peak and not p3p_peak.get('assigned'):
+                self._assign_peak(p3p_peak, f'{element}3p', confidence=80)
+                self.process_log.append(f"✓ ASSIGNED: {element}3p companion at {p3p_peak['position']:.2f} eV")
+            else:
+                self.process_log.append(f"No unassigned peak found for {element}3p at expected position {p3p_pos:.2f} eV")
+        else:
+            self.process_log.append(f"No library position found for {element}3p")
+
+    def _check_lanthanide_companions(self, peak, element):
+        """Check Ce3d/La3d with 4d companions"""
+        self.process_log.append(f"Checking {element}3d companions...")
+
+        # Look for 4d at low binding energy
+        p4d_pos = self._get_library_position(element, '4d')
+        if p4d_pos and p4d_pos < 70.0:  # Low binding energy check
+            p4d_peak = self._find_peak_near_position(p4d_pos, tolerance=4.0)
+            if p4d_peak and not p4d_peak.get('assigned'):
+                if self._check_rsf_ratio(element, '3d', '4d', peak, p4d_peak):
+                    self._assign_peak(peak, f'{element}3d', confidence=90, locked=True)
+                    self._assign_peak(p4d_peak, f'{element}4d', confidence=90, locked=True)
+                    self.process_log.append(f"✓ Assigned {element}3d with {element}4d companion")
+                    return True
+
+        return False
+
+    def _check_general_companions(self, peak, element, orbital):
+        """Check general companion orbitals"""
+
+        # Special handling for 2p peaks above 400 eV
+        if orbital == '2p' and peak['position'] > 400:
+            self.process_log.append(f"2p peak above 400 eV - using transition metal logic for {element}")
+            return self._check_transition_metal_companions(peak, element)
+
+        # Original logic for other cases
+        companion_map = {
+            '2p': '2s',
+            '3d': '3p',
+            '4f': '4d'
+        }
+
+        companion_orbital = companion_map.get(orbital)
+        if not companion_orbital:
+            return False
+
+        # Check if main orbital (highest RSF) is already found
+        main_orbital = self._get_main_orbital_for_element(element)
+        if main_orbital != orbital:
+            # This is not the main orbital, check if main is assigned
+            if not self._is_element_main_orbital_assigned(element):
+                return False  # Don't assign companion without main
+
+        # Look for companion
+        comp_pos = self._get_library_position(element, companion_orbital)
+        if comp_pos:
+            comp_peak = self._find_peak_near_position(comp_pos, tolerance=4.0)
+            if comp_peak and not comp_peak.get('assigned'):
+                if self._check_rsf_ratio(element, orbital, companion_orbital, peak, comp_peak):
+                    self._assign_peak(peak, f'{element}{orbital}', confidence=85)
+                    self._assign_peak(comp_peak, f'{element}{companion_orbital}', confidence=85)
+                    self.process_log.append(f"✓ Assigned {element}{orbital} with {element}{companion_orbital} companion")
+                    return True
+
+        return False
+
+    def _populate_results(self):
+        """Populate the results tables"""
+        # Clear existing lists
+        self.parent_window.peaks_list.DeleteAllItems()
+        self.parent_window.results_list.DeleteAllItems()
+
+        # Sort peaks by binding energy
+        sorted_peaks = sorted(self.parent_window.all_peaks, key=lambda x: x['position'])
+
+        for peak in sorted_peaks:
+            # Skip dismissed peaks for results
+            if peak.get('dismissed'):
+                continue
+
+            # Get possible assignments
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+            possibilities_text = ", ".join([p['assignment'] for p in possible])
+            distances_text = ", ".join([f"{p['distance']:.1f}" for p in possible])
+
+            # Add to Find Peaks tab
+            index = self.parent_window.peaks_list.GetItemCount()
+            self.parent_window.peaks_list.InsertItem(index, "")
+            self.parent_window.peaks_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            self.parent_window.peaks_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            self.parent_window.peaks_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
+            self.parent_window.peaks_list.SetItem(index, 4, possibilities_text)
+            self.parent_window.peaks_list.SetItem(index, 5, distances_text)
+
+            # Add to Results tab
+            assignment = peak.get('assignment', '')
+            rsf_value = self._get_rsf_for_assignment(assignment) if assignment else 1.0
+            confidence = peak.get('confidence', 0)
+
+            index = self.parent_window.results_list.GetItemCount()
+            self.parent_window.results_list.InsertItem(index, "")
+            self.parent_window.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            self.parent_window.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            self.parent_window.results_list.SetItem(index, 3, f"{peak['prominence']:.4f}")
+            self.parent_window.results_list.SetItem(index, 4, assignment)
+            self.parent_window.results_list.SetItem(index, 5, f"{rsf_value:.2f}")  # Fixed: ensure rsf_value is float
+            self.parent_window.results_list.SetItem(index, 6, f"{confidence}")
+
+            # Color code by confidence
+            if confidence >= 90:
+                self.parent_window.results_list.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))  # Green
+            elif confidence >= 70:
+                self.parent_window.results_list.SetItemBackgroundColour(index, wx.Colour(255, 255, 200))  # Yellow
+            elif confidence > 0:
+                self.parent_window.results_list.SetItemBackgroundColour(index, wx.Colour(255, 230, 200))  # Orange
+
+    def _find_peak_in_range(self, be_min, be_max, min_prominence=0.0):
+        """Find highest prominence peak in BE range"""
+        candidates = []
+        for peak in self.parent_window.all_peaks:
+            if (be_min <= peak['position'] <= be_max and
+                    peak['prominence'] >= min_prominence and
+                    not peak.get('assigned') and not peak.get('dismissed')):
+                candidates.append(peak)
+
+        return max(candidates, key=lambda x: x['prominence']) if candidates else None
+
+    def _find_peak_near_position(self, position, tolerance=4.0):
+        """Find closest unassigned peak to position"""
+        best_peak = None
+        best_distance = tolerance
+
+        for peak in self.parent_window.all_peaks:
+            if not peak.get('assigned') and not peak.get('dismissed'):
+                distance = abs(peak['position'] - position)
+                if distance < best_distance:
+                    best_distance = distance
+                    best_peak = peak
+
+        return best_peak
+
+    def _get_library_position(self, element, orbital):
+        """Get position from library"""
+        key = (element, orbital)
+        if key in self.auto_survey_id.library_data:
+            instrument = 'A-ALTHERMO1'
+            data = self.auto_survey_id.library_data[key]
+
+            if instrument not in data:
+                instrument = self.auto_survey_id.parent.current_instrument
+                if instrument not in data:
+                    instrument = next(iter(data))
+
+            if 'position' in data[instrument]:
+                position = float(data[instrument]['position'])
+
+                # Convert Auger KE to BE if needed
+                if self.auto_survey_id.is_auger_orbital_expanded(orbital.lower()):
+                    photon_energy = getattr(self.auto_survey_id.parent, 'photons', 1486.6)
+                    return photon_energy - position + 4.5
+
+                return position
+
+        return None
+
+    def _get_auger_position(self, element, auger_orbital):
+        """Get Auger position (converted to BE) - try multiple patterns"""
+        # Try the exact pattern first
+        position = self._get_library_position(element, auger_orbital)
+        if position:
+            return position
+
+        # Try common variations for the pattern
+        variations = []
+        if auger_orbital.lower() == 'kll':
+            variations = ['KLL', 'KL1', 'KLL1', 'kll', 'kl1']
+        elif auger_orbital.lower() == 'lmm':
+            variations = ['LMM', 'LM1', 'LMM1', 'lmm', 'lm1']
+
+        for variation in variations:
+            position = self._get_library_position(element, variation)
+            if position:
+                return position
+
+        return None
+
+    def _get_rsf_for_assignment(self, assignment):
+        """Get RSF from library for assignment"""
+        if not assignment:
+            return 1.0
+
+        # Parse element and orbital
+        import re
+        match = re.match(r'([A-Z][a-z]?)(.+)', assignment)
+        if not match:
+            return 1.0
+
+        element, orbital = match.groups()
+        key = (element, orbital)
+
+        if key in self.auto_survey_id.library_data:
+            instrument = 'A-ALTHERMO1'
+            data = self.auto_survey_id.library_data[key]
+
+            if instrument not in data:
+                instrument = self.auto_survey_id.parent.current_instrument
+                if instrument not in data:
+                    instrument = next(iter(data))
+
+            if 'rsf' in data[instrument]:
+                return float(data[instrument]['rsf'])
+
+        return 1.0
+
+    def _assign_peak(self, peak, assignment, confidence=0, locked=False):
+        """Assign peak to element/orbital"""
+        peak['assignment'] = assignment
+        peak['confidence'] = confidence
+        peak['locked'] = locked
+        peak['assigned'] = True
+
+    def _check_rsf_ratio(self, element, orbital1, orbital2, peak1, peak2):
+        """Check if peak intensity ratio matches RSF ratio"""
+        rsf1 = self._get_rsf_for_assignment(f"{element}{orbital1}")
+        rsf2 = self._get_rsf_for_assignment(f"{element}{orbital2}")
+
+        if rsf1 <= 0 or rsf2 <= 0:
+            return True  # Can't check, assume OK
+
+        expected_ratio = rsf1 / rsf2
+        observed_ratio = peak1['prominence'] / peak2['prominence']
+
+        # Allow 50% deviation from expected ratio
+        return 0.5 <= (observed_ratio / expected_ratio) <= 2.0
+
+    def _get_main_orbital_for_element(self, element):
+        """Get main orbital (highest RSF) for element"""
+        # This would need to search through library for highest RSF
+        # Simplified version:
+        main_orbitals = {
+            'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s',
+            'Na': '1s', 'Mg': '1s', 'Al': '2p', 'Si': '2p',
+            'P': '2p', 'S': '2p', 'Cl': '2p', 'K': '2p', 'Ca': '2p'
+        }
+        return main_orbitals.get(element, '2p')
+
+    def _is_element_main_orbital_assigned(self, element):
+        """Check if main orbital for element is already assigned"""
+        main_orbital = self._get_main_orbital_for_element(element)
+        main_assignment = f"{element}{main_orbital}"
+
+        for peak in self.parent_window.all_peaks:
+            if peak.get('assignment') == main_assignment:
+                return True
+        return False
+
+    def get_process_description(self):
+        """Get detailed process description for Method 2"""
+        if not self.has_run:
+            return """METHOD 2 GK 25/08/25 - Advanced Automatic Identification
+
+Status: Not yet run
+
+Click 'Run Identification' to execute Method 2 and see detailed process information.
+
+Method 2 Process:
+1. Find Peaks: Same as Method 1
+2. Dismiss Wide Peaks: Remove peaks wider than width_max
+3. Identify Usual Suspects: Automatic assignment of common elements
+4. Check Companions: Look for supporting peaks for remaining assignments
+
+"""
+
+        description = """METHOD 2 GK 25/08/25 - Advanced Automatic Identification
+
+DETAILED PROCESS LOG:
+==================
+
+"""
+        # Add all process log entries with more detail
+        for log_entry in self.process_log:
+            description += log_entry + "\n"
+
+        # Add summary statistics
+        description += "\n\nSUMMARY STATISTICS:\n"
+        description += "==================\n"
+
+        total_peaks = len(self.parent_window.all_peaks)
+        dismissed_peaks = len([p for p in self.parent_window.all_peaks if p.get('dismissed')])
+        assigned_peaks = len([p for p in self.parent_window.all_peaks if p.get('assigned')])
+        unassigned_peaks = total_peaks - dismissed_peaks - assigned_peaks
+
+        description += f"Total peaks found: {total_peaks}\n"
+        description += f"Dismissed peaks: {dismissed_peaks}\n"
+        description += f"Assigned peaks: {assigned_peaks}\n"
+        description += f"Unassigned peaks: {unassigned_peaks}\n\n"
+
+        # Add detailed peak assignments
+        if assigned_peaks > 0:
+            description += "PEAK ASSIGNMENTS:\n"
+            description += "================\n"
+
+            assigned_peak_list = [p for p in self.parent_window.all_peaks if p.get('assigned')]
+            assigned_peak_list.sort(key=lambda x: x['position'])
+
+            for peak in assigned_peak_list:
+                assignment = peak.get('assignment', '')
+                confidence = peak.get('confidence', 0)
+                locked = " (LOCKED)" if peak.get('locked') else ""
+                description += f"  {assignment}: {peak['position']:.2f} eV (confidence: {confidence}%){locked}\n"
+
+        # Add unassigned peaks
+        if unassigned_peaks > 0:
+            description += "\nUNASSIGNED PEAKS:\n"
+            description += "================\n"
+
+            unassigned_peak_list = [p for p in self.parent_window.all_peaks
+                                    if not p.get('assigned') and not p.get('dismissed')]
+            unassigned_peak_list.sort(key=lambda x: x['position'])
+
+            for peak in unassigned_peak_list:
+                possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+                possibilities = ", ".join([p['assignment'] for p in possible[:5]])
+                description += f"  {peak['position']:.2f} eV (prominence: {peak['prominence']:.4f}) - Possibilities: {possibilities}\n"
+
+        return description
