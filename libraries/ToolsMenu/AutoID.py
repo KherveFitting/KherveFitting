@@ -3807,9 +3807,9 @@ class AutoIDWindow(wx.Frame):
         self.auto_survey_id = AutoSurveyID(parent)
 
         # Parameters for peak finding - Updated defaults
-        self.prominence = 0.01  # 1% of max peak
+        self.prominence = 0.009  # 1% of max peak
         self.width = 0.6
-        self.width_max = 10.0
+        self.width_max = 20.0
         self.distance = 5.0  # Changed from 30.0 to 5.0
         self.tolerance = 12
 
@@ -3828,7 +3828,7 @@ class AutoIDWindow(wx.Frame):
     def init_ui(self):
         """Initialize the user interface"""
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(240, 230, 230))
+        panel.SetBackgroundColour(wx.Colour(220, 210, 210))
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Method selection
@@ -4674,6 +4674,10 @@ class Method2Identifier:
         self._check_carbon()
         # Na1s + Nakll
         self._check_sodium()
+        # N1s + Nkll
+        self._check_nitrogen()
+        # F1s + fkll
+        self._check_fluorine()
         # Si2p + Si2s with RSF ratio check
         self._check_silicon()
         # P2p + P2s, S2p + S2s, etc.
@@ -4750,6 +4754,40 @@ class Method2Identifier:
                 else:
                     self._assign_peak(c1s_peak, 'C1s', confidence=85, locked=True)
                     self.process_log.append(f"✓ Assigned C1s at {c1s_peak['position']:.2f} (no Ckll found)")
+
+    def _check_nitrogen(self):
+        """Look for N1s (395-405) and Nkll"""
+        self.process_log.append("Checking for Carbon...")
+
+        n1s_peak = self._find_peak_in_range(395, 405)
+        if n1s_peak:
+            nkll_position = self._get_auger_position('N', 'kll')
+            if nkll_position:
+                nkll_peak = self._find_peak_near_position(nkll_position, tolerance=8.0)
+                if nkll_peak:
+                    self._assign_peak(n1s_peak, 'N1s', confidence=95, locked=True)
+                    self._assign_peak(nkll_peak, 'Nkll', confidence=95, locked=True)
+                    self.process_log.append(f"✓ Assigned N1s at {n1s_peak['position']:.2f} and Nkll at {nkll_peak['position']:.2f}")
+                else:
+                    self._assign_peak(n1s_peak, 'N1s', confidence=85, locked=True)
+                    self.process_log.append(f"✓ Assigned N1s at {n1s_peak['position']:.2f} (no Nkll found)")
+
+    def _check_fluorine(self):
+        """Look for F1s (680-688) and Nkll"""
+        self.process_log.append("Checking for Carbon...")
+
+        f1s_peak = self._find_peak_in_range(680, 688)
+        if f1s_peak:
+            fkll_position = self._get_auger_position('F', 'KL1')
+            if fkll_position:
+                fkll_peak = self._find_peak_near_position(fkll_position, tolerance=10.0)
+                if fkll_peak:
+                    self._assign_peak(f1s_peak, 'F1s', confidence=95, locked=True)
+                    self._assign_peak(fkll_peak, 'Fkll', confidence=95, locked=True)
+                    self.process_log.append(f"✓ Assigned F1s at {f1s_peak['position']:.2f} and Fkll at {fkll_peak['position']:.2f}")
+                else:
+                    self._assign_peak(f1s_peak, 'F1s', confidence=85, locked=True)
+                    self.process_log.append(f"✓ Assigned F1s at {f1s_peak['position']:.2f} (no Fkll found)")
 
     def _check_sodium(self):
         """Look for Na1s around 1072 and Nakll"""
@@ -4831,7 +4869,7 @@ class Method2Identifier:
         if si2p_peak:
             si2s_position = self._get_library_position('Si', '2s')
             if si2s_position:
-                si2s_peak = self._find_peak_near_position(si2s_position, tolerance=4.0)
+                si2s_peak = self._find_peak_near_position(si2s_position, tolerance=6.0)
                 if si2s_peak:
                     # Check RSF ratio
                     if self._check_rsf_ratio('Si', '2p', '2s', si2p_peak, si2s_peak):
@@ -4858,8 +4896,8 @@ class Method2Identifier:
             if p2p_pos and p2s_pos:
                 self.process_log.append(f"Expected positions: {element}2p at {p2p_pos:.2f} eV, {element}2s at {p2s_pos:.2f} eV")
 
-                p2p_peak = self._find_peak_near_position(p2p_pos, tolerance=5.0)
-                p2s_peak = self._find_peak_near_position(p2s_pos, tolerance=5.0)
+                p2p_peak = self._find_peak_near_position(p2p_pos, tolerance=8.0)
+                p2s_peak = self._find_peak_near_position(p2s_pos, tolerance=8.0)
 
                 if p2p_peak and p2s_peak:
                     self.process_log.append(f"Found both peaks: {element}2p at {p2p_peak['position']:.2f} eV (prominence: {p2p_peak['prominence']:.4f})")
@@ -4984,7 +5022,7 @@ class Method2Identifier:
         mg1s_pos = self._get_library_position('Mg', '1s')
         if mg1s_pos:
             mg1s_peak = self._find_peak_near_position(mg1s_pos, tolerance=5.0)
-            if mg1s_peak and mg1s_peak['width'] < 3.0:  # Sharp peak check
+            if mg1s_peak and mg1s_peak['width'] < 5.0:  # Sharp peak check
                 self._assign_peak(mg1s_peak, 'Mg1s', confidence=90, locked=True)
                 self.process_log.append(f"✓ Assigned Mg1s at {mg1s_peak['position']:.2f}")
 
@@ -4992,7 +5030,7 @@ class Method2Identifier:
         f1s_pos = self._get_library_position('F', '1s')
         if f1s_pos:
             f1s_peak = self._find_peak_near_position(f1s_pos, tolerance=5.0)
-            if f1s_peak and f1s_peak['width'] < 3.0:  # Sharp peak check
+            if f1s_peak and f1s_peak['width'] < 5.0:  # Sharp peak check
                 self._assign_peak(f1s_peak, 'F1s', confidence=90, locked=True)
                 self.process_log.append(f"✓ Assigned F1s at {f1s_peak['position']:.2f}")
 
@@ -5049,6 +5087,7 @@ class Method2Identifier:
                     else:
                         self.process_log.append(f"✓ Assigned Au4f, Au4p peaks")
 
+
     def _check_copper(self):
         """Check Cu2p and split into Cu2p3/2 and Cu2p1/2"""
         self.process_log.append("Checking for Copper...")
@@ -5069,10 +5108,24 @@ class Method2Identifier:
                     if cu2p32_peak and cu2p12_peak:
                         self._assign_peak(cu2p32_peak, 'Cu2p3/2', confidence=95, locked=True)
                         self._assign_peak(cu2p12_peak, 'Cu2p1/2', confidence=95, locked=True)
-                        self.process_log.append(f"✓ Assigned Cu2p3/2 at {cu2p32_peak['position']:.2f} and Cu2p1/2 at {cu2p12_peak['position']:.2f}")
+                        self.process_log.append(
+                            f"✓ Assigned Cu2p3/2 at {cu2p32_peak['position']:.2f} and Cu2p1/2 at {cu2p12_peak['position']:.2f}"
+                        )
+
+                        # Check for 3p companion if 2p is prominent
+                        if cu2p32_peak.get('prominence', 0) > 0.15:
+                            self._check_3p_companion('Cu')
+                            # Look for Auger companions as additional evidence
+                            self._check_auger_companions('Cu')
+
                     else:
                         self._assign_peak(cu2p_peak, 'Cu2p', confidence=75)
-                        self.process_log.append(f"? Possible Cu2p at {cu2p_peak['position']:.2f} (doublet not resolved)")
+                        self.process_log.append(
+                            f"? Possible Cu2p at {cu2p_peak['position']:.2f} (doublet not resolved)"
+                        )
+                        if cu2p_peak.get('prominence', 0) > 0.15:
+                            self._check_3p_companion('Cu')
+                            self._check_auger_companions('Cu')
 
     def _check_zinc(self):
         """Check Zn2p and split into Zn2p3/2 and Zn2p1/2"""
@@ -5092,10 +5145,24 @@ class Method2Identifier:
                     if zn2p32_peak and zn2p12_peak:
                         self._assign_peak(zn2p32_peak, 'Zn2p3/2', confidence=95, locked=True)
                         self._assign_peak(zn2p12_peak, 'Zn2p1/2', confidence=95, locked=True)
-                        self.process_log.append(f"✓ Assigned Zn2p3/2 at {zn2p32_peak['position']:.2f} and Zn2p1/2 at {zn2p12_peak['position']:.2f}")
+                        self.process_log.append(
+                            f"✓ Assigned Zn2p3/2 at {zn2p32_peak['position']:.2f} and Zn2p1/2 at {zn2p12_peak['position']:.2f}"
+                        )
+
+                        # Check for 3p companion if 2p is prominent
+                        if zn2p32_peak.get('prominence', 0) > 0.15:
+                            self._check_3p_companion('Zn')
+                            # Look for Auger companions as additional evidence
+                            self._check_auger_companions('Zn')
+
                     else:
                         self._assign_peak(zn2p_peak, 'Zn2p', confidence=75)
-                        self.process_log.append(f"? Possible Zn2p at {zn2p_peak['position']:.2f} (doublet not resolved)")
+                        self.process_log.append(
+                            f"? Possible Zn2p at {zn2p_peak['position']:.2f} (doublet not resolved)"
+                        )
+                        if zn2p_peak.get('prominence', 0) > 0.15:
+                            self._check_3p_companion('Zn')
+                            self._check_auger_companions('Zn')
 
     def _check_companions(self):
         """Check companions for remaining unassigned peaks"""
@@ -5112,7 +5179,7 @@ class Method2Identifier:
             # Get possible assignments
             possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
 
-            for assignment in possible[:3]:  # Check top 3 possibilities
+            for assignment in possible[:]:  # Check top 3 possibilities
                 element = assignment['element']
                 orbital = assignment['orbital']
 
@@ -5131,7 +5198,7 @@ class Method2Identifier:
                     if self._check_general_companions(peak, element, orbital):
                         break
 
-    def _check_transition_metal_companions(self, peak, element):
+    def _check_transition_metal_companions_OLD(self, peak, element):
         """Check transition metal 2p with doublet structure and Auger companions"""
         self.process_log.append(f"=== CHECKING {element.upper()}2P COMPANIONS ===")
 
@@ -5145,6 +5212,38 @@ class Method2Identifier:
             if doublet_found:
                 # If doublet is confirmed, also look for supporting evidence
                 self.process_log.append(f"2p doublet confirmed for {element} - looking for additional confirmation...")
+
+                # Look for Auger companions as additional evidence
+                auger_found = self._check_auger_companions(element)
+
+                # Look for 3p companion if 2p is intense
+                if peak['prominence'] > 0.15:  # 15% threshold for 3p search
+                    self._check_3p_companion(element)
+
+                return True
+            else:
+                self.process_log.append(f"No clear 2p doublet found for {element} - trying Auger confirmation...")
+
+        # Fallback to original Auger-based assignment for unclear cases
+        return self._check_auger_companions(element, peak)
+
+    def _check_transition_metal_companions(self, peak, element):
+        """Check transition metal 2p with doublet structure and Auger companions"""
+        self.process_log.append(f"=== CHECKING {element.upper()}2P COMPANIONS ===")
+
+        # First, check if this is a 2p peak above 400 eV (transition metals)
+        if peak['position'] > 400:
+            self.process_log.append("2p peak above 400 eV detected - applying oxide correction (+4 eV)...")
+
+            # Apply ~4 eV oxide shift before checking doublet
+            shifted_peak = dict(peak)
+            shifted_peak['position'] = peak['position'] + 4.0
+
+            # Look for 2p3/2 and 2p1/2 doublet (with shifted positions)
+            doublet_found = self._check_2p_doublet(shifted_peak, element)
+
+            if doublet_found:
+                self.process_log.append(f"2p doublet (oxide-shifted) confirmed for {element} - looking for additional confirmation...")
 
                 # Look for Auger companions as additional evidence
                 auger_found = self._check_auger_companions(element)
@@ -5178,7 +5277,7 @@ class Method2Identifier:
         self.process_log.append(f"Expected separation: {expected_separation:.2f} eV")
 
         # Look for both components with reasonable tolerance
-        tolerance = max(3.0, expected_separation * 0.3)  # At least 3 eV or 30% of separation
+        tolerance = max(5.0, expected_separation * 0.3)  # At least 5 eV or 30% of separation
 
         p2p32_peak = self._find_peak_near_position(p2p32_pos, tolerance=tolerance)
         p2p12_peak = self._find_peak_near_position(p2p12_pos, tolerance=tolerance)
@@ -5226,13 +5325,13 @@ class Method2Identifier:
         self.process_log.append(f"Checking {element} Auger companions...")
 
         # Look for main Auger peak for this element
-        auger_orbitals = ['lmm', 'mnn']  # Most intense Auger
+        auger_orbitals = ['lmm', 'mnn', 'LM1', 'LM2', 'MN1', 'MN2']  # Most intense Auger
         auger_found = False
 
         for auger_orbital in auger_orbitals:
             auger_pos = self._get_auger_position(element, auger_orbital)
             if auger_pos:
-                auger_peak = self._find_peak_near_position(auger_pos, tolerance=4.0)
+                auger_peak = self._find_peak_near_position(auger_pos, tolerance=8.0)
                 if auger_peak and not auger_peak.get('assigned'):
                     self.process_log.append(f"Found {element}{auger_orbital} Auger peak at {auger_peak['position']:.2f} eV")
 
@@ -5268,10 +5367,31 @@ class Method2Identifier:
             if p3p_peak and not p3p_peak.get('assigned'):
                 self._assign_peak(p3p_peak, f'{element}3p', confidence=80)
                 self.process_log.append(f"✓ ASSIGNED: {element}3p companion at {p3p_peak['position']:.2f} eV")
+
+                # If 3p found, check for 3s
+                self._check_3s_companion(element)
+
             else:
                 self.process_log.append(f"No unassigned peak found for {element}3p at expected position {p3p_pos:.2f} eV")
         else:
             self.process_log.append(f"No library position found for {element}3p")
+
+    def _check_3s_companion(self, element):
+        """Check for 3s companion when 3p is present"""
+        self.process_log.append(f"Checking for {element}3s companion (3p detected)...")
+
+        p3s_pos = self._get_library_position(element, '3s')
+        if p3s_pos:
+            p3s_peak = self._find_peak_near_position(p3s_pos, tolerance=4.0)
+            if p3s_peak and not p3s_peak.get('assigned'):
+                self._assign_peak(p3s_peak, f'{element}3s', confidence=70)
+                self.process_log.append(f"✓ ASSIGNED: {element}3s companion at {p3s_peak['position']:.2f} eV")
+            else:
+                self.process_log.append(
+                    f"No unassigned peak found for {element}3s at expected position {p3s_pos:.2f} eV"
+                )
+        else:
+            self.process_log.append(f"No library position found for {element}3s")
 
     def _check_lanthanide_companions(self, peak, element):
         """Check Ce3d/La3d with 4d companions"""
