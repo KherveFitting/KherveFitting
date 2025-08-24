@@ -3660,11 +3660,11 @@ if __name__ == '__main__':
     os_name = platform.system()
 
     if os_name == "Darwin":  # Mac OS
-        frame = MyFrame(None, "KherveFitting-v1.60_beta2 25h16")
+        frame = MyFrame(None, "KherveFitting-v1.62_25h25")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.60_beta2 25h16")
+        frame = MyFrame(None, "KherveFitting-v1.62_25h25")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.60_beta2 25h16")
+        frame = MyFrame(None, "KherveFitting-v1.62_25h25")
 
     # Apply preferences before showing the frame
     if hasattr(frame, 'times_opened') and frame.times_opened > 1:
