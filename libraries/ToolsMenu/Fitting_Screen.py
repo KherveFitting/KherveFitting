@@ -518,14 +518,23 @@ class FittingWindow(wx.Frame):
             remove_peak_button.SetMinSize((125, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
-        export_button = wx.Button(self.fitting_panel, label="Export to\nResults Grid")
+        # export_button = wx.Button(self.fitting_panel, label="Export to\nResults Grid")
+        # if 'wxMac' in wx.PlatformInfo:
+        #     export_button.SetMinSize((125, 30))
+        # elif 'wxGTK' in wx.PlatformInfo:
+        #     export_button.SetMinSize((125, 35))
+        # else:
+        #    export_button.SetMinSize((125, 35))
+        # export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
+
+        add_named_doublet_button = wx.Button(self.fitting_panel, label="Add Doublet\nwith Name...")
         if 'wxMac' in wx.PlatformInfo:
-            export_button.SetMinSize((125, 30))
+            add_named_doublet_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
-            export_button.SetMinSize((125, 35))
+            add_named_doublet_button.SetMinSize((125, 35))
         else:
-           export_button.SetMinSize((125, 35))
-        export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
+            add_named_doublet_button.SetMinSize((125, 35))
+        add_named_doublet_button.Bind(wx.EVT_BUTTON, self.on_add_named_doublet)
 
         fit_button = wx.Button(self.fitting_panel, label="Fit \nOne Time")
         if 'wxMac' in wx.PlatformInfo:
@@ -584,7 +593,8 @@ class FittingWindow(wx.Frame):
             fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             fitting_sizer.Add(remove_peak_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            fitting_sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            # fitting_sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            fitting_sizer.Add(add_named_doublet_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # fitting_sizer.Add(fit_button, pos=(13, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             fitting_sizer.Add(fit_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
@@ -629,7 +639,8 @@ class FittingWindow(wx.Frame):
             fitting_sizer.Add(add_doublet_button, pos=(10, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             fitting_sizer.Add(remove_peak_button, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            fitting_sizer.Add(export_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            # fitting_sizer.Add(export_button, pos=(11, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            fitting_sizer.Add(add_named_doublet_button, pos=(11, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             fitting_sizer.Add(fit_button, pos=(12, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             fitting_sizer.Add(fit_multi_button, pos=(12, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
@@ -1150,6 +1161,226 @@ class FittingWindow(wx.Frame):
                     else:
                         new_peaks[key] = value
                 self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = new_peaks
+
+        self.parent.clear_and_replot()
+
+    def on_add_named_doublet(self, event):
+        current_model = self.model_combobox.GetValue()
+        if "----" in current_model:
+            self.parent.show_popup_message("Please select a valid peak model.")
+            return
+
+        save_state(self.parent)
+
+        if self.parent.bg_min_energy is None or self.parent.bg_max_energy is None:
+            self.parent.show_popup_message2("No Background", "Please create a background first.")
+            return
+
+        # Get custom core level name from user
+        dlg = wx.TextEntryDialog(self,
+                                 'Enter a core level name for the doublet\n(e.g., Fe2p, Si2p, Ag3d, Au4f.. & NOT C1s or 2s or 3s):',
+                                 'Doublet Core Level Name',
+                                 '')
+
+        # Set the dialog background color to match the fitting screen
+        fitting_bg_color = wx.Colour(240, 250, 250)
+        dlg.SetBackgroundColour(fitting_bg_color)
+
+        # Also set the text control background if needed
+        for child in dlg.GetChildren():
+            if isinstance(child, wx.TextCtrl):
+                child.SetBackgroundColour(fitting_bg_color)
+            elif hasattr(child, 'SetBackgroundColour'):
+                child.SetBackgroundColour(fitting_bg_color)
+
+        # Position the dialog on top of the fitting window
+        fitting_pos = self.GetPosition()
+        fitting_size = self.GetSize()
+        dlg_size = dlg.GetSize()
+
+        # Center the dialog on the fitting window
+        x = fitting_pos.x + (fitting_size.width - dlg_size.width) // 2
+        y = fitting_pos.y + (fitting_size.height - dlg_size.height) // 2
+        dlg.SetPosition((x, y))
+
+        # Keep dialog on top
+        dlg.SetWindowStyle(dlg.GetWindowStyle() | wx.STAY_ON_TOP)
+
+        # Refresh the dialog to apply color changes
+        dlg.Refresh()
+
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+
+        custom_name = dlg.GetValue().strip()
+        dlg.Destroy()
+
+        if not custom_name:
+            self.parent.show_popup_message2("Error", "Please enter a valid core level name.")
+            return
+
+        # Extract orbital information from the custom name
+        orbital_match = re.search(r'(\d+[spdf])', custom_name)
+        if not orbital_match:
+            self.parent.show_popup_message2("Error", "Invalid core level name. Must contain orbital (e.g., 1s, 2p, 3d, 4f).")
+            return
+
+        orbital = orbital_match.group()
+        element_match = re.match(r'([A-Z][a-z]*)', custom_name)
+        if not element_match:
+            self.parent.show_popup_message2("Error", "Invalid core level name. Must start with element symbol.")
+            return
+
+        element = element_match.group(1)
+
+        # Check if it's a valid orbital for doublet
+        if orbital[-1] == 's':
+            self.parent.show_popup_message2("Error", "Cannot fit doublet peak on a S orbital core level.")
+            return
+
+        # Get overall background range for doublet creation
+        overall_bg_low, overall_bg_high = self.get_overall_background_range()
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Create the doublet peaks
+        first_peak = self.parent.peak_fitting_grid.add_peak_params()
+        second_peak = self.parent.peak_fitting_grid.add_peak_params()
+
+        self.parent.peak_fill_types[second_peak] = self.parent.peak_fill_types[first_peak]
+        self.parent.peak_hatch_patterns[second_peak] = self.parent.peak_hatch_patterns[first_peak]
+        self.hatch_density = 2
+
+        # Set constraints for the second peak
+        row1 = first_peak * 2
+        row2 = second_peak * 2
+
+        # L/G ratio constraint
+        if any(element in custom_name for element in ['Ti2p', 'V2p']) and any(
+                x in self.parent.selected_fitting_method for x in ["Voigt (Area, L/G"]):
+            lg_constraint = "2:80"
+        else:
+            lg_constraint = f"{chr(65 + first_peak)}*1"
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 5, lg_constraint)
+
+        # FWHM constraint
+        if any(element in custom_name for element in ['Ti2p', 'V2p']) and any(
+                x in self.parent.selected_fitting_method for x in ["LA", "GL", "SGL"]):
+            fwhm_constraint = "0.3:3.5"
+        else:
+            if "Voigt" in self.parent.selected_fitting_method:
+                fwhm_constraint = "0.3:3.5"
+            else:
+                fwhm_constraint = f"{chr(65 + first_peak)}*1"
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 4, fwhm_constraint)
+
+        # Height and Area constraints based on orbital type from custom name
+        if orbital[-1] == 'p':
+            height_factor = 0.5
+            area_factor = 0.5
+        elif orbital[-1] == 'd':
+            height_factor = 0.667
+            area_factor = 0.667
+        elif orbital[-1] == 'f':
+            height_factor = 0.75
+            area_factor = 0.75
+        else:
+            height_factor = 0.5
+            area_factor = 0.5
+
+        current_model = self.parent.selected_fitting_method
+
+        # Check if model uses area or height as primary parameter
+        area_based_models = ["GL (Area)", "SGL (Area)", "Pseudo-Voigt (Area)",
+                             "Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
+                             "Voigt (Area, L/G, \u03c3, S)", "ExpGauss (Area, \u03c3, \u03b3)",
+                             "LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                             "LA*G (Area, \u03c3/\u03b3, \u03b3)", "DS (A, \u03c3, \u03b3)",
+                             "DS*G (A, \u03c3, \u03b3, S)"]
+
+        # Set default constraints
+        height_constraint = "1:1e7"
+        area_constraint = "1:1e7"
+
+        if current_model in area_based_models:
+            area_constraint = f"{chr(65 + first_peak)}*{area_factor:.3f}#0.01"
+        else:
+            height_constraint = f"{chr(65 + first_peak)}*{height_factor:.3f}#0.01"
+
+        # Apply constraints
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 3, height_constraint)
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 6, area_constraint)
+
+        # Position constraint - get splitting from library using custom name
+        splitting = self.get_doublet_splitting(element, orbital, self.parent.current_instrument)
+        position_constraint = f"{chr(65 + first_peak)}+{splitting:.2f}#0.2"
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 2, position_constraint)
+
+        # Sigma constraint
+        sigma_constraint = f"{chr(65 + first_peak)}*1"
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 7, sigma_constraint)
+
+        # Gamma constraint
+        if any(element in custom_name for element in ['Ti2p', 'V2p']) and any(
+                x in self.parent.selected_fitting_method for x in ["Voigt (Area, \u03c3", "DS*G"]):
+            gamma_constraint = "0.3:3"
+        else:
+            gamma_constraint = f"{chr(65 + first_peak)}*1"
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 8, gamma_constraint)
+
+        # Skew constraint
+        skew_constraint = f"{chr(65 + first_peak)}*1"
+        self.parent.peak_params_grid.SetCellValue(row2 + 1, 9, skew_constraint)
+
+        # Calculate peak numbers
+        peak_number1 = first_peak + 1
+        peak_number2 = second_peak + 1
+
+        # Set peak names based on orbital type from custom name
+        if orbital[-1] == 'p':
+            peak1_name = f"{custom_name}3/2 p{peak_number1}"
+            peak2_name = f"{custom_name}1/2_p{peak_number2}"
+        elif orbital[-1] == 'd':
+            peak1_name = f"{custom_name}5/2 p{peak_number1}"
+            peak2_name = f"{custom_name}3/2_p{peak_number2}"
+        elif orbital[-1] == 'f':
+            peak1_name = f"{custom_name}7/2 p{peak_number1}"
+            peak2_name = f"{custom_name}5/2_p{peak_number2}"
+
+        self.parent.peak_params_grid.SetCellValue(row1, 1, peak1_name)
+        self.parent.peak_params_grid.SetCellValue(row2, 1, peak2_name)
+
+        # Position the second peak
+        first_peak_position = float(self.parent.peak_params_grid.GetCellValue(row1, 2))
+        second_peak_position = first_peak_position + splitting
+        self.parent.peak_params_grid.SetCellValue(row2, 2, f"{second_peak_position:.2f}")
+
+        # Update window.Data with new constraints and names
+        if 'Fitting' in self.parent.Data['Core levels'][sheet_name] and 'Peaks' in \
+                self.parent.Data['Core levels'][sheet_name]['Fitting']:
+            peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+            new_peaks = {}
+            for i, (key, value) in enumerate(peaks.items()):
+                if i == first_peak:
+                    new_peaks[peak1_name] = value
+                    new_peaks[peak1_name]['Name'] = peak1_name
+                elif i == second_peak:
+                    new_peaks[peak2_name] = value
+                    new_peaks[peak2_name]['Name'] = peak2_name
+                    new_peaks[peak2_name]['Position'] = second_peak_position
+                    new_peaks[peak2_name]['Constraints'] = {
+                        'Position': position_constraint,
+                        'Height': height_constraint,
+                        'FWHM': fwhm_constraint,
+                        'L/G': lg_constraint,
+                        'Area': area_constraint,
+                        'Sigma': sigma_constraint,
+                        'Gamma': gamma_constraint,
+                        'Skew': skew_constraint
+                    }
+                else:
+                    new_peaks[key] = value
+            self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = new_peaks
 
         self.parent.clear_and_replot()
 

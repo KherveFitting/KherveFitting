@@ -430,6 +430,7 @@ Version 1.505-1.590
 - Added VBM / Cut-off / Fermi measurement
 - Added Automatic Survey identification
 - Added possibility to constraint to other core levels
+- Added named doublet peaks
 - Improve right click Menu in the peak fitting grid with other core level constraints
 - Improve vLines in background creation
 - Improve the AreaFit window 
