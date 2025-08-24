@@ -8,63 +8,64 @@ class DParameterWindow(wx.Frame):
         super().__init__(parent, title="D-Parameter Measurement", *args, **kw,
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
         self.parent = parent
-        self.SetSize((300, 440))
+        self.SetSize((300, 340))
 
         panel = wx.Panel(self)
         # panel.SetBackgroundColour(wx.WHITE)
+        panel.SetBackgroundColour(wx.Colour(240, 210, 210))
 
         # Parameters Box
         param_box = wx.StaticBox(panel, label="Parameters")
         param_sizer = wx.StaticBoxSizer(param_box, wx.VERTICAL)
 
-        grid_sizer = wx.GridSizer(rows=5, cols=2, hgap=5, vgap=5)
+        grid_sizer = wx.GridSizer(rows=5, cols=2, hgap=5, vgap=1)
 
         # Smooth Width
-        grid_sizer.Add(wx.StaticText(panel, label="Smooth Width"), 0, wx.ALL | wx.CENTER, 5)
+        grid_sizer.Add(wx.StaticText(panel, label="Smooth Width"), 0, wx.ALL | wx.CENTER, 1)
         self.smooth_spin = wx.SpinCtrlDouble(panel, value="7.0", min=0.1, max=10.0, inc=0.1)
-        grid_sizer.Add(self.smooth_spin, 0, wx.ALL | wx.EXPAND, 5)
+        grid_sizer.Add(self.smooth_spin, 0, wx.ALL | wx.EXPAND, 1)
 
         # Pre-Smooth Passes
-        grid_sizer.Add(wx.StaticText(panel, label="Pre-Smooth Passes"), 0, wx.ALL | wx.CENTER, 5)
+        grid_sizer.Add(wx.StaticText(panel, label="Pre-Smooth Passes"), 0, wx.ALL | wx.CENTER, 1)
         self.pre_spin = wx.SpinCtrl(panel, value="2", min=0, max=10)
-        grid_sizer.Add(self.pre_spin, 0, wx.ALL | wx.EXPAND, 5)
+        grid_sizer.Add(self.pre_spin, 0, wx.ALL | wx.EXPAND, 1)
 
         # Differentiation Width
-        grid_sizer.Add(wx.StaticText(panel, label="Differentiation \nWidth (eV)"), 0, wx.ALL | wx.CENTER, 5)
+        grid_sizer.Add(wx.StaticText(panel, label="Differentiation \nWidth (eV)"), 0, wx.ALL | wx.CENTER, 1)
         self.diff_spin = wx.SpinCtrlDouble(panel, value="1.0", min=0.1, max=10.0, inc=0.1)
-        grid_sizer.Add(self.diff_spin, 0, wx.ALL | wx.EXPAND, 5)
+        grid_sizer.Add(self.diff_spin, 0, wx.ALL | wx.EXPAND, 1)
 
         # Post-Smooth Passes
-        grid_sizer.Add(wx.StaticText(panel, label="Post-Smooth Passes"), 0, wx.ALL | wx.CENTER, 5)
+        grid_sizer.Add(wx.StaticText(panel, label="Post-Smooth Passes"), 0, wx.ALL | wx.CENTER, 1)
         self.post_spin = wx.SpinCtrl(panel, value="1", min=0, max=10)
-        grid_sizer.Add(self.post_spin, 0, wx.ALL | wx.EXPAND, 5)
+        grid_sizer.Add(self.post_spin, 0, wx.ALL | wx.EXPAND, 1)
 
         # Smooth Algorithm
-        grid_sizer.Add(wx.StaticText(panel, label="Smooth Algorithm"), 0, wx.ALL | wx.CENTER, 5)
+        grid_sizer.Add(wx.StaticText(panel, label="Smooth Algorithm"), 0, wx.ALL | wx.CENTER, 1)
         algorithms = ["Gaussian", "Savitsky-Golay", "Moving Average", "Wiener", "None"]
         self.algo_combo = wx.ComboBox(panel, choices=algorithms, style=wx.CB_READONLY)
         self.algo_combo.SetSelection(0)
-        grid_sizer.Add(self.algo_combo, 0, wx.ALL | wx.EXPAND, 5)
+        grid_sizer.Add(self.algo_combo, 0, wx.ALL | wx.EXPAND, 1)
 
-        param_sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
+        param_sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 1)
 
         # D-Parameter Value Box
         d_box = wx.StaticBox(panel, label="D-Parameter Value (eV)")
         d_sizer = wx.StaticBoxSizer(d_box, wx.HORIZONTAL)
         self.d_value = wx.TextCtrl(panel, value="0")
         self.d_unit = wx.StaticText(panel, label="eV")
-        d_sizer.Add(self.d_value, 1, wx.ALL | wx.EXPAND, 5)
-        d_sizer.Add(self.d_unit, 0, wx.ALL | wx.CENTER, 5)
+        d_sizer.Add(self.d_value, 1, wx.ALL | wx.EXPAND, 1)
+        d_sizer.Add(self.d_unit, 0, wx.ALL | wx.CENTER, 1)
 
         # Buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         clear_btn = wx.Button(panel, label="Clear D-para")
         calc_btn = wx.Button(panel, label="Calculate")
-        clear_btn.SetMinSize((125, 40))
-        calc_btn.SetMinSize((125, 40))
+        clear_btn.SetMinSize((125, 30))
+        calc_btn.SetMinSize((125, 30))
 
-        btn_sizer.Add(clear_btn, 0, wx.ALL, 5)
-        btn_sizer.Add(calc_btn, 0, wx.ALL, 5)
+        btn_sizer.Add(clear_btn, 0, wx.ALL, 1)
+        btn_sizer.Add(calc_btn, 0, wx.ALL, 1)
 
         # Bind events
         calc_btn.Bind(wx.EVT_BUTTON, self.on_calculate)
