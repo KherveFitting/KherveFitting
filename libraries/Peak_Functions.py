@@ -64,6 +64,7 @@ class PeakFunctions:
         # print(f"SGL Area: {Area}")
         return Area
 
+    @staticmethod
     def S_gauss_lorentz_Area(x, center, area, fwhm, fraction):
         sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
         gamma = fwhm / 2
@@ -71,7 +72,6 @@ class PeakFunctions:
         return height * (
                 (1 - fraction / 100) * PeakFunctions.gaussian(x, center, fwhm, 0) +
                 fraction / 100 * PeakFunctions.lorentzian(x, center, fwhm, 100))
-
 
     # SHALL NOT BE USEFUL
     @staticmethod

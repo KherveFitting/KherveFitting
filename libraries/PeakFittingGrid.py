@@ -96,6 +96,15 @@ class PeakFittingGrid:
         if self.window.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
                                                    "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
             self.window.peak_params_grid.SetCellValue(row, 6, f"{peak_y * fwhm_val * 1.064:.2f}")
+        elif self.window.selected_fitting_method in ['SGL (Area)']:
+            # For SGL, we use a different area calculation
+            # area = peak_y * fwhm_val * 1.064
+            fwhm = 15 if is_raman else 1.6
+            fraction = 20
+            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+            gamma = fwhm / 2
+            area = peak_y * ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (fraction / 100) * np.pi * gamma)
+            self.window.peak_params_grid.SetCellValue(row, 6, f"{area:.2f}")
         else:
             self.window.peak_params_grid.SetCellValue(row, 6, f"{peak_y * fwhm_val * 1.064:.2f}")
         if self.window.selected_fitting_method == "ExpGauss.(Area, \u03c3, \u03b3)":
@@ -520,6 +529,7 @@ class PeakFittingGrid:
                 }
             })
         elif self.window.selected_fitting_method in ["SGL (Area)"]:
+            print("SGL (Area) selected")
             # Value required to calculate area
             fwhm = 15 if is_raman else 1.6
             fraction = 20
@@ -533,6 +543,7 @@ class PeakFittingGrid:
             peak_data.update({
                 'Area': sgl_area,
                 'FWHM': fwhm,
+                'L/G': fraction,
                 'Constraints': {
                     'Position': position_constraint,
                     'Height': "1:1e7",
