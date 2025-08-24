@@ -39,7 +39,7 @@ class FileManagerWindow(wx.Frame):
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
 
         # Add this line to set a minimum window size
-        self.SetMinSize((630, 50))  # Ensure toolbar icons remain visible
+        self.SetMinSize((655, 50))  # Ensure toolbar icons remain visible
 
         self.offset_multiplier = 1
         self.last_offset_sheets = []
@@ -82,13 +82,6 @@ class FileManagerWindow(wx.Frame):
         # NOW load BE corrections after the grid is created
         self.load_be_corrections()
 
-        # # Position window relative to main window
-        # main_pos = parent.GetPosition()
-        # main_size = parent.GetSize()
-        # file_manager_size = self.GetSize()
-        # pos_x = main_pos.x + (main_size.width - file_manager_size.width) // 2
-        # pos_y = main_pos.y + (main_size.height - file_manager_size.height) // 2
-        # self.SetPosition((pos_x, pos_y))
 
         # Position window using saved position or relative to main window
         if hasattr(parent, 'file_manager_position') and parent.file_manager_position:
@@ -282,8 +275,17 @@ class FileManagerWindow(wx.Frame):
                                           "Multiply selected core level by 1000")
         self.Bind(wx.EVT_TOOL, self.on_multiply_1000, x1000_tool)
 
+        # Subtract button
+        subtract_icon = os.path.join(icon_path, "Sub-3.png")
+        if os.path.exists(subtract_icon):
+            subtract_bmp = wx.Bitmap(subtract_icon)
+        else:
+            subtract_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
+        subtract_tool = self.toolbar.AddTool(wx.ID_ANY, "Subtract Selected", subtract_bmp, "Subtract selected core levels")
+        self.Bind(wx.EVT_TOOL, self.on_subtract_selected, subtract_tool)
+
         # Sum button
-        sum_icon = os.path.join(icon_path, "SUM-25.png")
+        sum_icon = os.path.join(icon_path, "SuM-3.png")
         sum_bmp = wx.Bitmap(sum_icon)
         sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
         self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
@@ -1192,6 +1194,319 @@ class FileManagerWindow(wx.Frame):
         # Notify the user
         # wx.MessageBox(f"Created summed spectrum: {new_sheet_name}", "Sum Complete", wx.OK | wx.ICON_INFORMATION)
         self.parent.show_popup_message2("Sum Complete", f"Created summed spectrum: {new_sheet_name}")
+
+    def on_subtract_selected(self, event):
+        """Subtract the Y values of selected cells in the same column (only works with 2 selections)"""
+        save_state(self.parent)
+        # Get selected cells grouped by column
+        selected_by_column = {}
+
+        # Check for selected blocks first
+        blocks = self.grid.GetSelectedBlocks()
+        for block in blocks:  # Directly iterate over blocks instead of using GetCount()
+            top = block.GetTopRow()
+            bottom = block.GetBottomRow()
+            left = block.GetLeftCol()
+            right = block.GetRightCol()
+
+            for col in range(left, right + 1):
+                if col not in selected_by_column:
+                    selected_by_column[col] = []
+
+                for row in range(top, bottom + 1):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        selected_by_column[col].append(cell_value)
+
+        # Add individually selected cells
+        selected_cells = self.grid.GetSelectedCells()
+        for cell in selected_cells:
+            row, col = cell.GetRow(), cell.GetCol()
+
+            if col not in selected_by_column:
+                selected_by_column[col] = []
+
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                selected_by_column[col].append(cell_value)
+
+        # Process each column separately
+        for col, sheet_names in selected_by_column.items():
+            # Remove duplicates while preserving order
+            sheet_names = list(dict.fromkeys(sheet_names))
+
+            if len(sheet_names) < 2:
+                wx.MessageBox("Please select at least 2 core levels to subtract.", "Insufficient Selection", wx.OK | wx.ICON_WARNING)
+                continue
+            elif len(sheet_names) > 2:
+                # Take only the last 2 selected
+                sheet_names = sheet_names[-2:]
+
+            # Show confirmation dialog with choice of order
+            result = self.show_subtract_choice_dialog(sheet_names)
+            if result:
+                self.create_subtracted_spectrum(result, self.grid.GetColLabelValue(col))
+
+    def show_subtract_choice_dialog(self, sheet_names):
+        """Show dialog to choose which order to subtract the 2 core levels"""
+        # Check if both spectra have the same data length
+        first_length = len(self.parent.Data['Core levels'][sheet_names[0]]['Raw Data'])
+        second_length = len(self.parent.Data['Core levels'][sheet_names[1]]['Raw Data'])
+
+        if first_length != second_length:
+            wx.MessageBox(f"Cannot subtract: Data lengths do not match!\n{sheet_names[0]}: {first_length} points\n{sheet_names[1]}: {second_length} points",
+                          "Data Length Mismatch", wx.OK | wx.ICON_ERROR)
+            return None
+
+        # Create the dialog
+        dialog = wx.Dialog(self, wx.ID_ANY, "Choose Subtract Order", size=(450, 250))
+        dialog.SetWindowStyle(dialog.GetWindowStyle() | wx.STAY_ON_TOP)
+
+        # Position dialog relative to file manager window
+        fm_pos = self.GetPosition()
+        fm_size = self.GetSize()
+        dialog_size = dialog.GetSize()
+        x = fm_pos.x + (fm_size.width - dialog_size.width) // 2
+        y = fm_pos.y + (fm_size.height - dialog_size.height) // 2
+        dialog.SetPosition((x, y))
+
+        # Create sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title
+        title_text = wx.StaticText(dialog, wx.ID_ANY, "Select which subtraction to perform:")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        sizer.Add(title_text, 0, wx.ALL | wx.CENTER, 10)
+
+        # Data length information
+        length_text = wx.StaticText(dialog, wx.ID_ANY, f"Both spectra have {first_length} data points")
+        length_text.SetForegroundColour(wx.Colour(0, 128, 0))  # Green color
+        sizer.Add(length_text, 0, wx.ALL | wx.CENTER, 5)
+
+        # Radio buttons for choice
+        radio_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        option1 = wx.RadioButton(dialog, wx.ID_ANY, f"{sheet_names[0]} - {sheet_names[1]}", style=wx.RB_GROUP)
+        option2 = wx.RadioButton(dialog, wx.ID_ANY, f"{sheet_names[1]} - {sheet_names[0]}")
+
+        option1.SetValue(True)  # Default selection
+
+        radio_sizer.Add(option1, 0, wx.ALL | wx.LEFT, 10)
+        radio_sizer.Add(option2, 0, wx.ALL | wx.LEFT, 10)
+
+        sizer.Add(radio_sizer, 0, wx.ALL | wx.CENTER, 10)
+
+        # Buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(dialog, wx.ID_OK, "Subtract")
+        cancel_btn = wx.Button(dialog, wx.ID_CANCEL, "Cancel")
+
+        button_sizer.Add(ok_btn, 0, wx.ALL, 5)
+        button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+
+        sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
+
+        dialog.SetSizer(sizer)
+        dialog.Fit()
+
+        # Show dialog and return result
+        result = dialog.ShowModal()
+
+        if result == wx.ID_OK:
+            if option1.GetValue():
+                chosen_order = [sheet_names[0], sheet_names[1]]
+            else:
+                chosen_order = [sheet_names[1], sheet_names[0]]
+
+            dialog.Destroy()
+            return chosen_order
+        else:
+            dialog.Destroy()
+            return None
+
+    def show_subtract_confirmation(self, sheet_names):
+        """Show a confirmation dialog for subtract operation with data length validation"""
+        # Check if all selected spectra have the same data length
+        first_sheet = sheet_names[0]
+        first_length = len(self.parent.Data['Core levels'][first_sheet]['Raw Data'])
+
+        length_mismatch = False
+        for sheet_name in sheet_names[1:]:
+            if len(self.parent.Data['Core levels'][sheet_name]['Raw Data']) != first_length:
+                length_mismatch = True
+                break
+
+        # Create the dialog
+        dialog = wx.Dialog(self, wx.ID_ANY, "Subtract Confirmation", size=(400, 300))
+        dialog.SetWindowStyle(dialog.GetWindowStyle() | wx.STAY_ON_TOP)
+
+        # Position dialog relative to file manager window
+        fm_pos = self.GetPosition()
+        fm_size = self.GetSize()
+        dialog_size = dialog.GetSize()
+        x = fm_pos.x + (fm_size.width - dialog_size.width) // 2
+        y = fm_pos.y + (fm_size.height - dialog_size.height) // 2
+        dialog.SetPosition((x, y))
+
+        # Create sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title
+        title_text = wx.StaticText(dialog, wx.ID_ANY, "Subtract Operation Order:")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        sizer.Add(title_text, 0, wx.ALL | wx.CENTER, 10)
+
+        # Show the operation order
+        operation_text = sheet_names[0]
+        for i, sheet_name in enumerate(sheet_names[1:], 1):
+            operation_text += f" - {sheet_name}"
+
+        operation_label = wx.StaticText(dialog, wx.ID_ANY, operation_text)
+        sizer.Add(operation_label, 0, wx.ALL | wx.CENTER, 10)
+
+        # Data length information
+        length_text = f"Data points: {first_length}"
+        length_label = wx.StaticText(dialog, wx.ID_ANY, length_text)
+        sizer.Add(length_label, 0, wx.ALL | wx.CENTER, 5)
+
+        # Warning if length mismatch
+        if length_mismatch:
+            warning_text = wx.StaticText(dialog, wx.ID_ANY, "WARNING: Selected spectra have different data lengths!")
+            warning_text.SetForegroundColour(wx.Colour(255, 0, 0))  # Red color
+            warning_font = warning_text.GetFont()
+            warning_font.SetWeight(wx.FONTWEIGHT_BOLD)
+            warning_text.SetFont(warning_font)
+            sizer.Add(warning_text, 0, wx.ALL | wx.CENTER, 10)
+
+            # Show individual lengths
+            for sheet_name in sheet_names:
+                sheet_length = len(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+                length_info = wx.StaticText(dialog, wx.ID_ANY, f"{sheet_name}: {sheet_length} points")
+                sizer.Add(length_info, 0, wx.ALL | wx.LEFT, 5)
+
+        # Buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        if length_mismatch:
+            # Only show Cancel if there's a length mismatch
+            cancel_btn = wx.Button(dialog, wx.ID_CANCEL, "Cancel")
+            button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+        else:
+            # Show both OK and Cancel if lengths match
+            ok_btn = wx.Button(dialog, wx.ID_OK, "Proceed")
+            cancel_btn = wx.Button(dialog, wx.ID_CANCEL, "Cancel")
+            button_sizer.Add(ok_btn, 0, wx.ALL, 5)
+            button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+
+        sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
+
+        dialog.SetSizer(sizer)
+        dialog.Fit()
+
+        # Show dialog and return result
+        if length_mismatch:
+            dialog.ShowModal()
+            dialog.Destroy()
+            return False  # Don't proceed if lengths don't match
+        else:
+            result = dialog.ShowModal()
+            dialog.Destroy()
+            return result == wx.ID_OK
+
+    def create_subtracted_spectrum(self, sheet_names, base_name):
+        """Create a new spectrum that is the subtraction of exactly 2 spectra (first - second)"""
+        if len(sheet_names) != 2:
+            return
+
+        first_sheet, second_sheet = sheet_names[0], sheet_names[1]
+
+        # Double-check data lengths before proceeding
+        first_length = len(self.parent.Data['Core levels'][first_sheet]['Raw Data'])
+        second_length = len(self.parent.Data['Core levels'][second_sheet]['Raw Data'])
+
+        if first_length != second_length:
+            wx.MessageBox(f"Cannot subtract: Data lengths do not match!\n{first_sheet}: {first_length} points\n{second_sheet}: {second_length} points",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Find the earliest available row
+        used_rows = []
+        for sheet in self.parent.Data['Core levels'].keys():
+            match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet)
+            if match:
+                sheet_base = match.group(1)
+                row_str = match.group(2)
+                if sheet_base == base_name:
+                    row_num = int(row_str) if row_str else 0
+                    used_rows.append(row_num)
+
+        # Find the first unused row number
+        row_num = 0
+        while row_num in used_rows:
+            row_num += 1
+
+        # Create the new sheet name with the available row
+        new_sheet_name = f"{base_name}{row_num}" if row_num > 0 else base_name
+
+        # Get X values from the first sheet
+        x_values = self.parent.Data['Core levels'][first_sheet]['B.E.']
+
+        # Subtract: first - second
+        first_y = np.array(self.parent.Data['Core levels'][first_sheet]['Raw Data'], dtype=float)
+        second_y = np.array(self.parent.Data['Core levels'][second_sheet]['Raw Data'], dtype=float)
+        subtracted_y = first_y - second_y
+
+        # Create a new entry in the parent data
+        if 'Core levels' not in self.parent.Data:
+            self.parent.Data['Core levels'] = {}
+            self.parent.Data['Number of Core levels'] = 0
+
+        self.parent.Data['Core levels'][new_sheet_name] = {
+            'Name': new_sheet_name,
+            'B.E.': x_values,
+            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Background': {
+                'Bkg Type': 'Linear',
+                'Bkg Low': min(x_values),
+                'Bkg High': max(x_values),
+                'Bkg Offset Low': 0,
+                'Bkg Offset High': 0,
+                'Bkg Y': [float(f"{val:.2f}") for val in subtracted_y.tolist()]  # Initially use raw data as background
+            }
+        }
+        self.parent.Data['Number of Core levels'] += 1
+
+        # Update the Excel file
+        import pandas as pd
+        df = pd.DataFrame({
+            'BE': x_values,
+            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Background': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Transmission': [1.0] * len(x_values)
+        })
+
+        with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+        # Update combobox in parent
+        self.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Plot the new sheet
+        self.parent.sheet_combobox.SetValue(new_sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, new_sheet_name)
+
+        # Update the grid
+        self.populate_grid()
+
+        # Notify the user
+        operation_text = f"{first_sheet} - {second_sheet}"
+        self.parent.show_popup_message2("Subtract Complete", f"Created subtracted spectrum: {new_sheet_name}\nOperation: {operation_text}")
 
     def get_selected_sheet_names(self):
         """Get names of all currently selected sheets in the grid"""

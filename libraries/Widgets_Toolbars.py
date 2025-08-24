@@ -461,6 +461,10 @@ def create_menu(window):
 
     file_menu.AppendSubMenu(open_kfitting_menu, "Open")
 
+    # Open Examples submenu
+    open_examples_menu = create_examples_menu(window)
+    file_menu.AppendSubMenu(open_examples_menu, "Open Examples")
+
     # Recent files submenu
     window.recent_files_menu = wx.Menu()
     file_menu.AppendSubMenu(window.recent_files_menu, "Recent Files")
@@ -1467,6 +1471,72 @@ def create_vertical_toolbar(parent, frame):
 
     return v_toolbar
 
+
+def create_examples_menu(window):
+    """Create dynamic examples menu from Open Examples folder structure"""
+    examples_menu = wx.Menu()
+
+    # Get the path to Open Examples folder (same level as kherveFitting)
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    examples_path = os.path.join(current_dir, "Data-Examples")
+
+    if not os.path.exists(examples_path):
+        no_examples_item = examples_menu.Append(wx.NewId(), "No Examples Folder Found")
+        no_examples_item.Enable(False)
+        return examples_menu
+
+    try:
+        # Get all subdirectories in Open Examples
+        subdirs = [d for d in os.listdir(examples_path)
+                   if os.path.isdir(os.path.join(examples_path, d))]
+        subdirs.sort()
+
+        if not subdirs:
+            no_examples_item = examples_menu.Append(wx.NewId(), "No Example Categories Found")
+            no_examples_item.Enable(False)
+            return examples_menu
+
+        # Create submenu for each subdirectory
+        for subdir in subdirs:
+            subdir_path = os.path.join(examples_path, subdir)
+            subdir_menu = wx.Menu()
+
+            # Get all xlsx files in this subdirectory
+            xlsx_files = [f for f in os.listdir(subdir_path)
+                          if f.lower().endswith('.xlsx')]
+            xlsx_files.sort()
+
+            if xlsx_files:
+                # Add each xlsx file as menu item
+                for xlsx_file in xlsx_files:
+                    file_path = os.path.join(subdir_path, xlsx_file)
+                    # Remove .xlsx extension for cleaner menu display
+                    display_name = os.path.splitext(xlsx_file)[0]
+
+                    menu_item = subdir_menu.Append(wx.NewId(), display_name)
+                    window.Bind(wx.EVT_MENU,
+                                lambda event, path=file_path: open_example_file(window, path),
+                                menu_item)
+            else:
+                no_files_item = subdir_menu.Append(wx.NewId(), "No xlsx files found")
+                no_files_item.Enable(False)
+
+            examples_menu.AppendSubMenu(subdir_menu, subdir)
+
+    except Exception as e:
+        error_item = examples_menu.Append(wx.NewId(), f"Error loading examples: {str(e)}")
+        error_item.Enable(False)
+
+    return examples_menu
+
+
+def open_example_file(window, file_path):
+    """Open an example xlsx file"""
+    try:
+        from libraries.FileMenu.Open import open_xlsx_file
+        open_xlsx_file(window, file_path)
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error opening example file: {str(e)}")
 
 def create_statusbar(window):
     """
