@@ -830,13 +830,16 @@ Min Intensity: {np.min(y_data):.2f}"""
         self.parent.ax.legend()
         self.parent.canvas.draw_idle()
 
-        # Store vline positions BEFORE add_vbm_peak_to_grid (they get destroyed by clear_and_replot)
+        # Store vline positions BEFORE add_peak_to_grid (they get destroyed by clear_and_replot)
         vline1_x = self.parent.vline1.get_xdata()[0] if self.parent.vline1 else None
         vline2_x = self.parent.vline2.get_xdata()[0] if self.parent.vline2 else None
 
-        # Add VBM peak to grid
+        # Add VBM peak to grid (this calls clear_and_replot which destroys vlines)
         self.add_peak_to_grid(vbm_position, center_edge, bg_center, n_points, bg_points, use_bg,
                               signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit, "VBM")
+
+        # Trigger replot to show VBM
+        self.parent.clear_and_replot()
 
         # Restore vlines at their original positions (they were destroyed by clear_and_replot)
         if vline1_x is not None and vline2_x is not None:
@@ -1405,6 +1408,9 @@ Min Intensity: {np.min(y_data):.2f}"""
         # Add Cut-Off peak to grid
         self.add_peak_to_grid(cutoff_position, center_edge, bg_center, n_points, bg_points, use_bg,
                               signal_coef, bg_coef, x_signal_fit, y_signal_fit, x_bg_fit, y_bg_fit, "Cut-Off")
+
+        # Trigger replot to show Cut-Off
+        self.parent.clear_and_replot()
 
         # Restore vlines at their original positions (they were destroyed by clear_and_replot)
         if vline1_x is not None and vline2_x is not None:
