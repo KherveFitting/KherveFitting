@@ -154,14 +154,14 @@ class PreferenceWindow(wx.Frame):
         text_sizer.Add(self.y_sublines_spin, pos=(7, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # X-axis label
-        x_label_text = wx.StaticText(self.text_tab, label="X-axis Label:")
+        x_label_text = wx.StaticText(self.text_tab, label="X-axis Label (Beta):")
         self.x_label_ctrl = wx.TextCtrl(self.text_tab, value="Binding Energy (eV)")
         self.x_label_ctrl.Bind(wx.EVT_TEXT, self.on_text_change)
         text_sizer.Add(x_label_text, pos=(8, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)
         text_sizer.Add(self.x_label_ctrl, pos=(8, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
         # Y-axis label
-        y_label_text = wx.StaticText(self.text_tab, label="Y-axis Label:")
+        y_label_text = wx.StaticText(self.text_tab, label="Y-axis Label (Beta):")
         self.y_label_ctrl = wx.TextCtrl(self.text_tab, value="Intensity (CPS)")
         self.y_label_ctrl.Bind(wx.EVT_TEXT, self.on_text_change)
         text_sizer.Add(y_label_text, pos=(9, 0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=5)

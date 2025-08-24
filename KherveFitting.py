@@ -3588,6 +3588,51 @@ class MyFrame(wx.Frame):
         kherve_frame = PeriodicTableXPS()
         kherve_frame.Show()
 
+    def on_results_grid_right_click(self, event):
+        """Handle right-click on results grid"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        menu = wx.Menu()
+
+        # Export Fitting Grid
+        export_item = menu.Append(wx.ID_ANY, "Export Fitting Grid")
+        from libraries.FileMenu.Export import export_results
+        self.Bind(wx.EVT_MENU, lambda evt: export_results(self), export_item)
+
+        menu.AppendSeparator()
+
+        # Remove All Lines
+        remove_all_item = menu.Append(wx.ID_ANY, "Remove All Lines")
+        from libraries.Widgets_Toolbars import on_delete_all
+        self.Bind(wx.EVT_MENU, lambda evt: on_delete_all(self, evt), remove_all_item)
+
+        # Remove First Line
+        remove_first_item = menu.Append(wx.ID_ANY, "Remove First Line")
+        from libraries.Widgets_Toolbars import on_delete_first
+        self.Bind(wx.EVT_MENU, lambda evt: on_delete_first(self, evt), remove_first_item)
+
+        # Remove Last Line
+        remove_last_item = menu.Append(wx.ID_ANY, "Remove Last Line")
+        from libraries.Widgets_Toolbars import on_delete_last
+        self.Bind(wx.EVT_MENU, lambda evt: on_delete_last(self, evt), remove_last_item)
+
+        self.results_grid.PopupMenu(menu)
+        menu.Destroy()
+
+    def update_results_grid_label(self):
+        """Update the Results grid label based on current row"""
+        if hasattr(self, 'results_frame_box'):
+            sheet_name = self.sheet_combobox.GetValue() if hasattr(self, 'sheet_combobox') else 'Sheet0'
+            row_number = 0
+            import re
+            match = re.search(r'(\d+)$', sheet_name)
+            if match:
+                row_number = int(match.group(1))
+
+            self.results_frame_box.SetLabel(f"Results [Row {row_number}]")
+            self.results_frame_box.GetParent().Layout()  # Refresh the layout
+
 
 
 def set_high_priority():

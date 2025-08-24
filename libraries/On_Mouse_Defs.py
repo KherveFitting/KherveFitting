@@ -1136,6 +1136,15 @@ class MouseEventHandler:
 
         menu.AppendSeparator()
 
+        # Add export to results grid option
+        export_item = menu.Append(wx.ID_ANY, "Export to Results Grid")
+        from libraries.FileMenu.Export import export_results
+        self.window.Bind(wx.EVT_MENU, lambda evt: export_results(self.window), export_item)
+
+        menu.AppendSeparator()
+
+
+
         # New peak operations - available on both parameter and constraint rows
         # Determine peak index and letter based on row type
         if row % 2 == 0:  # Parameter row

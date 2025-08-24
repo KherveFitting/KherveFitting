@@ -417,6 +417,10 @@ def on_sheet_selected(window, event):
             hasattr(window, 'area_tab_selected') and window.area_tab_selected):
         wx.CallAfter(window.refresh_area_screen)
 
+    # Update results grid label at the end
+    if hasattr(window, 'update_results_grid_label'):
+        window.update_results_grid_label()
+
     # window.plot_manager.clear_and_replot(window)
 
 def on_grid_left_click(window, event):

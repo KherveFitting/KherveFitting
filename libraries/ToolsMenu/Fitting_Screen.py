@@ -409,7 +409,8 @@ class FittingWindow(wx.Frame):
                  "GL (Height)",
                  "SGL (Height)",
                  "Beta------------------------------",
-                 "DS (A, \u03c3, \u03b3)"
+                 "DS (A, \u03c3, \u03b3)",
+                 "Voigt (Area, L/G, \u03c3, S)"
                  ]
 
 

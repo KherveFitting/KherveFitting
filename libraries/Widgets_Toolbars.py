@@ -36,8 +36,8 @@ from libraries.Utilities import sort_excel_sheets
 from libraries.HelpMenu.DownloadStats import show_download_stats_window
 from libraries.FileMenu.Open import import_multiple_kfitting_files
 from libraries.FileMenu.Save import save_vamas_file_dialog
-
 from libraries.ToolsMenu.VB_measurements import VB_measurements
+from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 
 # With conditional imports:
 import platform
@@ -358,8 +358,19 @@ def create_peak_params_grid(window, parent):
 
 
 def create_results_grid(window, parent):
-    results_frame_box = wx.StaticBox(parent, label="Results")
+    # Get current row number for dynamic label
+    current_sheet = getattr(window, 'current_sheet', 'Sheet0')
+    row_number = 0
+    import re
+    match = re.search(r'(\d+)$', current_sheet)
+    if match:
+        row_number = int(match.group(1))
+
+    results_frame_box = wx.StaticBox(parent, label=f"Results [Row {row_number}]")
     results_sizer = wx.StaticBoxSizer(results_frame_box, wx.VERTICAL)
+
+    # Store reference to the frame box for updating the label
+    window.results_frame_box = results_frame_box
 
     window.results_frame = wx.Panel(results_frame_box)
     results_sizer_inner = wx.BoxSizer(wx.VERTICAL)
@@ -411,6 +422,9 @@ def bind_events_widgets(window):
     window.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, window.on_checkbox_update)
     window.canvas.mpl_connect('button_release_event', window.on_plot_mouse_release)
     window.peak_params_grid.Bind(wx.EVT_LEFT_UP, window.on_peak_params_mouse_release)
+
+    # Add right-click context menus
+    window.results_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, window.on_results_grid_right_click)
 
 
 
@@ -567,7 +581,9 @@ def create_menu(window):
     file_menu.AppendSubMenu(export_menu, "Export")
 
     # Exit item
-    file_menu.AppendSeparator()
+    # file_menu.AppendSeparator()
+    exit_header = file_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    exit_header.Enable(False)  # Make it non-clickable
     exit_item = file_menu.Append(wx.ID_EXIT, "Exit\tCtrl+Q")
     window.Bind(wx.EVT_MENU, lambda event: on_exit(window, event), exit_item)
 
@@ -576,14 +592,41 @@ def create_menu(window):
     redo_item = edit_menu.Append(wx.ID_REDO, "Redo\tCtrl+Y")
     window.Bind(wx.EVT_MENU, lambda event: undo(window), undo_item)
     window.Bind(wx.EVT_MENU, lambda event: redo(window), redo_item)
-    edit_menu.AppendSeparator()
 
+    # Add a text separator for Results operations
+    # edit_menu.AppendSeparator()
+    results_header = edit_menu.Append(wx.ID_ANY, "▬▬▬ Results Grid ▬▬▬▬")
+    results_header.Enable(False)  # Make it non-clickable
+
+    # Add export and remove functions to Edit menu
+    export_results_item = edit_menu.Append(wx.NewId(), "Export Fitting Grid")
+    from libraries.FileMenu.Export import export_results
+    window.Bind(wx.EVT_MENU, lambda event: export_results(window), export_results_item)
+
+    remove_all_item = edit_menu.Append(wx.NewId(), "Remove All Lines")
+    window.Bind(wx.EVT_MENU, lambda event: on_clear_all_results(window, event), remove_all_item)
+
+    remove_first_item = edit_menu.Append(wx.NewId(), "Remove First Line")
+    window.Bind(wx.EVT_MENU, lambda event: on_delete_first(window, event), remove_first_item)
+
+    remove_last_item = edit_menu.Append(wx.NewId(), "Remove Last Line")
+    window.Bind(wx.EVT_MENU, lambda event: on_delete_last(window, event), remove_last_item)
+
+    # edit_menu.AppendSeparator()
+    pref_header = edit_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    pref_header.Enable(False)  # Make it non-clickable
     preferences_item = edit_menu.Append(wx.ID_PREFERENCES, "Preferences")
     window.Bind(wx.EVT_MENU, window.on_preferences, preferences_item)
 
     # View menu items
     sample_manager_item = view_menu.Append(wx.NewId(), "Sample Manager")
     window.Bind(wx.EVT_MENU, window.on_open_file_manager, sample_manager_item)
+
+    labels_manager_item = view_menu.Append(wx.NewId(), "Labels Manager")
+    window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
+
+    labels_header = view_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    labels_header.Enable(False)  # Make it non-clickable
 
     ToggleFitting_item = view_menu.Append(wx.NewId(), "Toggle Peak Fitting")
     window.Bind(wx.EVT_MENU, lambda event: toggle_plot(window), ToggleFitting_item)
@@ -597,7 +640,10 @@ def create_menu(window):
     ToggleRes_item = view_menu.Append(wx.NewId(), "Toggle Residuals")
     window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_residuals(), ToggleRes_item)
 
-    toggle_energy_item = view_menu.AppendCheckItem(wx.NewId(), "Show Kinetic Energy\tCtrl+B")
+    kin_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Beta ▬▬▬▬▬▬▬▬")
+    kin_header.Enable(False)  # Make it non-clickable
+
+    toggle_energy_item = view_menu.AppendCheckItem(wx.NewId(), "Show Kinetic Energy (Beta)\tCtrl+B")
     window.Bind(wx.EVT_MENU, lambda event: window.toggle_energy_scale(), toggle_energy_item)
     window.toggle_energy_item = toggle_energy_item
 
@@ -608,15 +654,40 @@ def create_menu(window):
     Fitting_item = tools_menu.Append(wx.NewId(), "Create Peak Model\tCtrl+P")
     window.Bind(wx.EVT_MENU, lambda event: window.on_open_fitting_window(), Fitting_item)
 
+    other_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Others ▬▬▬▬▬▬▬▬")
+    other_header.Enable(False)  # Make it non-clickable
+
     Dparam_item = tools_menu.Append(wx.NewId(), "D-parameter\tCtrl+D")
     window.Bind(wx.EVT_MENU, window.on_differentiate, Dparam_item)
-
-    ID_item = tools_menu.Append(wx.NewId(), "Element ID\tCtrl+I")
-    window.Bind(wx.EVT_MENU, window.open_periodic_table, ID_item)
 
     # Thickogram
     thickogram_item = tools_menu.Append(wx.NewId(), "Thickogram Calculator - beta")
     window.Bind(wx.EVT_MENU, lambda event: open_thickogram_window(window), thickogram_item)
+
+    # Add VBM and Auto ID to Tools menu
+    VBM_item = tools_menu.Append(wx.NewId(), "VBM / Fermi / Cut-Off")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_vbm_window(), VBM_item)
+
+    plot_mod_item = tools_menu.Append(wx.NewId(), "Plot Modifications")
+    window.Bind(wx.EVT_MENU, lambda event: PlotModWindow(window).Show(), plot_mod_item)
+
+    pID_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Peak ID ▬▬▬▬▬▬▬▬")
+    pID_header.Enable(False)  # Make it non-clickable
+
+    AutoID_item = tools_menu.Append(wx.NewId(), "Auto Peak ID -- (Beta)")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_auto_id(), AutoID_item)
+
+    # Manual Element Identifications / Labels
+    ID_item = tools_menu.Append(wx.NewId(), "Manual Peak ID / Labels\tCtrl+I")
+    window.Bind(wx.EVT_MENU, window.open_periodic_table, ID_item)
+
+    Label2_header = tools_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    Label2_header.Enable(False)  # Make it non-clickable
+
+    labels_manager_item = tools_menu.Append(wx.NewId(), "Labels Manager")
+    window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
+
+
 
     # Noise_item = tools_menu.Append(wx.NewId(), "Noise Analysis")
     # window.Bind(wx.EVT_MENU, lambda event: window.on_open_noise_analysis_window, Noise_item)
@@ -628,7 +699,7 @@ def create_menu(window):
     shortcuts_item = help_menu.Append(wx.NewId(), "List of Shortcuts\tCtrl+K")
     window.Bind(wx.EVT_MENU, lambda event: show_shortcuts(window), shortcuts_item)
 
-    manual_item = help_menu.Append(wx.NewId(), "Open Full Manual\tCtrl+M")
+    manual_item = help_menu.Append(wx.NewId(), "Open Full Manual [Still v1.5]\tCtrl+M")
     window.Bind(wx.EVT_MENU, lambda event: open_manual(window), manual_item)
 
     yt_videos_item = help_menu.Append(wx.NewId(), "KherveFitting Videos")
