@@ -461,10 +461,6 @@ def create_menu(window):
 
     file_menu.AppendSubMenu(open_kfitting_menu, "Open")
 
-    # Open Examples submenu
-    open_examples_menu = create_examples_menu(window)
-    file_menu.AppendSubMenu(open_examples_menu, "Open Examples")
-
     # Recent files submenu
     window.recent_files_menu = wx.Menu()
     file_menu.AppendSubMenu(window.recent_files_menu, "Recent Files")
@@ -482,9 +478,9 @@ def create_menu(window):
     save_plot_only_item = save_menu.Append(wx.NewId(), "Save Plot Only in Excel")
     window.Bind(wx.EVT_MENU, lambda event: save_plot_only_to_excel(window), save_plot_only_item)
 
-    file_menu.AppendSubMenu(save_menu, "Save")
+    file_menu.AppendSubMenu(save_menu, "Save\tCtrl+S")
 
-    save_as_item = file_menu.Append(wx.ID_SAVEAS, "Save As...\tCtrl+Shift+S")
+    save_as_item = file_menu.Append(wx.ID_SAVEAS, "Save As...")
     window.Bind(wx.EVT_MENU, lambda event: on_save_as(window), save_as_item)
 
     # Import submenu items
@@ -577,8 +573,18 @@ def create_menu(window):
     word_report_item = export_menu.Append(wx.NewId(), "Create Report (.docx)")
     window.Bind(wx.EVT_MENU, lambda event: export_word_report(window), word_report_item)
 
+    folder_header = file_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    folder_header.Enable(False)  # Make it non-clickable
+
     open_location_item = file_menu.Append(wx.NewId(), "Open File Location")
     window.Bind(wx.EVT_MENU, lambda event: open_file_location(window), open_location_item)
+
+    # Open Examples submenu
+    open_examples_menu = create_examples_menu(window)
+    file_menu.AppendSubMenu(open_examples_menu, "Open Examples")
+
+    import_header = file_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    import_header.Enable(False)  # Make it non-clickable
 
     # Append submenus to file menu
     file_menu.AppendSubMenu(import_menu, "Import")
@@ -629,7 +635,7 @@ def create_menu(window):
     labels_manager_item = view_menu.Append(wx.NewId(), "Labels Manager")
     window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
 
-    labels_header = view_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    labels_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Toggles ▬▬▬▬▬▬")
     labels_header.Enable(False)  # Make it non-clickable
 
     ToggleFitting_item = view_menu.Append(wx.NewId(), "Toggle Peak Fitting")
