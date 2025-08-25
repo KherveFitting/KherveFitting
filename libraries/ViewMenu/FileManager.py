@@ -1024,6 +1024,12 @@ class FileManagerWindow(wx.Frame):
         if key_code == wx.WXK_F2:
             # Call the plot function directly
             self.on_plot_selected(None)
+
+            # Update label manager if it's open
+            sheet_names = self.get_selected_sheet_names()
+            if sheet_names:
+                self.update_label_manager_if_open(sheet_names[0])
+
             return  # Don't skip the event
         elif key_code == wx.WXK_F3:
             # Call the offset plot function

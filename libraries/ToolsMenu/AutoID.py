@@ -1743,10 +1743,12 @@ class AutoIDWindow(wx.Frame):
 
         self.create_labels_btn = wx.Button(panel, label="Create Labels")
         self.create_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_labels)
+        self.create_labels_btn.Enable(False)  # Initially disabled
         row1_sizer.Add(self.create_labels_btn, 0, wx.ALL, 3)
 
-        self.create_regions_labels_btn = wx.Button(panel, label="Create Regions + Labels")
+        self.create_regions_labels_btn = wx.Button(panel, label="Create Areas + Labels")
         self.create_regions_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_regions_labels)
+        self.create_regions_labels_btn.Enable(False)  # Initially disabled
         row1_sizer.Add(self.create_regions_labels_btn, 0, wx.ALL, 3)
 
         # Row 2
@@ -1796,7 +1798,26 @@ class AutoIDWindow(wx.Frame):
         main_sizer.Add(self.status_text, 0, wx.EXPAND | wx.ALL, 5)
 
         panel.SetSizer(main_sizer)
-        self.SetSize((520, 600))
+        self.SetSize((520, 700))
+
+    def update_button_states(self):
+        """Update button states based on whether there are assigned peaks"""
+        has_assigned_peaks = False
+
+        if hasattr(self, 'all_peaks'):
+            # Check if any peaks are assigned
+            for peak in self.all_peaks:
+                if peak.get('assigned') and peak.get('assignment') and peak.get('assignment').strip():
+                    has_assigned_peaks = True
+                    break
+
+        # Enable/disable buttons based on assigned peaks
+        self.create_labels_btn.Enable(has_assigned_peaks)
+        self.create_regions_labels_btn.Enable(has_assigned_peaks)
+
+        # Create Areas button is enabled if any peaks exist (assigned or not)
+        has_any_peaks = hasattr(self, 'all_peaks') and len(self.all_peaks) > 0
+        self.create_regions_btn.Enable(has_any_peaks)
 
     def create_peaks_page(self):
         """Create the Find Peaks page"""
@@ -2245,7 +2266,8 @@ class AutoIDWindow(wx.Frame):
         # Update process description if window is open
         self.update_process_description()
 
-        self.create_regions_btn.Enable(True)
+        # Update button states
+        self.update_button_states()
 
         # Auto-tick all assigned peaks
         self._auto_tick_assigned_peaks()

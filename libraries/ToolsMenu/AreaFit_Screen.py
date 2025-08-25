@@ -224,13 +224,13 @@ class BackgroundWindow(wx.Frame):
             core_level_button.Bind(wx.EVT_BUTTON, self.on_show_core_level_list)
 
             # sizer.Add(export_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(core_level_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(core_level_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(auto_id_button, pos=(10, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
             # Seventh row: Remove peak and Export buttons
             sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(switch_vlines_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(switch_vlines_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
 
             sizer.Add(background_only_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
             # sizer.Add(clear_background_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
