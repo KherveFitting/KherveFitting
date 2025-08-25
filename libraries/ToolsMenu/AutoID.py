@@ -1640,7 +1640,7 @@ class AutoIDWindow(wx.Frame):
 
     def __init__(self, parent):
         super().__init__(None, title="Automatic Element Identification -- Beta --",
-                         style=wx.DEFAULT_FRAME_STYLE)
+                         style=wx.DEFAULT_FRAME_STYLE |  wx.STAY_ON_TOP)
         self.parent = parent
         self.auto_survey_id = AutoSurveyID(parent)
 
@@ -1726,47 +1726,53 @@ class AutoIDWindow(wx.Frame):
         force_sizer.Add(force_help, 0, wx.ALL, 2)
         force_sizer.Add(self.force_elements_ctrl, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Control buttons
-        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Control buttons - arranged in 2 rows
+        button_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Row 1
+        row1_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.run_btn = wx.Button(panel, label="Run AutoID")
         self.run_btn.Bind(wx.EVT_BUTTON, self.on_run)
-        button_sizer.Add(self.run_btn, 0, wx.ALL, 5)
+        row1_sizer.Add(self.run_btn, 0, wx.ALL, 3)
 
         self.create_regions_btn = wx.Button(panel, label="Create Areas")
         self.create_regions_btn.Bind(wx.EVT_BUTTON, self.on_create_regions)
         self.create_regions_btn.Enable(False)
-        button_sizer.Add(self.create_regions_btn, 0, wx.ALL, 5)
+        row1_sizer.Add(self.create_regions_btn, 0, wx.ALL, 3)
 
-        # Button row for create labels/regions
-        # button_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.create_labels_btn = wx.Button(panel, label="Create Labels")
         self.create_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_labels)
-        button_sizer.Add(self.create_labels_btn, 0, wx.ALL, 2)
+        row1_sizer.Add(self.create_labels_btn, 0, wx.ALL, 3)
 
         self.create_regions_labels_btn = wx.Button(panel, label="Create Regions + Labels")
         self.create_regions_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_regions_labels)
-        button_sizer.Add(self.create_regions_labels_btn, 0, wx.ALL, 2)
+        row1_sizer.Add(self.create_regions_labels_btn, 0, wx.ALL, 3)
 
+        # Row 2
+        row2_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-
-
-
-
+        # Show/Hide Labels checkbox
+        self.show_labels_checkbox = wx.CheckBox(panel, label="Show Labels")
+        self.show_labels_checkbox.SetValue(True)
+        self.show_labels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_show_labels_toggle)
+        row2_sizer.Add(self.show_labels_checkbox, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 3)
 
         self.select_all_btn = wx.Button(panel, label="Select All")
         self.select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
-        button_sizer.Add(self.select_all_btn, 0, wx.ALL, 5)
+        row2_sizer.Add(self.select_all_btn, 0, wx.ALL, 3)
 
         self.deselect_all_btn = wx.Button(panel, label="Deselect All")
         self.deselect_all_btn.Bind(wx.EVT_BUTTON, self.on_deselect_all)
-        button_sizer.Add(self.deselect_all_btn, 0, wx.ALL, 5)
+        row2_sizer.Add(self.deselect_all_btn, 0, wx.ALL, 3)
 
         # Process description button
         self.process_desc_btn = wx.Button(panel, label="Description")
         self.process_desc_btn.Bind(wx.EVT_BUTTON, self.on_show_process_description)
-        button_sizer.Add(self.process_desc_btn, 0, wx.ALL, 5)
+        row2_sizer.Add(self.process_desc_btn, 0, wx.ALL, 3)
 
+        button_sizer.Add(row1_sizer, 0, wx.CENTER, 0)
+        button_sizer.Add(row2_sizer, 0, wx.CENTER, 0)
         # Create notebook with only 2 tabs
         self.notebook = wx.Notebook(panel)
 
@@ -2185,6 +2191,9 @@ class AutoIDWindow(wx.Frame):
 
         self.create_regions_btn.Enable(True)
 
+        # Auto-tick all assigned peaks
+        self._auto_tick_assigned_peaks()
+
     def on_select_all(self, event):
         """Select all peaks in current tab"""
         current_page = self.notebook.GetSelection()
@@ -2201,23 +2210,25 @@ class AutoIDWindow(wx.Frame):
         for row in range(peak_list.GetItemCount()):
             peak_list.SetItem(row, 0, "")
 
-
-    def on_create_regions_OLD(self, event):
-        """Create background/area regions for selected peaks in Results tab"""
+    def on_create_regions(self, event):
+        """Create background/area regions for TICKED peaks in Results tab"""
         try:
-            # Get selected peaks from results tab
+            # Get TICKED peaks from results list
             selected_peaks = []
+            sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+            assigned_peaks = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
+
             for row in range(self.results_list.GetItemCount()):
                 if self.results_list.GetItem(row, 0).GetText() == "✓":
-                    position = float(self.results_list.GetItem(row, 1).GetText())
-                    assignment = self.results_list.GetItem(row, 4).GetText()
-                    selected_peaks.append({
-                        'position': position,
-                        'assignment': assignment
-                    })
+                    if row < len(assigned_peaks):
+                        peak = assigned_peaks[row]
+                        selected_peaks.append({
+                            'position': peak['position'],
+                            'assignment': peak['assignment']
+                        })
 
             if not selected_peaks:
-                wx.MessageBox("Please select peaks to create regions for", "No Selection")
+                wx.MessageBox("Please tick peaks to create regions for", "No Ticked Peaks", wx.OK | wx.ICON_INFORMATION)
                 return
 
             # Get sheet and data
@@ -2261,104 +2272,7 @@ class AutoIDWindow(wx.Frame):
             self.parent.plot_manager.update_legend(self.parent)
             self.parent.canvas.draw_idle()
 
-            wx.MessageBox(f"Created {len(selected_peaks)} regions with proper backgrounds and areas", "Success")
-
-        except Exception as e:
-            wx.MessageBox(f"Failed to create regions: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-            import traceback
-            traceback.print_exc()
-
-    def on_create_regions(self, event):
-        """Create background/area regions for selected peaks in Results tab"""
-        try:
-            # Get selected peaks from results tab
-            selected_peaks = []
-            for row in range(self.results_list.GetItemCount()):
-                if self.results_list.GetItem(row, 0).GetText() == "✓":
-                    position = float(self.results_list.GetItem(row, 1).GetText())
-                    assignment = self.results_list.GetItem(row, 4).GetText()
-                    selected_peaks.append({
-                        'position': position,
-                        'assignment': assignment
-                    })
-
-            if not selected_peaks:
-                wx.MessageBox("Please select peaks to create regions for", "No Selection")
-                return
-
-            # PRESERVE VLINES - Store vLine positions BEFORE any operations
-            vline1_x = None
-            vline2_x = None
-            vlines_visible = False
-
-            if hasattr(self.parent, 'vline1') and self.parent.vline1 is not None:
-                vline1_x = self.parent.vline1.get_xdata()[0]
-                vlines_visible = True
-            if hasattr(self.parent, 'vline2') and self.parent.vline2 is not None:
-                vline2_x = self.parent.vline2.get_xdata()[0]
-                vlines_visible = True
-
-            print(f"Preserved vlines: vline1={vline1_x}, vline2={vline2_x}, visible={vlines_visible}")
-
-            # Get sheet and data
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            x_values = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
-            y_values_raw = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
-
-            # Convert selected peaks to the format expected by create_peaks_and_measure
-            identified_elements = {}
-            for peak_data in selected_peaks:
-                assignment = peak_data['assignment']
-                position = peak_data['position']
-
-                # Parse assignment to get element and orbital
-                import re
-                match = re.match(r'([A-Z][a-z]?)(.+)', assignment)
-                if match:
-                    element = match.group(1)
-                    orbital = match.group(2)
-
-                    identified_elements[assignment] = {
-                        'peak_position': position,
-                        'element': element,
-                        'orbital': orbital,
-                        'priority': 1,
-                        'prominence': 0.1,  # Default values
-                        'confidence': 100
-                    }
-
-            # Save state before making changes
-            from libraries.FileMenu.Save import save_state
-            save_state(self.parent)
-
-            # Use the comprehensive create_peaks_and_measure method
-            self.auto_survey_id.create_peaks_and_measure(identified_elements, x_values, y_values_raw, sheet_name)
-
-            # Update the display with clear_and_replot to preserve vlines
-            self.parent.peak_params_grid.ForceRefresh()
-            self.parent.plot_manager.plot_data(self.parent)  # Plot raw data first
-            self.parent.clear_and_replot()  # This preserves existing vlines and adds fits/residuals
-            self.parent.plot_manager.update_legend(self.parent)
-
-            # RESTORE VLINES if they were present before
-            if vlines_visible and vline1_x is not None and vline2_x is not None:
-                # Recreate vlines using ax.axvline (the correct way)
-                self.parent.vline1 = self.parent.ax.axvline(x=vline1_x, color='red', linestyle='--', alpha=0.7)
-                self.parent.vline2 = self.parent.ax.axvline(x=vline2_x, color='red', linestyle='--', alpha=0.7)
-
-                # Add text labels if the method exists
-                if hasattr(self.parent, 'add_vline_text_labels'):
-                    self.parent.add_vline_text_labels()
-
-                # Make sure area tab is selected so vlines stay visible
-                if hasattr(self.parent, 'area_tab_selected'):
-                    self.parent.area_tab_selected = True
-
-                print(f"Restored vlines at {vline1_x:.2f} and {vline2_x:.2f}")
-
-            self.parent.canvas.draw_idle()
-
-            wx.MessageBox(f"Created {len(selected_peaks)} regions with proper backgrounds and areas", "Success")
+            wx.MessageBox(f"Created {len(selected_peaks)} regions with proper backgrounds and areas", "Success", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Failed to create regions: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -2458,54 +2372,132 @@ class AutoIDWindow(wx.Frame):
         return core_levels
 
     def on_create_labels(self, event):
-        """Create labels only - remove existing labels first"""
+        """Create elegant labels for ticked peaks - save to label manager format"""
         try:
-            # Remove all existing labels
+            sheet_name = self.parent.sheet_combobox.GetValue()
+
+            # Clear all existing labels first
             self._remove_all_labels()
 
-            # Get selected peaks from results
-            selected_peaks = self._get_selected_assigned_peaks()
+            # Clear labels from data structure
+            if 'Labels' not in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Labels'] = []
+            else:
+                self.parent.Data['Core levels'][sheet_name]['Labels'].clear()
 
-            if not selected_peaks:
-                wx.MessageBox("No assigned peaks found to create labels", "No Peaks", wx.OK | wx.ICON_INFORMATION)
+            # Get ticked peaks from both lists
+            ticked_peaks = self._get_ticked_peaks()
+
+            if not ticked_peaks:
+                wx.MessageBox("No ticked peaks found to create labels", "No Peaks", wx.OK | wx.ICON_INFORMATION)
                 return
 
-            # Create labels for selected peaks
-            for peak_data in selected_peaks:
-                self._create_label(peak_data)
+            # Get data for positioning
+            y_data = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+            x_data = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
+            max_y = np.max(y_data)
+
+            # Create labels for each ticked peak
+            labels_created = 0
+            for peak_data in ticked_peaks:
+                position = peak_data['position']
+                label_text = peak_data['assignment']
+
+                # Find local maximum for positioning
+                mask = (x_data >= position - 2) & (x_data <= position + 2)
+                if np.any(mask):
+                    local_max = np.max(y_data[mask])
+                    label_y = local_max + 0.05 * max_y
+
+                    # Add to plot
+                    text_obj = self.parent.ax.text(position, label_y, label_text,
+                                                   rotation=90, va='bottom', ha='center',
+                                                   fontsize=self.parent.label_font_size,
+                                                   color='blue')
+
+                    # Save to data structure (same format as label manager)
+                    self.parent.Data['Core levels'][sheet_name]['Labels'].append({
+                        'text': label_text,
+                        'x': float(f"{position:.2f}"),
+                        'y': float(f"{label_y:.2f}"),
+                        'rotation': 90,
+                        'fontsize': self.parent.label_font_size,
+                        'fontfamily': 'Arial'
+                    })
+
+                    labels_created += 1
 
             # Refresh canvas
             self.parent.canvas.draw_idle()
 
-            wx.MessageBox(f"Created {len(selected_peaks)} labels", "Labels Created", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox(f"Created {labels_created} elegant labels", "Labels Created", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Error creating labels: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
+    def _get_ticked_peaks(self):
+        """Get all ticked peaks from both results and peaks lists"""
+        ticked_peaks = []
+
+        if not hasattr(self, 'all_peaks'):
+            return ticked_peaks
+
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+
+        # Check results list (assigned peaks only) - get ticked ones
+        assigned_peaks = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
+        for i in range(self.results_list.GetItemCount()):
+            checkbox_text = self.results_list.GetItem(i, 0).GetText()
+            if checkbox_text == "✓" and i < len(assigned_peaks):
+                peak = assigned_peaks[i]
+                ticked_peaks.append({
+                    'position': peak['position'],
+                    'assignment': peak['assignment'],
+                    'source': 'results'
+                })
+
+        # Check peaks list (all peaks, use best assignment or position) - get ticked ones
+        non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+        for i in range(self.peaks_list.GetItemCount()):
+            checkbox_text = self.peaks_list.GetItem(i, 0).GetText()
+            if checkbox_text == "✓" and i < len(non_dismissed_peaks):
+                peak = non_dismissed_peaks[i]
+
+                # Skip if already added from results list
+                if any(tp['position'] == peak['position'] for tp in ticked_peaks):
+                    continue
+
+                # Get best assignment or use position
+                assignment = peak.get('assignment', '')
+                if not assignment:
+                    possible_assignments = self._get_possible_assignments_for_peak(peak)
+                    assignment = possible_assignments[0] if possible_assignments else f"{peak['position']:.1f}"
+
+                ticked_peaks.append({
+                    'position': peak['position'],
+                    'assignment': assignment,
+                    'source': 'peaks'
+                })
+
+        return ticked_peaks
+
     def on_create_regions_labels(self, event):
-        """Create regions and labels - remove existing regions and labels first"""
+        """Create regions and labels - combination of create regions and create labels"""
         try:
-            # Remove all existing regions and labels
-            self._remove_all_regions_and_labels()
+            # First create regions for ticked peaks
+            self.on_create_regions(event)
 
-            # Get selected peaks from results
-            selected_peaks = self._get_selected_assigned_peaks()
+            # Then create labels for ticked peaks
+            self.on_create_labels(event)
 
-            if not selected_peaks:
-                wx.MessageBox("No assigned peaks found to create regions", "No Peaks", wx.OK | wx.ICON_INFORMATION)
-                return
+            # Get count of ticked peaks for message
+            ticked_peaks = self._get_ticked_peaks()
 
-            # Create regions and labels for selected peaks
-            for peak_data in selected_peaks:
-                self._create_region_and_label(peak_data)
-
-            # Refresh canvas
-            self.parent.canvas.draw_idle()
-
-            wx.MessageBox(f"Created {len(selected_peaks)} regions with labels", "Regions Created", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox(f"Created {len(ticked_peaks)} regions with elegant labels",
+                          "Regions + Labels Created", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
-            wx.MessageBox(f"Error creating regions: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(f"Error creating regions and labels: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
     def _remove_all_labels(self):
         """Remove all existing labels from the plot"""
@@ -2535,15 +2527,19 @@ class AutoIDWindow(wx.Frame):
         self.parent.clear_and_replot()
 
     def _get_selected_assigned_peaks(self):
-        """Get all assigned peaks from the results"""
+        """Get only the TICKED assigned peaks from the results list"""
         selected_peaks = []
 
-        for peak in self.all_peaks:
-            if peak.get('assigned') and not peak.get('dismissed'):
-                assignment = peak.get('assignment', '')
-                if assignment:
+        # Get ticked peaks from results list only
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+        assigned_peaks = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
+
+        for row in range(self.results_list.GetItemCount()):
+            if self.results_list.GetItem(row, 0).GetText() == "✓":
+                if row < len(assigned_peaks):
+                    peak = assigned_peaks[row]
                     selected_peaks.append({
-                        'assignment': assignment,
+                        'assignment': peak['assignment'],
                         'position': peak['position'],
                         'prominence': peak['prominence'],
                         'confidence': peak.get('confidence', 0)
@@ -2606,6 +2602,129 @@ class AutoIDWindow(wx.Frame):
                     'end': region_end,
                     'assignment': assignment
                 })
+
+    def _auto_tick_assigned_peaks(self):
+        """Automatically tick all peaks that have been assigned"""
+        if not hasattr(self, 'all_peaks'):
+            return
+
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+
+        # Auto-tick assigned peaks in results list
+        assigned_peaks = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
+        for i in range(min(self.results_list.GetItemCount(), len(assigned_peaks))):
+            peak = assigned_peaks[i]
+            if peak.get('assigned'):
+                self.results_list.SetItem(i, 0, "✓")
+                peak['create_region'] = True
+
+        # Auto-tick corresponding peaks in peaks list
+        non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+        for i in range(min(self.peaks_list.GetItemCount(), len(non_dismissed_peaks))):
+            peak = non_dismissed_peaks[i]
+            if peak.get('assigned'):
+                self.peaks_list.SetItem(i, 0, "✓")
+                peak['create_region'] = True
+
+    def on_show_labels_toggle(self, event):
+        """Toggle visibility of labels for ticked peaks only"""
+        show_labels = self.show_labels_checkbox.GetValue()
+
+        if not hasattr(self.parent, 'ax'):
+            return
+
+        # Clear all existing text annotations
+        for text in self.parent.ax.texts[:]:
+            text.remove()
+
+        if show_labels:
+            # Show labels only for ticked peaks
+            self._show_ticked_peak_labels()
+
+        # Refresh canvas
+        self.parent.canvas.draw_idle()
+
+    def _show_ticked_peak_labels(self):
+        """Show labels only for peaks that are ticked"""
+        if not hasattr(self, 'all_peaks'):
+            return
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        # Get y data for positioning labels
+        y_data = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+        x_data = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
+        max_y = np.max(y_data)
+
+        # Get ticked peaks from both lists
+        ticked_peaks = self._get_ticked_peaks()
+
+        for peak_data in ticked_peaks:
+            position = peak_data['position']
+            label_text = peak_data['assignment']
+
+            # Find local maximum for label positioning
+            mask = (x_data >= position - 2) & (x_data <= position + 2)
+            if np.any(mask):
+                local_max = np.max(y_data[mask])
+                label_y = local_max + 0.05 * max_y
+
+                # Add label to plot
+                self.parent.ax.text(position, label_y, label_text,
+                                    rotation=90, va='bottom', ha='center',
+                                    fontsize=self.parent.label_font_size,
+                                    color='blue')
+
+    def _add_labels_from_list(self, list_ctrl, assigned_only, x_data, y_data, max_y):
+        """Add labels from a specific list control"""
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+
+        if assigned_only:
+            # Results list - only assigned peaks
+            peaks_to_check = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
+        else:
+            # Peaks list - all non-dismissed peaks
+            peaks_to_check = [p for p in sorted_peaks if not p.get('dismissed')]
+
+        for i in range(list_ctrl.GetItemCount()):
+            checkbox_text = list_ctrl.GetItem(i, 0).GetText()
+            if checkbox_text == "✓" and i < len(peaks_to_check):
+                peak = peaks_to_check[i]
+                position = peak['position']
+
+                # Get assignment text
+                if assigned_only and peak.get('assignment'):
+                    label_text = peak['assignment']
+                elif not assigned_only:
+                    # For peaks list, show possible assignments or position
+                    possible_assignments = self._get_possible_assignments_for_peak(peak)
+                    if possible_assignments:
+                        label_text = possible_assignments[0]  # Use first/best assignment
+                    else:
+                        label_text = f"{position:.1f}"
+                else:
+                    continue
+
+                # Find local maximum for label positioning
+                mask = (x_data >= position - 2) & (x_data <= position + 2)
+                if np.any(mask):
+                    local_max = np.max(y_data[mask])
+                    label_y = local_max + 0.05 * max_y
+
+                    # Add label to plot
+                    self.parent.ax.text(position, label_y, label_text,
+                                        rotation=90, va='bottom', ha='center',
+                                        fontsize=self.parent.label_font_size,
+                                        color='blue')
+
+    def _get_possible_assignments_for_peak(self, peak):
+        """Get possible assignments for a peak"""
+        if hasattr(self, 'auto_survey_id'):
+            possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.tolerance)
+            return [p['assignment'] for p in possible]
+        return []
 
 
     def OnClose(self, event):
