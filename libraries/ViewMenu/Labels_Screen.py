@@ -1,4 +1,5 @@
 import wx
+import wx.grid
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import Affine2D
 import numpy as np
@@ -7,22 +8,55 @@ class LabelWindow(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, title="Labels Manager", style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
         self.parent = parent
-        self.SetSize((300, 300))
+        self.SetSize((300, 400))
 
         # Position on right side of main frame
         main_pos = self.parent.GetPosition()
         main_size = self.parent.GetSize()
         window_size = self.GetSize()
-        x = main_pos.x + main_size.width - 350
+        x = main_pos.x + main_size.width - 550
         y = main_pos.y + (main_size.height - window_size.height) // 2
         self.SetPosition((x, y))
 
         panel = wx.Panel(self)
-        # panel.SetBackgroundColour(wx.WHITE)
+        panel.SetBackgroundColour(wx.Colour(220, 230, 220))
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.list_box = wx.ListBox(panel, style=wx.LB_SINGLE)
-        sizer.Add(self.list_box, 1, wx.EXPAND | wx.ALL, 5)
+        # Create grid for labels
+        self.labels_grid = wx.grid.Grid(panel)
+        self.labels_grid.CreateGrid(0, 4)
+        self.labels_grid.SetColLabelValue(0, "Name")
+        self.labels_grid.SetColLabelValue(1, "Pos X")
+        self.labels_grid.SetColLabelValue(2, "Pos Y")
+        self.labels_grid.SetColLabelValue(3, "Rotation")
+
+        # Set column widths
+        self.labels_grid.SetColLabelSize(35)
+        self.labels_grid.SetRowLabelSize(25)
+        self.labels_grid.SetDefaultColSize(120)
+        self.labels_grid.SetColSize(0, 120)
+        self.labels_grid.SetColSize(1, 80)
+        self.labels_grid.SetColSize(2, 80)
+        self.labels_grid.SetColSize(3, 80)
+
+        # Adjust individual column sizes
+        col_sizes = [150, 80, 80, 80]
+        for i, size in enumerate(col_sizes):
+            self.labels_grid.SetColSize(i, size)
+
+        # Enable editing for all columns
+        self.labels_grid.EnableEditing(True)
+
+        # Set selection mode to allow both cell and row selection
+        self.labels_grid.SetSelectionMode(wx.grid.Grid.GridSelectRows)
+
+        # Bind events for cell changes and key events
+        self.labels_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
+        self.labels_grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        # Make sure the grid has focus for key events
+        self.labels_grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cell_select)
+
+        sizer.Add(self.labels_grid, 1, wx.EXPAND | wx.ALL, 5)
 
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         add_btn = wx.Button(panel, label="Add")
@@ -31,14 +65,18 @@ class LabelWindow(wx.Frame):
         edit_btn.SetMinSize((60, 40))
         remove_btn = wx.Button(panel, label="Remove")
         remove_btn.SetMinSize((60, 40))
+        remove_all_btn = wx.Button(panel, label="Remove\nAll")
+        remove_all_btn.SetMinSize((80, 40))
 
         btn_sizer.Add(add_btn, 0, wx.ALL, 5)
         btn_sizer.Add(edit_btn, 0, wx.ALL, 5)
         btn_sizer.Add(remove_btn, 0, wx.ALL, 5)
+        btn_sizer.Add(remove_all_btn, 0, wx.ALL, 5)
 
         add_btn.Bind(wx.EVT_BUTTON, self.on_add)
         edit_btn.Bind(wx.EVT_BUTTON, self.on_edit)
         remove_btn.Bind(wx.EVT_BUTTON, self.on_remove)
+        remove_all_btn.Bind(wx.EVT_BUTTON, self.on_remove_all)
 
         sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER)
 
@@ -66,13 +104,12 @@ class LabelWindow(wx.Frame):
         buttons_sizer.AddSpacer(40)
         buttons_sizer.Add(movement_sizer, 0, wx.LEFT | wx.TOP, 10)
 
-        sizer.Add(buttons_sizer, 0, wx.LEFT | wx.TOP, 10)  # Changed ALIGN_RIGHT to LEFT
+        sizer.Add(buttons_sizer, 0, wx.LEFT | wx.TOP, 10)
 
         up_btn.Bind(wx.EVT_BUTTON, self.move_up)
         down_btn.Bind(wx.EVT_BUTTON, self.move_down)
         left_btn.Bind(wx.EVT_BUTTON, self.move_left)
         right_btn.Bind(wx.EVT_BUTTON, self.move_right)
-
 
         # Add these new attributes
         self.selected_text = None
@@ -85,19 +122,32 @@ class LabelWindow(wx.Frame):
         self.canvas_release_id = self.parent.canvas.mpl_connect('button_release_event', self.on_canvas_release)
         self.canvas_motion_id = self.parent.canvas.mpl_connect('motion_notify_event', self.on_canvas_motion)
 
-        # Bind close event
+        # Bind close event and key events
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.labels_grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         panel.SetSizer(sizer)
 
         self.update_list()
 
     def move_label(self, direction):
-        selection = self.list_box.GetSelection()
-        if selection == wx.NOT_FOUND:
+        # Get selection from grid
+        selected_rows = self.labels_grid.GetSelectedRows()
+        current_row = self.labels_grid.GetGridCursorRow()
+
+        selection = None
+        if selected_rows:
+            selection = selected_rows[0]
+        elif current_row >= 0:
+            selection = current_row
+        else:
             return
 
         sheet_name = self.parent.sheet_combobox.GetValue()
+
+        if 'Labels' not in self.parent.Data['Core levels'][sheet_name] or selection >= len(self.parent.Data['Core levels'][sheet_name]['Labels']):
+            return
+
         label = self.parent.Data['Core levels'][sheet_name]['Labels'][selection]
         max_y = max(self.parent.y_values)
 
@@ -127,7 +177,10 @@ class LabelWindow(wx.Frame):
 
         self.parent.canvas.draw_idle()
         self.update_list()
-        self.list_box.SetSelection(selection)  # Maintain selection
+
+        # Maintain the same row selection
+        self.labels_grid.SelectRow(selection)
+        self.labels_grid.SetGridCursor(selection, 0)
 
     def move_up(self, event):
         self.move_label('up')
@@ -141,13 +194,29 @@ class LabelWindow(wx.Frame):
     def move_right(self, event):
         self.move_label('right')
 
-
     def update_list(self):
-        self.list_box.Clear()
+        # Clear existing rows
+        if self.labels_grid.GetNumberRows() > 0:
+            self.labels_grid.DeleteRows(0, self.labels_grid.GetNumberRows())
+
         sheet_name = self.parent.sheet_combobox.GetValue()
         if 'Labels' in self.parent.Data['Core levels'][sheet_name]:
-            for label in self.parent.Data['Core levels'][sheet_name]['Labels']:
-                self.list_box.Append(f"{label['text']} ({label['x']:.1f}, {label['y']:.1f})")
+            labels = self.parent.Data['Core levels'][sheet_name]['Labels']
+
+            # Add rows for each label
+            for i, label in enumerate(labels):
+                self.labels_grid.AppendRows(1)
+                self.labels_grid.SetCellValue(i, 0, label['text'])
+                self.labels_grid.SetCellValue(i, 1, f"{label['x']:.2f}")
+                self.labels_grid.SetCellValue(i, 2, f"{label['y']:.2f}")
+                self.labels_grid.SetCellValue(i, 3, f"{label.get('rotation', 90):.2f}")
+
+                # Center align numeric values
+                self.labels_grid.SetCellAlignment(i, 1, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
+                self.labels_grid.SetCellAlignment(i, 2, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
+                self.labels_grid.SetCellAlignment(i, 3, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
+
+        self.labels_grid.AutoSizeColumns()
 
     def on_canvas_click(self, event):
         # Check if LabelWindow is still open and active
@@ -191,8 +260,61 @@ class LabelWindow(wx.Frame):
             self.select_text(clicked_text, clicked_index)
             self.drag_offset = (event.xdata - clicked_text['x'], event.ydata - clicked_text['y'])
             self.is_dragging = True
-            self.list_box.SetSelection(clicked_index)
+            # Select the entire row and set cursor
+            self.labels_grid.SelectRow(clicked_index)
+            self.labels_grid.SetGridCursor(clicked_index, 0)
+        else:
+            self.clear_selection()
 
+    def clear_selection(self):
+        if self.selection_box:
+            self.selection_box.remove()
+            self.selection_box = None
+        self.selected_text = None
+        self.labels_grid.ClearSelection()
+        self.parent.canvas.draw_idle()
+
+
+    def select_text_OLD(self, label_data, index):
+        # Remove previous selection box
+        if self.selection_box:
+            self.selection_box.remove()
+
+        # Create triangle selection indicator
+        x = label_data['x']
+        y = label_data['y']
+
+        # Get axis ranges
+        xlim = self.parent.ax.get_xlim()
+        ylim = self.parent.ax.get_ylim()
+        x_range = abs(xlim[1] - xlim[0])
+        y_range = abs(ylim[1] - ylim[0])
+
+        # Triangle dimensions - smaller and more consistent
+        triangle_width = x_range * 0.03  # 0.8% of x-axis range
+        triangle_height = y_range * 0.03  # 1.5% of y-axis range
+
+        # Triangle positioned slightly lower
+        triangle_y = y - y_range * 0.005  # 0.5% below text
+
+        from matplotlib.patches import Polygon
+        triangle_points = [
+            [x, triangle_y],  # Top point
+            [x - triangle_width / 2, triangle_y - triangle_height],  # Bottom left
+            [x + triangle_width / 2, triangle_y - triangle_height]  # Bottom right
+        ]
+
+        self.selection_box = Polygon(
+            triangle_points,
+            linewidth=1,
+            edgecolor='black',
+            facecolor=(200 / 255, 245 / 255, 228 / 255),
+            linestyle='-'
+        )
+
+        self.parent.ax.add_patch(self.selection_box)
+        self.selected_text = label_data
+        self.parent.canvas.draw_idle()
 
     def select_text(self, label_data, index):
         # Remove previous selection box
@@ -253,7 +375,7 @@ class LabelWindow(wx.Frame):
             x_range = abs(xlim[1] - xlim[0])
             y_range = abs(ylim[1] - ylim[0])
 
-            # Smaller triangle dimensions
+            # Triangle dimensions - smaller and more consistent
             triangle_width = x_range * 0.03  # 0.8% of x-axis range
             triangle_height = y_range * 0.03  # 1.5% of y-axis range
             triangle_y = new_y - y_range * 0.005  # 0.5% below text
@@ -422,137 +544,143 @@ class LabelWindow(wx.Frame):
         self.add_window.Show()
 
     def on_edit(self, event):
-        selection = self.list_box.GetSelection()
-        if selection != wx.NOT_FOUND:
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            label = self.parent.Data['Core levels'][sheet_name]['Labels'][selection]
+        selected_rows = self.labels_grid.GetSelectedRows()
+        selected_cells = self.labels_grid.GetSelectedCells()
 
-            dlg = wx.Dialog(self, title="Edit Label", size=(250, 250), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+        selection = None
+        if selected_rows:
+            selection = selected_rows[0]
+        elif selected_cells:
+            selection = selected_cells[0][0]
+        else:
+            return
 
-            # Center on main frame
-            main_pos = self.parent.GetPosition()
-            main_size = self.parent.GetSize()
-            dialog_size = dlg.GetSize()
-            x = main_pos.x + (main_size.width - dialog_size.width) // 2
-            y = main_pos.y + (main_size.height - dialog_size.height) // 2
-            dlg.SetPosition((x, y))
+        sheet_name = self.parent.sheet_combobox.GetValue()
 
-            sizer = wx.BoxSizer(wx.VERTICAL)
+        if 'Labels' not in self.parent.Data['Core levels'][sheet_name] or selection >= len(self.parent.Data['Core levels'][sheet_name]['Labels']):
+            return
 
-            # Add text label and control
-            text_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            text_label = wx.StaticText(dlg, label="Label:")
-            text_ctrl = wx.TextCtrl(dlg, value=label['text'], size=(120, -1))
-            text_sizer.Add(text_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-            text_sizer.Add(text_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-            sizer.Add(text_sizer, 0, wx.EXPAND)
+        label = self.parent.Data['Core levels'][sheet_name]['Labels'][selection]
 
-            # Add x control
-            x_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            x_label = wx.StaticText(dlg, label="X:")
-            x_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['x']), min=-10, max=1e4, size=(120, -1))
-            x_sizer.Add(x_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-            x_sizer.Add(x_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-            sizer.Add(x_sizer, 0, wx.EXPAND)
+        dlg = wx.Dialog(self, title="Edit Label", size=(250, 250), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
 
-            # Add y control
-            y_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            y_label = wx.StaticText(dlg, label="Y:")
-            y_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['y']), min=-10000, max=1e10, size=(120, -1))
-            y_sizer.Add(y_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-            y_sizer.Add(y_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-            sizer.Add(y_sizer, 0, wx.EXPAND)
+        # Center on main frame
+        main_pos = self.parent.GetPosition()
+        main_size = self.parent.GetSize()
+        dialog_size = dlg.GetSize()
+        x = main_pos.x + (main_size.width - dialog_size.width) // 2
+        y = main_pos.y + (main_size.height - dialog_size.height) // 2
+        dlg.SetPosition((x, y))
 
-            # Add rotation control
-            rotation_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            rotation_label = wx.StaticText(dlg, label="Rotation:")
-            rotation_choices = ['0', '90', '270']
-            rotation_ctrl = wx.Choice(dlg, choices=rotation_choices, size=(120, -1))
+        sizer = wx.BoxSizer(wx.VERTICAL)
 
-            # Set current rotation value
-            current_rotation = str(label.get('rotation', 90))
-            if current_rotation in rotation_choices:
-                rotation_ctrl.SetSelection(rotation_choices.index(current_rotation))
-            else:
-                rotation_ctrl.SetSelection(1)  # Default to 90
+        # Add text label and control
+        text_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        text_label = wx.StaticText(dlg, label="Label:")
+        text_ctrl = wx.TextCtrl(dlg, value=label['text'], size=(120, -1))
+        text_sizer.Add(text_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        text_sizer.Add(text_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(text_sizer, 0, wx.EXPAND)
 
-            rotation_sizer.Add(rotation_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-            rotation_sizer.Add(rotation_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-            sizer.Add(rotation_sizer, 0, wx.EXPAND)
+        # Add x control
+        x_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        x_label = wx.StaticText(dlg, label="X:")
+        x_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['x']), min=-10, max=1e4, size=(120, -1))
+        x_sizer.Add(x_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        x_sizer.Add(x_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(x_sizer, 0, wx.EXPAND)
 
-            # Replace font family control (add after existing controls)
-            font_family_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            font_family_label = wx.StaticText(dlg, label="Font:")
-            font_families = ['Arial', 'Times New Roman', 'Courier New', 'Helvetica', 'Verdana',
-                             'Calibri', 'Tahoma', 'Georgia', 'Comic Sans MS', 'Impact',
-                             'Trebuchet MS', 'Century Gothic', 'Palatino']
-            font_family_ctrl = wx.Choice(dlg, choices=font_families, size=(120, -1))
+        # Add y control
+        y_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        y_label = wx.StaticText(dlg, label="Y:")
+        y_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['y']), min=-10000, max=1e10, size=(120, -1))
+        y_sizer.Add(y_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        y_sizer.Add(y_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(y_sizer, 0, wx.EXPAND)
 
-            # Set current font
-            current_font = label.get('fontfamily', 'Arial')
-            if current_font in font_families:
-                font_family_ctrl.SetSelection(font_families.index(current_font))
-            else:
-                font_family_ctrl.SetSelection(0)  # Default to Arial
+        # Add rotation control
+        rotation_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        rotation_label = wx.StaticText(dlg, label="Rotation:")
+        rotation_choices = ['0', '90', '270']
+        rotation_ctrl = wx.Choice(dlg, choices=rotation_choices, size=(120, -1))
 
-            font_family_sizer.Add(font_family_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-            font_family_sizer.Add(font_family_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-            sizer.Add(font_family_sizer, 0, wx.EXPAND)
+        # Set current rotation value
+        current_rotation = str(label.get('rotation', 90))
+        if current_rotation in rotation_choices:
+            rotation_ctrl.SetSelection(rotation_choices.index(current_rotation))
+        else:
+            rotation_ctrl.SetSelection(1)  # Default to 90
 
+        rotation_sizer.Add(rotation_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        rotation_sizer.Add(rotation_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(rotation_sizer, 0, wx.EXPAND)
 
-            # Add buttons
-            btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            ok_btn = wx.Button(dlg, wx.ID_OK, "OK", size=(60, 40))
-            cancel_btn = wx.Button(dlg, wx.ID_CANCEL, "Cancel", size=(60, 40))
-            btn_sizer.Add(ok_btn, 0, wx.ALL, 5)
-            btn_sizer.Add(cancel_btn, 0, wx.ALL, 5)
-            sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+        # Add OK and Cancel buttons
+        btn_sizer = wx.StdDialogButtonSizer()
+        ok_btn = wx.Button(dlg, wx.ID_OK)
+        cancel_btn = wx.Button(dlg, wx.ID_CANCEL)
+        btn_sizer.AddButton(ok_btn)
+        btn_sizer.AddButton(cancel_btn)
+        btn_sizer.Realize()
+        sizer.Add(btn_sizer, 0, wx.ALL | wx.EXPAND, 5)
 
-            dlg.SetSizer(sizer)
-            sizer.Fit(dlg)
+        dlg.SetSizer(sizer)
 
-            if dlg.ShowModal() == wx.ID_OK:
-                label['text'] = text_ctrl.GetValue()
-                label['x'] = x_ctrl.GetValue()
-                label['y'] = y_ctrl.GetValue()
-                label['rotation'] = int(rotation_choices[rotation_ctrl.GetSelection()])  # Convert to int
-                label['fontfamily'] = font_families[font_family_ctrl.GetSelection()]  # Add this line
+        if dlg.ShowModal() == wx.ID_OK:
+            # Update label data
+            label['text'] = text_ctrl.GetValue()
+            label['x'] = x_ctrl.GetValue()
+            label['y'] = y_ctrl.GetValue()
+            label['rotation'] = int(rotation_choices[rotation_ctrl.GetSelection()])
 
-                # Clear all existing text annotations
-                for txt in self.parent.ax.texts[:]:
-                    txt.remove()
+            # Clear all existing text annotations
+            for txt in self.parent.ax.texts[:]:
+                txt.remove()
 
-                # self.parent.clear_and_replot()  # Full replot to ensure consistency
+            # Redraw all labels
+            for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
+                self.parent.ax.text(
+                    label_data['x'],
+                    label_data['y'],
+                    label_data['text'],
+                    rotation=label_data.get('rotation', 90),
+                    va='bottom',
+                    ha='center'
+                )
 
-                # Redraw all labels
-                for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
-                    self.parent.ax.text(
-                        label_data['x'],
-                        label_data['y'],
-                        label_data['text'],
-                        rotation=label_data.get('rotation', 90),
-                        va='bottom',
-                        ha='center'
-                    )
+            self.parent.canvas.draw_idle()
+            self.update_list()
 
-                self.parent.canvas.draw_idle()
-                self.update_list()
-
-            dlg.Destroy()
+        dlg.Destroy()
 
     def on_remove(self, event):
-        selection = self.list_box.GetSelection()
-        if selection != wx.NOT_FOUND:
-            sheet_name = self.parent.sheet_combobox.GetValue()
-            labels = self.parent.Data['Core levels'][sheet_name]['Labels']
+        selected_rows = self.labels_grid.GetSelectedRows()
+        current_row = self.labels_grid.GetGridCursorRow()
+
+        # Determine which row to delete
+        if selected_rows:
+            selection = selected_rows[0]
+        elif current_row >= 0:
+            selection = current_row
+        else:
+            return
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        if 'Labels' not in self.parent.Data['Core levels'][sheet_name]:
+            return
+
+        labels = self.parent.Data['Core levels'][sheet_name]['Labels']
+        if selection < len(labels):
+            # Remember the row position for reselection
+            row_to_select = selection
+            total_rows = len(labels)
+
+            # Remove the label
             labels.pop(selection)
 
-            # # Clear all existing text annotations
-            # for text in self.parent.ax.texts[:]:
-            #     text.remove()
-
-
-            self.parent.clear_and_replot()  # Full replot to ensure consistency
+            # Clear and redraw plot
+            self.parent.clear_and_replot()
 
             # Redraw remaining labels
             for label_data in labels:
@@ -560,19 +688,135 @@ class LabelWindow(wx.Frame):
                     label_data['x'],
                     label_data['y'],
                     label_data['text'],
-                    rotation=90,
+                    rotation=label_data.get('rotation', 90),
                     va='bottom',
                     ha='center'
                 )
 
-        # Clear selection when removing
-        if self.selection_box:
-            self.selection_box.remove()
-            self.selection_box = None
-        self.selected_text = None
+            # Clear selection when removing
+            if self.selection_box:
+                self.selection_box.remove()
+                self.selection_box = None
+            self.selected_text = None
 
-        self.parent.canvas.draw_idle()
-        self.update_list()
+            self.parent.canvas.draw_idle()
+            self.update_list()
+
+            # Reselect appropriate row after deletion
+            if len(labels) > 0:  # If there are still labels
+                # If we deleted the last row, select the new last row
+                if row_to_select >= len(labels):
+                    row_to_select = len(labels) - 1
+
+                # Select the row
+                self.labels_grid.SelectRow(row_to_select)
+                self.labels_grid.SetGridCursor(row_to_select, 0)
+
+    def on_remove_all(self, event):
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        if 'Labels' in self.parent.Data['Core levels'][sheet_name]:
+            # Confirm removal
+            dlg = wx.MessageDialog(self,
+                                   "Are you sure you want to remove all labels?",
+                                   "Confirm Remove All",
+                                   wx.YES_NO | wx.ICON_QUESTION)
+
+            if dlg.ShowModal() == wx.ID_YES:
+                # Clear all labels
+                self.parent.Data['Core levels'][sheet_name]['Labels'].clear()
+
+                # Clear all text annotations from plot
+                for txt in self.parent.ax.texts[:]:
+                    txt.remove()
+
+                # Clear selection
+                if self.selection_box:
+                    self.selection_box.remove()
+                    self.selection_box = None
+                self.selected_text = None
+
+                self.parent.canvas.draw_idle()
+                self.update_list()
+
+            dlg.Destroy()
+
+    def on_key_down(self, event):
+        if event.GetKeyCode() == wx.WXK_DELETE:
+            # Get the current selection
+            current_row = self.labels_grid.GetGridCursorRow()
+            if current_row >= 0:
+                # Create a mock event for on_remove
+                self.on_remove(event)
+        else:
+            event.Skip()
+
+    def on_cell_changed(self, event):
+        row = event.GetRow()
+        col = event.GetCol()
+        new_value = self.labels_grid.GetCellValue(row, col)
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        if 'Labels' not in self.parent.Data['Core levels'][sheet_name] or row >= len(self.parent.Data['Core levels'][sheet_name]['Labels']):
+            return
+
+        label = self.parent.Data['Core levels'][sheet_name]['Labels'][row]
+
+        try:
+            if col == 0:  # Name column
+                label['text'] = new_value
+            elif col == 1:  # Pos X column
+                label['x'] = float(new_value)
+            elif col == 2:  # Pos Y column
+                label['y'] = float(new_value)
+            elif col == 3:  # Rotation column
+                # Convert to int for rotation
+                label['rotation'] = int(float(new_value))
+
+            # Update the plot immediately
+            for txt in self.parent.ax.texts[:]:
+                txt.remove()
+
+            for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
+                self.parent.ax.text(
+                    label_data['x'],
+                    label_data['y'],
+                    label_data['text'],
+                    rotation=label_data.get('rotation', 90),
+                    fontsize=label_data.get('fontsize', 10),
+                    fontfamily=label_data.get('fontfamily', 'Arial'),
+                    va='bottom',
+                    ha='center'
+                )
+
+            self.parent.canvas.draw_idle()
+
+            # Update the grid display to show proper formatting
+            if col in [1, 2]:  # Pos X, Pos Y columns
+                self.labels_grid.SetCellValue(row, col, f"{float(new_value):.2f}")
+            elif col == 3:  # Rotation column
+                self.labels_grid.SetCellValue(row, col, f"{int(float(new_value)):.2f}")
+
+        except ValueError:
+            # If invalid number entered, revert to original value
+            if col == 1:
+                self.labels_grid.SetCellValue(row, col, f"{label['x']:.2f}")
+            elif col == 2:
+                self.labels_grid.SetCellValue(row, col, f"{label['y']:.2f}")
+            elif col == 3:
+                self.labels_grid.SetCellValue(row, col, f"{label.get('rotation', 90):.2f}")
+
+            wx.MessageBox("Please enter a valid number", "Invalid Input", wx.OK | wx.ICON_ERROR)
+
+        event.Skip()
+
+    def on_cell_select(self, event):
+        # When a cell is selected, select the entire row
+        row = event.GetRow()
+        self.labels_grid.SelectRow(row)
+        self.labels_grid.SetFocus()
+        event.Skip()
 
     def on_close(self, event):
         # Clear any selection before closing
