@@ -1754,12 +1754,6 @@ class AutoIDWindow(wx.Frame):
         # Row 2
         row2_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        # Show/Hide Labels checkbox
-        self.show_labels_checkbox = wx.CheckBox(panel, label="Show Labels")
-        self.show_labels_checkbox.SetValue(True)
-        self.show_labels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_show_labels_toggle)
-        row2_sizer.Add(self.show_labels_checkbox, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 3)
-
         self.select_all_btn = wx.Button(panel, label="Select All")
         self.select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
         row2_sizer.Add(self.select_all_btn, 0, wx.ALL, 3)
@@ -1768,13 +1762,28 @@ class AutoIDWindow(wx.Frame):
         self.deselect_all_btn.Bind(wx.EVT_BUTTON, self.on_deselect_all)
         row2_sizer.Add(self.deselect_all_btn, 0, wx.ALL, 3)
 
+        self.edit_area_btn = wx.Button(panel, label="Edit Area")
+        self.edit_area_btn.Bind(wx.EVT_BUTTON, self.on_edit_area)
+        # self.edit_area_btn.Enable(False)  # Initially disabled
+        row2_sizer.Add(self.edit_area_btn, 0, wx.ALL, 3)
+
         # Process description button
         self.process_desc_btn = wx.Button(panel, label="Description")
         self.process_desc_btn.Bind(wx.EVT_BUTTON, self.on_show_process_description)
         row2_sizer.Add(self.process_desc_btn, 0, wx.ALL, 3)
 
+        # Row 3
+        row3_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Show/Hide Labels checkbox
+        self.show_labels_checkbox = wx.CheckBox(panel, label="Show Labels")
+        self.show_labels_checkbox.SetValue(True)
+        self.show_labels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_show_labels_toggle)
+        row3_sizer.Add(self.show_labels_checkbox, 0, wx.ALL , 3)
+
         button_sizer.Add(row1_sizer, 0, wx.CENTER, 0)
         button_sizer.Add(row2_sizer, 0, wx.CENTER, 0)
+        button_sizer.Add(row3_sizer, 0, wx.LEFT, 0)
         # Create notebook with only 2 tabs
         self.notebook = wx.Notebook(panel)
 
@@ -1799,6 +1808,14 @@ class AutoIDWindow(wx.Frame):
 
         panel.SetSizer(main_sizer)
         self.SetSize((520, 700))
+
+    def on_edit_area(self, event):
+        """Open the AreaFit screen for editing areas"""
+        try:
+            # Call the parent's method to open the background window (AreaFit screen)
+            self.parent.on_open_background_window()
+        except Exception as e:
+            wx.MessageBox(f"Error opening Area editor: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
     def update_button_states(self):
         """Update button states based on whether there are assigned peaks"""
