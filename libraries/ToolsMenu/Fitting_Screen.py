@@ -387,14 +387,14 @@ class FittingWindow(wx.Frame):
 
         # Set items and green items
         items = ["Best Models-----------------------",
-                 "GL (Area)",
                  "SGL (Area)",
+                 "GL (Area)",
                  "LA (Area, \u03c3/\u03b3, \u03b3)",
                  "Voigt (Area, L/G, \u03c3)",
                  "Asymmetric------------------------",
                  "LA (Area, \u03c3, \u03b3)",
                  "DS*G (A, \u03c3, \u03b3, S)",
-                 "Voigt (Area, L/G, \u03c3, S)",
+                 "DS (A, \u03c3, \u03b3)",
                  "ExpGauss.(Area, \u03c3, \u03b3)",
                  "Voigt-----------------------------",
                  "Voigt (Area, L/G, \u03c3)",
@@ -409,7 +409,7 @@ class FittingWindow(wx.Frame):
                  "GL (Height)",
                  "SGL (Height)",
                  "Beta------------------------------",
-                 "DS (A, \u03c3, \u03b3)",
+
                  "Voigt (Area, L/G, \u03c3, S)"
                  ]
 
@@ -420,10 +420,10 @@ class FittingWindow(wx.Frame):
         self.model_combobox.SetGreenItems(green_items)
 
         # Set default selection to "GL (Area)"
-        default_index = items.index("GL (Area)")
+        default_index = items.index("SGL (Area)")
         self.model_combobox.SetSelection(default_index)
-        self.model_combobox.SetValue("GL (Area)")
-        self.parent.set_fitting_method("GL (Area)")
+        self.model_combobox.SetValue("SGL (Area)")
+        self.parent.set_fitting_method("SGL (Area)")
 
 
 

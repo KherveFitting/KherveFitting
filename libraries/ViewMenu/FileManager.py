@@ -585,9 +585,25 @@ class FileManagerWindow(wx.Frame):
             # For editable columns, let the default double-click behavior work
             event.Skip()
         else:
+            # Check if it's a core level column (contains a sheet name)
+            cell_value = self.grid.GetCellValue(row, col)
+            if col > 0 and col <= len(self.core_levels) and cell_value and cell_value in self.parent.Data['Core levels']:
+                # Update label manager if it's open
+                self.update_label_manager_if_open(cell_value)
+
             # Call the plot function directly
             self.on_plot_selected(None)
             return  # Don't skip the event
+
+    def update_label_manager_if_open(self, sheet_name):
+        """Update label manager if it's currently open"""
+        if hasattr(self.parent, 'labels_window') and self.parent.labels_window and self.parent.labels_window.IsShown():
+            # Set the sheet in parent first
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+            # Update the label manager grid
+            self.parent.labels_window.update_list()
 
     def get_unique_core_levels(self):
         """Get list of unique core level names from parent data"""
@@ -1937,6 +1953,7 @@ class FileManagerWindow(wx.Frame):
         col = event.GetCol()  # Use event column instead of cursor position
         cell_value = self.grid.GetCellValue(row, col)
         if cell_value and cell_value in self.parent.Data['Core levels']:
+            # self.update_label_manager_if_open(cell_value)
             wx.CallAfter(self.quick_plot_sheet, cell_value)
 
 

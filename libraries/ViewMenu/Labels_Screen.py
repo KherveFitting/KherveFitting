@@ -8,7 +8,7 @@ class LabelWindow(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, title="Labels Manager", style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
         self.parent = parent
-        self.SetSize((300, 400))
+        self.SetSize((330, 400))
 
         # Position on right side of main frame
         main_pos = self.parent.GetPosition()
@@ -34,15 +34,11 @@ class LabelWindow(wx.Frame):
         self.labels_grid.SetColLabelSize(35)
         self.labels_grid.SetRowLabelSize(25)
         self.labels_grid.SetDefaultColSize(120)
-        self.labels_grid.SetColSize(0, 120)
-        self.labels_grid.SetColSize(1, 80)
-        self.labels_grid.SetColSize(2, 80)
-        self.labels_grid.SetColSize(3, 80)
+        self.labels_grid.SetColSize(0, 80)
+        self.labels_grid.SetColSize(1, 60)
+        self.labels_grid.SetColSize(2, 60)
+        self.labels_grid.SetColSize(3, 60)
 
-        # Adjust individual column sizes
-        col_sizes = [150, 80, 80, 80]
-        for i, size in enumerate(col_sizes):
-            self.labels_grid.SetColSize(i, size)
 
         # Enable editing for all columns
         self.labels_grid.EnableEditing(True)
@@ -126,9 +122,17 @@ class LabelWindow(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.labels_grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
+        # Bind to parent's sheet combobox to update when sheet changes
+        self.parent.sheet_combobox.Bind(wx.EVT_COMBOBOX, self.on_parent_sheet_change)
+
         panel.SetSizer(sizer)
 
         self.update_list()
+
+    def on_parent_sheet_change(self, event):
+        """Update labels list when parent sheet selection changes"""
+        self.update_list()
+        event.Skip()  # Let the parent handle the event too
 
     def move_label(self, direction):
         # Get selection from grid
@@ -216,7 +220,7 @@ class LabelWindow(wx.Frame):
                 self.labels_grid.SetCellAlignment(i, 2, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
                 self.labels_grid.SetCellAlignment(i, 3, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
 
-        self.labels_grid.AutoSizeColumns()
+        # self.labels_grid.AutoSizeColumns()
 
     def on_canvas_click(self, event):
         # Check if LabelWindow is still open and active
