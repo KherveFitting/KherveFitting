@@ -64,7 +64,7 @@ class AutoSurveyID:
                 if is_auger:
                     # Convert KE to BE using the special formula for Auger
                     binding_energy = photon_energy - position + 0
-                    print(f"Auger {element}{orbital}: KE={position:.2f} -> BE={binding_energy:.2f}")
+                    # print(f"Auger {element}{orbital}: KE={position:.2f} -> BE={binding_energy:.2f}")
                 else:
                     # Regular photoelectron peaks - position is already in BE
                     binding_energy = position
@@ -1669,31 +1669,12 @@ class AutoIDWindow(wx.Frame):
         panel.SetBackgroundColour(wx.Colour(220, 210, 210))
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # # Method selection
-        # method_box = wx.StaticBox(panel, label="Identification Method")
-        # method_sizer = wx.StaticBoxSizer(method_box, wx.VERTICAL)
-        #
-        # self.method_choice = wx.Choice(panel, choices=["Method 1 GK 25/08/25", "Method 2 GK 25/08/25"])
-        # self.method_choice.SetSelection(1)
-        # method_sizer.Add(self.method_choice, 0, wx.EXPAND | wx.ALL, 5)
-        #
-        # # Database source selection
-        # library_label = wx.StaticText(panel, label="Database Source:")
-        # self.library_combo = wx.ComboBox(panel, choices=["Hardcoded Ranges", "Main Library"],
-        #                                  style=wx.CB_READONLY, value="Main Library")
-        # self.library_combo.Bind(wx.EVT_COMBOBOX, self.on_library_change)
-        # method_sizer.Add(library_label, 0, wx.ALL, 5)
-        # method_sizer.Add(self.library_combo, 0, wx.EXPAND | wx.ALL, 5)
-
-        # Method selection (hidden - defaults to Method 2)
-        method_box = wx.StaticBox(panel, label="Peak Finding Parameters")
-        method_sizer = wx.StaticBoxSizer(method_box, wx.VERTICAL)
 
         # Set defaults without UI
         self.method_selection = 1  # Method 2 default
         self.use_main_library = True  # Main Library default
 
-        # Peak finding parameters - compact layout
+        # Peak finding parameters
         param_box = wx.StaticBox(panel, label="Peak Finding Parameters")
         param_sizer = wx.StaticBoxSizer(param_box, wx.VERTICAL)
 
@@ -1703,7 +1684,7 @@ class AutoIDWindow(wx.Frame):
 
         # Parameters
         param_grid.Add(wx.StaticText(panel, label="Prominence:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")  # Show 3 decimal places for small values
+        self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")
         param_grid.Add(self.prominence_ctrl, 0, wx.EXPAND)
 
         param_grid.Add(wx.StaticText(panel, label="Width (min):"), 0, wx.ALIGN_CENTER_VERTICAL)
@@ -1724,10 +1705,26 @@ class AutoIDWindow(wx.Frame):
 
         param_sizer.Add(param_grid, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Add help text for parameters
-        help_text = wx.StaticText(panel, label="Prominence: fraction of max peak (0.01 = 1%), Width: in eV, Distance: minimum peak separation in points")
-        help_text.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_NORMAL))
-        param_sizer.Add(help_text, 0, wx.EXPAND | wx.ALL, 5)
+        # Help text
+        help_text = wx.StaticText(panel, label="Prominence: fraction of max peak (0.01 = 1%), Width: in eV, Distance: minimum peak separation")
+        help_text.SetFont(help_text.GetFont().MakeItalic())
+        param_sizer.Add(help_text, 0, wx.ALL, 5)
+
+        # Forced elements text control
+        force_box = wx.StaticBox(panel, label="Force Elements/Core Levels (Optional)")
+        force_sizer = wx.StaticBoxSizer(force_box, wx.VERTICAL)
+
+        force_label = wx.StaticText(panel, label="Enter elements or specific core levels to force identification:")
+        force_help = wx.StaticText(panel, label="Examples: Ni, Br3d, Nakll (comma separated)")
+        force_help.SetFont(force_help.GetFont().MakeItalic())
+
+        # Make text box smaller in height
+        self.force_elements_ctrl = wx.TextCtrl(panel, value="", style=wx.TE_MULTILINE, size=(-1, 40))
+
+
+        force_sizer.Add(force_label, 0, wx.ALL, 2)
+        force_sizer.Add(force_help, 0, wx.ALL, 2)
+        force_sizer.Add(self.force_elements_ctrl, 0, wx.EXPAND | wx.ALL, 5)
 
         # Control buttons
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -1740,6 +1737,22 @@ class AutoIDWindow(wx.Frame):
         self.create_regions_btn.Bind(wx.EVT_BUTTON, self.on_create_regions)
         self.create_regions_btn.Enable(False)
         button_sizer.Add(self.create_regions_btn, 0, wx.ALL, 5)
+
+        # Button row for create labels/regions
+        # button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.create_labels_btn = wx.Button(panel, label="Create Labels")
+        self.create_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_labels)
+        button_sizer.Add(self.create_labels_btn, 0, wx.ALL, 2)
+
+        self.create_regions_labels_btn = wx.Button(panel, label="Create Regions + Labels")
+        self.create_regions_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_regions_labels)
+        button_sizer.Add(self.create_regions_labels_btn, 0, wx.ALL, 2)
+
+
+
+
+
+
 
         self.select_all_btn = wx.Button(panel, label="Select All")
         self.select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
@@ -1770,8 +1783,8 @@ class AutoIDWindow(wx.Frame):
         self.status_text = wx.StaticText(panel, label="Ready to run identification...")
 
         # Layout
-        main_sizer.Add(method_sizer, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(param_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(force_sizer, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(button_sizer, 0, wx.CENTER | wx.ALL, 5)
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(self.status_text, 0, wx.EXPAND | wx.ALL, 5)
@@ -2188,26 +2201,6 @@ class AutoIDWindow(wx.Frame):
         for row in range(peak_list.GetItemCount()):
             peak_list.SetItem(row, 0, "")
 
-    def on_create_regions_OLD(self, event):
-        """Create regions for selected peaks"""
-        # Get selected peaks from results tab
-        selected_peaks = []
-        for row in range(self.results_list.GetItemCount()):
-            if self.results_list.GetItem(row, 0).GetText() == "✓":
-                position = float(self.results_list.GetItem(row, 1).GetText())
-                assignment = self.results_list.GetItem(row, 4).GetText()
-                selected_peaks.append({
-                    'position': position,
-                    'assignment': assignment
-                })
-
-        if not selected_peaks:
-            wx.MessageBox("Please select peaks to create regions for", "No Selection")
-            return
-
-        # Create regions using existing AutoSurveyID logic
-        self.auto_survey_id.create_regions_from_assignments(selected_peaks)
-        wx.MessageBox(f"Created {len(selected_peaks)} regions", "Success")
 
     def on_create_regions_OLD(self, event):
         """Create background/area regions for selected peaks in Results tab"""
@@ -2383,6 +2376,237 @@ class AutoIDWindow(wx.Frame):
             new_y = parent_pos.y + (parent_size.height - my_size.height) // 2
 
             self.SetPosition((max(0, new_x), max(0, new_y)))
+
+    def parse_forced_elements(self, force_text):
+        """Parse forced elements text into elements and core levels"""
+        if not force_text.strip():
+            return [], []
+
+        forced_elements = []
+        forced_core_levels = []
+
+        items = [item.strip() for item in force_text.split(',')]
+
+        for item in items:
+            if not item:
+                continue
+
+            # Check if it contains digits (core level like Ni2p, Br3d) or 'kll' (Auger)
+            has_digits = any(c.isdigit() for c in item)
+            has_auger = 'kll' in item.lower()
+
+            if has_digits or has_auger:
+                # It's a specific core level
+                forced_core_levels.append(item)
+            else:
+                # It's just an element
+                forced_elements.append(item)
+
+        return forced_elements, forced_core_levels
+
+    def get_element_core_levels_by_rsf(self, element):
+        """Get core levels for an element sorted by RSF (highest first)"""
+        core_levels = []
+
+        print(f"DEBUG: Looking for element '{element}' in library data")
+        print(f"DEBUG: Library data has {len(self.auto_survey_id.library_data)} entries")
+
+        # Get all possible orbitals for this element from library
+        found_entries = []
+        for (lib_element, orbital), data in self.auto_survey_id.library_data.items():
+            if lib_element.lower() == element.lower():
+                found_entries.append((lib_element, orbital, data))
+                print(f"DEBUG: Found {lib_element}{orbital} in library")
+
+        print(f"DEBUG: Found {len(found_entries)} entries for {element}")
+
+        if not found_entries:
+            print(f"DEBUG: No entries found for {element}. Checking first 10 library keys:")
+            keys = list(self.auto_survey_id.library_data.keys())[:10]
+            for key in keys:
+                print(f"DEBUG: Available key: {key}")
+            return []
+
+        for lib_element, orbital, data in found_entries:
+            instrument = self.parent.current_instrument
+            print(f"DEBUG: Checking instrument '{instrument}' for {lib_element}{orbital}")
+            print(f"DEBUG: Available instruments: {list(data.keys())}")
+
+            if instrument not in data:
+                instrument = next(iter(data))
+                print(f"DEBUG: Using fallback instrument: {instrument}")
+
+            if 'rsf' in data[instrument]:
+                rsf = float(data[instrument]['rsf'])
+                if 'be' in data[instrument]:
+                    be = float(data[instrument]['be'])
+                    core_levels.append({
+                        'orbital': orbital,
+                        'assignment': f"{element}{orbital}",
+                        'be': be,
+                        'rsf': rsf
+                    })
+                    print(f"DEBUG: Added {element}{orbital}: BE={be:.2f}, RSF={rsf:.3f}")
+                else:
+                    print(f"DEBUG: No 'be' data for {lib_element}{orbital}")
+            else:
+                print(f"DEBUG: No 'rsf' data for {lib_element}{orbital}")
+
+        # Sort by RSF (highest first)
+        core_levels.sort(key=lambda x: x['rsf'], reverse=True)
+        print(f"DEBUG: Final core levels for {element}: {[cl['assignment'] for cl in core_levels]}")
+        return core_levels
+
+    def on_create_labels(self, event):
+        """Create labels only - remove existing labels first"""
+        try:
+            # Remove all existing labels
+            self._remove_all_labels()
+
+            # Get selected peaks from results
+            selected_peaks = self._get_selected_assigned_peaks()
+
+            if not selected_peaks:
+                wx.MessageBox("No assigned peaks found to create labels", "No Peaks", wx.OK | wx.ICON_INFORMATION)
+                return
+
+            # Create labels for selected peaks
+            for peak_data in selected_peaks:
+                self._create_label(peak_data)
+
+            # Refresh canvas
+            self.parent.canvas.draw_idle()
+
+            wx.MessageBox(f"Created {len(selected_peaks)} labels", "Labels Created", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating labels: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_create_regions_labels(self, event):
+        """Create regions and labels - remove existing regions and labels first"""
+        try:
+            # Remove all existing regions and labels
+            self._remove_all_regions_and_labels()
+
+            # Get selected peaks from results
+            selected_peaks = self._get_selected_assigned_peaks()
+
+            if not selected_peaks:
+                wx.MessageBox("No assigned peaks found to create regions", "No Peaks", wx.OK | wx.ICON_INFORMATION)
+                return
+
+            # Create regions and labels for selected peaks
+            for peak_data in selected_peaks:
+                self._create_region_and_label(peak_data)
+
+            # Refresh canvas
+            self.parent.canvas.draw_idle()
+
+            wx.MessageBox(f"Created {len(selected_peaks)} regions with labels", "Regions Created", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating regions: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _remove_all_labels(self):
+        """Remove all existing labels from the plot"""
+        # Remove text annotations
+        if hasattr(self.parent, 'ax'):
+            for text in self.parent.ax.texts[:]:
+                text.remove()
+
+    def _remove_all_regions_and_labels(self):
+        """Remove all existing regions, labels, and reset background"""
+        # Remove all labels
+        self._remove_all_labels()
+
+        # Remove regions (this depends on your region implementation)
+        # You might need to adapt this based on how regions are stored
+        if hasattr(self.parent, 'regions'):
+            self.parent.regions.clear()
+
+        # Reset background data to raw data
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if sheet_name in self.parent.Data['Core levels']:
+            if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+                raw_data = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = raw_data.copy()
+
+        # Clear any existing background processing and replot
+        self.parent.clear_and_replot()
+
+    def _get_selected_assigned_peaks(self):
+        """Get all assigned peaks from the results"""
+        selected_peaks = []
+
+        for peak in self.all_peaks:
+            if peak.get('assigned') and not peak.get('dismissed'):
+                assignment = peak.get('assignment', '')
+                if assignment:
+                    selected_peaks.append({
+                        'assignment': assignment,
+                        'position': peak['position'],
+                        'prominence': peak['prominence'],
+                        'confidence': peak.get('confidence', 0)
+                    })
+
+        return selected_peaks
+
+    def _create_label(self, peak_data):
+        """Create a text label for a peak"""
+        if not hasattr(self.parent, 'ax'):
+            return
+
+        position = peak_data['position']
+        assignment = peak_data['assignment']
+
+        # Get y position for label (slightly above the peak)
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if sheet_name in self.parent.Data['Core levels']:
+            y_data = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+            x_data = self.parent.Data['Core levels'][sheet_name]['B.E.']
+
+            # Find closest x point to position
+            closest_idx = min(range(len(x_data)), key=lambda i: abs(x_data[i] - position))
+            y_pos = y_data[closest_idx] * 1.1  # 10% above peak
+
+            # Create label
+            self.parent.ax.annotate(assignment,
+                                    xy=(position, y_pos),
+                                    xytext=(position, y_pos * 1.2),
+                                    ha='center', va='bottom',
+                                    fontsize=9,
+                                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
+
+    def _create_region_and_label(self, peak_data):
+        """Create a region and label for a peak"""
+        # First create the label
+        self._create_label(peak_data)
+
+        # Then create a region (you'll need to adapt this based on your region system)
+        # This is a placeholder - you'll need to implement based on your region creation logic
+        position = peak_data['position']
+        assignment = peak_data['assignment']
+
+        # Create a simple region around the peak (±2 eV)
+        region_width = 4.0  # Total width of 4 eV
+        region_start = position - region_width / 2
+        region_end = position + region_width / 2
+
+        # Add vertical lines to show region boundaries
+        if hasattr(self.parent, 'ax'):
+            self.parent.ax.axvline(region_start, color='red', linestyle='--', alpha=0.5)
+            self.parent.ax.axvline(region_end, color='red', linestyle='--', alpha=0.5)
+
+            # Add region to parent if it has a regions system
+            if hasattr(self.parent, 'regions'):
+                if not isinstance(self.parent.regions, list):
+                    self.parent.regions = []
+                self.parent.regions.append({
+                    'start': region_start,
+                    'end': region_end,
+                    'assignment': assignment
+                })
+
 
     def OnClose(self, event):
         """Handle dialog close event"""
@@ -2684,6 +2908,9 @@ class Method2Identifier:
         # Step 2: Dismiss wide peaks
         self._dismiss_wide_peaks()
 
+        # Step 2.5: Process forced elements BEFORE usual suspects
+        self._process_forced_elements()
+
         # Step 3: Look for usual suspects
         self._identify_usual_suspects()
 
@@ -2693,7 +2920,6 @@ class Method2Identifier:
         # Update tables and status
         self._populate_results()
         self.parent_window.status_text.SetLabel(f"Method 2 complete. Analyzed {len(self.parent_window.all_peaks)} peaks.")
-
     def _find_peaks(self):
         """Find peaks - same as Method 1"""
         # Use Method 1's peak finding
@@ -3695,6 +3921,183 @@ class Method2Identifier:
             if peak.get('assignment') == main_assignment:
                 return True
         return False
+
+    def _process_forced_elements(self):
+        """Process forced elements/core levels before usual suspects - prioritize assignment to found peaks"""
+        self.process_log.append("=== Step 2.5: Processing Forced Elements ===")
+
+        # Process forced elements/core levels first
+        forced_elements, forced_core_levels = self.parent_window.parse_forced_elements(
+            self.parent_window.force_elements_ctrl.GetValue()
+        )
+
+        if not forced_elements and not forced_core_levels:
+            self.process_log.append("No forced elements specified")
+            return
+
+        self.process_log.append(f"Forced elements: {forced_elements}")
+        self.process_log.append(f"Forced core levels: {forced_core_levels}")
+
+        # Process forced elements - look at ALL found peaks and see what matches
+        for element in forced_elements:
+            self.process_log.append(f"\n--- Processing forced element: {element} ---")
+
+            # Get all possible assignments for this element from existing peaks
+            element_assignments = []
+            for peak in self.parent_window.all_peaks:
+                if peak.get('assigned') or peak.get('dismissed'):
+                    continue
+
+                # Get possible assignments for this peak
+                possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+
+                # Filter for this specific element
+                element_possibilities = [p for p in possible if p['element'].lower() == element.lower()]
+
+                if element_possibilities:
+                    # Sort by distance (closest first)
+                    element_possibilities.sort(key=lambda x: x['distance'])
+                    best_match = element_possibilities[0]
+
+                    # Get proper RSF from library instead of using default
+                    rsf = self._get_rsf_for_assignment(best_match['assignment'])
+
+                    element_assignments.append({
+                        'peak': peak,
+                        'assignment': best_match['assignment'],
+                        'distance': best_match['distance'],
+                        'rsf': rsf,  # Use proper RSF
+                        'orbital': best_match['orbital']
+                    })
+
+            # Sort element assignments by RSF (highest first) to prioritize most prominent lines
+            element_assignments.sort(key=lambda x: x['rsf'], reverse=True)
+
+            self.process_log.append(f"Found {len(element_assignments)} possible assignments for {element}:")
+            for ea in element_assignments:
+                self.process_log.append(f"  {ea['assignment']} at {ea['peak']['position']:.2f} eV (distance: {ea['distance']:.2f}, RSF: {ea['rsf']:.3f})")
+
+            # Assign the highest RSF peaks first (most prominent core levels)
+            assigned_count = 0
+            main_peak = None
+
+            for ea in element_assignments:
+                if ea['peak'].get('assigned') or ea['peak'].get('dismissed'):
+                    continue  # Skip if already assigned
+
+                # Assign with high priority
+                self._assign_peak(ea['peak'], ea['assignment'], confidence=95, locked=True)
+                self.process_log.append(f"  ✓ FORCED: {ea['assignment']} at {ea['peak']['position']:.2f} eV (RSF: {ea['rsf']:.3f})")
+                assigned_count += 1
+
+                # Remember the main peak (highest RSF)
+                if main_peak is None:
+                    main_peak = ea
+
+            if assigned_count > 0:
+                self.process_log.append(f"  Successfully assigned {assigned_count} core levels for forced element {element}")
+            else:
+                self.process_log.append(f"  ✗ No assignable peaks found for forced element {element}")
+
+        # Process forced core levels (same RSF fix applies here too)
+        for core_level_str in forced_core_levels:
+            self.process_log.append(f"\n--- Processing forced core level: {core_level_str} ---")
+
+            # Parse element and orbital from string like "Ni2p" or "Nakll"
+            element = ""
+            orbital = ""
+
+            if 'kll' in core_level_str.lower():
+                element = core_level_str.lower().replace('kll', '')
+                orbital = 'kll'
+            else:
+                # Find where digits start
+                for i, char in enumerate(core_level_str):
+                    if char.isdigit():
+                        element = core_level_str[:i]
+                        orbital = core_level_str[i:]
+                        break
+
+            if element and orbital:
+                assignment = f"{element}{orbital}"
+                self.process_log.append(f"Looking for assignment: {assignment}")
+
+                # Find the best peak for this specific core level
+                best_peak = None
+                best_distance = float('inf')
+                best_rsf = 1.0
+
+                for peak in self.parent_window.all_peaks:
+                    if peak.get('assigned') or peak.get('dismissed'):
+                        continue
+
+                    # Get possible assignments for this peak
+                    possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+
+                    # Look for exact assignment match
+                    for p in possible:
+                        if p['assignment'].lower() == assignment.lower():
+                            if p['distance'] < best_distance:
+                                best_distance = p['distance']
+                                best_peak = peak
+                                # Get proper RSF from library
+                                best_rsf = self._get_rsf_for_assignment(p['assignment'])
+                                break
+
+                if best_peak:
+                    self._assign_peak(best_peak, assignment, confidence=95, locked=True)
+                    self.process_log.append(f"  ✓ FORCED: {assignment} at {best_peak['position']:.2f} eV (distance: {best_distance:.2f}, RSF: {best_rsf:.3f})")
+
+                    # Look for related core levels of this element
+                    related_assignments = []
+                    for peak in self.parent_window.all_peaks:
+                        if peak.get('assigned') or peak.get('dismissed'):
+                            continue
+                        if peak == best_peak:
+                            continue
+
+                        # Get possible assignments for this peak
+                        possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+
+                        # Filter for this specific element
+                        element_possibilities = [p for p in possible if p['element'].lower() == element.lower()]
+
+                        if element_possibilities:
+                            element_possibilities.sort(key=lambda x: x['distance'])
+                            related_rsf = self._get_rsf_for_assignment(element_possibilities[0]['assignment'])
+                            related_assignments.append({
+                                'peak': peak,
+                                'assignment': element_possibilities[0]['assignment'],
+                                'distance': element_possibilities[0]['distance'],
+                                'rsf': related_rsf  # Use proper RSF
+                            })
+
+                    # Sort by RSF and assign related peaks
+                    related_assignments.sort(key=lambda x: x['rsf'], reverse=True)
+                    related_assigned = 0
+
+                    for ra in related_assignments[:3]:  # Limit to top 3 related peaks
+                        # Check intensity ratio reasonableness
+                        intensity_ratio = ra['peak']['prominence'] / best_peak['prominence']
+                        rsf_ratio = ra['rsf'] / best_rsf if best_rsf > 0 else 1
+
+                        # More flexible ratio check for forced assignments
+                        if rsf_ratio == 0 or 0.05 <= intensity_ratio / rsf_ratio <= 20:
+                            self._assign_peak(ra['peak'], ra['assignment'], confidence=90, locked=True)
+                            self.process_log.append(f"  ✓ Related: {ra['assignment']} at {ra['peak']['position']:.2f} eV (RSF: {ra['rsf']:.3f})")
+                            related_assigned += 1
+                        else:
+                            self.process_log.append(f"  ✗ {ra['assignment']} at {ra['peak']['position']:.2f} eV rejected (RSF ratio: {intensity_ratio / rsf_ratio:.2f})")
+
+                    if related_assigned > 0:
+                        self.process_log.append(f"  Also assigned {related_assigned} related core levels for {element}")
+
+                else:
+                    self.process_log.append(f"  ✗ No peak found for forced core level {core_level_str}")
+            else:
+                self.process_log.append(f"  ✗ Could not parse element and orbital from {core_level_str}")
+
+        self.process_log.append("=== Completed Forced Elements Processing ===\n")
 
     def get_process_description(self):
         """Get detailed process description for Method 2"""
