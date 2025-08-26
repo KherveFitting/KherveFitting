@@ -31,34 +31,34 @@ def check_first_time_use(frame):
                 # Make sure config is also updated
                 frame.save_config()
 
-    elif times_opened == 4:
-        # Show manual dialog on second run
-        dlg = wx.MessageDialog(frame,
-                              "Would you like to open the manual to the Getting Started section?",
-                              "Welcome to KherveFitting",
-                              wx.YES_NO | wx.ICON_QUESTION)
-
-        if dlg.ShowModal() == wx.ID_YES:
-            import os
-            import sys
-            import platform
-            import subprocess
-
-            if getattr(sys, 'frozen', False):
-                application_path = os.path.dirname(sys.executable)
-            else:
-                application_path = os.path.dirname(os.path.abspath(__file__))
-
-            manual_path = os.path.join(application_path, "Manual.pdf")
-
-            if platform.system() == 'Windows':
-                os.startfile(manual_path)
-            elif platform.system() == 'Darwin':  # macOS
-                subprocess.call(['open', manual_path])
-            else:  # Linux and other Unix-like systems
-                subprocess.call(['xdg-open', manual_path])
-
-        dlg.Destroy()
+    # elif times_opened == 4:
+    #     # Show manual dialog on second run
+    #     dlg = wx.MessageDialog(frame,
+    #                           "Would you like to open the manual to the Getting Started section?",
+    #                           "Welcome to KherveFitting",
+    #                           wx.YES_NO | wx.ICON_QUESTION)
+    #
+    #     if dlg.ShowModal() == wx.ID_YES:
+    #         import os
+    #         import sys
+    #         import platform
+    #         import subprocess
+    #
+    #         if getattr(sys, 'frozen', False):
+    #             application_path = os.path.dirname(sys.executable)
+    #         else:
+    #             application_path = os.path.dirname(os.path.abspath(__file__))
+    #
+    #         manual_path = os.path.join(application_path, "Manual.pdf")
+    #
+    #         if platform.system() == 'Windows':
+    #             os.startfile(manual_path)
+    #         elif platform.system() == 'Darwin':  # macOS
+    #             subprocess.call(['open', manual_path])
+    #         else:  # Linux and other Unix-like systems
+    #             subprocess.call(['xdg-open', manual_path])
+    #
+    #     dlg.Destroy()
 
     # Update times_opened in the frame's attribute
     frame.times_opened = times_opened + 1

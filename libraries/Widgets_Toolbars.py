@@ -1482,9 +1482,16 @@ def create_examples_menu(window):
     """Create dynamic examples menu from Open Examples folder structure"""
     examples_menu = wx.Menu()
 
-    # Get the path to Open Examples folder (same level as kherveFitting)
-    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    examples_path = os.path.join(current_dir, "Data-Examples")
+    # Get the path to Data-Examples folder (same level as executable)
+    import sys
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        executable_dir = os.path.dirname(sys.executable)
+    else:
+        # Running from source
+        executable_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    examples_path = os.path.join(executable_dir, "Data-Examples")
 
     if not os.path.exists(examples_path):
         no_examples_item = examples_menu.Append(wx.NewId(), "No Examples Folder Found")
