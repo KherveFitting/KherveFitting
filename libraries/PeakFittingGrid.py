@@ -80,11 +80,16 @@ class PeakFittingGrid:
         # Assign letter IDs
         letter_id = chr(64 + self.window.peak_count)
 
+        # Extract core level name using the existing method from plot manager
+        core_level_name = self.window.plot_manager.extract_core_level_name(sheet_name)
+        if core_level_name is None:
+            core_level_name = sheet_name  # Fallback to sheet_name if extraction fails
 
         # Set values in the grid
         self.window.peak_params_grid.SetCellValue(row, 0, letter_id)
         self.window.peak_params_grid.SetReadOnly(row, 0)
-        self.window.peak_params_grid.SetCellValue(row, 1, f"{sheet_name} p{self.window.peak_count}")
+        # self.window.peak_params_grid.SetCellValue(row, 1, f"{sheet_name} p{self.window.peak_count}")
+        self.window.peak_params_grid.SetCellValue(row, 1, f"{core_level_name} p{self.window.peak_count}")
         self.window.peak_params_grid.SetCellValue(row, 2, f"{peak_x:.2f}")
         self.window.peak_params_grid.SetCellValue(row, 3, f"{peak_y:.2f}")
         if is_raman:
@@ -556,7 +561,7 @@ class PeakFittingGrid:
                 }
             })
 
-        self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][sheet_name + f" p{self.window.peak_count}"] = peak_data
+        self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][core_level_name + f" p{self.window.peak_count}"] = peak_data
         # print(self.window.Data)
         self.window.show_hide_vlines()
 
