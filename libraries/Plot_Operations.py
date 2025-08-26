@@ -625,8 +625,81 @@ class PlotManager:
             line_color = color
 
         line_alpha = min(alpha + 0.1, 1)
+        # if self.peak_fill_enabled:
+        #     label = peak_label
+        #
+        #     # Identify doublets
+        #     num_peaks = window.peak_params_grid.GetNumberRows() // 2
+        #     doublets = []
+        #     for i in range(0, num_peaks - 1):
+        #         current_label = window.peak_params_grid.GetCellValue(i * 2, 1)
+        #         next_label = window.peak_params_grid.GetCellValue((i + 1) * 2, 1)
+        #         if self.is_part_of_doublet(current_label, next_label):
+        #             doublets.extend([i, i + 1])
+        #
+        #     # Find current peak index
+        #     for i in range(num_peaks):
+        #         if window.peak_params_grid.GetCellValue(i * 2, 1) == peak_label:
+        #             peak_index = i
+        #             break
+        #
+        #     # If part of doublet, get fill type from first peak of the pair
+        #     if peak_index in doublets:
+        #         if doublets.index(peak_index) % 2 == 1:  # Second peak of doublet
+        #             peak_index = peak_index - 1  # Use first peak's settings
+        #
+        #     if window.peak_fill_types[peak_index] == "Solid Fill":
+        #         fill_params = {
+        #             'color': color,
+        #             'alpha': alpha,
+        #             'edgecolor': 'none'
+        #         }
+        #     elif window.peak_fill_types[peak_index] == "Hatch":
+        #         fill_params = {
+        #             'color': 'none',
+        #             'hatch': window.peak_hatch_patterns[peak_index] * window.hatch_density,
+        #             'linewidth': window.peak_line_thickness,
+        #             'edgecolor': color,
+        #             'alpha': alpha
+        #         }
+        #     elif window.peak_fill_types[peak_index] == "None":
+        #         # Skip the fill_between call and only draw the line
+        #         if window.peak_line_style != "No Line":
+        #             if window.energy_scale == 'KE':
+        #                 self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+        #                              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
+        #                              label=peak_label)
+        #             else:
+        #                 self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+        #                              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
+        #                              label=peak_label)
+        #         return peak_y
+
+        # From Here---------------------------------------
+
         if self.peak_fill_enabled:
             label = peak_label
+
+            # Get background regions from recorded ranges
+            bg_regions = self.get_background_regions(window)
+
+            # Apply background region masking using NaN - DO THIS FIRST
+            if bg_regions is not None and len(bg_regions) > 0:
+                # Create mask for all background regions
+                region_mask = np.zeros(len(x_values), dtype=bool)
+                for bg_start, bg_end in bg_regions:
+                    region_mask |= (x_values >= bg_start) & (x_values <= bg_end)
+
+                # Mask the data using NaN instead of removing points
+                peak_y_masked = peak_y.copy()
+                peak_y_masked[~region_mask] = np.nan
+
+                background_masked = background.copy()
+                background_masked[~region_mask] = np.nan
+            else:
+                # No masking - use original data
+                peak_y_masked = peak_y
+                background_masked = background
 
             # Identify doublets
             num_peaks = window.peak_params_grid.GetNumberRows() // 2
@@ -638,6 +711,7 @@ class PlotManager:
                     doublets.extend([i, i + 1])
 
             # Find current peak index
+            peak_index = 0  # Default value
             for i in range(num_peaks):
                 if window.peak_params_grid.GetCellValue(i * 2, 1) == peak_label:
                     peak_index = i
@@ -665,22 +739,46 @@ class PlotManager:
             elif window.peak_fill_types[peak_index] == "None":
                 # Skip the fill_between call and only draw the line
                 if window.peak_line_style != "No Line":
+                    # Determine line color
+                    if window.peak_line_style == "Black":
+                        line_color = "black"
+                    elif window.peak_line_style == "Grey":
+                        line_color = "grey"
+                    elif window.peak_line_style == "Yellow":
+                        line_color = "yellow"
+                    else:  # same_color
+                        line_color = color
+
                     if window.energy_scale == 'KE':
-                        self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                        self.ax.plot(window.photons - x_values, peak_y_masked, color=line_color, alpha=window.peak_line_alpha,
                                      linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
                                      label=peak_label)
                     else:
-                        self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                        self.ax.plot(x_values, peak_y_masked, color=line_color, alpha=window.peak_line_alpha,
                                      linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
                                      label=peak_label)
-                return peak_y
+                return peak_y            # TO HERE-------------------------------------------
 
-            if window.energy_scale == 'KE':
-                self.ax.fill_between(window.photons - x_values, background, peak_y,
-                                     interpolate=True, label=peak_label, **fill_params)
+            # if window.energy_scale == 'KE':
+            #     self.ax.fill_between(window.photons - x_values, background, peak_y,
+            #                          interpolate=True, label=peak_label, **fill_params)
+            # else:
+            #     self.ax.fill_between(x_values, background, peak_y,
+            #                          interpolate=True, label=peak_label, **fill_params)
+
+            if bg_regions is not None and len(bg_regions) > 0:
+                # Use masked data - only show within background regions
+                if window.energy_scale == 'KE':
+                    self.ax.fill_between(window.photons - x_values, background_masked, peak_y_masked, label=label, **fill_params)
+                else:
+                    self.ax.fill_between(x_values, background_masked, peak_y_masked, label=label, **fill_params)
             else:
-                self.ax.fill_between(x_values, background, peak_y,
-                                     interpolate=True, label=peak_label, **fill_params)
+                # Use full data (no masking) - show everywhere
+                if window.energy_scale == 'KE':
+                    self.ax.fill_between(window.photons - x_values, background, peak_y, label=label, **fill_params)
+                else:
+                    self.ax.fill_between(x_values, background, peak_y, label=label, **fill_params)
+            # AND THIS-----------------------------------------
 
             if window.peak_line_style != "No Line":
                 if window.peak_line_style == "Black":
@@ -691,13 +789,35 @@ class PlotManager:
                     line_color = "yellow"
                 else:  # same_color
                     line_color = color
-                if window.energy_scale == 'KE':
+                # if window.energy_scale == 'KE':
+                #
+                #     self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                #              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+                # else:
+                #     self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                #              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
 
-                    self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
-                             linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+                # From Here---------------------------------------
+
+                # Use the same masking as above
+                if bg_regions is not None and len(bg_regions) > 0:
+                    # Use the same masked data
+                    if window.energy_scale == 'KE':
+                        self.ax.plot(window.photons - x_values, peak_y_masked, color=line_color, alpha=window.peak_line_alpha,
+                                     linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+                    else:
+                        self.ax.plot(x_values, peak_y_masked, color=line_color, alpha=window.peak_line_alpha,
+                                     linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
                 else:
-                    self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
-                             linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+                    # No masking - use original data
+                    if window.energy_scale == 'KE':
+                        self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                                     linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+                    else:
+                        self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
+                                     linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
+
+                # TO HERE-------------------------------------------
 
         else:
             if window.energy_scale == 'KE':
@@ -1166,18 +1286,62 @@ class PlotManager:
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
                                                 color=color, alpha=alpha)
 
+        # # Only plot background if it's different from raw data or if Bkg Type is not empty
+        # if (core_level_data['Background'].get('Bkg Type') != "" and
+        #         core_level_data['Background'].get('Bkg Low') != "" and
+        #         core_level_data['Background'].get('Bkg High') != ""):
+        #     if window.energy_scale == 'KE':
+        #         self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
+        #                      color=self.background_color, linewidth=self.background_thickness,
+        #                      linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+        #     else:
+        #         self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
+        #                      linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+        #                      linewidth=self.background_thickness)
+
+        # ADD NEW CODE HERE-----------------------------------
+
         # Only plot background if it's different from raw data or if Bkg Type is not empty
         if (core_level_data['Background'].get('Bkg Type') != "" and
                 core_level_data['Background'].get('Bkg Low') != "" and
                 core_level_data['Background'].get('Bkg High') != ""):
-            if window.energy_scale == 'KE':
-                self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
-                             color=self.background_color, linewidth=self.background_thickness,
-                             linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+
+            # Get background regions for masking
+            bg_regions = self.get_background_regions(window)
+
+            # Apply background region masking to background line
+            bg_x = x_values.copy()
+            bg_y = np.array(core_level_data['Background']['Bkg Y'])
+
+            if bg_regions is not None and len(bg_regions) > 0:
+                # Create mask for all background regions
+                region_mask = np.zeros(len(bg_x), dtype=bool)
+                for bg_start, bg_end in bg_regions:
+                    region_mask |= (bg_x >= bg_start) & (bg_x <= bg_end)
+
+                # Instead of removing points, set non-region points to NaN
+                bg_y_masked = bg_y.copy()
+                bg_y_masked[~region_mask] = np.nan
+
+                if window.energy_scale == 'KE':
+                    self.ax.plot(window.photons - bg_x, bg_y_masked,
+                                 color=self.background_color, linewidth=self.background_thickness,
+                                 linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+                else:
+                    self.ax.plot(bg_x, bg_y_masked, color=self.background_color,
+                                 linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+                                 linewidth=self.background_thickness)
             else:
-                self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
-                             linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
-                             linewidth=self.background_thickness)
+                # Plot full background if no regions defined
+                if window.energy_scale == 'KE':
+                    self.ax.plot(window.photons - bg_x, bg_y,
+                                 color=self.background_color, linewidth=self.background_thickness,
+                                 linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
+                else:
+                    self.ax.plot(bg_x, bg_y, color=self.background_color,
+                                 linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
+                                 linewidth=self.background_thickness)
+        # TO HERE-------------------------------------------
 
 
         # Update overall fit and residuals
@@ -1624,34 +1788,120 @@ class PlotManager:
 
 
 
-        # Plot the overall fit
+        # # Plot the overall fit
+        # try:
+        #     good_indices = ~np.isnan(overall_fit)
+        #     x_plot = x_values[good_indices]
+        #     y_plot = overall_fit[good_indices]
+        #     # x_plot = x_values
+        #     # y_plot = overall_fit
+        #     if window.energy_scale == 'KE':
+        #         self.ax.plot(window.photons - window.x_values, overall_fit, color=self.envelope_color,
+        #                      linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+        #                      linewidth=self.envelope_thickness,
+        #                      label='D-parameter' if fitting_model == "D-parameter" else
+        #                             'Fermi' if fitting_model == "Fermi" else
+        #                             'VBM' if fitting_model == "VBM" else
+        #                             'Cut-Off' if fitting_model == "Cut-Off" else
+        #                             'Overall Fit')
+        #     else:
+        #         # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
+        #         self.ax.plot(x_plot, y_plot, color=self.envelope_color,
+        #                      linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+        #                      linewidth=self.envelope_thickness,
+        #                      label='D-parameter' if fitting_model == "D-parameter" else
+        #                      'Fermi' if fitting_model == "Fermi" else
+        #                      'VBM' if fitting_model == "VBM" else
+        #                      'Cut-Off' if fitting_model == "Cut-Off" else
+        #                      'Overall Fit')
+        # except:
+        #     return
+
+        # Add HERE --------------------------------
+        # Get background regions for envelope masking too
+        bg_regions = self.get_background_regions(window)
+
+        # Plot the overall fit with region masking
         try:
             good_indices = ~np.isnan(overall_fit)
             x_plot = x_values[good_indices]
             y_plot = overall_fit[good_indices]
-            # x_plot = x_values
-            # y_plot = overall_fit
-            if window.energy_scale == 'KE':
-                self.ax.plot(window.photons - window.x_values, overall_fit, color=self.envelope_color,
-                             linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
-                             linewidth=self.envelope_thickness,
-                             label='D-parameter' if fitting_model == "D-parameter" else
-                                    'Fermi' if fitting_model == "Fermi" else
-                                    'VBM' if fitting_model == "VBM" else
-                                    'Cut-Off' if fitting_model == "Cut-Off" else
-                                    'Overall Fit')
+
+            # Apply background region masking to envelope
+            if bg_regions is not None and len(bg_regions) > 0:
+                region_mask = np.zeros(len(x_plot), dtype=bool)
+                for bg_start, bg_end in bg_regions:
+                    region_mask |= (x_plot >= bg_start) & (x_plot <= bg_end)
+
+                # Set non-region points to NaN instead of removing them
+                y_plot_masked = y_plot.copy()
+                y_plot_masked[~region_mask] = np.nan
+
+                if window.energy_scale == 'KE':
+                    self.ax.plot(window.photons - x_plot, y_plot_masked, color=self.envelope_color,
+                                 linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                                 linewidth=self.envelope_thickness,
+                                 label='D-parameter' if fitting_model == "D-parameter" else
+                                 'Fermi' if fitting_model == "Fermi" else
+                                 'VBM' if fitting_model == "VBM" else
+                                 'Cut-Off' if fitting_model == "Cut-Off" else
+                                 'Overall Fit')
+                else:
+                    self.ax.plot(x_plot, y_plot_masked, color=self.envelope_color,
+                                 linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                                 linewidth=self.envelope_thickness,
+                                 label='D-parameter' if fitting_model == "D-parameter" else
+                                 'Fermi' if fitting_model == "Fermi" else
+                                 'VBM' if fitting_model == "VBM" else
+                                 'Cut-Off' if fitting_model == "Cut-Off" else
+                                 'Overall Fit')
             else:
-                # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
-                self.ax.plot(x_plot, y_plot, color=self.envelope_color,
-                             linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
-                             linewidth=self.envelope_thickness,
-                             label='D-parameter' if fitting_model == "D-parameter" else
-                             'Fermi' if fitting_model == "Fermi" else
-                             'VBM' if fitting_model == "VBM" else
-                             'Cut-Off' if fitting_model == "Cut-Off" else
-                             'Overall Fit')
+                # Plot full envelope if no masking
+                if window.energy_scale == 'KE':
+                    self.ax.plot(window.photons - x_plot, y_plot, color=self.envelope_color,
+                                 linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                                 linewidth=self.envelope_thickness,
+                                 label='D-parameter' if fitting_model == "D-parameter" else
+                                 'Fermi' if fitting_model == "Fermi" else
+                                 'VBM' if fitting_model == "VBM" else
+                                 'Cut-Off' if fitting_model == "Cut-Off" else
+                                 'Overall Fit')
+                else:
+                    self.ax.plot(x_plot, y_plot, color=self.envelope_color,
+                                 linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
+                                 linewidth=self.envelope_thickness,
+                                 label='D-parameter' if fitting_model == "D-parameter" else
+                                 'Fermi' if fitting_model == "Fermi" else
+                                 'VBM' if fitting_model == "VBM" else
+                                 'Cut-Off' if fitting_model == "Cut-Off" else
+                                 'Overall Fit')
         except:
             return
+        # Add END --------------------------------
+
+        # # Handle residuals based on state
+        # if hasattr(self, 'residuals_state'):
+        #     if self.residuals_state == 1:  # On main plot
+        #         residual_height = 1.07 * max(window.y_values)
+        #         residual_base = self.ax.axhline(y=residual_height, color='grey', linestyle='-.', alpha=0.1)
+        #
+        #         if window.energy_scale == 'KE':
+        #             residual_line = self.ax.plot(window.photons - window.x_values, masked_residuals + residual_height,
+        #                                          color=self.residual_color, linestyle=self.residual_linestyle,
+        #                                          alpha=self.residual_alpha, label='Residuals',
+        #                                          linewidth=self.residual_thickness)
+        #         else:
+        #             residual_line = self.ax.plot(window.x_values, masked_residuals + residual_height,
+        #                                          color=self.residual_color, linestyle=self.residual_linestyle,
+        #                                          alpha=self.residual_alpha, label='Residuals',
+        #                                          linewidth=self.residual_thickness)
+        #
+        #         residual_line[0].set_visible(True)
+        #         residual_base.set_visible(True)
+        #         self.ax.get_xaxis().set_visible(True)
+        #     elif self.residuals_state == 2:  # Separate subplot
+        #         self.setup_residual_subplot(window, x_values, masked_residuals, self.residual_thickness,
+        #                                     scaling_factor=1.0)
 
         # Handle residuals based on state
         if hasattr(self, 'residuals_state'):
@@ -1659,13 +1909,33 @@ class PlotManager:
                 residual_height = 1.07 * max(window.y_values)
                 residual_base = self.ax.axhline(y=residual_height, color='grey', linestyle='-.', alpha=0.1)
 
+                # Apply background region masking to residuals
+                bg_regions = self.get_background_regions(window)
+
+                if bg_regions is not None and len(bg_regions) > 0:
+                    # Create mask for residuals
+                    region_mask = np.zeros(len(window.x_values), dtype=bool)
+                    for bg_start, bg_end in bg_regions:
+                        region_mask |= (window.x_values >= bg_start) & (window.x_values <= bg_end)
+
+                    # Only mask if there are some data points in the regions
+                    if np.any(region_mask):
+                        masked_residuals_region = masked_residuals.copy()
+                        masked_residuals_region[~region_mask] = np.nan
+                    else:
+                        # No data points in background regions - skip residuals
+                        masked_residuals_region = np.full_like(masked_residuals, np.nan)
+                else:
+                    # No masking - use original masked residuals
+                    masked_residuals_region = masked_residuals
+
                 if window.energy_scale == 'KE':
-                    residual_line = self.ax.plot(window.photons - window.x_values, masked_residuals + residual_height,
+                    residual_line = self.ax.plot(window.photons - window.x_values, masked_residuals_region + residual_height,
                                                  color=self.residual_color, linestyle=self.residual_linestyle,
                                                  alpha=self.residual_alpha, label='Residuals',
                                                  linewidth=self.residual_thickness)
                 else:
-                    residual_line = self.ax.plot(window.x_values, masked_residuals + residual_height,
+                    residual_line = self.ax.plot(window.x_values, masked_residuals_region + residual_height,
                                                  color=self.residual_color, linestyle=self.residual_linestyle,
                                                  alpha=self.residual_alpha, label='Residuals',
                                                  linewidth=self.residual_thickness)
@@ -1674,9 +1944,27 @@ class PlotManager:
                 residual_base.set_visible(True)
                 self.ax.get_xaxis().set_visible(True)
             elif self.residuals_state == 2:  # Separate subplot
-                self.setup_residual_subplot(window, x_values, masked_residuals, self.residual_thickness,
-                                            scaling_factor=1.0)
+                # Apply same masking to subplot residuals
+                bg_regions = self.get_background_regions(window)
 
+                if bg_regions is not None and len(bg_regions) > 0:
+                    region_mask = np.zeros(len(x_values), dtype=bool)
+                    for bg_start, bg_end in bg_regions:
+                        region_mask |= (x_values >= bg_start) & (x_values <= bg_end)
+
+                    # Only proceed if there are valid data points
+                    if np.any(region_mask):
+                        masked_residuals_subplot = masked_residuals.copy()
+                        masked_residuals_subplot[~region_mask] = np.nan
+                        self.setup_residual_subplot(window, x_values, masked_residuals_subplot, self.residual_thickness,
+                                                    scaling_factor=1.0)
+                    # If no valid points, skip creating the subplot
+                else:
+                    masked_residuals_subplot = masked_residuals
+                    self.setup_residual_subplot(window, x_values, masked_residuals_subplot, self.residual_thickness,
+                                                scaling_factor=1.0)
+
+            # UP TO HERE---------------------------------
             else:
                 self.ax.get_xaxis().set_visible(True)
 
@@ -1737,7 +2025,7 @@ class PlotManager:
         self.canvas.draw_idle()
         return residuals
 
-    def setup_residual_subplot(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
+    def setup_residual_subplot_OLD(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
         # Create gridspec at start
         gs = self.figure.add_gridspec(20, 1, hspace=0.0)
 
@@ -1793,6 +2081,85 @@ class PlotManager:
 
         self.residuals_subplot.set_xlim(main_xlim[0], main_xlim[1])
 
+
+        # Set subplot to share x axis
+        self.residuals_subplot.sharex(self.ax)
+
+        # Final styling
+        self.residuals_subplot.tick_params(axis='both', labelsize=window.axis_number_size)
+        self.residuals_subplot.grid(True, alpha=0.8)
+        self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))
+        self.residuals_subplot.set_visible(True)
+        self.residuals_subplot.yaxis.set_visible(self.y_axis_visible)
+
+    def setup_residual_subplot(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
+        # Create gridspec at start
+        gs = self.figure.add_gridspec(20, 1, hspace=0.0)
+
+        if not self.residuals_subplot:
+            self.ax.set_position(gs[0:18, 0].get_position(self.figure))
+            self.residuals_subplot = self.figure.add_subplot(gs[18:, 0])
+
+        self.residuals_subplot.clear()
+
+        # Check if we have any valid (non-NaN) data points
+        scaled_residuals = masked_residuals * scaling_factor
+        if np.all(np.isnan(scaled_residuals)):
+            # All values are NaN - set a default range and return early
+            self.residuals_subplot.set_ylim(-1, 1)
+            self.residuals_subplot.set_ylabel('Res.')
+            return
+
+        # Determine x values based on energy scale
+        x_plot = window.photons - x_values if window.energy_scale == 'KE' else x_values
+
+        # Plot residuals
+        self.residuals_subplot.plot(x_plot, scaled_residuals,
+                                    color=self.residual_color,
+                                    linestyle=self.residual_linestyle,
+                                    alpha=self.residual_alpha,
+                                    linewidth=residual_thickness)
+
+        # Configure main plot
+        self.ax.get_xaxis().set_visible(False)
+
+        sheet_name = window.sheet_combobox.GetValue()
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
+        # Configure subplot
+        self.residuals_subplot.set_ylabel('Res.')
+        if is_raman:
+            self.residuals_subplot.set_xlabel('Wavenumber (cm$^{-1}$)')
+        elif window.energy_scale == 'KE':
+            self.residuals_subplot.set_xlabel('Kinetic Energy (eV)')
+        else:
+            self.residuals_subplot.set_xlabel('Binding Energy (eV)')
+        # x_label = "Kinetic Energy (eV)" if window.energy_scale == 'KE' else "Binding Energy (eV)"
+        # self.residuals_subplot.set_xlabel(x_label)
+        # self.residuals_subplot.set_xlabel('Binding Energy (eV)')
+        self.residuals_subplot.tick_params(axis='x', bottom=True, labelbottom=True,
+                                           labelsize=window.axis_number_size, pad=8)
+        self.residuals_subplot.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.residuals_subplot.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Set font sizes
+        self.residuals_subplot.xaxis.label.set_size(window.axis_title_size)
+        self.residuals_subplot.yaxis.label.set_size(window.axis_title_size)
+
+        # Set y limits with margin - only use valid (non-NaN) values
+        valid_residuals = masked_residuals[~np.isnan(masked_residuals)]
+        if len(valid_residuals) > 0:
+            y_min, y_max = np.min(valid_residuals), np.max(valid_residuals)
+            margin = 0.1 * (y_max - y_min) if y_max != y_min else 0.1
+            self.residuals_subplot.set_ylim(y_min - margin, y_max + margin)
+        else:
+            # Fallback if somehow we still have no valid residuals
+            self.residuals_subplot.set_ylim(-1, 1)
+
+        # Get current main plot limits
+        main_xlim = self.ax.get_xlim()
+
+        self.residuals_subplot.set_xlim(main_xlim[0], main_xlim[1])
 
         # Set subplot to share x axis
         self.residuals_subplot.sharex(self.ax)
@@ -2776,6 +3143,32 @@ class PlotManager:
 
             # Force canvas update
             window.canvas.draw_idle()
+
+    def get_background_regions(self, window):
+        """Get background regions from recorded ranges in window.Data"""
+        bg_regions = []
+        try:
+            sheet_name = window.sheet_combobox.GetValue()
+            if (sheet_name in window.Data['Core levels'] and
+                    'Background' in window.Data['Core levels'][sheet_name] and
+                    'Recorded_Ranges' in window.Data['Core levels'][sheet_name]['Background']):
+
+                recorded_ranges = window.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges']
+
+                for range_data in recorded_ranges:
+                    if len(range_data) >= 4:  # (offset_h, offset_l, min_range, max_range)
+                        offset_h, offset_l, min_range, max_range = range_data[:4]
+                        try:
+                            min_range = float(min_range)
+                            max_range = float(max_range)
+                            bg_regions.append((min(min_range, max_range), max(min_range, max_range)))
+                        except (ValueError, TypeError):
+                            continue
+        except:
+            pass
+
+        # Return None if no valid regions found (means show everything)
+        return bg_regions if bg_regions else None
 # --------------------- HISTORY --------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------
 
