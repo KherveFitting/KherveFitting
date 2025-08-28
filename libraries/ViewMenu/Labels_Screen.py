@@ -129,10 +129,20 @@ class LabelWindow(wx.Frame):
 
         self.update_list()
 
-    def on_parent_sheet_change(self, event):
+    def on_parent_sheet_change_OLD(self, event):
         """Update labels list when parent sheet selection changes"""
         self.update_list()
-        event.Skip()  # Let the parent handle the event too
+        # event.Skip()  # Let the parent handle the event too
+
+    def on_parent_sheet_change(self, event):
+        # Check if grid still exists before trying to update
+        if hasattr(self, 'labels_grid') and self.labels_grid:
+            try:
+                self.update_list()
+                # event.Skip()  # Let the parent handle the event too
+            except RuntimeError:
+                # Grid has been destroyed, ignore the update
+                pass
 
     def move_label(self, direction):
         # Get selection from grid
@@ -199,9 +209,17 @@ class LabelWindow(wx.Frame):
         self.move_label('right')
 
     def update_list(self):
-        # Clear existing rows
-        if self.labels_grid.GetNumberRows() > 0:
-            self.labels_grid.DeleteRows(0, self.labels_grid.GetNumberRows())
+        # Check if grid still exists and is valid
+        if not hasattr(self, 'labels_grid') or not self.labels_grid:
+            return
+
+        try:
+            # Clear existing rows
+            if self.labels_grid.GetNumberRows() > 0:
+                self.labels_grid.DeleteRows(0, self.labels_grid.GetNumberRows())
+        except RuntimeError:
+            # Grid has been destroyed, abort update
+            return
 
         sheet_name = self.parent.sheet_combobox.GetValue()
         if 'Labels' in self.parent.Data['Core levels'][sheet_name]:
@@ -823,6 +841,13 @@ class LabelWindow(wx.Frame):
         event.Skip()
 
     def on_close(self, event):
+        # Unbind parent sheet change event first
+        if hasattr(self.parent, 'sheet_combobox') and self.parent.sheet_combobox:
+            try:
+                self.parent.sheet_combobox.Unbind(wx.EVT_COMBOBOX, handler=self.on_parent_sheet_change)
+            except:
+                pass
+
         # Clear any selection before closing
         if self.selection_box:
             self.selection_box.remove()

@@ -588,13 +588,45 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
 
             num_rows = len(x_values)
             num_peaks = data['peak_params_grid'].GetNumberRows() // 2
+
             for i in range(num_peaks):
                 row = i * 2
                 peak_label = data['peak_params_grid'].GetCellValue(row, 1)
                 if i < len(data['individual_peak_fits']):
                     reversed_peak = np.array(data['individual_peak_fits'][i])[::-1]
                     trimmed_peak = np.roll(reversed_peak, -1)[:num_rows]
-                    new_columns[peak_label] = trimmed_peak
+
+                    # Zero out peak data outside background regions for Excel export
+                    masked_peak = trimmed_peak.copy()
+
+                    # Get background regions from window
+                    sheet_name = window.sheet_combobox.GetValue()
+                    if (sheet_name in window.Data['Core levels'] and
+                            'Background' in window.Data['Core levels'][sheet_name] and
+                            'Recorded_Ranges' in window.Data['Core levels'][sheet_name]['Background']):
+
+                        recorded_ranges = window.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges']
+
+                        if recorded_ranges:
+                            # Create mask for background regions
+                            x_values = data['x_values']
+                            region_mask = np.zeros(len(x_values), dtype=bool)
+
+                            for range_data in recorded_ranges:
+                                if len(range_data) >= 4:
+                                    offset_h, offset_l, min_range, max_range = range_data[:4]
+                                    try:
+                                        min_range = float(min_range)
+                                        max_range = float(max_range)
+                                        region_mask |= (x_values >= min(min_range, max_range)) & (x_values <= max(min_range, max_range))
+                                    except (ValueError, TypeError):
+                                        continue
+
+                            # Set values outside background regions to 0
+                            masked_peak[~region_mask] = np.nan
+
+                    new_columns[peak_label] = masked_peak
+
 
         # Now insert all columns at position 5
         col_pos = 5

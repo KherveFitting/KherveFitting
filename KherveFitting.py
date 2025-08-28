@@ -3067,6 +3067,15 @@ class MyFrame(wx.Frame):
                         for i in range(self.peak_params_grid.GetNumberRows() // 2):
                             peak_labels.append(self.peak_params_grid.GetCellValue(i * 2, 1))
 
+
+                        # Temporarily disable masking to get full-length data for Excel export
+                        original_get_bg_regions = self.plot_manager.get_background_regions
+                        self.plot_manager.get_background_regions = lambda window: None
+
+                        # Force a replot to get unmasked collections
+                        self.clear_and_replot()
+
+                        # Now extract the unmasked collection data
                         for collection in self.ax.collections:
                             # Check if the collection label matches any peak label
                             for peak_label in peak_labels:
@@ -3075,6 +3084,10 @@ class MyFrame(wx.Frame):
                                           f"max height: {max(collection.get_paths()[0].vertices[:, 1])}")
                                     data['individual_peak_fits'].append(collection.get_paths()[0].vertices[:, 1])
                                     break
+
+                        # Restore original masking function and replot with masking
+                        self.plot_manager.get_background_regions = original_get_bg_regions
+                        self.clear_and_replot()
 
         return data
 

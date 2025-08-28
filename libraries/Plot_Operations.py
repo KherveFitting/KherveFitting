@@ -690,16 +690,16 @@ class PlotManager:
                 for bg_start, bg_end in bg_regions:
                     region_mask |= (x_values >= bg_start) & (x_values <= bg_end)
 
-                # Mask the data using NaN instead of removing points
-                peak_y_masked = peak_y.copy()
+                # IMPORTANT: Always work with copies to avoid affecting original data
+                peak_y_masked = peak_y.copy()  # This is already a copy
                 peak_y_masked[~region_mask] = np.nan
 
-                background_masked = background.copy()
+                background_masked = background.copy()  # This is already a copy
                 background_masked[~region_mask] = np.nan
             else:
-                # No masking - use original data
-                peak_y_masked = peak_y
-                background_masked = background
+                # No masking - but still use copies
+                peak_y_masked = peak_y.copy()
+                background_masked = background.copy()
 
             # Identify doublets
             num_peaks = window.peak_params_grid.GetNumberRows() // 2
@@ -757,14 +757,8 @@ class PlotManager:
                         self.ax.plot(x_values, peak_y_masked, color=line_color, alpha=window.peak_line_alpha,
                                      linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
                                      label=peak_label)
-                return peak_y            # TO HERE-------------------------------------------
+                return peak_y  # CRITICAL: Return original peak_y, not peak_y_masked
 
-            # if window.energy_scale == 'KE':
-            #     self.ax.fill_between(window.photons - x_values, background, peak_y,
-            #                          interpolate=True, label=peak_label, **fill_params)
-            # else:
-            #     self.ax.fill_between(x_values, background, peak_y,
-            #                          interpolate=True, label=peak_label, **fill_params)
 
             if bg_regions is not None and len(bg_regions) > 0:
                 # Use masked data - only show within background regions
@@ -789,15 +783,7 @@ class PlotManager:
                     line_color = "yellow"
                 else:  # same_color
                     line_color = color
-                # if window.energy_scale == 'KE':
-                #
-                #     self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
-                #              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
-                # else:
-                #     self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
-                #              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
 
-                # From Here---------------------------------------
 
                 # Use the same masking as above
                 if bg_regions is not None and len(bg_regions) > 0:
@@ -817,7 +803,7 @@ class PlotManager:
                         self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
                                      linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern)
 
-                # TO HERE-------------------------------------------
+
 
         else:
             if window.energy_scale == 'KE':
