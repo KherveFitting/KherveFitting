@@ -256,12 +256,8 @@ class VB_measurements(wx.Frame):
         vbm_box = wx.StaticBox(left_panel, label="Valence Band Minimum / Cut-Off")
         vbm_sizer = wx.StaticBoxSizer(vbm_box, wx.VERTICAL)
 
-        # Method selection
-        self.vbm_method = wx.Choice(left_panel, choices=[
-            "Linear Extrapolation",
-            "Leading Edge Midpoint",
-            "Derivative Method"
-        ])
+        # Method selection (fixed to Linear Extrapolation only)
+        self.vbm_method = wx.Choice(left_panel, choices=["Linear Extrapolation"])
         self.vbm_method.SetSelection(0)
         vbm_sizer.Add(wx.StaticText(left_panel, label="Method:"), 0, wx.ALL, 5)
         vbm_sizer.Add(self.vbm_method, 0, wx.EXPAND | wx.ALL, 5)
@@ -784,13 +780,51 @@ Note: 16%-84% is the standard thermal width measure."""
             self.vbm_lines.append(signal_line)
 
 
+        # elif method == 1:  # Leading Edge Midpoint
+        #     # Find midpoint of leading edge
+        #     y_normalized = (y_vbm - np.min(y_vbm)) / (np.max(y_vbm) - np.min(y_vbm))
+        #     idx_midpoint = np.argmin(np.abs(y_normalized - 0.5))
+        #     vbm_position = x_vbm[idx_midpoint]
+        #
+        # elif method == 2:  # Derivative Method
+        #     # Calculate derivative
+        #     dy_dx = np.gradient(y_vbm, x_vbm)
+        #     # Find maximum derivative (steepest point)
+        #     idx_max = np.argmax(np.abs(dy_dx))
+        #     vbm_position = x_vbm[idx_max]
         elif method == 1:  # Leading Edge Midpoint
+            # Initialize variables for methods that don't use background
+            use_bg = False
+            center_edge = 0.0
+            bg_center = 0.0
+            n_points = 0
+            bg_points = 0
+            signal_coef = [0, 0]
+            bg_coef = None
+            x_signal_fit = np.array([])
+            y_signal_fit = np.array([])
+            x_bg_fit = np.array([])
+            y_bg_fit = np.array([])
+
             # Find midpoint of leading edge
             y_normalized = (y_vbm - np.min(y_vbm)) / (np.max(y_vbm) - np.min(y_vbm))
             idx_midpoint = np.argmin(np.abs(y_normalized - 0.5))
             vbm_position = x_vbm[idx_midpoint]
 
         elif method == 2:  # Derivative Method
+            # Initialize variables for methods that don't use background
+            use_bg = False
+            center_edge = 0.0
+            bg_center = 0.0
+            n_points = 0
+            bg_points = 0
+            signal_coef = [0, 0]
+            bg_coef = None
+            x_signal_fit = np.array([])
+            y_signal_fit = np.array([])
+            x_bg_fit = np.array([])
+            y_bg_fit = np.array([])
+
             # Calculate derivative
             dy_dx = np.gradient(y_vbm, x_vbm)
             # Find maximum derivative (steepest point)
@@ -804,13 +838,17 @@ Note: 16%-84% is the standard thermal width measure."""
         self.vbm_lines.append(vbm_line)
 
         # Update results
-        bg_info = ""
-        if use_bg:
-            bg_info = f"\nBackground Center: {bg_center:.2f} eV\nBackground Points: {len(x_bg_fit)} (requested: {bg_points})"
+        method_names = ["Linear Extrapolation", "Leading Edge Midpoint", "Derivative Method"]
+        method_name = method_names[method]
 
-        results_text = f"""VBM Analysis Results:
+        if method == 0:  # Linear Extrapolation
+            bg_info = ""
+            if use_bg:
+                bg_info = f"\nBackground Center: {bg_center:.2f} eV\nBackground Points: {len(x_bg_fit)} (requested: {bg_points})"
 
-Method: Linear Extrapolation
+            results_text = f"""VBM Analysis Results:
+
+Method: {method_name}
 VBM Position: {vbm_position:.2f} eV
 
 Signal Fitting:
@@ -819,6 +857,19 @@ Points Used: {len(x_signal_fit)} (requested: {n_points})
 Range: {x_signal_fit[0]:.2f} to {x_signal_fit[-1]:.2f} eV
 
 Background Extrapolation: {'Yes' if use_bg else 'No'}{bg_info}
+
+Additional Information:
+Max Intensity: {np.max(y_data):.2f}
+Min Intensity: {np.min(y_data):.2f}"""
+
+        else:  # Leading Edge Midpoint or Derivative Method
+            results_text = f"""VBM Analysis Results:
+
+Method: {method_name}
+VBM Position: {vbm_position:.2f} eV
+
+Data Range: {x_vbm[0]:.2f} to {x_vbm[-1]:.2f} eV
+Points Used: {len(x_vbm)}
 
 Additional Information:
 Max Intensity: {np.max(y_data):.2f}
@@ -1355,18 +1406,56 @@ Min Intensity: {np.min(y_data):.2f}"""
                                               label='Linear Extrapolation')[0]
             self.vbm_lines.append(signal_line)
 
+        # elif method == 1:  # Leading Edge Midpoint
+        #     # Find midpoint of leading edge
+        #     y_normalized = (y_cutoff - np.min(y_cutoff)) / (np.max(y_cutoff) - np.min(y_cutoff))
+        #     idx_midpoint = np.argmin(np.abs(y_normalized - 0.5))
+        #     cutoff_position = x_cutoff[idx_midpoint]
+        #
+        # elif method == 2:  # Derivative Method
+        #     # Calculate derivative
+        #     dy_dx = np.gradient(y_cutoff, x_cutoff)
+        #     # Find maximum derivative (steepest point)
+        #     idx_max = np.argmax(np.abs(dy_dx))
+        #     cutoff_position = x_cutoff[idx_max]
         elif method == 1:  # Leading Edge Midpoint
+            # Initialize variables for methods that don't use background
+            use_bg = False
+            center_edge = 0.0
+            bg_center = 0.0
+            n_points = 0
+            bg_points = 0
+            signal_coef = [0, 0]
+            bg_coef = None
+            x_signal_fit = np.array([])
+            y_signal_fit = np.array([])
+            x_bg_fit = np.array([])
+            y_bg_fit = np.array([])
+
             # Find midpoint of leading edge
-            y_normalized = (y_cutoff - np.min(y_cutoff)) / (np.max(y_cutoff) - np.min(y_cutoff))
+            y_normalized = (y_vbm - np.min(y_vbm)) / (np.max(y_vbm) - np.min(y_vbm))
             idx_midpoint = np.argmin(np.abs(y_normalized - 0.5))
-            cutoff_position = x_cutoff[idx_midpoint]
+            vbm_position = x_vbm[idx_midpoint]
 
         elif method == 2:  # Derivative Method
+            # Initialize variables for methods that don't use background
+            use_bg = False
+            center_edge = 0.0
+            bg_center = 0.0
+            n_points = 0
+            bg_points = 0
+            signal_coef = [0, 0]
+            bg_coef = None
+            x_signal_fit = np.array([])
+            y_signal_fit = np.array([])
+            x_bg_fit = np.array([])
+            y_bg_fit = np.array([])
+
             # Calculate derivative
-            dy_dx = np.gradient(y_cutoff, x_cutoff)
+            dy_dx = np.gradient(y_vbm, x_vbm)
             # Find maximum derivative (steepest point)
             idx_max = np.argmax(np.abs(dy_dx))
-            cutoff_position = x_cutoff[idx_max]
+            vbm_position = x_vbm[idx_max]
 
         # Add Cut-Off position line
         cutoff_line = self.parent.ax.axvline(cutoff_position, color='orange',

@@ -1596,49 +1596,67 @@ def extract_acquisition_parameters(sheet):
     """Extract acquisition parameters from Avantage sheet"""
     parameters = {}
 
-    # Search for "Acquisition Parameters :" in row 1 across all columns
+    # Debug: Print sheet info
+    print(f"Extracting parameters from sheet with {sheet.max_row} rows and {sheet.max_column} columns")
+
+    # Search for "Acquisition Parameters" text in the first few rows across all columns
     acquisition_col = None
-    for col in range(1, sheet.max_column + 1):
-        cell_value = sheet.cell(row=1, column=col).value
-        if cell_value and "Acquisition Parameters" in str(cell_value):
-            acquisition_col = col
+    for row in range(1, min(5, sheet.max_row + 1)):  # Check first 4 rows
+        for col in range(1, sheet.max_column + 1):
+            cell_value = sheet.cell(row=row, column=col).value
+            if cell_value and "Acquisition Parameters" in str(cell_value):
+                acquisition_col = col
+                print(f"Found 'Acquisition Parameters' at row {row}, column {col}")
+                break
+        if acquisition_col:
             break
 
     if acquisition_col is None:
+        print("No 'Acquisition Parameters' found - trying alternative search")
+        # Alternative search for just "Parameters"
+        for row in range(1, min(5, sheet.max_row + 1)):
+            for col in range(1, sheet.max_column + 1):
+                cell_value = sheet.cell(row=row, column=col).value
+                if cell_value and "Parameters" in str(cell_value):
+                    acquisition_col = col
+                    print(f"Found 'Parameters' at row {row}, column {col}")
+                    break
+            if acquisition_col:
+                break
+
+    if acquisition_col is None:
+        print("No parameters column found")
         return parameters
 
-    # Extract parameters starting from row 4 (after "Parameter" header in row 3)
-    row = 4
-    while row <= 11:  # Limit to row 11 instead of sheet.max_row
-        # Parameter name is in acquisition_col (column H)
+    # Extract parameters starting from row 4, but also check nearby rows
+    for row in range(3, min(15, sheet.max_row + 1)):  # Extended range
+        # Parameter name is in acquisition_col
         param_name = sheet.cell(row=row, column=acquisition_col).value
-        # Parameter value is in acquisition_col + 1 (column I)
+        # Parameter value is in acquisition_col + 1
         param_value = sheet.cell(row=row, column=acquisition_col + 1).value
-        # Sometimes additional value in acquisition_col + 2 (column J)
+        # Sometimes additional value in acquisition_col + 2
         param_value_j = sheet.cell(row=row, column=acquisition_col + 2).value
 
         if param_name is None:
-            row += 1
             continue
 
         param_name_str = str(param_name).strip()
-        if not param_name_str:
-            row += 1
+        if not param_name_str or param_name_str in ['Parameter', 'Parameters', '']:
             continue
 
         # Build the parameter value
         value_parts = []
-        if param_value is not None:
+        if param_value is not None and str(param_value).strip():
             value_parts.append(str(param_value).strip())
-        if param_value_j is not None:
+        if param_value_j is not None and str(param_value_j).strip():
             value_parts.append(str(param_value_j).strip())
 
         if value_parts:
             final_value = " ".join(value_parts)
             parameters[param_name_str] = final_value
+            print(f"Found parameter: {param_name_str} = {final_value}")
 
-        row += 1
-
+    print(f"Total parameters found: {len(parameters)}")
     return parameters
 
 
@@ -1653,77 +1671,176 @@ def import_avantage_file_direct(window, file_path):
     new_wb = openpyxl.Workbook()
     new_wb.remove(new_wb.active)
 
-    sheets_to_process = []
+    # Group sheets by sample based on letter suffix
+    sample_groups = {}
     for sheet_name in wb.sheetnames:
         if "Survey" in sheet_name or "Scan" in sheet_name:
-            sheets_to_process.append(sheet_name)
-
-    # Track VB and Fermi counts for numbering
-    vb_count = 0
-    fermi_count = 0
-    used_names = set()
-
-    for sheet_name in sheets_to_process:
-        sheet = wb[sheet_name]
-
-        # Extract acquisition parameters
-        acquisition_params = extract_acquisition_parameters(sheet)
-
-        # Extract element name and handle special cases
-        lower_name = sheet_name.lower()
-        if "Survey" in sheet_name or "survey" in sheet_name:
-            base_name = "Survey"
-        elif any(term in lower_name for term in
-                 ['valence', 'valence band', 'valence scan', 'vb scan', 'vb', 'valence band scan']):
-            if vb_count == 0:
-                base_name = "VB"
-            else:
-                base_name = f"VB{vb_count + 1}"
-            vb_count += 1
-        elif any(term in lower_name for term in ['fermi', 'fermi scan']):
-            if fermi_count == 0:
-                base_name = "Fermi"
-            else:
-                base_name = f"Fermi{fermi_count + 1}"
-            fermi_count += 1
-        else:
+            # Detect sample suffix (single letter at the end after space)
             parts = sheet_name.split()
-            base_name = parts[0]  # Get element (C1s, O1s, etc.)
+            if len(parts) >= 2 and len(parts[-1]) == 1 and parts[-1].isalpha():
+                suffix = parts[-1]
+            else:
+                suffix = None  # No suffix = first sample
 
-        # Check if multi-sample (D8 cell not empty and > 1)
-        multi_sample = False
-        num_samples = 1
-        if sheet.cell(row=8, column=4).value is not None:
-            try:
-                num_samples = int(sheet.cell(row=8, column=4).value)
-                if num_samples > 1:
-                    multi_sample = True
-            except (ValueError, TypeError):
-                pass
+            if suffix not in sample_groups:
+                sample_groups[suffix] = []
+            sample_groups[suffix].append(sheet_name)
 
-        # Find data start row (default to 19 for Thermo files)
-        start_row = 19
-        for row_idx in range(1, sheet.max_row + 1):
-            if sheet.cell(row=row_idx, column=1).value == "eV":
-                start_row = row_idx + 1
-                break
+    # Sort samples: None (no suffix) first, then alphabetically
+    sorted_samples = sorted(sample_groups.keys(), key=lambda x: (x is not None, x))
 
-        if multi_sample:
-            # Process each sample into its own sheet
-            for sample_idx in range(num_samples):
-                sample_name = f"{base_name}{sample_idx if sample_idx > 0 else ''}"
-                new_sheet = new_wb.create_sheet(sample_name)
+    # Process each sample group
+    sample_counter = 0
+    for sample_suffix in sorted_samples:
+        sheets_to_process = sample_groups[sample_suffix]
+
+        # Extract Title sheet information for this sample
+        title_info = extract_title_sheet_info(wb, sample_suffix)
+
+        # Track VB, Fermi and Cut-Off counts for numbering within each sample
+        vb_count = 0
+        fermi_count = 0
+        cutoff_count = 0
+        used_names = set()
+
+        for sheet_name in sheets_to_process:
+            sheet = wb[sheet_name]
+
+            # Extract acquisition parameters
+            acquisition_params = extract_acquisition_parameters(sheet)
+
+            # Extract element name and handle special cases
+            lower_name = sheet_name.lower()
+            if "Survey" in sheet_name or "survey" in sheet_name:
+                base_name = "Survey"
+            elif any(term in lower_name for term in
+                     ['valence', 'valence band', 'valence scan', 'vb scan', 'vb', 'valence band scan']):
+                if vb_count == 0:
+                    base_name = "VB"
+                else:
+                    base_name = f"VB{vb_count + 1}"
+                vb_count += 1
+            elif any(term in lower_name for term in ['fermi', 'fermi scan']):
+                if fermi_count == 0:
+                    base_name = "Fermi"
+                else:
+                    base_name = f"Fermi{fermi_count + 1}"
+                fermi_count += 1
+            elif any(term in lower_name for term in ['cut-off', 'cutoff', 'cut off']):
+                if cutoff_count == 0:
+                    base_name = "Cut-Off"
+                else:
+                    base_name = f"Cut-Off{cutoff_count + 1}"
+                cutoff_count += 1
+            else:
+                parts = sheet_name.split()
+                base_name = parts[0]  # Get element (C1s, O1s, etc.)
+
+            # Apply sample numbering for multi-sample files
+            if sample_counter == 0:
+                final_name = base_name
+            else:
+                final_name = f"{base_name}{sample_counter}"
+
+            # Check if multi-sample (D8 cell not empty and > 1)
+            multi_sample = False
+            num_samples = 1
+            if sheet.cell(row=8, column=4).value is not None:
+                try:
+                    num_samples = int(sheet.cell(row=8, column=4).value)
+                    if num_samples > 1:
+                        multi_sample = True
+                except (ValueError, TypeError):
+                    pass
+
+            # Find data start row (default to 19 for Thermo files)
+            start_row = 19
+            for row_idx in range(1, sheet.max_row + 1):
+                if sheet.cell(row=row_idx, column=1).value == "eV":
+                    start_row = row_idx + 1
+                    break
+
+            if multi_sample:
+                # Process each sample into its own sheet
+                for sample_idx in range(num_samples):
+                    if sample_counter == 0:
+                        sample_name = f"{base_name}{sample_idx if sample_idx > 0 else ''}"
+                    else:
+                        if sample_idx == 0:
+                            sample_name = f"{base_name}{sample_counter}"
+                        else:
+                            sample_name = f"{base_name}{sample_counter}_{sample_idx}"
+
+                    new_sheet = new_wb.create_sheet(sample_name)
+                    new_sheet['A1'] = "Binding Energy"
+                    new_sheet['B1'] = "Raw Data"
+
+                    # A column is binding energy (col 1), data is in col C+sample_idx (col 3+sample_idx)
+                    data_col = 3 + sample_idx  # C is 3, D is 4, etc.
+
+                    # Copy data
+                    row_new = 2
+                    for row in range(start_row, sheet.max_row + 1):
+                        be_value = sheet.cell(row=row, column=1).value
+                        intensity_value = sheet.cell(row=row, column=data_col).value
+
+                        # Enhanced validation - check for None, NaN, and invalid values
+                        if (be_value is None or intensity_value is None or
+                                (isinstance(be_value, float) and math.isnan(be_value)) or
+                                (isinstance(intensity_value, float) and math.isnan(intensity_value))):
+                            continue
+
+                        # Additional check for string "NaN" or empty strings
+                        if (str(be_value).lower() in ['nan', 'Nan', '#NAME?', '', ' '] or
+                                str(intensity_value).lower() in ['nan', '', ' ']):
+                            continue
+
+                        new_sheet.cell(row=row_new, column=1, value=f"{be_value:.2f}")
+                        new_sheet.cell(row=row_new, column=2, value=f"{intensity_value:.2f}")
+                        row_new += 1
+
+                    # Add experimental description with Title sheet info and acquisition parameters
+                    if acquisition_params or title_info:
+                        exp_col = 45  # Column AS
+                        new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                        current_row = 2
+
+                        # Add Title sheet information first
+                        for param_name, param_value in title_info.items():
+                            new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                            new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                            current_row += 1
+
+                        # Add acquisition parameters
+                        for param_name, param_value in acquisition_params.items():
+                            new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                            new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                            current_row += 1
+
+                        # Set column widths
+                        new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                        new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
+            else:
+                # Single sample - process as before
+                new_name = final_name
+                # Extract number if present in format like "C1s Scan (2)"
+                number_match = re.search(r'\((\d+)\)', sheet_name)
+                if number_match:
+                    number = number_match.group(1)
+                    if sample_counter == 0:
+                        new_name = f"{base_name}{number}"
+                    else:
+                        new_name = f"{base_name}{sample_counter}_{number}"
+
+                new_sheet = new_wb.create_sheet(new_name)
                 new_sheet['A1'] = "Binding Energy"
                 new_sheet['B1'] = "Raw Data"
 
-                # A column is binding energy (col 1), data is in col C+sample_idx (col 3+sample_idx)
-                data_col = 3 + sample_idx  # C is 3, D is 4, etc.
-
-                # Copy data
-                row_new = 2
                 for row in range(start_row, sheet.max_row + 1):
                     be_value = sheet.cell(row=row, column=1).value
-                    intensity_value = sheet.cell(row=row, column=data_col).value
+                    intensity_value = sheet.cell(row=row, column=3).value  # Column C
 
                     # Enhanced validation - check for None, NaN, and invalid values
                     if (be_value is None or intensity_value is None or
@@ -1732,20 +1849,27 @@ def import_avantage_file_direct(window, file_path):
                         continue
 
                     # Additional check for string "NaN" or empty strings
-                    if (str(be_value).lower() in ['nan', 'Nan', '#NAME?','', ' '] or
+                    if (str(be_value).lower() in ['nan', '', ' '] or
                             str(intensity_value).lower() in ['nan', '', ' ']):
                         continue
 
-                    new_sheet.cell(row=row_new, column=1, value=be_value)
-                    new_sheet.cell(row=row_new, column=2, value=intensity_value)
-                    row_new += 1
+                    new_sheet['A{}'.format(row - start_row + 2)] = f"{be_value:.2f}"
+                    new_sheet['B{}'.format(row - start_row + 2)] = f"{intensity_value:.2f}"
 
-                # Add experimental description with acquisition parameters
-                if acquisition_params:
+                # Add experimental description with Title sheet info and acquisition parameters
+                if acquisition_params or title_info:
                     exp_col = 45  # Column AS
                     new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
 
                     current_row = 2
+
+                    # Add Title sheet information first
+                    for param_name, param_value in title_info.items():
+                        new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                        new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                        current_row += 1
+
+                    # Add acquisition parameters
                     for param_name, param_value in acquisition_params.items():
                         new_sheet.cell(row=current_row, column=exp_col, value=param_name)
                         new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
@@ -1755,70 +1879,99 @@ def import_avantage_file_direct(window, file_path):
                     new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
                     new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
 
+        sample_counter += 1
+
+    sample_counter += 1
+
+    # Create and save SampleNames dictionary based on Title sheets
+    sample_names_dict = {}
+    sample_counter = 0
+    for sample_suffix in sorted_samples:
+        if sample_suffix is None:
+            sample_names_dict[str(sample_counter)] = "Sample"
         else:
-            # Single sample - process as before
-            new_name = base_name
-            # Extract number if present in format like "C1s Scan (2)"
-            number_match = re.search(r'\((\d+)\)', sheet_name)
-            if number_match:
-                number = number_match.group(1)
-                new_name = f"{base_name}{number}"
+            sample_names_dict[str(sample_counter)] = f"Sample {sample_suffix}"
+        sample_counter += 1
 
-            new_sheet = new_wb.create_sheet(new_name)
-            new_sheet['A1'] = "Binding Energy"
-            new_sheet['B1'] = "Raw Data"
+    # Update window.Data with SampleNames
+    if not hasattr(window, 'Data') or window.Data is None:
+        from libraries.ConfigFile import Init_Measurement_Data
+        window.Data = Init_Measurement_Data(window)
 
-            for row in range(start_row, sheet.max_row + 1):
-                be_value = sheet.cell(row=row, column=1).value
-                intensity_value = sheet.cell(row=row, column=3).value  # Column C
+    window.Data['SampleNames'] = sample_names_dict
 
-                # Enhanced validation - check for None, NaN, and invalid values
-                if (be_value is None or intensity_value is None or
-                        (isinstance(be_value, float) and math.isnan(be_value)) or
-                        (isinstance(intensity_value, float) and math.isnan(intensity_value))):
-                    continue
+    # Save the updated JSON file with SampleNames
+    json_file_path = os.path.splitext(new_file_path)[0] + '.json'
+    from libraries.FileMenu.Save import convert_to_serializable_and_round
+    json_data = convert_to_serializable_and_round(window.Data)
+    with open(json_file_path, 'w') as json_file:
+        json.dump(json_data, json_file, indent=2)
 
-                # Additional check for string "NaN" or empty strings
-                if (str(be_value).lower() in ['nan', '', ' '] or
-                        str(intensity_value).lower() in ['nan', '', ' ']):
-                    continue
-
-                new_sheet['A{}'.format(row - start_row + 2)] = be_value
-                new_sheet['B{}'.format(row - start_row + 2)] = intensity_value
-
-            # Add experimental description with acquisition parameters
-            if acquisition_params:
-                exp_col = 45  # Column AS
-                new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
-
-                current_row = 2
-                for param_name, param_value in acquisition_params.items():
-                    new_sheet.cell(row=current_row, column=exp_col, value=param_name)
-                    new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
-                    current_row += 1
-
-                # Set column widths
-                new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
-                new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+    new_wb.save(new_file_path)
+    open_xlsx_file(window, new_file_path)
 
     new_wb.save(new_file_path)
     open_xlsx_file(window, new_file_path)
 
 def import_avantage_file_direct_xls(window, file_path):
     import xlrd
+    import openpyxl
+    from openpyxl.utils import get_column_letter
     wb_xls = xlrd.open_workbook(file_path)
     wb_new = openpyxl.Workbook()
     wb_new.remove(wb_new.active)
 
-    # Track VB and Fermi counts for numbering
-    vb_count = 0
-    fermi_count = 0
-
+    # Group sheets by sample based on letter suffix
+    sample_groups = {}
     for sheet_name in wb_xls.sheet_names():
-        sheet = wb_xls.sheet_by_name(sheet_name)
         if "Survey" in sheet_name or "Scan" in sheet_name or any(term in sheet_name.lower() for term in
                                                                  ['valence', 'valence band', 'valence scan', 'vb scan',
-                                                                  'vb', 'valence band scan', 'fermi', 'fermi scan']):
+                                                                  'vb', 'valence band scan', 'fermi', 'fermi scan',
+                                                                  'cut-off', 'cutoff', 'cut off']):
+            # Detect sample suffix (single letter at the end after space)
+            parts = sheet_name.split()
+            if len(parts) >= 2 and len(parts[-1]) == 1 and parts[-1].isalpha():
+                suffix = parts[-1]
+            else:
+                suffix = None  # No suffix = first sample
+
+            if suffix not in sample_groups:
+                sample_groups[suffix] = []
+            sample_groups[suffix].append(sheet_name)
+
+    # Sort samples: None (no suffix) first, then alphabetically
+    sorted_samples = sorted(sample_groups.keys(), key=lambda x: (x is not None, x))
+
+    # Process each sample group
+    sample_counter = 0
+    for sample_suffix in sorted_samples:
+        sheets_to_process = sample_groups[sample_suffix]
+
+        # Extract Title sheet information for this sample
+        title_info = extract_title_sheet_info_xls(wb_xls, sample_suffix)
+
+        # Track VB, Fermi and Cut-Off counts for numbering within each sample
+        vb_count = 0
+        fermi_count = 0
+        cutoff_count = 0
+
+        for sheet_name in sheets_to_process:
+            sheet = wb_xls.sheet_by_name(sheet_name)
+
+            # Create temporary openpyxl sheet for parameter extraction
+            temp_wb = openpyxl.Workbook()
+            temp_sheet = temp_wb.active
+
+            # Copy all relevant cells for parameter extraction (first 25 rows, first 20 columns)
+            for row in range(min(25, sheet.nrows)):
+                for col in range(min(20, sheet.ncols)):
+                    cell_value = sheet.cell_value(row, col)
+                    if cell_value is not None and str(cell_value).strip():
+                        temp_sheet.cell(row=row + 1, column=col + 1, value=cell_value)
+
+            # Extract acquisition parameters
+            acquisition_params = extract_acquisition_parameters(temp_sheet)
+
             lower_name = sheet_name.lower()
 
             # Handle Survey sheets
@@ -1826,24 +1979,52 @@ def import_avantage_file_direct_xls(window, file_path):
                 number_match = re.search(r'\((\d+)\)', sheet_name)
                 if number_match:
                     number = number_match.group(1)
-                    new_name = f"Survey{number}"
+                    if sample_counter == 0:
+                        new_name = f"Survey{number}"
+                    else:
+                        new_name = f"Survey{sample_counter}_{number}"
                 else:
-                    new_name = "Survey"
+                    if sample_counter == 0:
+                        new_name = "Survey"
+                    else:
+                        new_name = f"Survey{sample_counter}"
             # Handle Valence Band sheets
             elif any(term in lower_name for term in
                      ['valence', 'valence band', 'valence scan', 'vb scan', 'vb', 'valence band scan']):
                 if vb_count == 0:
-                    new_name = "VB"
+                    base_name = "VB"
                 else:
-                    new_name = f"VB{vb_count + 1}"
+                    base_name = f"VB{vb_count + 1}"
                 vb_count += 1
+
+                if sample_counter == 0:
+                    new_name = base_name
+                else:
+                    new_name = f"{base_name}{sample_counter}"
             # Handle Fermi sheets
             elif any(term in lower_name for term in ['fermi', 'fermi scan']):
                 if fermi_count == 0:
-                    new_name = "Fermi"
+                    base_name = "Fermi"
                 else:
-                    new_name = f"Fermi{fermi_count + 1}"
+                    base_name = f"Fermi{fermi_count + 1}"
                 fermi_count += 1
+
+                if sample_counter == 0:
+                    new_name = base_name
+                else:
+                    new_name = f"{base_name}{sample_counter}"
+            # Handle Cut-Off sheets
+            elif any(term in lower_name for term in ['cut-off', 'cutoff', 'cut off']):
+                if cutoff_count == 0:
+                    base_name = "Cut-Off"
+                else:
+                    base_name = f"Cut-Off{cutoff_count + 1}"
+                cutoff_count += 1
+
+                if sample_counter == 0:
+                    new_name = base_name
+                else:
+                    new_name = f"{base_name}{sample_counter}"
             else:
                 # Extract element name and number for patterns like "C1s Scan (1)"
                 parts = sheet_name.split()
@@ -1851,9 +2032,15 @@ def import_avantage_file_direct_xls(window, file_path):
                 number_match = re.search(r'\((\d+)\)', sheet_name)
                 if number_match:
                     number = number_match.group(1)
-                    new_name = f"{element}{number}"
+                    if sample_counter == 0:
+                        new_name = f"{element}{number}"
+                    else:
+                        new_name = f"{element}{sample_counter}_{number}"
                 else:
-                    new_name = element
+                    if sample_counter == 0:
+                        new_name = element
+                    else:
+                        new_name = f"{element}{sample_counter}"
 
             wb_new.create_sheet(new_name)
             new_sheet = wb_new[new_name]
@@ -1887,16 +2074,40 @@ def import_avantage_file_direct_xls(window, file_path):
                         intensity_value == xlrd.empty_cell.value):
                     continue
 
-                new_sheet.append([row_values[0]] + row_values[2:])
+                new_sheet.append([f"{row_values[0]:.2f}", f"{row_values[2]:.2f}"])
 
             for col in new_sheet.iter_cols(min_col=3, max_col=24):
                 for cell in col:
                     cell.value = None
 
+            # Add experimental description with acquisition parameters (same as xlsx version)
+            if acquisition_params:
+                exp_col = 45  # Column AS
+                new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+                current_row = 2
+
+                # Add Title sheet information first
+                for param_name, param_value in title_info.items():
+                    new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                    new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                    current_row += 1
+
+                # Add acquisition parameters
+                for param_name, param_value in acquisition_params.items():
+                    new_sheet.cell(row=current_row, column=exp_col, value=param_name)
+                    new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
+                    current_row += 1
+
+                # Set column widths
+                new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+                new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
+        sample_counter += 1
+
     new_file_path = os.path.splitext(file_path)[0] + "_Kfitting.xlsx"
     wb_new.save(new_file_path)
     open_xlsx_file(window, new_file_path)
-
 
 def import_multiple_avantage_files(window):
     """
@@ -2074,22 +2285,22 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
 
 def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
     """Process xls Avantage file and add numbered core levels to combined workbook"""
-    import openpyxl  # ADDED
-    from openpyxl.utils import get_column_letter  # ADDED
+    import openpyxl
+    from openpyxl.utils import get_column_letter
 
     for sheet_name in wb_xls.sheet_names():
         if "Survey" in sheet_name or "Scan" in sheet_name:
             sheet = wb_xls.sheet_by_name(sheet_name)
 
-            # ADDED: Create temporary openpyxl sheet for parameter extraction
+            # Create temporary openpyxl sheet for parameter extraction
             temp_wb = openpyxl.Workbook()
             temp_sheet = temp_wb.active
 
-            # Copy relevant cells for parameter extraction (first 20 rows, first 15 columns)
-            for row in range(min(20, sheet.nrows)):
-                for col in range(min(15, sheet.ncols)):
+            # Copy all relevant cells for parameter extraction (first 25 rows, first 20 columns)
+            for row in range(min(25, sheet.nrows)):
+                for col in range(min(20, sheet.ncols)):
                     cell_value = sheet.cell_value(row, col)
-                    if cell_value:
+                    if cell_value is not None and str(cell_value).strip():
                         temp_sheet.cell(row=row + 1, column=col + 1, value=cell_value)
 
             # Extract acquisition parameters
@@ -2116,11 +2327,11 @@ def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
                 intensity_value = sheet.cell_value(row, 2)  # Column C
 
                 if be_value and intensity_value:
-                    new_sheet.cell(row=row_new, column=1, value=be_value)
-                    new_sheet.cell(row=row_new, column=2, value=intensity_value)
+                    new_sheet.cell(row=row_new, column=1, value=f"{be_value:.2f}")
+                    new_sheet.cell(row=row_new, column=2, value=f"{intensity_value:.2f}")
                     row_new += 1
 
-            # ADDED: Add experimental description with acquisition parameters
+            # Add experimental description with acquisition parameters
             if acquisition_params:
                 exp_col = 45  # Column AS
                 new_sheet.cell(row=1, column=exp_col, value="Experimental Description")
@@ -2135,6 +2346,73 @@ def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
                 new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
                 new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
 
+
+def extract_title_sheet_info(wb, sample_suffix=None):
+    """Extract information from Title sheet (or Title A, Title B, etc.)"""
+    title_info = {}
+
+    # Determine the correct Title sheet name based on sample suffix
+    if sample_suffix is None:
+        title_sheet_name = "Titles"
+    else:
+        title_sheet_name = f"Titles {sample_suffix}"
+
+    # Try to find the Title sheet
+    if title_sheet_name in wb.sheetnames:
+        title_sheet = wb[title_sheet_name]
+
+        # Extract values from A1, A3, A5
+        cell_a1 = title_sheet.cell(row=1, column=1).value
+        cell_a3 = title_sheet.cell(row=3, column=1).value
+        cell_a5 = title_sheet.cell(row=5, column=1).value
+
+        if cell_a1:
+            title_info['Sample Info'] = str(cell_a1).strip()
+        if cell_a3:
+            title_info['Additional Info'] = str(cell_a3).strip()
+        if cell_a5:
+            title_info['Notes'] = str(cell_a5).strip()
+
+    return title_info
+
+
+def extract_title_sheet_info_xls(wb_xls, sample_suffix=None):
+    """Extract information from Title sheet for .xls files"""
+    title_info = {}
+
+    # Determine the correct Title sheet name based on sample suffix
+    if sample_suffix is None:
+        title_sheet_name = "Titles"
+    else:
+        title_sheet_name = f"Titles {sample_suffix}"
+
+    # Try to find the Title sheet
+    if title_sheet_name in wb_xls.sheet_names():
+        title_sheet = wb_xls.sheet_by_name(title_sheet_name)
+
+        # Extract values from A1, A3, A5 (0-indexed: row 0, 2, 4; column 0)
+        try:
+            cell_a1 = title_sheet.cell_value(0, 0)
+            if cell_a1:
+                title_info['Sample Info'] = str(cell_a1).strip()
+        except:
+            pass
+
+        try:
+            cell_a3 = title_sheet.cell_value(2, 0)
+            if cell_a3:
+                title_info['Additional Info'] = str(cell_a3).strip()
+        except:
+            pass
+
+        try:
+            cell_a5 = title_sheet.cell_value(4, 0)
+            if cell_a5:
+                title_info['Notes'] = str(cell_a5).strip()
+        except:
+            pass
+
+    return title_info
 
 def copy_sheet_data(source_sheet, target_sheet, start_row, source_be_col, source_intensity_col, target_row_start):
     """Helper function to copy data from source sheet to target sheet"""
