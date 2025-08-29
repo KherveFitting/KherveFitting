@@ -599,6 +599,10 @@ class MouseEventHandler:
                     if hasattr(self.window, 'vline2_text') and self.window.vline2_text:
                         self.window.vline2_text.set_text(f"{new_vline2_x:.1f}")
 
+                    # UPDATE AVERAGING INDICATOR LINES
+                    if hasattr(self.window, 'add_averaging_indicator_lines'):
+                        self.window.add_averaging_indicator_lines()
+
                 except Exception as e:
                     print(f"Error updating vline text labels: {e}")
 
@@ -731,6 +735,10 @@ class MouseEventHandler:
                     # Update text labels when vlines are moved
                     self.window.update_vline_text_labels()
 
+                    # UPDATE AVERAGING INDICATOR LINES
+                    if hasattr(self.window, 'add_averaging_indicator_lines'):
+                        self.window.add_averaging_indicator_lines()
+
                     # Update fitting screen range controls
                     self.window.update_fitting_screen_range_controls()
 
@@ -760,6 +768,10 @@ class MouseEventHandler:
         # Update vline text labels when moving vlines
         if self.window.moving_vline in [self.window.vline1, self.window.vline2]:
             self.window.update_vline_text_labels()
+
+        # UPDATE AVERAGING INDICATOR LINES
+        if hasattr(self.window, 'add_averaging_indicator_lines'):
+            self.window.add_averaging_indicator_lines()
 
     def redraw_all_regions_background(self):
         """Delete whole background and redraw from region 1, 2, 3... in sequence"""
@@ -889,6 +901,10 @@ class MouseEventHandler:
                 self.window.add_vline_text_labels()
             elif hasattr(self.window, 'update_vline_text_labels'):
                 self.window.update_vline_text_labels()
+
+            # UPDATE AVERAGING INDICATOR LINES
+            if hasattr(self.window, 'add_averaging_indicator_lines'):
+                self.window.add_averaging_indicator_lines()
 
             # Make sure they're visible
             self.window.show_hide_vlines()

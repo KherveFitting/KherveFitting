@@ -919,6 +919,10 @@ class MyFrame(wx.Frame):
         # Refresh vline text labels after plot adjustment
         self.refresh_vline_text_labels()
 
+        # Update averaging indicator lines after plot adjustment
+        if hasattr(self, 'add_averaging_indicator_lines'):
+            self.add_averaging_indicator_lines()
+
     def update_constraint(self, event):
         row = event.GetRow()
         col = event.GetCol()
@@ -1906,6 +1910,10 @@ class MyFrame(wx.Frame):
             # Add text labels for vlines
             self.add_vline_text_labels()
 
+            # Add averaging indicator lines
+            if hasattr(self, 'add_averaging_indicator_lines'):
+                self.add_averaging_indicator_lines()
+
             # Update data structure
             if sheet_name in self.Data['Core levels']:
                 if 'Background' not in self.Data['Core levels'][sheet_name]:
@@ -2204,6 +2212,10 @@ class MyFrame(wx.Frame):
         # Refresh vline text labels after zoom
         self.refresh_vline_text_labels()
 
+        # Update averaging indicator lines after zoom
+        if hasattr(self, 'add_averaging_indicator_lines'):
+            self.add_averaging_indicator_lines()
+
     def on_zoom_select(self, eclick, erelease):
         self.plot_config.on_zoom_select(self, eclick, erelease)
 
@@ -2214,10 +2226,18 @@ class MyFrame(wx.Frame):
                 self.rsd_text.remove()
                 self.rsd_text = None
 
+        # Update averaging indicator lines after zoom
+        if hasattr(self, 'add_averaging_indicator_lines'):
+            self.add_averaging_indicator_lines()
+
     def on_zoom_out(self, event):
         self.plot_config.on_zoom_out(self)
         # Refresh vline text labels after zoom
         self.refresh_vline_text_labels()
+
+        # Update averaging indicator lines after zoom
+        if hasattr(self, 'add_averaging_indicator_lines'):
+            self.add_averaging_indicator_lines()
 
     def on_drag_tool(self, event):
         self.plot_config.on_drag_tool(self)
@@ -3645,6 +3665,120 @@ class MyFrame(wx.Frame):
 
             self.results_frame_box.SetLabel(f"Results [Row {row_number}]")
             self.results_frame_box.GetParent().Layout()  # Refresh the layout
+
+    def add_averaging_indicator_lines(self):
+        """Add transparent lines showing the averaging points for the vlines."""
+        if self.vline1 is None or self.vline2 is None:
+            return
+
+        try:
+            # Remove any existing averaging indicator lines first
+            lines_to_remove = [line for line in self.ax.lines if hasattr(line, '_averaging_indicator')]
+            for line in lines_to_remove:
+                line.remove()
+
+            # Only show averaging indicator lines if fitting screen window is open with background tab selected
+            if not (hasattr(self, 'fitting_window') and
+                    self.fitting_window is not None and
+                    hasattr(self, 'background_tab_selected') and
+                    self.background_tab_selected):
+                return
+
+            # Get current sheet and data
+            sheet_name = self.sheet_combobox.GetValue()
+            if (sheet_name not in self.Data['Core levels'] or
+                    'B.E.' not in self.Data['Core levels'][sheet_name]):
+                return
+
+            # Get data arrays
+            x_values = np.array(self.Data['Core levels'][sheet_name]['B.E.'], dtype=float)
+            y_values = np.array(self.Data['Core levels'][sheet_name]['Raw Data'], dtype=float)
+
+            # Get background data - this is what the lines should follow
+            background_data = self.Data['Core levels'][sheet_name]['Background'].get('Bkg Y', y_values)
+            background_y = np.array(background_data, dtype=float)
+
+            # Get averaging points setting and ensure it's valid
+            averaging_points = getattr(self, 'averaging_points', 5)
+            if averaging_points <= 0:
+                averaging_points = 1
+                self.averaging_points = 1  # Update the stored value too
+
+            # Get Y axis range for line extent (1% of range)
+            y_min, y_max = self.ax.get_ylim()
+            y_range = y_max - y_min
+            line_extent = 0.1 * y_range  # ±1% of Y range
+
+            # Get vline display positions (rounded to 2 decimals)
+            vline1_x = round(self.vline1.get_xdata()[0], 2)
+            vline2_x = round(self.vline2.get_xdata()[0], 2)
+
+            # Determine which vline is at higher BE and which is at lower BE
+            vline1_be = self.convert_energy_from_display(vline1_x)
+            vline2_be = self.convert_energy_from_display(vline2_x)
+
+            # Process each vline
+            for vline_x in [vline1_x, vline2_x]:
+                # Convert display position back to BE coordinate
+                vline_be = self.convert_energy_from_display(vline_x)
+
+                # Find the closest data point to this vline position
+                idx = np.argmin(np.abs(x_values - vline_be))
+                vline_data_x = x_values[idx]
+                vline_data_y = background_y[idx]  # Use background Y value
+
+                # Determine if this is high BE or low BE
+                if vline_be > min(vline1_be, vline2_be) + (max(vline1_be, vline2_be) - min(vline1_be, vline2_be)) / 2:
+                    # This is the HIGH BE vLine
+                    # For high BE: vline position is one limit, subtract averaging_points to get other limit (towards lower BE)
+                    limit1_idx = idx  # vLine position is one limit
+                    limit2_idx = max(0, idx + averaging_points - 1)  # Go towards lower BE (subtract indices)
+                else:
+                    # This is the LOW BE vLine
+                    # For low BE: vline position is one limit, ADD averaging_points to get other limit (towards higher BE)
+                    limit1_idx = idx  # vLine position is one limit
+                    limit2_idx = min(len(x_values) - 1, idx - averaging_points + 1)  # Go towards higher BE (add indices)
+
+                # Get the actual limit positions from background data
+                limit1_x = x_values[limit1_idx]
+                limit1_y = background_y[limit1_idx]  # Use background Y value
+                limit2_x = x_values[limit2_idx]
+                limit2_y = background_y[limit2_idx]  # Use background Y value
+
+                # Calculate center position (middle of the two limits)
+                center_idx = (limit1_idx + limit2_idx) // 2
+                center_x = x_values[center_idx]
+                center_y = background_y[center_idx]  # Use background Y value
+
+                # Convert to display coordinates
+                limit1_display = self.convert_energy_for_display(limit1_x)
+                limit2_display = self.convert_energy_for_display(limit2_x)
+                center_display = self.convert_energy_for_display(center_x)
+
+                # Draw the lines
+                # Limit 1 (red) - this is the vLine position
+                limit1_line = self.ax.plot([limit1_display, limit1_display],
+                                           [limit1_y - line_extent, limit1_y + line_extent],
+                                           color='red', alpha=0.5, linewidth=0.5, linestyle='--')[0]
+                limit1_line._averaging_indicator = True
+
+                # Limit 2 (red) - this is the other end of the averaging range
+                limit2_line = self.ax.plot([limit2_display, limit2_display],
+                                           [limit2_y - line_extent, limit2_y + line_extent],
+                                           color='red', alpha=0.5, linewidth=0.5, linestyle='--')[0]
+                limit2_line._averaging_indicator = True
+
+                # Center (grey)
+                center_line = self.ax.plot([center_display, center_display],
+                                           [center_y - line_extent, center_y + line_extent],
+                                           color='grey', alpha=0.5, linewidth=0.5, linestyle='--')[0]
+                center_line._averaging_indicator = True
+
+            # Force canvas redraw
+            self.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Could not draw averaging indicator lines: {e}")
 
 
 

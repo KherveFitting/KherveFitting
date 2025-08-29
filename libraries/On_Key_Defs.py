@@ -381,6 +381,10 @@ class KeyEventHandlers:
         # Refresh vline text labels after zoom
         self.main_frame.refresh_vline_text_labels()
 
+        # Update averaging indicator lines after zoom
+        if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
+            self.main_frame.add_averaging_indicator_lines()
+
     def _handle_ctrl_arrow_keys(self, keycode):
         """Handle Ctrl+Arrow keys for plot movement"""
         sheet_name = self.main_frame.sheet_combobox.GetValue()
@@ -407,6 +411,10 @@ class KeyEventHandlers:
 
         # Refresh vline text labels after plot movement
         self.main_frame.refresh_vline_text_labels()
+
+        # Update averaging indicator lines after zoom
+        if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
+            self.main_frame.add_averaging_indicator_lines()
 
     def _handle_ctrl_up_down_keys(self, keycode):
         """Handle Ctrl+Up/Down keys for intensity adjustment"""
@@ -451,6 +459,10 @@ class KeyEventHandlers:
                                                                                                   edgecolor='none'))
 
         self.main_frame.canvas.draw_idle()
+
+        # Update averaging indicator lines after intensity adjustment
+        if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
+            self.main_frame.add_averaging_indicator_lines()
 
         # Refresh vline text labels after intensity adjustment
         self.main_frame.refresh_vline_text_labels()

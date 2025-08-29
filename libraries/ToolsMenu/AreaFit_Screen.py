@@ -733,6 +733,10 @@ class BackgroundWindow(wx.Frame):
             # Add text labels back
             self.add_vline_text_labels()
 
+            # Add averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
             # Update area tab selection state so vlines stay visible
             self.parent.area_tab_selected = True
 
@@ -875,12 +879,25 @@ class BackgroundWindow(wx.Frame):
 
         save_state(self.parent)
 
-
     def on_averaging_points_change(self, event):
         try:
-            self.parent.averaging_points = int(self.averaging_points_text.GetValue())
+            new_value = int(self.averaging_points_text.GetValue())
+
+            # Ensure averaging points is always at least 1
+            if new_value <= 0:
+                new_value = 1
+                self.averaging_points_text.SetValue("1")
+
+            self.parent.averaging_points = new_value
+
+            # Update averaging indicator lines when points change
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
         except ValueError:
-            pass
+            # If invalid input, reset to 1
+            self.averaging_points_text.SetValue("1")
+            self.parent.averaging_points = 1
 
     def on_tougaard_model(self, event):
         from libraries.ToolsMenu.Fitting_Screen import TougaardFitWindow
@@ -1129,6 +1146,10 @@ class BackgroundWindow(wx.Frame):
 
         # Add text labels
         self.add_vline_text_labels()
+
+        # Add averaging indicator lines
+        if hasattr(self.parent, 'add_averaging_indicator_lines'):
+            self.parent.add_averaging_indicator_lines()
 
         # Update data structure
         self.parent.bg_min_energy = min(vline1_pos, vline2_pos)
@@ -1854,6 +1875,10 @@ class BackgroundWindow(wx.Frame):
         # Add text labels back
         self.add_vline_text_labels()
 
+        # Add averaging indicator lines
+        if hasattr(self.parent, 'add_averaging_indicator_lines'):
+            self.parent.add_averaging_indicator_lines()
+
         # Update area tab selection state so vlines stay visible
         self.parent.area_tab_selected = True
 
@@ -2056,6 +2081,10 @@ class BackgroundWindow(wx.Frame):
         # Update text labels
         if hasattr(self.parent, 'update_vline_text_labels'):
             self.parent.update_vline_text_labels()
+
+        # Update averaging indicator lines
+        if hasattr(self.parent, 'add_averaging_indicator_lines'):
+            self.parent.add_averaging_indicator_lines()
 
         # Redraw canvas
         self.parent.canvas.draw_idle()

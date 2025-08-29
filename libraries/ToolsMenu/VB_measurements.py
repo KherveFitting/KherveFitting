@@ -1100,8 +1100,14 @@ Min Intensity: {np.min(y_data):.2f}"""
         if self.parent.vline1 is not None:
             new_value = self.vbm_edge_ctrl.GetValue()
             self.parent.vline1.set_xdata([new_value, new_value])
+
             if hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
+
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
             self.parent.canvas.draw_idle()
 
     def OnBgCenterChange(self, event):
@@ -1109,8 +1115,14 @@ Min Intensity: {np.min(y_data):.2f}"""
         if self.parent.vline2 is not None:
             new_value = self.vbm_bg_center_ctrl.GetValue()
             self.parent.vline2.set_xdata([new_value, new_value])
+
             if hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
+
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
             self.parent.canvas.draw_idle()
 
     def update_controls_from_vlines(self):
@@ -1136,6 +1148,11 @@ Min Intensity: {np.min(y_data):.2f}"""
 
             if hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
+
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
             self.parent.canvas.draw_idle()
 
     def add_peak_to_grid(self, peak_position, center_edge, bg_center, n_points, bg_points, use_bg, signal_coef=None,
@@ -1259,8 +1276,13 @@ Min Intensity: {np.min(y_data):.2f}"""
             # Create new text labels
             if hasattr(self.parent, 'add_vline_text_labels'):
                 self.parent.add_vline_text_labels()
+
             elif hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
+
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
 
             # Make sure they're visible and background tab is selected
             self.parent.show_hide_vlines()

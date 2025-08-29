@@ -779,7 +779,7 @@ from scipy.signal import savgol_filter
 class BackgroundCalculations:
 
     @staticmethod
-    def calculate_endpoint_average(x_values, y_values, point, num_points):
+    def calculate_endpoint_average_OLD(x_values, y_values, point, num_points):
         # Find index closest to the specified point
         idx = np.argmin(np.abs(x_values - point))
 
@@ -789,6 +789,126 @@ class BackgroundCalculations:
 
         # Calculate average
         return np.mean(y_values[start_idx:end_idx])
+
+    @staticmethod
+    def calculate_endpoint_average_NEW(x_values, y_values, point, num_points):
+        """
+        Calculate the average value of y_values around the given point.
+        The averaging window is centered on the point, and only valid points are used.
+        """
+        # Find index closest to the specified point
+        idx = np.argmin(np.abs(x_values - point))
+
+        # Calculate half window size for centering
+        half_window = num_points // 2
+
+        # Calculate start and end indices centered around the point
+        start_idx = idx - half_window
+        end_idx = idx + half_window + (1 if num_points % 2 == 1 else 0)
+
+        # Ensure indices are within valid range
+        start_idx = max(0, start_idx)
+        end_idx = min(len(y_values), end_idx)
+
+        # Extract valid points for averaging
+        valid_y_values = y_values[start_idx:end_idx]
+
+        # Only calculate average if we have valid points
+        if len(valid_y_values) > 0:
+            return float(f"{np.mean(valid_y_values):.2f}")
+        else:
+            # Fallback to single point if no valid points in window
+            return float(f"{y_values[idx]:.2f}")
+
+    @staticmethod
+    def calculate_endpoint_average(x_values, y_values, point, num_points):
+        """
+        Calculate the average value of y_values around the given point.
+        The averaging window is centered on the point, with automatic adjustment for edge cases.
+        """
+        # Ensure num_points is always at least 1
+        if num_points <= 0:
+            num_points = 1
+            print(f"WARNING: Invalid num_points ({num_points}), using 1 instead")
+
+        # Find index closest to the specified point
+        idx = np.argmin(np.abs(x_values - point))
+
+        # Calculate half window size for centering
+        half_window = num_points // 2
+
+        # Calculate ideal start and end indices centered around the point
+        ideal_start = idx - half_window
+        ideal_end = idx + half_window + (1 if num_points % 2 == 1 else 0)
+
+        # Check if we need to adjust the window due to array bounds
+        total_available = len(y_values)
+
+        # Adjust window if it goes beyond array bounds
+        if ideal_start < 0:
+            # Shift window to the right if we're too close to the start
+            shift = -ideal_start
+            start_idx = 0
+            end_idx = min(total_available, ideal_end + shift)
+        elif ideal_end > total_available:
+            # Shift window to the left if we're too close to the end
+            shift = ideal_end - total_available
+            end_idx = total_available
+            start_idx = max(0, ideal_start - shift)
+        else:
+            # Window fits within bounds
+            start_idx = ideal_start
+            end_idx = ideal_end
+
+        # Final bounds check and ensure we don't exceed requested points
+        start_idx = max(0, start_idx)
+        end_idx = min(total_available, end_idx)
+
+        # Ensure we don't use more points than requested
+        actual_window_size = end_idx - start_idx
+        if actual_window_size > num_points:
+            # Trim excess points, preferring to keep the window centered on target
+            excess = actual_window_size - num_points
+            trim_start = excess // 2
+            trim_end = excess - trim_start
+            start_idx += trim_start
+            end_idx -= trim_end
+
+        # Extract valid points for averaging
+        valid_x_values = x_values[start_idx:end_idx]
+        valid_y_values = y_values[start_idx:end_idx]
+
+        # Print detailed information about the averaging calculation
+        print(f"\n=== Averaging Points Calculation ===")
+        print(f"Target point (vLine position): {point:.2f}")
+        print(f"Closest data index: {idx} (x={x_values[idx]:.2f}, y={y_values[idx]:.2f})")
+        print(f"Number of averaging points requested: {num_points}")
+        print(f"Half window size: {half_window}")
+        print(f"Ideal window: indices {ideal_start} to {ideal_end}")
+        print(f"Array bounds: 0 to {total_available}")
+        print(f"Adjusted window: indices {start_idx} to {end_idx}")
+        print(f"Actual points used: {len(valid_y_values)}")
+
+        if len(valid_y_values) > 0:
+            print(f"Points used for averaging:")
+            for i, (x_val, y_val) in enumerate(zip(valid_x_values, valid_y_values)):
+                actual_idx = start_idx + i
+                marker = " ← CENTER" if actual_idx == idx else ""
+                print(f"  Index {actual_idx}: x={x_val:.2f}, y={y_val:.2f}{marker}")
+
+            average_value = np.mean(valid_y_values)
+            print(f"Calculated average: {average_value:.2f}")
+            print(f"=== End Averaging Calculation ===\n")
+
+            return float(f"{average_value:.2f}")
+        else:
+            # Fallback to single point if no valid points in window
+            fallback_value = y_values[idx]
+            print(f"WARNING: No valid points in averaging window!")
+            print(f"Using fallback single point: x={x_values[idx]:.2f}, y={fallback_value:.2f}")
+            print(f"=== End Averaging Calculation ===\n")
+
+            return float(f"{fallback_value:.2f}")
 
     @staticmethod
     def calculate_linear_background(x, y, start_offset, end_offset, num_points=5):

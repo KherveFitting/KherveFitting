@@ -2844,8 +2844,11 @@ class PlotManager:
             adaptive_range = (bg_min_energy, bg_max_energy)
 
         current_background = np.array(window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+        # Get averaging points from window
+        averaging_points = getattr(window, 'averaging_points', 5)
+
         background_filtered = BackgroundCalculations.calculate_adaptive_smart_background(
-            x_values, y_values, adaptive_range, current_background, offset_h, offset_l
+            x_values, y_values, adaptive_range, current_background, offset_h, offset_l, num_points=averaging_points
         )
         return background_filtered, 'Background'
 
@@ -2913,20 +2916,23 @@ class PlotManager:
             x_values_filtered = x_values[mask]
             y_values_filtered = y_values[mask]
 
+        # Get averaging points from window
+        averaging_points = getattr(window, 'averaging_points', 5)
+
         if method == "Shirley":
             background_filtered = BackgroundCalculations.calculate_shirley_background(x_values_filtered,
                                                                                       y_values_filtered, offset_h,
-                                                                                      offset_l)
+                                                                                      offset_l, num_points=averaging_points)
             label = 'Background (Shirley)'
         elif method == "Linear":
             background_filtered = BackgroundCalculations.calculate_linear_background(x_values_filtered,
                                                                                      y_values_filtered, offset_h,
-                                                                                     offset_l)
+                                                                                     offset_l, num_points=averaging_points)
             label = 'Background (Linear)'
         elif method in ["Smart", "Multi-Regions Smart", "Multiple Regions Smart"]:
             background_filtered = BackgroundCalculations.calculate_smart_background(x_values_filtered,
                                                                                     y_values_filtered, offset_h,
-                                                                                    offset_l)
+                                                                                    offset_l, num_points=averaging_points)
             label = 'Background (Smart)'
 
         elif method == "U4-Tougaard":

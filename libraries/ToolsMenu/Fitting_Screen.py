@@ -754,9 +754,23 @@ class FittingWindow(wx.Frame):
 
     def on_averaging_points_change(self, event):
         try:
-            self.parent.averaging_points = int(self.averaging_points_text.GetValue())
+            new_value = int(self.averaging_points_text.GetValue())
+
+            # Ensure averaging points is always at least 1
+            if new_value <= 0:
+                new_value = 1
+                self.averaging_points_text.SetValue("1")
+
+            self.parent.averaging_points = new_value
+
+            # Update averaging indicator lines when points change
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
         except ValueError:
-            pass
+            # If invalid input, reset to 1
+            self.averaging_points_text.SetValue("1")
+            self.parent.averaging_points = 1
 
     def on_reset_vlines(self, event):
         # if hasattr(self.parent, 'x_values') and len(self.parent.x_values) > 0:
@@ -839,6 +853,10 @@ class FittingWindow(wx.Frame):
             # Update text labels
             if hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
+
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
 
             # Force canvas redraw
             self.parent.canvas.draw_idle()
@@ -1735,6 +1753,10 @@ class FittingWindow(wx.Frame):
                     if hasattr(self.parent, 'update_vline_text_labels'):
                         self.parent.update_vline_text_labels()
 
+                    # Update averaging indicator lines
+                    if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                        self.parent.add_averaging_indicator_lines()
+
                     # Force canvas redraw
                     self.parent.canvas.draw_idle()
 
@@ -2183,6 +2205,11 @@ class FittingWindow(wx.Frame):
             # Update text labels and redraw
             if hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
+
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
             self.parent.canvas.draw_idle()
 
             print(f"Loaded region {self.active_range_index + 1} as active")
@@ -2354,6 +2381,10 @@ class FittingWindow(wx.Frame):
             if hasattr(self.parent, 'update_vline_text_labels'):
                 self.parent.update_vline_text_labels()
 
+            # Update averaging indicator lines
+            if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                self.parent.add_averaging_indicator_lines()
+
             # Force canvas redraw
             self.parent.canvas.draw_idle()
 
@@ -2515,6 +2546,10 @@ class FittingWindow(wx.Frame):
                 if hasattr(self.parent, 'update_vline_text_labels'):
                     self.parent.update_vline_text_labels()
 
+                # Update averaging indicator lines
+                if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                    self.parent.add_averaging_indicator_lines()
+
                 self.parent.canvas.draw_idle()
 
             # Update active range positions if one is selected
@@ -2562,6 +2597,10 @@ class FittingWindow(wx.Frame):
                 # Update text labels
                 if hasattr(self.parent, 'update_vline_text_labels'):
                     self.parent.update_vline_text_labels()
+
+                # Update averaging indicator lines
+                if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                    self.parent.add_averaging_indicator_lines()
 
                 self.parent.canvas.draw_idle()
 
@@ -2614,6 +2653,10 @@ class FittingWindow(wx.Frame):
                 # Update text labels and redraw
                 if hasattr(self.parent, 'update_vline_text_labels'):
                     self.parent.update_vline_text_labels()
+
+                # Update averaging indicator lines
+                if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                    self.parent.add_averaging_indicator_lines()
                 self.parent.canvas.draw_idle()
 
             # Update active range positions and redraw background
@@ -2733,8 +2776,13 @@ class FittingWindow(wx.Frame):
                 max_display = self.parent.convert_energy_for_display(max_range)
                 self.parent.vline1.set_xdata([min_display, min_display])
                 self.parent.vline2.set_xdata([max_display, max_display])
+
                 if hasattr(self.parent, 'update_vline_text_labels'):
                     self.parent.update_vline_text_labels()
+
+                # Update averaging indicator lines
+                if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                    self.parent.add_averaging_indicator_lines()
 
             # Update window data background range
             self.update_window_data_background_range()
