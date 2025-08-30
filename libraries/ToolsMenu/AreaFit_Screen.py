@@ -752,7 +752,7 @@ class BackgroundWindow(wx.Frame):
 
         save_state(self.parent)
 
-    def handle_tougaard_background_special(self, sheet_name, selected_method, vline1_x, vline2_x):
+    def handle_tougaard_background_special_OLD(self, sheet_name, selected_method, vline1_x, vline2_x):
         """Handle Tougaard background creation with special logic."""
         import numpy as np
         from libraries.Peak_Functions import BackgroundCalculations
@@ -797,12 +797,12 @@ class BackgroundWindow(wx.Frame):
             if selected_method == "U4-Tougaard":
                 full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
                     full_x_values, current_background, sheet_name, self.parent)
-            elif selected_method == "2x U4-Tougaard":
-                full_tougaard_bg = BackgroundCalculations.calculate_double_tougaard_background(
-                    full_x_values, current_background, sheet_name, self.parent)
-            elif selected_method == "3x U4-Tougaard":
-                full_tougaard_bg = BackgroundCalculations.calculate_triple_tougaard_background(
-                    full_x_values, current_background, sheet_name, self.parent)
+            # elif selected_method == "2x U4-Tougaard":
+            #     full_tougaard_bg = BackgroundCalculations.calculate_double_tougaard_background(
+            #         full_x_values, current_background, sheet_name, self.parent)
+            # elif selected_method == "3x U4-Tougaard":
+            #     full_tougaard_bg = BackgroundCalculations.calculate_triple_tougaard_background(
+            #         full_x_values, current_background, sheet_name, self.parent)
             else:
                 print(f"Unknown Tougaard method: {selected_method}")
                 # Fallback to normal background
@@ -824,6 +824,70 @@ class BackgroundWindow(wx.Frame):
                 self.parent.bg_min_energy = original_bg_min
             if original_bg_max is not None:
                 self.parent.bg_max_energy = original_bg_max
+
+    def handle_tougaard_background_special(self, sheet_name, selected_method, vline1_x, vline2_x):
+        import numpy as np
+        from libraries.Peak_Functions import BackgroundCalculations
+
+        # Get FULL data range
+        full_x_values = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
+        full_raw_data = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+
+        # Get current background or create from raw data
+        if 'Background' in self.parent.Data['Core levels'][sheet_name] and 'Bkg Y' in \
+                self.parent.Data['Core levels'][sheet_name]['Background']:
+            current_background = np.array(self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+        else:
+            # Initialize background as raw data
+            current_background = full_raw_data.copy()
+            if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
+
+        # Define vLine range
+        range_min = min(vline1_x, vline2_x)
+        range_max = max(vline1_x, vline2_x)
+
+        # Create mask for vLine range
+        vline_mask = (full_x_values >= range_min) & (full_x_values <= range_max)
+
+        # STEP 1: Remove any existing background in the vLine range
+        # (Restore raw data in that range - this handles the "remove previous background" requirement)
+        current_background[vline_mask] = full_raw_data[vline_mask]
+
+        # STEP 2: Calculate Tougaard background for ENTIRE data range using raw data
+        print(f"Calculating {selected_method} background for entire data range...")
+
+        try:
+            if selected_method == "U4-Tougaard":
+                # Calculate Tougaard background using FULL RAW DATA (not current_background)
+                full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
+                    full_x_values, full_raw_data, sheet_name, self.parent)
+            elif selected_method == "2x U4-Tougaard":
+                full_tougaard_bg = BackgroundCalculations.calculate_double_tougaard_background(
+                    full_x_values, full_raw_data, sheet_name, self.parent)
+            elif selected_method == "3x U4-Tougaard":
+                full_tougaard_bg = BackgroundCalculations.calculate_triple_tougaard_background(
+                    full_x_values, full_raw_data, sheet_name, self.parent)
+            else:
+                print(f"Unknown Tougaard method: {selected_method}")
+                # Fallback to normal background
+                self.parent.plot_manager.plot_background(self.parent)
+                return
+
+            # STEP 3: Apply Tougaard background ONLY in vLine range
+            current_background[vline_mask] = full_tougaard_bg[vline_mask]
+
+            # Update data structure
+            self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
+            self.parent.background = current_background
+
+            print(f"Tougaard background applied between {range_min:.2f} - {range_max:.2f} eV")
+
+        except Exception as e:
+            print(f"Error calculating Tougaard background: {e}")
+            # Fallback to normal background
+            self.parent.plot_manager.plot_background(self.parent)
 
     def on_bkg_method_change(self, event):
         new_method = self.method_combobox.GetValue()
