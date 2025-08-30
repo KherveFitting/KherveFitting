@@ -1406,6 +1406,13 @@ class FittingWindow(wx.Frame):
     def on_background(self, event):
         save_state(self.parent)
 
+        # Validate and set background method from combobox
+        selected_method = self.method_combobox.GetValue()
+        if not selected_method or selected_method == "":
+            selected_method = "Smart"  # Default fallback
+            self.method_combobox.SetSelection(0)  # Select first item (Smart)
+        self.parent.background_method = selected_method
+
         # Get vline positions if they exist, otherwise use full range
         if self.parent.vline1 is not None and self.parent.vline2 is not None:
             # Use actual vline positions
@@ -2976,20 +2983,39 @@ class TougaardFitWindow(wx.Frame):
         self.bg_start = wx.SpinCtrlDouble(control_panel, min=0, max=2000, inc=0.1, value=str(min_x + 1))
         bg_sizer.Add(self.bg_start, 1, wx.ALL, 5)
 
-        # Range controls
-        range_box = wx.StaticBox(control_panel, label="Fit Range")
+        # Fitting ranges controls
+        range_box = wx.StaticBox(control_panel, label="Fitting Ranges")
         range_sizer = wx.StaticBoxSizer(range_box, wx.VERTICAL)
-        range_grid = wx.GridSizer(1, 4, 5, 5)
 
-        self.min_range = wx.SpinCtrlDouble(control_panel, min=0, max=2000, inc=0.1, value=str(max_x - 15))
-        self.max_range = wx.SpinCtrlDouble(control_panel, min=0, max=2000, inc=0.1, value=str(max_x - 1))
+        # Number of ranges control
+        num_ranges_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        num_ranges_sizer.Add(wx.StaticText(range_box, label="Number of Ranges:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.num_ranges = wx.SpinCtrl(range_box, min=1, max=10, initial=1)
+        self.num_ranges.Bind(wx.EVT_SPINCTRL, self.on_num_ranges_change)
+        num_ranges_sizer.Add(self.num_ranges, 1, wx.ALL, 5)
+        range_sizer.Add(num_ranges_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
-        range_grid.Add(wx.StaticText(control_panel, label="Min:"), 0)
-        range_grid.Add(self.min_range, 0)
-        range_grid.Add(wx.StaticText(control_panel, label="Max:"), 0)
-        range_grid.Add(self.max_range, 0)
-        range_sizer.Add(range_grid, 0, wx.ALL | wx.EXPAND, 5)
+        # Ranges scroll area
+        self.ranges_panel = wx.ScrolledWindow(range_box)
+        self.ranges_panel.SetScrollRate(0, 20)
+        self.ranges_panel.SetMinSize((-1, 120))  # Set minimum height
+        self.ranges_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.ranges_panel.SetSizer(self.ranges_panel_sizer)
+        range_sizer.Add(self.ranges_panel, 1, wx.EXPAND | wx.ALL, 5)
 
+        # Initialize ranges array
+        self.ranges = []
+
+        # Plot setup - MUST be before create_initial_ranges
+        self.figure = Figure(figsize=(6, 4))
+        self.canvas = FigureCanvas(self.panel, -1, self.figure)
+        self.ax = self.figure.add_subplot(111)
+
+        self.y_max = max(self.y_values)
+        self.y_min = 0.99 * min(self.y_values)
+
+        # Now create the ranges (which calls plot_initial_data)
+        self.create_initial_ranges(1)
 
         # Scrolled window for Tougaard parameters
         self.param_scroll = wx.ScrolledWindow(control_panel)
@@ -3018,13 +3044,9 @@ class TougaardFitWindow(wx.Frame):
         self.vline_min = None
         self.vline_max = None
 
-        self.y_max = max(self.y_values)
-        self.y_min = 0.99*min(self.y_values)
+        # self.y_max = max(self.y_values)
+        # self.y_min = 0.99*min(self.y_values)
 
-        # Plot setup
-        self.figure = Figure(figsize=(6, 4))
-        self.canvas = FigureCanvas(self.panel, -1, self.figure)
-        self.ax = self.figure.add_subplot(111)
 
         # Initial plot setup
         self.ax.plot(self.x_values, self.y_values, 'k-', label='Data')
@@ -3033,11 +3055,8 @@ class TougaardFitWindow(wx.Frame):
         self.ax.legend()
         self.ax.set_xlim(max(self.x_values), min(self.x_values))
 
-        # Add vertical lines for fit range
-        min_e = self.min_range.GetValue()
-        max_e = self.max_range.GetValue()
-        self.vline_min = self.ax.axvline(x=min_e, color='red', linestyle='--', alpha=0.5)
-        self.vline_max = self.ax.axvline(x=max_e, color='red', linestyle='--', alpha=0.5)
+        # Plot initial data
+        self.plot_initial_data()
 
         # Layout
         control_sizer.Add(num_sizer, 0, wx.EXPAND | wx.ALL, 5)
@@ -3052,9 +3071,11 @@ class TougaardFitWindow(wx.Frame):
 
         self.panel.SetSizer(main_sizer)
 
+
+
         # Bind events
-        self.min_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
-        self.max_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
+        # self.min_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
+        # self.max_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
         self.num_tougaard.Bind(wx.EVT_SPINCTRL, self.on_num_tougaard_change)
         self.panel.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
 
@@ -3151,8 +3172,10 @@ class TougaardFitWindow(wx.Frame):
         self.param_scroll.FitInside()
 
     def on_fit(self, event):
-        min_e = self.min_range.GetValue()
-        max_e = self.max_range.GetValue()
+        fitting_ranges = self.get_fitting_ranges()
+        if not fitting_ranges:
+            print("Error: No active fitting ranges defined")
+            return
         bg_start = self.bg_start.GetValue()
 
         if self.x_values is None or self.y_values is None:
@@ -3181,12 +3204,17 @@ class TougaardFitWindow(wx.Frame):
             print("Error: No data points in selected range")
             return
 
-        fit_mask = (x_full >= min_e) & (x_full <= max_e)
-        x_fit = x_full[fit_mask]
-        y_fit = y_full[fit_mask]
+        # Combine all fitting ranges
+        combined_mask = np.zeros_like(x_full, dtype=bool)
+        for min_e, max_e in fitting_ranges:
+            range_mask = (x_full >= min_e) & (x_full <= max_e)
+            combined_mask = combined_mask | range_mask
+
+        x_fit = x_full[combined_mask]
+        y_fit = y_full[combined_mask]
 
         if len(x_fit) == 0 or len(y_fit) == 0:
-            print("Error: No data points in fitting range")
+            print("Error: No data points in fitting ranges")
             return
 
         def tougaard_model(params, x_full, y_full, x_fit, y_fit):
@@ -3206,7 +3234,7 @@ class TougaardFitWindow(wx.Frame):
                 background_full[i] = np.trapz(K_total * y_shifted[i:], dx=dx)
 
             background_full += baseline
-            fit_indices = np.where(fit_mask)[0]
+            fit_indices = np.where(combined_mask)[0]
             background_fit = background_full[fit_indices]
             return y_fit - background_fit
 
@@ -3238,15 +3266,15 @@ class TougaardFitWindow(wx.Frame):
             self.plot_results(x_fit, y_fit, result.params, result)
             print("Warning: Fit did not converge")
 
-    def plot_results(self, x, y, fitted_params, result):
+    def plot_results(self, x_fit, y_fit, fitted_params, result):
         self.ax.clear()
         bg_start = self.bg_start.GetValue()
 
         # Update control values with fitted parameters
         for i, tougaard in enumerate(self.tougaard_params):
-            tougaard['B']['value'].SetValue(fitted_params[f'B{i + 1}'].value)
-            tougaard['C']['value'].SetValue(fitted_params[f'C{i + 1}'].value)
-            tougaard['D']['value'].SetValue(fitted_params[f'D{i + 1}'].value)
+            tougaard['B']['value'].SetValue(f"{fitted_params[f'B{i + 1}'].value:.2f}")
+            tougaard['C']['value'].SetValue(f"{fitted_params[f'C{i + 1}'].value:.2f}")
+            tougaard['D']['value'].SetValue(f"{fitted_params[f'D{i + 1}'].value:.2f}")
 
         # Calculate each background separately
         mask = self.x_values >= bg_start
@@ -3274,7 +3302,6 @@ class TougaardFitWindow(wx.Frame):
                 K = B * E / ((C - E ** 2) ** 2 + D * E ** 2)
                 background[i] += np.trapz(K * y_shifted[i:], dx=dx)
 
-            # background += baseline
             total_background += (background - baseline)
             self.ax.plot(x_bg, background, '--', color=color, alpha=0.5,
                          label=f'Tougaard {j + 1}')
@@ -3282,49 +3309,140 @@ class TougaardFitWindow(wx.Frame):
         # Plot total background
         self.ax.plot(x_bg, total_background, 'b-', label='Total Background')
 
-        # Add vertical lines
-        min_e = self.min_range.GetValue()
-        max_e = self.max_range.GetValue()
-        self.vline_min = self.ax.axvline(x=min_e, color='red', linestyle='--', alpha=0.5)
-        self.vline_max = self.ax.axvline(x=max_e, color='red', linestyle='--', alpha=0.5)
+        # Plot vertical lines for all active fitting ranges
+        fitting_ranges = self.get_fitting_ranges()
+        range_colors = ['red', 'blue', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'magenta']
+
+        for i, (min_val, max_val) in enumerate(fitting_ranges):
+            color = range_colors[i % len(range_colors)]
+            self.ax.axvline(x=min_val, color=color, linestyle='--', alpha=0.7)
+            self.ax.axvline(x=max_val, color=color, linestyle=':', alpha=0.7)
 
         self.ax.set_xlabel('Binding Energy (eV)')
         self.ax.set_ylabel('Intensity (CPS)')
-        self.ax.legend()
+
+        # Only show legend if there are items to show
+        handles, labels = self.ax.get_legend_handles_labels()
+        if handles:
+            self.ax.legend()
+
         self.ax.set_xlim(max(self.x_values), min(self.x_values))
-        self.ax.set_ylim(self.y_min, self.y_max)  # Use stored y_max
+        self.ax.set_ylim(self.y_min, self.y_max)
         self.canvas.draw()
 
     def plot_initial_data(self):
         self.ax.clear()
         self.ax.plot(self.x_values, self.y_values, 'k-', label='Data')
-
-        # Add vertical lines for fit range
-        min_e = self.min_range.GetValue()
-        max_e = self.max_range.GetValue()
-
-        self.vline_min = self.ax.axvline(x=min_e, color='red', linestyle='--', alpha=0.5)
-        self.vline_max = self.ax.axvline(x=max_e, color='red', linestyle='--', alpha=0.5)
-
         self.ax.set_xlabel('Binding Energy (eV)')
         self.ax.set_ylabel('Intensity (CPS)')
-        self.ax.legend()
         self.ax.set_xlim(max(self.x_values), min(self.x_values))
 
-        # Add vertical lines for fit range
-        min_e = self.min_range.GetValue()
-        max_e = self.max_range.GetValue()
-        self.vline_min = self.ax.axvline(x=min_e, color='red', linestyle='--', alpha=0.5)
-        self.vline_max = self.ax.axvline(x=max_e, color='red', linestyle='--', alpha=0.5)
+        # Plot vertical lines for all active fitting ranges
+        fitting_ranges = self.get_fitting_ranges()
+        colors = ['red', 'blue', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'magenta']
+
+        for i, (min_val, max_val) in enumerate(fitting_ranges):
+            color = colors[i % len(colors)]
+            self.ax.axvline(x=min_val, color=color, linestyle='--', alpha=0.7,
+                            label=f'Range {i + 1} Min')
+            self.ax.axvline(x=max_val, color=color, linestyle=':', alpha=0.7,
+                            label=f'Range {i + 1} Max')
+
+        # Only show legend if there are items to show
+        handles, labels = self.ax.get_legend_handles_labels()
+        if handles:
+            self.ax.legend()
 
         self.canvas.draw()
+
+    def update_range_lines(self):
+        """Update range lines when controls change"""
+        self.plot_initial_data()
+
+    def plot_range_lines(self):
+        """Plot vertical lines for all active fitting ranges"""
+        fitting_ranges = self.get_fitting_ranges()
+        colors = ['red', 'blue', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'magenta']
+
+        for i, (min_val, max_val) in enumerate(fitting_ranges):
+            color = colors[i % len(colors)]
+            self.ax.axvline(x=min_val, color=color, linestyle='--', alpha=0.7,
+                            label=f'Range {i + 1} Min' if i == 0 else "")
+            self.ax.axvline(x=max_val, color=color, linestyle=':', alpha=0.7,
+                            label=f'Range {i + 1} Max' if i == 0 else "")
+
+    def on_num_ranges_change(self, event):
+        num_ranges = self.num_ranges.GetValue()
+        self.create_initial_ranges(num_ranges)
+
+    def create_initial_ranges(self, num_ranges):
+        # Clear existing ranges
+        for range_data in self.ranges:
+            range_data['panel'].Destroy()
+        self.ranges = []
+
+        min_x = min(self.x_values)
+        max_x = max(self.x_values)
+
+        for i in range(num_ranges):
+            range_panel = wx.Panel(self.ranges_panel)
+            range_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            # Use range checkbox
+            use_range = wx.CheckBox(range_panel, label=f"Use Range {i + 1}")
+            use_range.SetValue(True)
+            use_range.Bind(wx.EVT_CHECKBOX, self.on_range_change)
+            range_panel_sizer.Add(use_range, 0, wx.ALL, 2)
+
+            # Min/Max controls in a horizontal layout
+            range_controls_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+            # Min control
+            range_controls_sizer.Add(wx.StaticText(range_panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+            min_ctrl = wx.SpinCtrlDouble(range_panel, min=0.00, max=2000.00, inc=0.10, value=f"{max_x - 15:.2f}")
+            min_ctrl.SetDigits(2)
+            min_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
+            range_controls_sizer.Add(min_ctrl, 1, wx.EXPAND | wx.RIGHT, 5)
+
+            # Max control
+            range_controls_sizer.Add(wx.StaticText(range_panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+            max_ctrl = wx.SpinCtrlDouble(range_panel, min=0.00, max=2000.00, inc=0.10, value=f"{max_x - 1:.2f}")
+            max_ctrl.SetDigits(2)
+            max_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
+            range_controls_sizer.Add(max_ctrl, 1, wx.EXPAND)
+
+            range_panel_sizer.Add(range_controls_sizer, 0, wx.EXPAND | wx.ALL, 2)
+            range_panel.SetSizer(range_panel_sizer)
+
+            range_data = {
+                'panel': range_panel,
+                'use_range': use_range,
+                'min': min_ctrl,
+                'max': max_ctrl
+            }
+
+            self.ranges.append(range_data)
+            self.ranges_panel_sizer.Add(range_panel, 0, wx.EXPAND | wx.ALL, 2)
+
+        self.ranges_panel.FitInside()
+        self.ranges_panel.Layout()
+
+        # Call plot_initial_data only if matplotlib is set up
+        if hasattr(self, 'ax'):
+            self.plot_initial_data()
+
+    def get_fitting_ranges(self):
+        ranges = []
+        for range_data in self.ranges:
+            if range_data['use_range'].GetValue():
+                min_val = min(range_data['min'].GetValue(), range_data['max'].GetValue())
+                max_val = max(range_data['min'].GetValue(), range_data['max'].GetValue())
+                ranges.append((min_val, max_val))
+        return ranges
 
     def on_range_change(self, event):
-        if self.vline_min is not None:
-            self.vline_min.set_xdata([self.min_range.GetValue(), self.min_range.GetValue()])
-        if self.vline_max is not None:
-            self.vline_max.set_xdata([self.max_range.GetValue(), self.max_range.GetValue()])
-        self.canvas.draw()
+        """Handle changes to fitting range controls"""
+        self.plot_initial_data()
 
     def on_copy_values(self, event):
         for i, tougaard in enumerate(self.tougaard_params):
