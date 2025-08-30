@@ -138,11 +138,8 @@ class FittingWindow(wx.Frame):
         background_sizer = wx.GridBagSizer(hgap=0, vgap=0)
 
         method_label = wx.StaticText(self.background_panel, label="Method:")
-        # self.method_combobox = wx.ComboBox(self.background_panel, choices=["Multi-Regions Smart", "Smart", "Shirley",
-        #                                     "Linear", '1x U4-Tougaard', "ALS-Raman"],
-        #                                    style=wx.CB_READONLY)
         self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart", "Shirley",
-                                            "Linear", 'U4-Tougaard', "ALS-Raman"],
+                                            "Linear", 'U4-Tougaard', 'U2-Tougaard',"ALS-Raman"],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetMaxSize((125,25))
 
@@ -719,7 +716,7 @@ class FittingWindow(wx.Frame):
 
     def on_tougaard_raman_model(self, event):
         bg_method = self.method_combobox.GetValue()
-        if bg_method.startswith("U4-Tougaard") or bg_method.startswith("2x U4-Tougaard") or \
+        if bg_method.startswith("U4-Tougaard") or bg_method.startswith("U2-Tougaard") or bg_method.startswith("2x U4-Tougaard") or \
                 bg_method.startswith("3x U4-Tougaard"):
             tougaard_window = TougaardFitWindow(self)
             tougaard_window.Show()
@@ -732,6 +729,10 @@ class FittingWindow(wx.Frame):
 
     def update_tougaard_controls_visibility(self, new_method):
         if new_method.startswith("U4-Tougaard"):
+            self.cross_section.Enable(True)
+            self.cross_section_label.Enable(True)
+            self.tougaard_fit_btn.Enable(True)
+        elif new_method == "U2-Tougaard":
             self.cross_section.Enable(True)
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
@@ -1638,6 +1639,7 @@ class FittingWindow(wx.Frame):
                        "the data contains symmetrical peak. the number of iteration is set to 100",
             "Linear": "Simple linear background. Usually used on negative background",
             "U4-Tougaard": "U4 Tougaard background for Advanced users. B, C, D and T0 can be varied.",
+            "U2-Tougaard": "2-parameter Tougaard background (auto B, user C, D=0, T0=0)",
             "ALS-Raman": "Asymmetric Least Squares background estimation. Good for uneven backgrounds "
                          "with broad features. Lambda controls smoothness and p controls asymmetry."
         }
@@ -2971,11 +2973,11 @@ class TougaardFitWindow(wx.Frame):
         control_panel = wx.Panel(self.panel)
         control_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Number of Tougaard backgrounds control
-        num_box = wx.StaticBox(control_panel, label="Number of Tougaard Backgrounds")
-        num_sizer = wx.StaticBoxSizer(num_box, wx.HORIZONTAL)
-        self.num_tougaard = wx.SpinCtrl(control_panel, min=1, max=10, initial=1)
-        num_sizer.Add(self.num_tougaard, 1, wx.ALL, 5)
+        # # Number of Tougaard backgrounds control
+        # num_box = wx.StaticBox(control_panel, label="Number of Tougaard Backgrounds")
+        # num_sizer = wx.StaticBoxSizer(num_box, wx.HORIZONTAL)
+        # self.num_tougaard = wx.SpinCtrl(control_panel, min=1, max=10, initial=1)
+        # num_sizer.Add(self.num_tougaard, 1, wx.ALL, 5)
 
         # Background start control
         bg_box = wx.StaticBox(control_panel, label="Background Start")
@@ -2998,7 +3000,7 @@ class TougaardFitWindow(wx.Frame):
         # Ranges scroll area
         self.ranges_panel = wx.ScrolledWindow(range_box)
         self.ranges_panel.SetScrollRate(0, 20)
-        self.ranges_panel.SetMinSize((-1, 120))  # Set minimum height
+        self.ranges_panel.SetMinSize((-1, 180))  # Increased from 120 to 180
         self.ranges_panel_sizer = wx.BoxSizer(wx.VERTICAL)
         self.ranges_panel.SetSizer(self.ranges_panel_sizer)
         range_sizer.Add(self.ranges_panel, 1, wx.EXPAND | wx.ALL, 5)
@@ -3044,6 +3046,11 @@ class TougaardFitWindow(wx.Frame):
         self.vline_min = None
         self.vline_max = None
 
+        # Mouse interaction
+        self.dragging_range = None
+        self.mouse_press_x = None
+        self.range_vlines = []  # Store vlines for each range
+
         # self.y_max = max(self.y_values)
         # self.y_min = 0.99*min(self.y_values)
 
@@ -3059,9 +3066,8 @@ class TougaardFitWindow(wx.Frame):
         self.plot_initial_data()
 
         # Layout
-        control_sizer.Add(num_sizer, 0, wx.EXPAND | wx.ALL, 5)
         control_sizer.Add(bg_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        control_sizer.Add(range_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        control_sizer.Add(range_sizer, 2, wx.EXPAND | wx.ALL, 5)  # Changed from 1 to 2 for more space
         control_sizer.Add(self.param_scroll, 1, wx.EXPAND | wx.ALL, 5)
         control_sizer.Add(button_sizer, 0, wx.EXPAND|wx.ALL, 5)
         control_panel.SetSizer(control_sizer)
@@ -3076,7 +3082,7 @@ class TougaardFitWindow(wx.Frame):
         # Bind events
         # self.min_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
         # self.max_range.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
-        self.num_tougaard.Bind(wx.EVT_SPINCTRL, self.on_num_tougaard_change)
+        # self.num_tougaard.Bind(wx.EVT_SPINCTRL, self.on_num_tougaard_change)
         self.panel.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
 
         from libraries.ConfigFile import set_consistent_fonts
@@ -3099,7 +3105,7 @@ class TougaardFitWindow(wx.Frame):
 
         event.Skip()
 
-    def create_tougaard_params(self, num_tougaard):
+    def create_tougaard_params_OLD(self, num_tougaard):
         # Store current values if they exist
         old_values = []
         old_fixed = []
@@ -3164,7 +3170,49 @@ class TougaardFitWindow(wx.Frame):
         self.param_scroll.SetSizer(self.param_sizer)
         self.param_scroll.Layout()
 
+    def create_tougaard_params(self, num=1):  # Always 1 now
+        # Clear existing parameters
+        for child in self.param_scroll.GetChildren():
+            child.Destroy()
 
+        self.tougaard_params = []
+
+        # Create single Tougaard parameter set
+        box_sizer = wx.StaticBoxSizer(wx.StaticBox(self.param_scroll, label="Tougaard Parameters"), wx.VERTICAL)
+        param_grid = wx.GridBagSizer(hgap=5, vgap=2)
+
+        params = {}
+        for row, (param, default, is_fixed, min_default) in enumerate([
+            ('B', '2866.00', False, '0'),
+            ('C', '1643.00', False, '600'),
+            ('D', '1.00', False, '1200')
+        ]):
+            params[param] = {
+                'value': wx.SpinCtrlDouble(self.param_scroll, min=0, max=20000, inc=0.1, value=default),
+                'min': wx.SpinCtrlDouble(self.param_scroll, min=0, max=6000, inc=0.1, value=min_default),
+                'max': wx.SpinCtrlDouble(self.param_scroll, min=0, max=20000, inc=0.1, value='6000'),
+                'fixed': wx.CheckBox(self.param_scroll, label="Fix")
+            }
+            params[param]['value'].SetDigits(2)
+            params[param]['min'].SetDigits(2)
+            params[param]['max'].SetDigits(2)
+            params[param]['fixed'].SetValue(is_fixed)
+
+            param_grid.Add(wx.StaticText(self.param_scroll, label=f"{param}:"), pos=(row, 0), flag=wx.ALIGN_CENTER_VERTICAL)
+            param_grid.Add(params[param]['value'], pos=(row, 1), flag=wx.EXPAND)
+            param_grid.Add(params[param]['fixed'], pos=(row, 2), flag=wx.ALIGN_CENTER_VERTICAL)
+            param_grid.Add(wx.StaticText(self.param_scroll, label="Min:"), pos=(row, 3), flag=wx.ALIGN_CENTER_VERTICAL)
+            param_grid.Add(params[param]['min'], pos=(row, 4), flag=wx.EXPAND)
+            param_grid.Add(wx.StaticText(self.param_scroll, label="Max:"), pos=(row, 5), flag=wx.ALIGN_CENTER_VERTICAL)
+            param_grid.Add(params[param]['max'], pos=(row, 6), flag=wx.EXPAND)
+
+        box_sizer.Add(param_grid, 0, wx.EXPAND | wx.ALL, 5)
+        self.tougaard_params.append(params)
+
+        self.param_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.param_sizer.Add(box_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        self.param_scroll.SetSizer(self.param_sizer)
+        self.param_scroll.Layout()
 
     def on_num_tougaard_change(self, event):
         num = self.num_tougaard.GetValue()
@@ -3376,6 +3424,16 @@ class TougaardFitWindow(wx.Frame):
         self.create_initial_ranges(num_ranges)
 
     def create_initial_ranges(self, num_ranges):
+        # Store previous values before clearing
+        previous_values = []
+        for range_data in self.ranges:
+            previous_values.append({
+                'min': range_data['min'].GetValue(),
+                'max': range_data['max'].GetValue(),
+                'use_range': range_data['use_range'].GetValue(),
+                'moveable': range_data.get('moveable', wx.CheckBox()).GetValue() if 'moveable' in range_data else False
+            })
+
         # Clear existing ranges
         for range_data in self.ranges:
             range_data['panel'].Destroy()
@@ -3386,49 +3444,78 @@ class TougaardFitWindow(wx.Frame):
 
         for i in range(num_ranges):
             range_panel = wx.Panel(self.ranges_panel)
+            range_panel.SetMinSize((-1, 55))  # Increased height
             range_panel_sizer = wx.BoxSizer(wx.VERTICAL)
 
-            # Use range checkbox
+            # Top row: Use range and moveable checkboxes
+            checkbox_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
             use_range = wx.CheckBox(range_panel, label=f"Use Range {i + 1}")
-            use_range.SetValue(True)
+            if i < len(previous_values):
+                use_range.SetValue(previous_values[i]['use_range'])
+            else:
+                use_range.SetValue(True)
             use_range.Bind(wx.EVT_CHECKBOX, self.on_range_change)
-            range_panel_sizer.Add(use_range, 0, wx.ALL, 2)
+
+            moveable = wx.CheckBox(range_panel, label="Moveable")
+            if i < len(previous_values):
+                moveable.SetValue(previous_values[i]['moveable'])
+            moveable.Bind(wx.EVT_CHECKBOX, self.on_moveable_change)
+
+            checkbox_sizer.Add(use_range, 0, wx.ALL, 2)
+            checkbox_sizer.Add(moveable, 0, wx.ALL, 2)
+            range_panel_sizer.Add(checkbox_sizer, 0, wx.EXPAND | wx.ALL, 2)
 
             # Min/Max controls in a horizontal layout
             range_controls_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
             # Min control
             range_controls_sizer.Add(wx.StaticText(range_panel, label="Min:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-            min_ctrl = wx.SpinCtrlDouble(range_panel, min=0.00, max=2000.00, inc=0.10, value=f"{max_x - 15:.2f}")
+
+            # Use previous values if available
+            if i < len(previous_values):
+                min_val = previous_values[i]['min']
+            else:
+                min_val = max_x - 15
+
+            min_ctrl = wx.SpinCtrlDouble(range_panel, min=0.00, max=2000.00, inc=0.10, value=f"{min_val:.2f}")
             min_ctrl.SetDigits(2)
             min_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
-            range_controls_sizer.Add(min_ctrl, 1, wx.EXPAND | wx.RIGHT, 5)
+            range_controls_sizer.Add(min_ctrl, 1, wx.EXPAND | wx.RIGHT, 10)
 
             # Max control
             range_controls_sizer.Add(wx.StaticText(range_panel, label="Max:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-            max_ctrl = wx.SpinCtrlDouble(range_panel, min=0.00, max=2000.00, inc=0.10, value=f"{max_x - 1:.2f}")
+
+            if i < len(previous_values):
+                max_val = previous_values[i]['max']
+            else:
+                max_val = max_x - 1
+
+            max_ctrl = wx.SpinCtrlDouble(range_panel, min=0.00, max=2000.00, inc=0.10, value=f"{max_val:.2f}")
             max_ctrl.SetDigits(2)
             max_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
             range_controls_sizer.Add(max_ctrl, 1, wx.EXPAND)
 
-            range_panel_sizer.Add(range_controls_sizer, 0, wx.EXPAND | wx.ALL, 2)
+            range_panel_sizer.Add(range_controls_sizer, 0, wx.EXPAND | wx.ALL, 5)
             range_panel.SetSizer(range_panel_sizer)
 
             range_data = {
                 'panel': range_panel,
                 'use_range': use_range,
                 'min': min_ctrl,
-                'max': max_ctrl
+                'max': max_ctrl,
+                'moveable': moveable
             }
 
             self.ranges.append(range_data)
-            self.ranges_panel_sizer.Add(range_panel, 0, wx.EXPAND | wx.ALL, 2)
+            self.ranges_panel_sizer.Add(range_panel, 0, wx.EXPAND | wx.ALL, 5)
 
         self.ranges_panel.FitInside()
         self.ranges_panel.Layout()
 
         # Call plot_initial_data only if matplotlib is set up
         if hasattr(self, 'ax'):
+            self.setup_mouse_events()
             self.plot_initial_data()
 
     def get_fitting_ranges(self):
@@ -3456,6 +3543,80 @@ class TougaardFitWindow(wx.Frame):
                 self.parent.cross_section2.SetValue(f"{B},{C},{D},0")
             elif i == 2:
                 self.parent.cross_section3.SetValue(f"{B},{C},{D},0")
+
+    def setup_mouse_events(self):
+        """Setup mouse event handlers for dragging vlines"""
+        self.canvas.mpl_connect('button_press_event', self.on_mouse_press)
+        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_motion)
+        self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
+
+    def on_moveable_change(self, event):
+        """Handle moveable checkbox changes - ensure only one can be selected"""
+        changed_checkbox = event.GetEventObject()
+
+        if changed_checkbox.GetValue():
+            # Uncheck all other moveable checkboxes
+            for range_data in self.ranges:
+                if range_data['moveable'] != changed_checkbox:
+                    range_data['moveable'].SetValue(False)
+
+        self.plot_initial_data()
+
+    def on_mouse_press(self, event):
+        """Handle mouse press for starting vline drag"""
+        if event.inaxes != self.ax:
+            return
+
+        # Find which moveable range is selected
+        moveable_range_idx = None
+        for i, range_data in enumerate(self.ranges):
+            if range_data['moveable'].GetValue() and range_data['use_range'].GetValue():
+                moveable_range_idx = i
+                break
+
+        if moveable_range_idx is None:
+            return
+
+        # Check if click is near a vline for the moveable range
+        range_data = self.ranges[moveable_range_idx]
+        min_val = range_data['min'].GetValue()
+        max_val = range_data['max'].GetValue()
+
+        click_x = event.xdata
+        tolerance = (max(self.x_values) - min(self.x_values)) * 0.02  # 2% of x range
+
+        if abs(click_x - min_val) < tolerance:
+            self.dragging_range = (moveable_range_idx, 'min')
+            self.mouse_press_x = click_x
+        elif abs(click_x - max_val) < tolerance:
+            self.dragging_range = (moveable_range_idx, 'max')
+            self.mouse_press_x = click_x
+
+    def on_mouse_motion(self, event):
+        """Handle mouse motion for dragging vlines"""
+        if self.dragging_range is None or event.inaxes != self.ax:
+            return
+
+        range_idx, line_type = self.dragging_range
+        range_data = self.ranges[range_idx]
+
+        new_x = event.xdata
+        if new_x is None:
+            return
+
+        # Update the control value
+        if line_type == 'min':
+            range_data['min'].SetValue(f"{new_x:.2f}")
+        else:
+            range_data['max'].SetValue(f"{new_x:.2f}")
+
+        # Redraw the plot
+        self.plot_initial_data()
+
+    def on_mouse_release(self, event):
+        """Handle mouse release to stop dragging"""
+        self.dragging_range = None
+        self.mouse_press_x = None
 
 
 class CustomComboBox2(wx.ComboBox):

@@ -1760,12 +1760,16 @@ class PlotManager:
         # masked_residuals = ma.masked_where(np.isclose(scaled_residuals, 0, atol=5e-1), scaled_residuals)
         # masked_residuals2 = ma.masked_where(np.isclose(scaled_residuals, 0, atol=5e-1), residuals)
 
-        # Calculate threshold as percentage of maximum intensity
-        threshold = 0.0005 * np.max(np.abs(scaled_residuals))  # 5% of max residual
+        # # Calculate threshold as percentage of maximum intensity
+        # threshold = 0.0005 * np.max(np.abs(scaled_residuals))  # 5% of max residual
+        #
+        # # Create a masked array using threshold instead of zero
+        # masked_residuals = ma.masked_where(np.abs(scaled_residuals) < threshold, scaled_residuals)
+        # masked_residuals2 = ma.masked_where(np.abs(scaled_residuals) < threshold, residuals)
 
-        # Create a masked array using threshold instead of zero
-        masked_residuals = ma.masked_where(np.abs(scaled_residuals) < threshold, scaled_residuals)
-        masked_residuals2 = ma.masked_where(np.abs(scaled_residuals) < threshold, residuals)
+        # No masking - use all residual values
+        masked_residuals = scaled_residuals
+        masked_residuals2 = residuals
 
         # Remove old overall fit and residuals, keep background lines
         for line in self.ax.lines:
@@ -2940,6 +2944,12 @@ class PlotManager:
                                                                                        y_values_filtered,
                                                                                        sheet_name,
                                                                                        window)
+        elif method == "U2-Tougaard":
+            background_filtered = BackgroundCalculations.calculate_u2_tougaard_background(x_values_filtered,
+                                                                                          y_values_filtered,
+                                                                                          sheet_name,
+                                                                                          window)
+            label = 'Background (U2-Tougaard)'
             label = 'Background (Tougaard)'
         elif method == "2x U4-Tougaard":
             background_filtered = BackgroundCalculations.calculate_double_tougaard_background(x_values_filtered,

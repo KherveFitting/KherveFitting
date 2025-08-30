@@ -1050,6 +1050,183 @@ class BackgroundCalculations:
         background=shirley_calculate(x_padded,y_padded,maxit=max_iter, tol=tol)
         return background[1:-1]
 
+    @staticmethod
+    def calculate_u2_tougaard_background_OLD(x, y, sheet_name, window, vline_range=None):
+        """
+        Calculate U2-Tougaard background (2 parameters: auto-calculated B, user-defined C)
+        D=0, T0=0 are fixed.
+        B is fitted so background equals raw data at high BE vLine position.
+        """
+        print(f"DEBUG: U2-Tougaard called with vline_range={vline_range}")
+        print(f"DEBUG: Data keys: {window.Data['Core levels'][sheet_name]['Background'].keys()}")
+
+        import numpy as np
+        from scipy.optimize import minimize_scalar
+
+        bg_data = window.Data['Core levels'][sheet_name]['Background']
+        C = bg_data.get('Tougaard_C', 1643)  # User enters positive value
+
+        # Get baseline value (lowest BE intensity)
+        baseline = y[-1]  # Assuming x is in BE, so highest KE/lowest BE is at the end
+
+        # Shift data to zero baseline
+        y_shifted = y - baseline
+
+        # Find high BE vLine position (assuming x is in descending BE order)
+        if vline_range is not None:
+            vline_min, vline_max = vline_range
+            high_be_position = max(vline_min, vline_max)  # Higher BE value
+
+            # Find closest index to high BE position
+            high_be_idx = np.argmin(np.abs(x - high_be_position))
+            target_intensity = y[high_be_idx]  # Raw data intensity at high BE
+
+            print(f"U2-Tougaard fitting B to match intensity {target_intensity:.2f} at BE {high_be_position:.2f}")
+
+            # Define function to calculate background at specific point
+            def calculate_background_at_point(B_val, target_idx):
+                dx = np.mean(np.diff(x))
+                background_val = 0.0
+
+                # Calculate only up to target point
+                for i in range(target_idx + 1):
+                    E = x[i:] - x[i]
+                    # U2-Tougaard formula: K = B * E / (C - E²)²
+                    K = B_val * E / ((C - E ** 2) ** 2)
+                    background_val = np.trapz(K * y_shifted[i:], dx=dx)
+                    if i == target_idx:
+                        return background_val + baseline
+                return background_val + baseline
+
+            # Objective function to minimize: difference between background and target
+            def objective(B_val):
+                try:
+                    bg_at_point = calculate_background_at_point(B_val, high_be_idx)
+                    error = abs(bg_at_point - target_intensity)
+                    return error
+                except:
+                    return 1e10  # Large error if calculation fails
+
+            # Find optimal B value
+            result = minimize_scalar(objective, bounds=(0.1, 50000), method='bounded')
+            B_fitted = result.x
+
+            print(f"U2-Tougaard: Fitted B={B_fitted:.2f} (error={result.fun:.2f}) with C={C}")
+
+        else:
+            # Fallback B calculation if no vLine range provided
+            B_fitted = C / 100
+            print(f"U2-Tougaard: Fallback B={B_fitted:.2f}")
+
+        # Calculate full background with fitted B
+        dx = np.mean(np.diff(x))
+        background = np.zeros_like(y)
+
+        for i in range(len(x)):
+            E = x[i:] - x[i]
+            # U2-Tougaard formula: K = B * E / (C - E²)²
+            K = B_fitted * E / ((C - E ** 2) ** 2)  # D=0, so no D*E² term
+            background[i] = np.trapz(K * y_shifted[i:], dx=dx)
+
+        background = background + baseline
+
+        # Store the fitted B value back to the data structure for display
+        if 'Background' not in window.Data['Core levels'][sheet_name]:
+            window.Data['Core levels'][sheet_name]['Background'] = {}
+        window.Data['Core levels'][sheet_name]['Background']['Fitted_B'] = float(f"{B_fitted:.2f}")
+
+        return background
+
+    @staticmethod
+    def calculate_u2_tougaard_background(x, y, sheet_name, window, vline_range=None):
+        """
+        Calculate U2-Tougaard background (2 parameters: auto-calculated B, user-defined C)
+        D=0, T0=0 are fixed.
+        B is fitted so background equals raw data at high BE vLine position.
+        """
+        import numpy as np
+        from scipy.optimize import minimize_scalar
+
+        print(f"DEBUG: U2-Tougaard called with vline_range={vline_range}")
+        print(f"DEBUG: Data keys: {window.Data['Core levels'][sheet_name]['Background'].keys()}")
+
+        bg_data = window.Data['Core levels'][sheet_name]['Background']
+        C = bg_data.get('Tougaard_C', 1643)  # User enters positive value
+
+        # Get baseline value (lowest BE intensity)
+        baseline = y[-1]  # Assuming x is in BE, so highest KE/lowest BE is at the end
+
+        # Shift data to zero baseline
+        y_shifted = y - baseline
+
+        # Determine fitting target position
+        if vline_range is not None:
+            # Use vLine range (from AreaFit_Screen)
+            vline_min, vline_max = vline_range
+            high_be_position = max(vline_min, vline_max)
+            print(f"DEBUG: Using vLine range target at BE {high_be_position:.2f}")
+        else:
+            # Use background range data (from regular background plotting)
+            bg_high = bg_data.get('Bkg High')
+            bg_low = bg_data.get('Bkg Low')
+
+            if bg_high is not None and bg_low is not None:
+                # Use the high BE end of background range
+                high_be_position = max(float(bg_high), float(bg_low))
+                print(f"DEBUG: Using background range target at BE {high_be_position:.2f}")
+            else:
+                # Ultimate fallback - use highest BE position in data
+                high_be_position = np.max(x)
+                print(f"DEBUG: Using data max target at BE {high_be_position:.2f}")
+
+        # Find closest index to high BE position
+        high_be_idx = np.argmin(np.abs(x - high_be_position))
+        target_intensity = y[high_be_idx]  # Raw data intensity at high BE
+
+        print(f"U2-Tougaard fitting B to match intensity {target_intensity:.2f} at BE {high_be_position:.2f}")
+
+        # Objective function: minimize difference at high BE position
+        def objective(B_val):
+            try:
+                # Calculate background only up to high BE position
+                bg_temp = np.zeros_like(y)
+                dx = np.mean(np.diff(x))
+
+                for i in range(len(x)):
+                    E = x[i:] - x[i]
+                    K = B_val * E / ((C - E ** 2) ** 2)
+                    bg_temp[i] = np.trapz(K * y_shifted[i:], dx=dx)
+
+                calculated_bg = bg_temp[high_be_idx] + baseline
+                error = (calculated_bg - target_intensity) ** 2
+                return error
+            except:
+                return 1e10
+
+        # Fit B parameter
+        result = minimize_scalar(objective, bounds=(0.1, 100000), method='bounded')
+        B_fitted = result.x
+
+        print(f"U2-Tougaard: B={B_fitted:.2f}, Target={target_intensity:.2f} at BE {high_be_position:.2f}, Error={result.fun:.2f}")
+
+        # Calculate final background
+        dx = np.mean(np.diff(x))
+        background = np.zeros_like(y)
+        for i in range(len(x)):
+            E = x[i:] - x[i]
+            K = B_fitted * E / ((C - E ** 2) ** 2)
+            background[i] = np.trapz(K * y_shifted[i:], dx=dx)
+
+        background = background + baseline
+
+        # Store fitted B value
+        if 'Background' not in window.Data['Core levels'][sheet_name]:
+            window.Data['Core levels'][sheet_name]['Background'] = {}
+        window.Data['Core levels'][sheet_name]['Background']['Fitted_B'] = float(f"{B_fitted:.2f}")
+
+        return background
+
+    @staticmethod
     def calculate_tougaard_background(x, y, sheet_name, window):
         bg_data = window.Data['Core levels'][sheet_name]['Background']
         B = bg_data.get('Tougaard_B', 2866)

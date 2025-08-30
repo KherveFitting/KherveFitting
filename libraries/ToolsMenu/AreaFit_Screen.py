@@ -51,9 +51,8 @@ class BackgroundWindow(wx.Frame):
 
         # Create controls
         method_label = wx.StaticText(panel, label="Method:")
-        self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart",
-                                                           # "Smart", "Shirley", "Linear",
-                                                           'U4-Tougaard'], #, '2x U4-Tougaard', '3x U4-Tougaard'],
+        self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart", "Shirley", "Linear",
+                                                           'U4-Tougaard', 'U2-Tougaard'],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetSelection(0)  # Default to Shirley
         self.method_combobox.SetMaxSize((125,25))
@@ -852,7 +851,6 @@ class BackgroundWindow(wx.Frame):
         vline_mask = (full_x_values >= range_min) & (full_x_values <= range_max)
 
         # STEP 1: Remove any existing background in the vLine range
-        # (Restore raw data in that range - this handles the "remove previous background" requirement)
         current_background[vline_mask] = full_raw_data[vline_mask]
 
         # STEP 2: Calculate Tougaard background for ENTIRE data range using raw data
@@ -860,15 +858,19 @@ class BackgroundWindow(wx.Frame):
 
         try:
             if selected_method == "U4-Tougaard":
-                # Calculate Tougaard background using FULL RAW DATA (not current_background)
                 full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
                     full_x_values, full_raw_data, sheet_name, self.parent)
-            elif selected_method == "2x U4-Tougaard":
-                full_tougaard_bg = BackgroundCalculations.calculate_double_tougaard_background(
-                    full_x_values, full_raw_data, sheet_name, self.parent)
-            elif selected_method == "3x U4-Tougaard":
-                full_tougaard_bg = BackgroundCalculations.calculate_triple_tougaard_background(
-                    full_x_values, full_raw_data, sheet_name, self.parent)
+            elif selected_method == "U2-Tougaard":
+                # Pass vLine range for B auto-calculation
+                vline_range = (vline1_x, vline2_x)
+                full_tougaard_bg = BackgroundCalculations.calculate_u2_tougaard_background(
+                    full_x_values, full_raw_data, sheet_name, self.parent, vline_range)
+            # elif selected_method == "2x U4-Tougaard":
+            #     full_tougaard_bg = BackgroundCalculations.calculate_double_tougaard_background(
+            #         full_x_values, full_raw_data, sheet_name, self.parent)
+            # elif selected_method == "3x U4-Tougaard":
+            #     full_tougaard_bg = BackgroundCalculations.calculate_triple_tougaard_background(
+            #         full_x_values, full_raw_data, sheet_name, self.parent)
             else:
                 print(f"Unknown Tougaard method: {selected_method}")
                 # Fallback to normal background
