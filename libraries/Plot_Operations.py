@@ -2944,13 +2944,13 @@ class PlotManager:
                                                                                        y_values_filtered,
                                                                                        sheet_name,
                                                                                        window)
+            label = 'Background (U4-Tougaard)'
         elif method == "U2-Tougaard":
             background_filtered = BackgroundCalculations.calculate_u2_tougaard_background(x_values_filtered,
                                                                                           y_values_filtered,
                                                                                           sheet_name,
                                                                                           window)
             label = 'Background (U2-Tougaard)'
-            label = 'Background (Tougaard)'
         elif method == "2x U4-Tougaard":
             background_filtered = BackgroundCalculations.calculate_double_tougaard_background(x_values_filtered,
                                                                                               y_values_filtered,

@@ -878,35 +878,35 @@ class BackgroundCalculations:
         valid_x_values = x_values[start_idx:end_idx]
         valid_y_values = y_values[start_idx:end_idx]
 
-        # Print detailed information about the averaging calculation
-        print(f"\n=== Averaging Points Calculation ===")
-        print(f"Target point (vLine position): {point:.2f}")
-        print(f"Closest data index: {idx} (x={x_values[idx]:.2f}, y={y_values[idx]:.2f})")
-        print(f"Number of averaging points requested: {num_points}")
-        print(f"Half window size: {half_window}")
-        print(f"Ideal window: indices {ideal_start} to {ideal_end}")
-        print(f"Array bounds: 0 to {total_available}")
-        print(f"Adjusted window: indices {start_idx} to {end_idx}")
-        print(f"Actual points used: {len(valid_y_values)}")
+        # # Print detailed information about the averaging calculation
+        # print(f"\n=== Averaging Points Calculation ===")
+        # print(f"Target point (vLine position): {point:.2f}")
+        # print(f"Closest data index: {idx} (x={x_values[idx]:.2f}, y={y_values[idx]:.2f})")
+        # print(f"Number of averaging points requested: {num_points}")
+        # print(f"Half window size: {half_window}")
+        # print(f"Ideal window: indices {ideal_start} to {ideal_end}")
+        # print(f"Array bounds: 0 to {total_available}")
+        # print(f"Adjusted window: indices {start_idx} to {end_idx}")
+        # print(f"Actual points used: {len(valid_y_values)}")
 
         if len(valid_y_values) > 0:
-            print(f"Points used for averaging:")
+            # print(f"Points used for averaging:")
             for i, (x_val, y_val) in enumerate(zip(valid_x_values, valid_y_values)):
                 actual_idx = start_idx + i
                 marker = " ← CENTER" if actual_idx == idx else ""
-                print(f"  Index {actual_idx}: x={x_val:.2f}, y={y_val:.2f}{marker}")
+                # print(f"  Index {actual_idx}: x={x_val:.2f}, y={y_val:.2f}{marker}")
 
             average_value = np.mean(valid_y_values)
-            print(f"Calculated average: {average_value:.2f}")
-            print(f"=== End Averaging Calculation ===\n")
+            # print(f"Calculated average: {average_value:.2f}")
+            # print(f"=== End Averaging Calculation ===\n")
 
             return float(f"{average_value:.2f}")
         else:
             # Fallback to single point if no valid points in window
             fallback_value = y_values[idx]
-            print(f"WARNING: No valid points in averaging window!")
-            print(f"Using fallback single point: x={x_values[idx]:.2f}, y={fallback_value:.2f}")
-            print(f"=== End Averaging Calculation ===\n")
+            # print(f"WARNING: No valid points in averaging window!")
+            # print(f"Using fallback single point: x={x_values[idx]:.2f}, y={fallback_value:.2f}")
+            # print(f"=== End Averaging Calculation ===\n")
 
             return float(f"{fallback_value:.2f}")
 
@@ -930,6 +930,40 @@ class BackgroundCalculations:
                                                                   num_points) + end_offset
         return np.linspace(y_start, y_end, len(y))
 
+    @staticmethod
+    def validate_background_smoothness(background, data, x, smoothness_threshold=0.1):
+        """
+        Check if background shows sinusoidal behavior and validate against data average.
+
+        Args:
+            background (array): Calculated background
+            data (array): Raw data
+            x (array): X-axis values
+            smoothness_threshold (float): Threshold for detecting oscillation
+
+        Returns:
+            bool: True if background is acceptable, False if too oscillatory
+        """
+        # Calculate second derivative to detect oscillation
+        background_smooth = savgol_filter(background, window_length=min(21, len(background) // 3), polyorder=3)
+        second_deriv = np.gradient(np.gradient(background_smooth, x), x)
+
+        # Calculate moving average of data for comparison
+        window_size = max(5, len(data) // 15)
+        data_avg = np.convolve(data, np.ones(window_size) / window_size, mode='same')
+
+        # Check oscillation frequency
+        zero_crossings = np.sum(np.diff(np.sign(second_deriv)) != 0)
+        oscillation_ratio = zero_crossings / len(background)
+
+        # Check if background stays within reasonable bounds of data average
+        deviation = np.abs(background - data_avg)
+        max_allowed_dev = np.std(data) * 1.5
+        excessive_points = np.sum(deviation > max_allowed_dev) / len(background)
+
+        print(f"Background validation - Oscillation ratio: {oscillation_ratio:.3f}, Excessive points: {excessive_points:.3f}")
+
+        return oscillation_ratio < smoothness_threshold and excessive_points < 0.25
 
     @staticmethod
     def calculate_smart_background(x, y, offset_h, offset_l, num_points=5):
@@ -952,7 +986,9 @@ class BackgroundCalculations:
         background = shirley_bg if y[0] > y[-1] else linear_bg
 
         # Ensure background does not exceed raw data
-        return np.minimum(background, y)
+        # return np.minimum(background, y)
+        return background
+
 
     @staticmethod
     def calculate_smart2_background(x, y, threshold=0.01):
@@ -1050,92 +1086,6 @@ class BackgroundCalculations:
         background=shirley_calculate(x_padded,y_padded,maxit=max_iter, tol=tol)
         return background[1:-1]
 
-    @staticmethod
-    def calculate_u2_tougaard_background_OLD(x, y, sheet_name, window, vline_range=None):
-        """
-        Calculate U2-Tougaard background (2 parameters: auto-calculated B, user-defined C)
-        D=0, T0=0 are fixed.
-        B is fitted so background equals raw data at high BE vLine position.
-        """
-        print(f"DEBUG: U2-Tougaard called with vline_range={vline_range}")
-        print(f"DEBUG: Data keys: {window.Data['Core levels'][sheet_name]['Background'].keys()}")
-
-        import numpy as np
-        from scipy.optimize import minimize_scalar
-
-        bg_data = window.Data['Core levels'][sheet_name]['Background']
-        C = bg_data.get('Tougaard_C', 1643)  # User enters positive value
-
-        # Get baseline value (lowest BE intensity)
-        baseline = y[-1]  # Assuming x is in BE, so highest KE/lowest BE is at the end
-
-        # Shift data to zero baseline
-        y_shifted = y - baseline
-
-        # Find high BE vLine position (assuming x is in descending BE order)
-        if vline_range is not None:
-            vline_min, vline_max = vline_range
-            high_be_position = max(vline_min, vline_max)  # Higher BE value
-
-            # Find closest index to high BE position
-            high_be_idx = np.argmin(np.abs(x - high_be_position))
-            target_intensity = y[high_be_idx]  # Raw data intensity at high BE
-
-            print(f"U2-Tougaard fitting B to match intensity {target_intensity:.2f} at BE {high_be_position:.2f}")
-
-            # Define function to calculate background at specific point
-            def calculate_background_at_point(B_val, target_idx):
-                dx = np.mean(np.diff(x))
-                background_val = 0.0
-
-                # Calculate only up to target point
-                for i in range(target_idx + 1):
-                    E = x[i:] - x[i]
-                    # U2-Tougaard formula: K = B * E / (C - E²)²
-                    K = B_val * E / ((C - E ** 2) ** 2)
-                    background_val = np.trapz(K * y_shifted[i:], dx=dx)
-                    if i == target_idx:
-                        return background_val + baseline
-                return background_val + baseline
-
-            # Objective function to minimize: difference between background and target
-            def objective(B_val):
-                try:
-                    bg_at_point = calculate_background_at_point(B_val, high_be_idx)
-                    error = abs(bg_at_point - target_intensity)
-                    return error
-                except:
-                    return 1e10  # Large error if calculation fails
-
-            # Find optimal B value
-            result = minimize_scalar(objective, bounds=(0.1, 50000), method='bounded')
-            B_fitted = result.x
-
-            print(f"U2-Tougaard: Fitted B={B_fitted:.2f} (error={result.fun:.2f}) with C={C}")
-
-        else:
-            # Fallback B calculation if no vLine range provided
-            B_fitted = C / 100
-            print(f"U2-Tougaard: Fallback B={B_fitted:.2f}")
-
-        # Calculate full background with fitted B
-        dx = np.mean(np.diff(x))
-        background = np.zeros_like(y)
-
-        for i in range(len(x)):
-            E = x[i:] - x[i]
-            # U2-Tougaard formula: K = B * E / (C - E²)²
-            K = B_fitted * E / ((C - E ** 2) ** 2)  # D=0, so no D*E² term
-            background[i] = np.trapz(K * y_shifted[i:], dx=dx)
-
-        background = background + baseline
-
-        # Store the fitted B value back to the data structure for display
-        if 'Background' not in window.Data['Core levels'][sheet_name]:
-            window.Data['Core levels'][sheet_name]['Background'] = {}
-        window.Data['Core levels'][sheet_name]['Background']['Fitted_B'] = float(f"{B_fitted:.2f}")
-
-        return background
 
     @staticmethod
     def calculate_u2_tougaard_background(x, y, sheet_name, window, vline_range=None):
@@ -1143,18 +1093,23 @@ class BackgroundCalculations:
         Calculate U2-Tougaard background (2 parameters: auto-calculated B, user-defined C)
         D=0, T0=0 are fixed.
         B is fitted so background equals raw data at high BE vLine position.
+        C is user-defined (default 1643).
+        Uses corrected U2 equation: K = B * E / ((C + E²)²)
         """
         import numpy as np
         from scipy.optimize import minimize_scalar
 
         print(f"DEBUG: U2-Tougaard called with vline_range={vline_range}")
-        print(f"DEBUG: Data keys: {window.Data['Core levels'][sheet_name]['Background'].keys()}")
 
         bg_data = window.Data['Core levels'][sheet_name]['Background']
-        C = bg_data.get('Tougaard_C', 1643)  # User enters positive value
+        # C_value = bg_data.get('Tougaard_C', 1643.0)  # User-defined C parameter
+        C_value = 1643
 
-        # Get baseline value (lowest BE intensity)
-        baseline = y[-1]  # Assuming x is in BE, so highest KE/lowest BE is at the end
+        # Get averaging points (same as Smart background)
+        averaging_points = getattr(window, 'averaging_points', 5)
+
+        # Get baseline value (lowest BE intensity) using endpoint averaging
+        baseline = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], averaging_points)
 
         # Shift data to zero baseline
         y_shifted = y - baseline
@@ -1179,50 +1134,53 @@ class BackgroundCalculations:
                 high_be_position = np.max(x)
                 print(f"DEBUG: Using data max target at BE {high_be_position:.2f}")
 
-        # Find closest index to high BE position
-        high_be_idx = np.argmin(np.abs(x - high_be_position))
-        target_intensity = y[high_be_idx]  # Raw data intensity at high BE
+        # Get target intensity using endpoint averaging
+        target_intensity = BackgroundCalculations.calculate_endpoint_average(x, y, high_be_position, averaging_points)
 
-        print(f"U2-Tougaard fitting B to match intensity {target_intensity:.2f} at BE {high_be_position:.2f}")
-
-        # Objective function: minimize difference at high BE position
         def objective(B_val):
+            """Fit B parameter with user-defined C"""
             try:
-                # Calculate background only up to high BE position
+                # Calculate background with variable B and fixed C
                 bg_temp = np.zeros_like(y)
                 dx = np.mean(np.diff(x))
 
                 for i in range(len(x)):
-                    E = x[i:] - x[i]
-                    K = B_val * E / ((C - E ** 2) ** 2)
+                    E_prime_minus_E = x[i:] - x[i]  # This is (E' - E)
+                    K = B_val * E_prime_minus_E / ((C_value + E_prime_minus_E ** 2) ** 2)
                     bg_temp[i] = np.trapz(K * y_shifted[i:], dx=dx)
 
-                calculated_bg = bg_temp[high_be_idx] + baseline
+                # Get calculated background at target position using same averaging method
+                calculated_bg_shifted = BackgroundCalculations.calculate_endpoint_average(x, bg_temp, high_be_position, averaging_points)
+                calculated_bg = calculated_bg_shifted + baseline
+
                 error = (calculated_bg - target_intensity) ** 2
                 return error
             except:
                 return 1e10
 
-        # Fit B parameter
-        result = minimize_scalar(objective, bounds=(0.1, 100000), method='bounded')
+        # Fit B parameter with user-defined C
+        result = minimize_scalar(objective, bounds=(100, 1000000), method='bounded')
         B_fitted = result.x
 
-        print(f"U2-Tougaard: B={B_fitted:.2f}, Target={target_intensity:.2f} at BE {high_be_position:.2f}, Error={result.fun:.2f}")
+        print(f"U2-Tougaard fitted: B={B_fitted:.2f}, C={C_value:.2f} (user-defined)")
+        print(f"Target={target_intensity:.2f} at BE {high_be_position:.2f} (avg {averaging_points} points)")
 
-        # Calculate final background
+        # Calculate final background with fitted parameters
         dx = np.mean(np.diff(x))
         background = np.zeros_like(y)
         for i in range(len(x)):
-            E = x[i:] - x[i]
-            K = B_fitted * E / ((C - E ** 2) ** 2)
+            E_prime_minus_E = x[i:] - x[i]  # This is (E' - E)
+            K = B_fitted * E_prime_minus_E / ((C_value + E_prime_minus_E ** 2) ** 2)
             background[i] = np.trapz(K * y_shifted[i:], dx=dx)
 
         background = background + baseline
 
-        # Store fitted B value
+        # Store fitted values
         if 'Background' not in window.Data['Core levels'][sheet_name]:
             window.Data['Core levels'][sheet_name]['Background'] = {}
         window.Data['Core levels'][sheet_name]['Background']['Fitted_B'] = float(f"{B_fitted:.2f}")
+        window.Data['Core levels'][sheet_name]['Background']['Tougaard_B'] = float(f"{B_fitted:.2f}")
+        window.Data['Core levels'][sheet_name]['Background']['Tougaard_C'] = float(f"{C_value:.2f}")
 
         return background
 

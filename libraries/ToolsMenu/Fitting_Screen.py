@@ -733,9 +733,9 @@ class FittingWindow(wx.Frame):
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
         elif new_method == "U2-Tougaard":
-            self.cross_section.Enable(True)
-            self.cross_section_label.Enable(True)
-            self.tougaard_fit_btn.Enable(True)
+            self.cross_section.Enable(False)
+            self.cross_section_label.Enable(False)
+            self.tougaard_fit_btn.Enable(False)
         elif new_method == "ALS-Raman":
             self.cross_section.Enable(False)
             self.cross_section_label.Enable(False)
