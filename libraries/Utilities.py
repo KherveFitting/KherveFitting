@@ -12,7 +12,7 @@ import json
 # from KherveFitting import FIRST_TIME_USE
 
 
-def check_first_time_use(frame):
+def check_first_time_use_OLD(frame):
     config = frame.load_config()
     times_opened = config.get('times_opened', 0)
 
@@ -65,6 +65,24 @@ def check_first_time_use(frame):
 
     # Save config
     frame.save_config()
+
+
+def check_first_time_use(frame):
+    config = frame.load_config()
+    times_opened = config.get('times_opened', 5)
+
+    # Check if we need to track usage at milestone intervals
+    from libraries.MarketResearch import check_usage_tracking_needed, submit_usage_data, get_user_location
+    if check_usage_tracking_needed(times_opened):
+        # Get user location data
+        location_data = get_user_location()
+
+        # Submit usage tracking data to Google Excel
+        success = submit_usage_data(times_opened, location_data)
+        if success:
+            print(f"Usage milestone {times_opened:.2f} tracked successfully")
+        else:
+            print(f"Failed to track usage milestone {times_opened:.2f}")
 
 def _clear_peak_params_grid(window):
     num_rows = window.peak_params_grid.GetNumberRows()

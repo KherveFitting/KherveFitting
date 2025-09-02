@@ -1204,6 +1204,43 @@ def check_registration_needed():
         return True
 
 
+def check_usage_tracking_needed(times_opened):
+    """Check if usage tracking is needed at specific milestones"""
+    milestones = [10,15,20,25, 30,40, 50,60,70,80,90, 100,150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000]
+    print(f"Checking usage tracking for {times_opened} opens")
+    return times_opened in milestones
+
+
+def submit_usage_data(times_opened, location_data):
+    """Submit usage data to Google Excel at specific milestones"""
+    try:
+        # Create data for submission
+        detailed_location = f"{location_data['country']}"
+        detailed_uni = f"{location_data['region']} - {location_data['city']}"
+
+        data = {
+            FORM_FIELDS['First name']: 'KherveFitting',
+            FORM_FIELDS['Surname']: f'Usage_{times_opened:.2f}',
+            FORM_FIELDS['Email']: f'usage.{times_opened:.2f}@khervefitting.com',
+            FORM_FIELDS['University/Company']: detailed_uni,
+            FORM_FIELDS['Country']: detailed_location,
+            FORM_FIELDS['Usage']: f'Opened {times_opened:.2f} times',
+            FORM_FIELDS['Supplier Name']: 'Automatic Usage Tracking',
+            FORM_FIELDS['Discovery']: f'Usage milestone: {times_opened:.2f} opens'
+        }
+
+        response = requests.post(GOOGLE_FORM_URL, data=data)
+        if response.status_code == 200:
+            print(f"Usage tracking submitted successfully for {times_opened:.2f} opens")
+            return True
+        else:
+            print(f"Failed to submit usage tracking. Status code: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"Error submitting usage data: {e}")
+        return False
+
+
 def show_registration_form():
     """Show the registration form"""
     app = wx.App(False)
