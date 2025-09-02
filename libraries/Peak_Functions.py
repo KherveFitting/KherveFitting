@@ -1185,7 +1185,7 @@ class BackgroundCalculations:
         return background
 
     @staticmethod
-    def calculate_tougaard_background(x, y, sheet_name, window):
+    def calculate_tougaard_background_OLD(x, y, sheet_name, window):
         bg_data = window.Data['Core levels'][sheet_name]['Background']
         B = bg_data.get('Tougaard_B', 2866)
         C = bg_data.get('Tougaard_C', 1643)
@@ -1205,6 +1205,58 @@ class BackgroundCalculations:
             K = B * E / ((C - E ** 2) ** 2 + D * E ** 2)
             background[i] = np.trapz(K * y_shifted[i:], dx=dx) + T0
 
+        background = background + baseline
+        return background
+
+    @staticmethod
+    def calculate_tougaard_background_NEW(x, y, sheet_name, window):
+        bg_data = window.Data['Core levels'][sheet_name]['Background']
+        B = float(f"{bg_data.get('Tougaard_B', 2866.00):.2f}")
+        C = float(f"{bg_data.get('Tougaard_C', 1643.00):.2f}")
+        D = float(f"{bg_data.get('Tougaard_D', 1.00):.2f}")
+        T0 = float(f"{bg_data.get('Tougaard_T0', 0.00):.2f}")
+
+        # Get the baseline value (lowest BE intensity)
+        baseline = y[-1]  # Assuming x is in BE, so highest KE/lowest BE is at the end
+
+        # Shift data to zero baseline
+        y_shifted = y - baseline
+
+        dx = np.mean(np.diff(x))
+        background = np.zeros_like(y)
+        for i in range(len(x)):
+            E_prime_minus_E = x[i:] - x[i]  # This is (E' - E)
+            # Corrected U4-Tougaard equation matching Casa format
+            K = B * E_prime_minus_E / ((C + E_prime_minus_E ** 2) ** 2 + D * E_prime_minus_E ** 2)
+            background[i] = np.trapz(K * y_shifted[i:], dx=dx) + T0
+
+        background = background + baseline
+        return background
+
+    @staticmethod
+    def calculate_tougaard_background(x, y, sheet_name, window):
+        bg_data = window.Data['Core levels'][sheet_name]['Background']
+        B = float(f"{bg_data.get('Tougaard_B', 2866.00):.2f}")
+        C = float(f"{bg_data.get('Tougaard_C', 1643.00):.2f}")
+        D = float(f"{bg_data.get('Tougaard_D', 1.00):.2f}")
+        T0 = float(f"{bg_data.get('Tougaard_T0', 0.00):.2f}")
+
+        # Get the baseline value (lowest BE intensity)
+        baseline = y[-1]  # Assuming x is in BE, so highest KE/lowest BE is at the end
+
+        # Shift data to zero baseline
+        y_shifted = y - baseline
+
+        dx = np.mean(np.diff(x))
+        background = np.zeros_like(y)
+        for i in range(len(x)):
+            E_prime_minus_E = x[i:] - x[i]  # This is (E' - E) - positive energy loss
+            # U4-Tougaard equation - matching documentation format but with positive E
+            K = B * E_prime_minus_E / ((C - E_prime_minus_E ** 2) ** 2 + D * E_prime_minus_E ** 2)
+            background[i] = np.trapz(K * y_shifted[i:], dx=dx) + T0
+
+        print("Using Tougaard background with parameters:")
+        print(f"  B = {B:.2f}")
         background = background + baseline
         return background
 
