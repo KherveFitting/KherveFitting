@@ -212,10 +212,6 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            # # Export to result button and Remove Peak button
-            # export_button = wx.Button(panel, label="Export to\nResult")
-            # export_button.SetMinSize((90, 30))
-            # export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
 
             # Core Level List button and Remove Peak button
             core_level_button = wx.Button(panel, label="Core Level\nList")
@@ -258,6 +254,13 @@ class BackgroundWindow(wx.Frame):
             # Fourth row: Tougaard parameters
             sizer.Add(self.cross_section_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
             sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+
+            # Help button at row 7
+            help_button = wx.Button(panel, label="?")
+            help_button.SetMinSize((20, 20))
+            help_button.SetToolTip("Click to watch tutorial video on how to use the Area Fit function")
+            help_button.Bind(wx.EVT_BUTTON, self.on_help_button)
+            sizer.Add(help_button, pos=(7, 1), flag=wx.ALL , border=0)
 
             # # Export to result button and Remove Peak button
             # export_button = wx.Button(panel, label="Export to\nResult")
@@ -309,6 +312,15 @@ class BackgroundWindow(wx.Frame):
         set_consistent_fonts(self)
 
         panel.SetSizer(sizer)
+
+    def on_help_button(self, event):
+        """Open YouTube tutorial video for AreaFit functionality"""
+        import webbrowser
+        youtube_url = "https://youtu.be/WycrqquAHQU"  # Replace with actual YouTube URL
+        try:
+            webbrowser.open(youtube_url)
+        except Exception as e:
+            wx.MessageBox(f"Could not open browser: {e}", "Error", wx.OK | wx.ICON_ERROR)
 
     def update_tougaard_controls_visibility(self, new_method):
         if "U4-Tougaard" in new_method:
