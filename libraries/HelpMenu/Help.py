@@ -422,6 +422,14 @@ Philosophy:
 -v1.7 xxx-25  - Automatic Survey identification
 -v1.8 xxx-25  - Towards Linux Version (Synchrotron)
 
+Version 1.600-1.690
+- Improve Smart background
+- Added U2 Tougaard
+- Improve U4 Tougaard window
+- Improve peak, envelope, residuals visualisation / to be just in between the defined regions
+- Added missing elements in the AreaFit library
+- Improve average visualisation
+
 Version 1.505-1.590
 - Added opening peak fitted CasaXPS files - Beta
 - Added export peak fitted CasaXPS files - Beta

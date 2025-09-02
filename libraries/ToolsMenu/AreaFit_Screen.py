@@ -208,6 +208,13 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.cross_section_label, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.cross_section, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
+            # Help button at row 7
+            help_button = wx.Button(panel, label="?")
+            help_button.SetMinSize((20, 20))
+            help_button.SetToolTip("Click to watch tutorial video on how to use the Area Fit function")
+            help_button.Bind(wx.EVT_BUTTON, self.on_help_button)
+            sizer.Add(help_button, pos=(7, 1), flag=wx.ALL , border=0)
+
 
             sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
