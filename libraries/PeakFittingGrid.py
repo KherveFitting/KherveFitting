@@ -15,7 +15,7 @@ class PeakFittingGrid:
         self.window = main_window
 
     # Peak parameter methods
-    def add_peak_params(self):
+    def add_peak_params(self, custom_peak_x=None, custom_peak_y=None):
         if hasattr(self.window, 'fitting_window'):
             self.window.selected_fitting_method = self.window.fitting_window.model_combobox.GetValue()
             print(f'Fitting method: {self.window.selected_fitting_method}')
@@ -51,24 +51,27 @@ class PeakFittingGrid:
                           wx.OK | wx.ICON_WARNING)
             return
 
-        if num_peaks == 0:
-            residual = self.window.y_values - np.array(self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
-            peak_y = residual[np.argmax(residual)]
-            peak_x = self.window.x_values[np.argmax(residual)]
+        # Use custom values if provided, otherwise find peak position from residuals
+        if custom_peak_x is not None and custom_peak_y is not None:
+            peak_x = custom_peak_x
+            peak_y = custom_peak_y
         else:
-
-            # Call update_overall_fit_and_residuals to get the residuals
-            residual = self.window.plot_manager.update_overall_fit_and_residuals(self.window)
-
-            if residual is not None:
-                peak_y = residual.max()
+            if num_peaks == 0:
+                residual = self.window.y_values - np.array(self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+                peak_y = residual[np.argmax(residual)]
                 peak_x = self.window.x_values[np.argmax(residual)]
             else:
-                # Fallback if residuals couldn't be calculated
-                wx.MessageBox("Unable to calculate residuals. Using default peak position.", "Warning",
-                              wx.OK | wx.ICON_WARNING)
-                peak_y = self.window.y_values.max()
-                peak_x = self.window.x_values[np.argmax(self.window.y_values)]
+                # Call update_overall_fit_and_residuals to get the residuals
+                residual = self.window.plot_manager.update_overall_fit_and_residuals(self.window)
+
+                if residual is not None:
+                    peak_y = residual.max()
+                    peak_x = self.window.x_values[np.argmax(residual)]
+                else:
+                    # Fallback if residuals couldn't be calculated
+                    wx.MessageBox("Unable to calculate residuals. Using default peak position.")
+                    peak_y = self.window.y_values.max()
+                    peak_x = self.window.x_values[np.argmax(self.window.y_values)]
 
         self.window.peak_count += 1
 

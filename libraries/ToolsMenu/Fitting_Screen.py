@@ -1046,8 +1046,29 @@ class FittingWindow(wx.Frame):
         if orbital[-1] == 's':
             self.parent.peak_fitting_grid.add_peak_params()
         else:
+            # Create the doublet peaks - first peak uses highest intensity
             first_peak = self.parent.peak_fitting_grid.add_peak_params()
-            second_peak = self.parent.peak_fitting_grid.add_peak_params()
+
+            # Get the first peak's position and intensity from grid for second peak calculation
+            first_peak_row = first_peak * 2
+            first_peak_position = float(self.parent.peak_params_grid.GetCellValue(first_peak_row, 2))
+            first_peak_height = float(self.parent.peak_params_grid.GetCellValue(first_peak_row, 3))
+
+            # Calculate second peak intensity based on orbital constraint
+            orbital_type = orbital[-1]  # Extract p, d, or f
+            intensity_factors = {'p': 0.50, 'd': 0.667, 'f': 0.75}
+            intensity_factor = intensity_factors.get(orbital_type, 0.50)
+
+            # Calculate second peak position using doublet splitting
+            splitting = self.get_doublet_splitting(element, orbital, self.parent.current_instrument)
+            second_peak_position = first_peak_position + splitting
+            second_peak_height = first_peak_height * intensity_factor
+
+            # Create second peak with calculated intensity
+            second_peak = self.parent.peak_fitting_grid.add_peak_params(
+                custom_peak_x=second_peak_position,
+                custom_peak_y=second_peak_height
+            )
 
             self.parent.peak_fill_types[second_peak] = self.parent.peak_fill_types[first_peak]
             self.parent.peak_hatch_patterns[second_peak] = self.parent.peak_hatch_patterns[first_peak]
@@ -1263,9 +1284,29 @@ class FittingWindow(wx.Frame):
         overall_bg_low, overall_bg_high = self.get_overall_background_range()
         sheet_name = self.parent.sheet_combobox.GetValue()
 
-        # Create the doublet peaks
+        # Create the doublet peaks - first peak uses highest intensity
         first_peak = self.parent.peak_fitting_grid.add_peak_params()
-        second_peak = self.parent.peak_fitting_grid.add_peak_params()
+
+        # Get the first peak's position and intensity from grid for second peak calculation
+        first_peak_row = first_peak * 2
+        first_peak_position = float(self.parent.peak_params_grid.GetCellValue(first_peak_row, 2))
+        first_peak_height = float(self.parent.peak_params_grid.GetCellValue(first_peak_row, 3))
+
+        # Calculate second peak intensity based on orbital constraint
+        orbital_type = orbital[-1]  # Extract p, d, or f
+        intensity_factors = {'p': 0.50, 'd': 0.667, 'f': 0.75}
+        intensity_factor = intensity_factors.get(orbital_type, 0.50)
+
+        # Calculate second peak position using doublet splitting
+        splitting = self.get_doublet_splitting(element, orbital, self.parent.current_instrument)
+        second_peak_position = first_peak_position + splitting
+        second_peak_height = first_peak_height * intensity_factor
+
+        # Create second peak with calculated intensity
+        second_peak = self.parent.peak_fitting_grid.add_peak_params(
+            custom_peak_x=second_peak_position,
+            custom_peak_y=second_peak_height
+        )
 
         self.parent.peak_fill_types[second_peak] = self.parent.peak_fill_types[first_peak]
         self.parent.peak_hatch_patterns[second_peak] = self.parent.peak_hatch_patterns[first_peak]
