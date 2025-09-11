@@ -5,14 +5,14 @@
 KherveFitting represents the third major iteration in the LG4X software family for X-ray photoelectron spectroscopy 
 (XPS) curve fitting analysis. This software builds upon the foundational work of the LG4X ecosystem:
 
-- **LG4X (V1)**: Originally developed by Hideki Nakajima, providing the foundational graphical user interface for 
+- **LG4X-V1**: Originally developed by Hideki Nakajima, providing the foundational graphical user interface for 
   XPS curve fitting based on the Python lmfit package.
 
-- **LG4X-V2)**: Substantially enhanced and extended by Julian Andreas Hochhaus (2022-2024), introducing significant 
+- **LG4X-V2**: Substantially enhanced and extended by Julian Andreas Hochhaus (2022-2024), introducing significant 
   improvements to the fitting procedures, user interface, and validation capabilities. LG4X-V2 is actively 
   maintained and available through GitHub and Flathub.
 
-- **KherveFitting (LG4X-V3)**: Developed by Gwilherm Kerherve at Imperial College London, representing an advanced 
+- **KherveFitting or LG4X-V3**: Developed by Gwilherm Kerherve at Imperial College London, representing an advanced 
   iteration that introduces wxPython-based interface, Excel integration, and enhanced fitting algorithms while 
   maintaining the core philosophy of accessible XPS data analysis.
 
