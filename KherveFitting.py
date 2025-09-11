@@ -820,14 +820,14 @@ class MyFrame(wx.Frame):
         self.background_tab_selected = False
         self.show_hide_vlines()
 
-    def on_open_fitting_window(self):
+    def on_open_fitting_window(self, normal=True):
         # Close background window if it's open (using exact same pattern)
         if hasattr(self, 'background_window') and self.background_window is not None:
             self.background_window.Close()
 
         save_state(self)
         if self.fitting_window is None or not self.fitting_window:
-            self.fitting_window = FittingWindow(self)
+            self.fitting_window = FittingWindow(self, normal)
             self.background_tab_selected = True
             self.peak_fitting_tab_selected = False
 

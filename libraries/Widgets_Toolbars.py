@@ -1039,8 +1039,12 @@ def create_horizontal_toolbar(parent, window):
     # Analysis tools
     bkg_tool = toolbar.AddTool(wx.ID_ANY, 'Background', wx.Bitmap(os.path.join(icon_path, "BKG-3.png"),
                                                                   wx.BITMAP_TYPE_PNG), shortHelp="Calculate Area "
-                                                                                                 "Under Curve\tCtrl+A")
+                                                                                                 "Under Curve")
     fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1s-3.png"),
+                                                                   wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
+                                                                                                  "Model \tCtrl+P")
+
+    mini_fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1sMini-3.png"),
                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
                                                                                                   "Model \tCtrl+P")
 
@@ -1169,7 +1173,7 @@ def create_horizontal_toolbar(parent, window):
     toolbar.Realize()
 
     # Bind events
-    bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool,
+    bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool, mini_fitting_tool,
                         # noise_analysis_tool,
                         # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, plot_tool, toggle_peak_fill_tool,
                         save_tool, #save_plot_tool,
@@ -1288,7 +1292,7 @@ def add_vertical_separator(toolbar, separators):
     separators[-1].SetSize((2, 24))
     toolbar.AddControl(separators[-1])
 
-def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool,
+def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool, mini_fitting_tool,
                         # noise_analysis_tool,
                         save_tool, #save_plot_tool,
                         save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool
@@ -1297,7 +1301,8 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
     window.Bind(wx.EVT_TOOL, lambda event: open_xlsx_file(window), open_file_tool)
     window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper), refresh_folder_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_background_window(), bkg_tool)
-    window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(), fitting_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(normal=True), fitting_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(normal=False), mini_fitting_tool)
     window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected_wrapper(window, event))
     window.Bind(wx.EVT_TOOL, lambda event: on_save(window), save_tool)
     # window.Bind(wx.EVT_TOOL, lambda event: on_save_plot(window), save_plot_tool)
