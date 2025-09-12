@@ -780,6 +780,19 @@ class MyFrame(wx.Frame):
                 except:
                     pass
                 self.vline2_text = None
+            # Clean up center vline
+            if hasattr(self, 'vline_center') and self.vline_center is not None:
+                try:
+                    self.vline_center.remove()
+                except:
+                    pass
+                self.vline_center = None
+            if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+                try:
+                    self.vline_center_text.remove()
+                except:
+                    pass
+                self.vline_center_text = None
 
     def ensure_area_vlines_visible(self):
         """Ensure area screen vlines are visible and properly initialized."""
@@ -1677,73 +1690,6 @@ class MyFrame(wx.Frame):
 
         return area
 
-    def show_hide_vlines_OLD(self):
-        # Hide vlines if zooming or dragging
-        if self.zoom_mode or self.drag_mode:
-            if self.vline1 is not None:
-                self.vline1.set_visible(False)
-            if self.vline2 is not None:
-                self.vline2.set_visible(False)
-            if self.vline3 is not None:
-                self.vline3.set_visible(False)
-            if self.vline4 is not None:
-                self.vline4.set_visible(False)
-            return
-
-        # Existing visibility logic
-        background_lines_visible = hasattr(self, 'fitting_window') and self.background_tab_selected
-        noise_lines_visible = self.noise_analysis_window is not None and self.noise_tab_selected
-
-        if self.vline1 is not None:
-            self.vline1.set_visible(background_lines_visible)
-        if self.vline2 is not None:
-            self.vline2.set_visible(background_lines_visible)
-        if self.vline3 is not None:
-            self.vline3.set_visible(noise_lines_visible)
-        if self.vline4 is not None:
-            self.vline4.set_visible(noise_lines_visible)
-
-        self.canvas.draw_idle()
-
-    def show_hide_vlines_OLD(self):
-        # Hide vlines if zooming or dragging
-        if self.zoom_mode or self.drag_mode:
-            if self.vline1 is not None:
-                self.vline1.set_visible(False)
-            if self.vline2 is not None:
-                self.vline2.set_visible(False)
-            if self.vline1_text is not None:
-                self.vline1_text.set_visible(False)
-            if self.vline2_text is not None:
-                self.vline2_text.set_visible(False)
-            if self.vline3 is not None:
-                self.vline3.set_visible(False)
-            if self.vline4 is not None:
-                self.vline4.set_visible(False)
-            return
-
-        # Initialize or restore vlines if background tab is selected and they don't exist
-        if self.background_tab_selected and (self.vline1 is None or self.vline2 is None):
-            self.initialize_or_restore_background_vlines()
-
-        # Existing visibility logic
-        background_lines_visible = hasattr(self, 'fitting_window') and self.background_tab_selected
-        noise_lines_visible = self.noise_analysis_window is not None and self.noise_tab_selected
-
-        if self.vline1 is not None:
-            self.vline1.set_visible(background_lines_visible)
-        if self.vline2 is not None:
-            self.vline2.set_visible(background_lines_visible)
-        if self.vline1_text is not None:
-            self.vline1_text.set_visible(background_lines_visible)
-        if self.vline2_text is not None:
-            self.vline2_text.set_visible(background_lines_visible)
-        if self.vline3 is not None:
-            self.vline3.set_visible(noise_lines_visible)
-        if self.vline4 is not None:
-            self.vline4.set_visible(noise_lines_visible)
-
-        self.canvas.draw_idle()
 
     def show_hide_vlines(self):
         """Show/hide vlines based on current screen state and zoom/drag modes."""
@@ -1761,6 +1707,10 @@ class MyFrame(wx.Frame):
                 self.vline3.set_visible(False)
             if self.vline4 is not None:
                 self.vline4.set_visible(False)
+            if hasattr(self, 'vline_center') and self.vline_center is not None:
+                self.vline_center.set_visible(False)
+            if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+                self.vline_center_text.set_visible(False)
             return
 
         # Check if either fitting screen OR area screen is open and active
@@ -1843,6 +1793,14 @@ class MyFrame(wx.Frame):
                 except:
                     pass
                 self.vline2_text = None
+            # Remove existing center text if any
+            if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+                try:
+                    self.vline_center_text.remove()
+                except:
+                    pass
+                self.vline_center_text = None
+
 
             # Priority 1: Try to get values from peak fitting grid first (if it exists and has non-zero values)
             grid_low = None
@@ -2021,6 +1979,13 @@ class MyFrame(wx.Frame):
                     self.vline2_text.remove()
                 except:
                     pass
+            # Remove existing center text if any
+            if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+                try:
+                    self.vline_center_text.remove()
+                except:
+                    pass
+                self.vline_center_text = None
 
             # Create text labels
             energy_unit = "KE" if self.energy_scale == 'KE' else "BE"
@@ -2084,6 +2049,13 @@ class MyFrame(wx.Frame):
             except:
                 pass
             self.vline2_text = None
+        # Remove existing center text if any
+        if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+            try:
+                self.vline_center_text.remove()
+            except:
+                pass
+            self.vline_center_text = None
 
     def refresh_vline_text_labels(self):
         """Refresh vline text labels after zoom/plot operations."""
@@ -2128,6 +2100,13 @@ class MyFrame(wx.Frame):
             except:
                 pass
             self.vline2_text = None
+        # Remove existing center text if any
+        if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+            try:
+                self.vline_center_text.remove()
+            except:
+                pass
+            self.vline_center_text = None
 
     def update_fitting_screen_range_controls(self):
         """Update fitting screen range controls when vlines move"""

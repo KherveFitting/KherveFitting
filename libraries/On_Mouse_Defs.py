@@ -15,6 +15,9 @@ class MouseEventHandler:
         self.vline_gap = 0.0
         self.ctrl_drag_reference_pos = 0.0
 
+        self.center_drag_active = False
+        self.center_drag_reference_pos = 0.0
+
     def on_mouse_move(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
@@ -135,8 +138,6 @@ class MouseEventHandler:
                     (self.window.background_tab_selected or
                      (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected))):
 
-
-
                 # Check if both vlines exist
                 if self.window.vline1 is not None and self.window.vline2 is not None:
                     vline1_x = self.window.vline1.get_xdata()[0]
@@ -146,6 +147,32 @@ class MouseEventHandler:
                     self.vline_gap = vline2_x - vline1_x
                     self.ctrl_drag_reference_pos = x_click
                     self.ctrl_drag_active = True
+
+                    center_x = self.window.vline_center.get_xdata()[0]
+                    tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.02
+
+                    if abs(x_click - center_x) < tolerance:
+                        vline1_x = self.window.vline1.get_xdata()[0]
+                        vline2_x = self.window.vline2.get_xdata()[0]
+                        self.vline_gap = vline2_x - vline1_x
+                        self.center_drag_reference_pos = x_click
+                        self.center_drag_active = True
+                        self.window.moving_vline = None
+
+                        # Clean up existing handlers
+                        if hasattr(self.window, 'motion_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                            delattr(self.window, 'motion_cid')
+                        if hasattr(self.window, 'release_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.release_cid)
+                            delattr(self.window, 'release_cid')
+
+                        # Set up motion and release handlers
+                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+
+                        return
+
 
                     # Explicitly prevent normal vline movement
                     self.window.moving_vline = None
@@ -277,6 +304,35 @@ class MouseEventHandler:
                         wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
                     return
             elif event.button == 1:
+                # Handle center vline dragging (without CTRL key) - CHECK THIS FIRST
+                if ((self.window.background_tab_selected or
+                     (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected)) and
+                    hasattr(self.window, 'vline_center') and self.window.vline_center is not None and
+                    self.window.vline1 is not None and self.window.vline2 is not None):
+
+                    center_x = self.window.vline_center.get_xdata()[0]
+                    tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.02
+
+                    if abs(x_click - center_x) < tolerance:
+                        vline1_x = self.window.vline1.get_xdata()[0]
+                        vline2_x = self.window.vline2.get_xdata()[0]
+                        self.vline_gap = vline2_x - vline1_x
+                        self.center_drag_reference_pos = x_click
+                        self.center_drag_active = True
+                        self.window.moving_vline = None
+
+                        # Clean up existing handlers
+                        if hasattr(self.window, 'motion_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                            delattr(self.window, 'motion_cid')
+                        if hasattr(self.window, 'release_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.release_cid)
+                            delattr(self.window, 'release_cid')
+
+                        # Set up motion and release handlers
+                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+                        return
                 if event.key == 'shift':
                     if self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None:
                         row = self.window.selected_peak_index * 2
@@ -542,8 +598,53 @@ class MouseEventHandler:
         self.window.refresh_vline_text_labels()
 
     def on_motion(self, event):
+
+        # Handle center vline dragging motion
+        if hasattr(self, 'center_drag_active') and self.center_drag_active and event.xdata is not None:
+            # Set the new center directly to the mouse position
+            new_center = event.xdata
+
+            # Calculate new vline positions maintaining the gap
+            new_vline1_x = new_center - self.vline_gap / 2
+            new_vline2_x = new_center + self.vline_gap / 2
+
+            # Update all vline positions
+            self.window.vline1.set_xdata([new_vline1_x, new_vline1_x])
+            self.window.vline2.set_xdata([new_vline2_x, new_vline2_x])
+            self.window.vline_center.set_xdata([new_center, new_center])
+
+            # Update text labels and area detection
+            if hasattr(self.window, 'background_window') and self.window.background_window:
+                # Call AreaFit_Screen's update method which includes auto-detection
+                if hasattr(self.window.background_window, 'update_vline_text_labels'):
+                    self.window.background_window.update_vline_text_labels()
+            elif hasattr(self.window, 'update_vline_text_labels'):
+                # Fallback to main window method
+                self.window.update_vline_text_labels()
+
+            # Update center text
+            if hasattr(self.window, 'vline_center_text') and self.window.vline_center_text:
+                y_pos = self.window.vline_center_text.get_position()[1]
+                self.window.vline_center_text.set_position((new_center, y_pos))
+                self.window.vline_center_text.set_text(f'{new_center:.2f}')
+
+            # Update range controls
+            if hasattr(self.window, 'background_window') and self.window.background_window:
+                min_pos = min(new_vline1_x, new_vline2_x)
+                max_pos = max(new_vline1_x, new_vline2_x)
+                try:
+                    self.window.background_window.updating_range_controls = True
+                    self.window.background_window.min_range_text.SetValue(f"{min_pos:.2f}")
+                    self.window.background_window.max_range_text.SetValue(f"{max_pos:.2f}")
+                    self.window.background_window.updating_range_controls = False
+                except:
+                    pass
+
+            self.window.canvas.draw_idle()
+            return
+
         # CTRL+DRAG MOTION HANDLING - MUST BE FIRST
-        if self.ctrl_drag_active and event.inaxes:
+        elif self.ctrl_drag_active and event.inaxes:
             if self.window.vline1 is not None and self.window.vline2 is not None:
 
                 # Calculate mouse movement delta
@@ -1227,6 +1328,19 @@ class MouseEventHandler:
                 except:
                     pass
                 self.window.vline2_text = None
+            # Clean up center vline
+            if hasattr(self.window, 'vline_center') and self.window.vline_center is not None:
+                try:
+                    self.window.vline_center.remove()
+                except:
+                    pass
+                self.vline_center = None
+            if hasattr(self.window, 'vline_center_text') and self.window.vline_center_text is not None:
+                try:
+                    self.window.vline_center_text.remove()
+                except:
+                    pass
+                self.window.vline_center_text = None
 
             # THEN: Create new vlines at the specified positions
             self.window.vline1 = self.window.ax.axvline(x=vline1_pos, color='red', linestyle='--', alpha=0.7)
@@ -1317,131 +1431,40 @@ class MouseEventHandler:
         # Reset moving vline state
         self.window.moving_vline = None
 
-    def on_release_OLD(self, event):
-
-        if self.ctrl_drag_active:
-            print(f"CTRL+drag ended")
-
-            # Reset CTRL+drag state
-            self.ctrl_drag_active = False
-            self.vline_gap = 0.0
-            self.ctrl_drag_reference_pos = 0.0
-
-            # Ensure moving_vline is None to prevent conflicts
-            self.window.moving_vline = None
-
-            # UPDATE BACKGROUND - Use the same logic as single vline dragging
-            if (self.window.background_tab_selected and
-                    hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
-                # Update active region positions with new vLine positions (same as single vline)
-                self.update_active_region_positions()
-
-                # Redraw all regions in sequence (same as single vline)
-                self.redraw_all_regions_background()
-
-            # Alternative background update for other cases
-            elif (self.window.background_tab_selected and
-                  hasattr(self.window, 'background_method') and
-                  self.window.background_method == "Multi-Regions Smart"):
-                if hasattr(self.window, 'plot_manager'):
-                    print('Helloooooo22222')
-                    self.window.plot_manager.plot_background(self.window)
-
-            # CRITICAL: Skip regular background plotting for Tougaard methods with multiple regions
-            # The redraw_all_regions_background() call above already handled them properly
-            elif (self.window.background_tab_selected and
-                  hasattr(self.window, 'background_method') and
-                  self.window.background_method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]):
-                # Skip regular background plotting - already handled by redraw_all_regions_background()
-                print(f"Skipping regular background plot for {self.window.background_method} - already handled by multi-region code")
-                pass
-
-            # Save state after movement
-            save_state(self.window)
-
-            # Clean up motion and release handlers
-            if hasattr(self.window, 'motion_cid'):
-                self.window.canvas.mpl_disconnect(self.window.motion_cid)
-                delattr(self.window, 'motion_cid')
-            if hasattr(self.window, 'release_cid'):
-                self.window.canvas.mpl_disconnect(self.window.release_cid)
-                delattr(self.window, 'release_cid')
-
-            return  # CRITICAL: Exit here to prevent normal release handling
-        elif self.window.moving_vline is not None:
-            # Store which vline was moved before resetting to None
-            moved_vline = self.window.moving_vline
-
-            # Save state after vline movement and background update
-            save_state(self.window)
-
-            # Update VBM controls if VBM window is open
-            self.update_vbm_controls_from_vlines()
-
-            # Use the correct variable names to disconnect events
-            if hasattr(self.window, 'motion_cid'):
-                self.window.canvas.mpl_disconnect(self.window.motion_cid)
-                delattr(self.window, 'motion_cid')
-            if hasattr(self.window, 'release_cid'):
-                self.window.canvas.mpl_disconnect(self.window.release_cid)
-                delattr(self.window, 'release_cid')
-
-            # Reset the moving vline to None
-            self.window.moving_vline = None
-
-            sheet_name = self.window.sheet_combobox.GetValue()
-            if sheet_name in self.window.Data['Core levels']:
-                core_level_data = self.window.Data['Core levels'][sheet_name]
-                if 'Background' in core_level_data:
-                    bg_low = core_level_data['Background'].get('Bkg Low')
-                    bg_high = core_level_data['Background'].get('Bkg High')
-                    if bg_low is not None and bg_high is not None:
-                        core_level_data['Background']['Bkg Low'] = min(bg_low, bg_high)
-                        core_level_data['Background']['Bkg High'] = max(bg_low, bg_high)
-
-                # if (moved_vline in [self.window.vline1, self.window.vline2] and
-                #         self.window.background_method == "Multi-Regions Smart" and
-                #         hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
-                if (moved_vline in [self.window.vline1, self.window.vline2] and
-                            hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None):
-                    # Update active region positions with new vLine positions
-                    self.update_active_region_positions()
-                    print('Helllo')
-                    # # Redraw all regions in sequence
-                    self.redraw_all_regions_background()
-
-        if self.window.selected_peak_index is not None:
-            row = self.window.selected_peak_index * 2
-            peak_x = float(self.window.peak_params_grid.GetCellValue(row, 2))
-            peak_y = float(self.window.peak_params_grid.GetCellValue(row, 3))
-            self.window.update_peak_plot(peak_x, peak_y, remove_old_peaks=False)
-
-            sheet_name = self.window.sheet_combobox.GetValue()
-            if sheet_name in self.window.Data['Core levels']:
-                core_level_data = self.window.Data['Core levels'][sheet_name]
-                if 'Fitting' not in core_level_data:
-                    core_level_data['Fitting'] = {}
-                if 'Peaks' not in core_level_data['Fitting']:
-                    core_level_data['Fitting']['Peaks'] = {}
-
-                peak_label = self.window.peak_params_grid.GetCellValue(row, 1)
-
-                core_level_data['Fitting']['Peaks'][peak_label] = {
-                    'Position': peak_x,
-                    'Height': peak_y,
-                    'FWHM': self.window.try_float(self.window.peak_params_grid.GetCellValue(row, 4), 1.6),
-                    'L/G': self.window.try_float(self.window.peak_params_grid.GetCellValue(row, 5), 20.0),
-                    'Area': self.window.try_float(self.window.peak_params_grid.GetCellValue(row, 6), 0.0),
-                    'Sigma': self.window.try_float(self.window.peak_params_grid.GetCellValue(row, 7), 0.5),
-                    'Gamma': self.window.try_float(self.window.peak_params_grid.GetCellValue(row, 8), 0.5),
-                    'Skew': self.window.try_float(self.window.peak_params_grid.GetCellValue(row, 9), 0.1)
-                }
-
-        self.window.selected_peak_index = None
-        self.window.canvas.draw_idle()
-
     def on_release(self, event):
-        if self.ctrl_drag_active:
+
+        # Handle center vline drag release
+        if hasattr(self, 'center_drag_active') and self.center_drag_active:
+            self.center_drag_active = False
+            self.vline_gap = 0.0
+            self.center_drag_reference_pos = 0.0
+            self.window.moving_vline = None
+
+            # DON'T create background when center vline is dragged - just update positions
+            # Update data structure with new vline positions
+            if self.window.vline1 is not None and self.window.vline2 is not None:
+                vline1_x = self.window.vline1.get_xdata()[0]
+                vline2_x = self.window.vline2.get_xdata()[0]
+
+                sheet_name = self.window.sheet_combobox.GetValue()
+                if sheet_name in self.window.Data['Core levels']:
+                    if 'Background' not in self.window.Data['Core levels'][sheet_name]:
+                        self.window.Data['Core levels'][sheet_name]['Background'] = {}
+                    self.window.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(min(vline1_x, vline2_x))
+                    self.window.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(max(vline1_x, vline2_x))
+
+            save_state(self.window)
+
+            # Clean up handlers
+            if hasattr(self.window, 'motion_cid'):
+                self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                delattr(self.window, 'motion_cid')
+            if hasattr(self.window, 'release_cid'):
+                self.window.canvas.mpl_disconnect(self.window.release_cid)
+                delattr(self.window, 'release_cid')
+
+            return
+        elif self.ctrl_drag_active:
             print(f"CTRL+drag ended")
 
             # Reset CTRL+drag state

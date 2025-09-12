@@ -1138,6 +1138,20 @@ class BackgroundWindow(wx.Frame):
                 pass
             self.parent.vline2_text = None
 
+        # Clean up center vline
+        if hasattr(self.parent, 'vline_center') and self.parent.vline_center is not None:
+            try:
+                self.parent.vline_center.remove()
+            except:
+                pass
+            self.parent.vline_center = None
+        if hasattr(self.parent, 'vline_center_text') and self.parent.vline_center_text is not None:
+            try:
+                self.parent.vline_center_text.remove()
+            except:
+                pass
+            self.parent.vline_center_text = None
+
         # Get positions from background data or use defaults
         saved_low = None
         saved_high = None
@@ -1174,6 +1188,10 @@ class BackgroundWindow(wx.Frame):
         # Create new vlines - these will be draggable
         self.parent.vline1 = self.parent.ax.axvline(vline1_display, color='r', linestyle='--', alpha=0.7)
         self.parent.vline2 = self.parent.ax.axvline(vline2_display, color='r', linestyle='--', alpha=0.7)
+
+        # Create center vline
+        center_pos = (vline1_display + vline2_display) / 2
+        self.parent.vline_center = self.parent.ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.4, linewidth=1)
 
         # Add text labels
         self.add_vline_text_labels()
@@ -1243,6 +1261,14 @@ class BackgroundWindow(wx.Frame):
                                                               color='grey', fontsize=10,
                                                               bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                                                                         alpha=0.8))
+
+                # Add center vline text label
+                if hasattr(self.parent, 'vline_center') and self.parent.vline_center is not None:
+                    center_x = (vline1_x + vline2_x) / 2
+                    center_text_y = y_min + 0.7 * y_range  # Position at 70% of Y axis
+                    self.parent.vline_center_text = self.parent.ax.text(center_x, center_text_y,
+                                                                        f'{center_x:.2f}', ha='center', va='bottom',
+                                                                        bbox=dict(boxstyle='round,pad=0.2', facecolor='lightgreen', alpha=0.8))
             else:
                 self.parent.vline1_text = self.parent.ax.text(vline1_x, low_be_text_y, f'{vline1_x:.2f}',
                                                               ha='center', va='center',
@@ -1254,6 +1280,13 @@ class BackgroundWindow(wx.Frame):
                                                               color='grey', fontsize=10,
                                                               bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                                                                         alpha=0.8))
+                # Add center vline text label
+                if hasattr(self.parent, 'vline_center') and self.parent.vline_center is not None:
+                    center_x = (vline1_x + vline2_x) / 2
+                    center_text_y = y_min + 0.7 * y_range  # Position at 70% of Y axis
+                    self.parent.vline_center_text = self.parent.ax.text(center_x, center_text_y,
+                                                                        f'{center_x:.2f}', ha='center', va='bottom',
+                                                                        bbox=dict(boxstyle='round,pad=0.2', facecolor='lightgreen', alpha=0.8))
 
     def update_vline_text_labels(self):
         """Update the text labels when vlines are moved."""
@@ -1293,6 +1326,26 @@ class BackgroundWindow(wx.Frame):
 
             # Update core level list if open
             self.update_core_level_list_if_open()
+
+            # Update center vline position when other vlines move
+            self.update_center_vline_position()
+
+    def update_center_vline_position(self):
+        """Update center vline position based on vline1 and vline2 positions."""
+        if (hasattr(self.parent, 'vline_center') and self.parent.vline_center is not None and
+                self.parent.vline1 is not None and self.parent.vline2 is not None):
+
+            vline1_x = self.parent.vline1.get_xdata()[0]
+            vline2_x = self.parent.vline2.get_xdata()[0]
+            center_x = (vline1_x + vline2_x) / 2
+
+            self.parent.vline_center.set_xdata([center_x, center_x])
+
+            # Update center text label if it exists
+            if hasattr(self.parent, 'vline_center_text') and self.parent.vline_center_text is not None:
+                y_pos = self.parent.vline_center_text.get_position()[1]
+                self.parent.vline_center_text.set_position((center_x, y_pos))
+                self.parent.vline_center_text.set_text(f'{center_x:.2f}')
 
     def show_hide_vlines(self):
         """Show/hide vlines based on current screen state and zoom/drag modes."""
@@ -1341,6 +1394,10 @@ class BackgroundWindow(wx.Frame):
             self.vline1_text.set_visible(background_lines_visible)
         if hasattr(self, 'vline2_text') and self.vline2_text is not None:
             self.vline2_text.set_visible(background_lines_visible)
+        if hasattr(self, 'vline_center') and self.vline_center is not None:
+            self.vline_center.set_visible(background_lines_visible)
+        if hasattr(self, 'vline_center_text') and self.vline_center_text is not None:
+            self.vline_center_text.set_visible(background_lines_visible)
 
         # Noise lines visibility
         noise_lines_visible = (self.noise_analysis_window is not None and
@@ -1902,6 +1959,10 @@ class BackgroundWindow(wx.Frame):
         # Restore vlines at their positions
         self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
         self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+        # Recreate center vline
+        center_pos = (vline1_x + vline2_x) / 2
+        self.parent.vline_center = self.parent.ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.4, linewidth=1.0)
 
         # Add text labels back
         self.add_vline_text_labels()
