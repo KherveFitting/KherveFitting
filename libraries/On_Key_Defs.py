@@ -416,7 +416,7 @@ class KeyEventHandlers:
         if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
             self.main_frame.add_averaging_indicator_lines()
 
-    def _handle_ctrl_up_down_keys(self, keycode):
+    def _handle_ctrl_up_down_keys_OLD(self, keycode):
         """Handle Ctrl+Up/Down keys for intensity adjustment"""
         sheet_name = self.main_frame.sheet_combobox.GetValue()
         limits = self.main_frame.plot_config.get_plot_limits(self.main_frame, sheet_name)
@@ -435,6 +435,205 @@ class KeyEventHandlers:
         self.main_frame.ax.set_ylim(limits['Ymin'], limits['Ymax'])
 
         # Check RSD visibility
+        if hasattr(self.main_frame.plot_manager,
+                   'residuals_state') and self.main_frame.plot_manager.residuals_state == 1:
+            residual_height = 1.07 * max(self.main_frame.y_values)
+            if residual_height > limits['Ymax']:
+                if hasattr(self.main_frame.plot_manager, 'rsd_text') and self.main_frame.plot_manager.rsd_text:
+                    self.main_frame.plot_manager.rsd_text.remove()
+                    self.main_frame.plot_manager.rsd_text = None
+            else:
+                if hasattr(self.main_frame.plot_manager, 'rsd_text') and self.main_frame.plot_manager.rsd_text is None:
+                    from libraries.Peak_Functions import PeakFunctions
+                    rsd = PeakFunctions.calculate_rsd(self.main_frame.y_values, self.main_frame.background)
+                    if rsd is not None:
+                        x_min = self.main_frame.ax.get_xlim()[1] + 0.4
+                        self.main_frame.plot_manager.rsd_text = self.main_frame.ax.text(x_min, residual_height,
+                                                                                        f'RSD: {rsd:.2f}',
+                                                                                        horizontalalignment='right',
+                                                                                        verticalalignment='center',
+                                                                                        fontsize=9,
+                                                                                        color=self.main_frame.plot_manager.residual_color,
+                                                                                        alpha=self.main_frame.plot_manager.residual_alpha + 0.2,
+                                                                                        bbox=dict(facecolor='white',
+                                                                                                  edgecolor='none'))
+
+        self.main_frame.canvas.draw_idle()
+
+        # Update averaging indicator lines after intensity adjustment
+        if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
+            self.main_frame.add_averaging_indicator_lines()
+
+        # Refresh vline text labels after intensity adjustment
+        self.main_frame.refresh_vline_text_labels()
+
+    def _handle_ctrl_up_down_keys_OLD2(self, keycode):
+        """Handle Ctrl+Up/Down keys for intensity adjustment"""
+        # Check if we're in multiple plot mode by counting data lines
+        data_lines = [line for line in self.main_frame.ax.lines
+                      if line.get_label() not in ['Background', 'Overall Fit', 'Residuals']
+                      and not line.get_label().startswith('Peak')]
+
+        is_multiple_plot_mode = len(data_lines) > 1
+
+        if is_multiple_plot_mode:
+            print("Multiple plot mode detected for intensity adjustment")
+            # For multiple plots: get max intensity from actual plotted data
+            max_intensity = 0.00
+            for line in data_lines:
+                y_data = line.get_ydata()
+                if len(y_data) > 0:
+                    max_intensity = max(max_intensity, max(y_data))
+
+            # If no valid data found, fallback to current ylim
+            if max_intensity == 0.00:
+                _, current_ymax = self.main_frame.ax.get_ylim()
+                max_intensity = current_ymax
+
+            # Get current limits directly from plot
+            ymin, ymax = self.main_frame.ax.get_ylim()
+            intensity_factor = 0.05
+
+            if keycode == wx.WXK_DOWN:  # Decrease intensity
+                new_ymax = max(ymax - intensity_factor * max_intensity, ymin)
+            else:  # Increase intensity
+                new_ymax = ymax + intensity_factor * max_intensity
+
+            # Only update plot display, don't save to window.data for multiple plots
+            self.main_frame.ax.set_ylim(ymin, new_ymax)
+            limits = {'Ymin': ymin, 'Ymax': new_ymax}  # For RSD calculation below
+
+        else:
+            print("Single plot mode detected for intensity adjustment")
+            # Single plot mode: use existing behavior and SAVE to window.data
+            sheet_name = self.main_frame.sheet_combobox.GetValue()
+            limits = self.main_frame.plot_config.get_plot_limits(self.main_frame, sheet_name)
+            intensity_factor = 0.05
+            max_intensity = max(self.main_frame.y_values)
+
+            if keycode == wx.WXK_DOWN:  # Decrease intensity
+                limits['Ymax'] = max(limits['Ymax'] - intensity_factor * max_intensity, limits['Ymin'])
+            else:  # Increase intensity
+                limits['Ymax'] += intensity_factor * max_intensity
+
+            # CRITICAL: Update and save the plot limits to window.data
+            self.main_frame.plot_config.update_plot_limits(self.main_frame, sheet_name, y_max=limits['Ymax'])
+
+            # Update the plot display
+            self.main_frame.ax.set_ylim(limits['Ymin'], limits['Ymax'])
+
+        # Check RSD visibility (common for both modes)
+        if hasattr(self.main_frame.plot_manager,
+                   'residuals_state') and self.main_frame.plot_manager.residuals_state == 1:
+            residual_height = 1.07 * max(self.main_frame.y_values)
+            if residual_height > limits['Ymax']:
+                if hasattr(self.main_frame.plot_manager, 'rsd_text') and self.main_frame.plot_manager.rsd_text:
+                    self.main_frame.plot_manager.rsd_text.remove()
+                    self.main_frame.plot_manager.rsd_text = None
+            else:
+                if hasattr(self.main_frame.plot_manager, 'rsd_text') and self.main_frame.plot_manager.rsd_text is None:
+                    from libraries.Peak_Functions import PeakFunctions
+                    rsd = PeakFunctions.calculate_rsd(self.main_frame.y_values, self.main_frame.background)
+                    if rsd is not None:
+                        x_min = self.main_frame.ax.get_xlim()[1] + 0.4
+                        self.main_frame.plot_manager.rsd_text = self.main_frame.ax.text(x_min, residual_height,
+                                                                                        f'RSD: {rsd:.2f}',
+                                                                                        horizontalalignment='right',
+                                                                                        verticalalignment='center',
+                                                                                        fontsize=9,
+                                                                                        color=self.main_frame.plot_manager.residual_color,
+                                                                                        alpha=self.main_frame.plot_manager.residual_alpha + 0.2,
+                                                                                        bbox=dict(facecolor='white',
+                                                                                                  edgecolor='none'))
+
+        self.main_frame.canvas.draw_idle()
+
+        # Update averaging indicator lines after intensity adjustment
+        if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
+            self.main_frame.add_averaging_indicator_lines()
+
+        # Refresh vline text labels after intensity adjustment
+        self.main_frame.refresh_vline_text_labels()
+
+    def _handle_ctrl_up_down_keys(self, keycode):
+        """Handle Ctrl+Up/Down keys for intensity adjustment"""
+
+        # Check if FileManager exists and has multiple sheets selected
+        is_multiple_plot_mode = False
+
+        if hasattr(self.main_frame, 'file_manager') and self.main_frame.file_manager:
+            try:
+                # Check if FileManager has multiple selected sheets
+                selected_sheets = self.main_frame.file_manager.get_selected_sheet_names()
+                is_multiple_plot_mode = len(selected_sheets) > 1
+            except:
+                is_multiple_plot_mode = False
+
+        # Alternative check: see if we have a flag set for multiple plot mode
+        if hasattr(self.main_frame, 'multiple_plot_mode'):
+            is_multiple_plot_mode = self.main_frame.multiple_plot_mode
+
+
+        if is_multiple_plot_mode:
+            # For multiple plots: get max intensity from actual plotted data
+            all_lines = self.main_frame.ax.lines
+            for i, line in enumerate(all_lines):
+                label = line.get_label()
+            # Check if we're in multiple plot mode by counting data lines
+            excluded_labels = ['Background', 'Overall Fit', 'Residuals', 'Envelope']
+            data_lines = []
+            for line in all_lines:
+                label = line.get_label()
+                # Exclude background, fit, residual lines and peaks
+                if (label not in excluded_labels and
+                        not label.startswith('Peak') and
+                        not label.startswith('_') and  # matplotlib internal lines
+                        label != ''):  # empty labels
+                    data_lines.append(line)
+
+            max_intensity = 0.00
+            for line in data_lines:
+                y_data = line.get_ydata()
+                if len(y_data) > 0:
+                    max_intensity = max(max_intensity, max(y_data))
+
+            # If no valid data found, fallback to current ylim
+            if max_intensity == 0.00:
+                _, current_ymax = self.main_frame.ax.get_ylim()
+                max_intensity = current_ymax
+
+            # Get current limits directly from plot
+            ymin, ymax = self.main_frame.ax.get_ylim()
+            intensity_factor = 0.05
+
+            if keycode == wx.WXK_DOWN:  # Decrease intensity
+                new_ymax = max(ymax - intensity_factor * max_intensity, ymin)
+            else:  # Increase intensity
+                new_ymax = ymax + intensity_factor * max_intensity
+
+            # Only update plot display, don't save to window.data for multiple plots
+            self.main_frame.ax.set_ylim(ymin, new_ymax)
+            limits = {'Ymin': ymin, 'Ymax': new_ymax}  # For RSD calculation below
+
+        else:
+            # Single plot mode: use existing behavior and SAVE to window.data
+            sheet_name = self.main_frame.sheet_combobox.GetValue()
+            limits = self.main_frame.plot_config.get_plot_limits(self.main_frame, sheet_name)
+            intensity_factor = 0.05
+            max_intensity = max(self.main_frame.y_values)
+
+            if keycode == wx.WXK_DOWN:  # Decrease intensity
+                limits['Ymax'] = max(limits['Ymax'] - intensity_factor * max_intensity, limits['Ymin'])
+            else:  # Increase intensity
+                limits['Ymax'] += intensity_factor * max_intensity
+
+            # Update and save the plot limits to window.data
+            self.main_frame.plot_config.update_plot_limits(self.main_frame, sheet_name, y_max=limits['Ymax'])
+
+            # Update the plot display
+            self.main_frame.ax.set_ylim(limits['Ymin'], limits['Ymax'])
+
+        # Check RSD visibility (common for both modes)
         if hasattr(self.main_frame.plot_manager,
                    'residuals_state') and self.main_frame.plot_manager.residuals_state == 1:
             residual_height = 1.07 * max(self.main_frame.y_values)
