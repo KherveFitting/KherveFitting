@@ -84,7 +84,7 @@ class PlotConfig:
             # Redraw the canvas to show updated plot
             window.canvas.draw_idle()
 
-    def on_zoom_out(self, window):
+    def on_zoom_out_OLD(self, window):
         # Get current sheet name
         sheet_name = window.sheet_combobox.GetValue()
 
@@ -109,6 +109,129 @@ class PlotConfig:
         if window.drag_mode:
             window.disable_drag()
             window.drag_mode = False
+
+    def on_zoom_out(self, window):
+        """Handle zoom out for both single and multiple plot modes"""
+        # Check if FileManager exists and has multiple sheets selected
+        is_multiple_plot_mode = False
+
+        if hasattr(window, 'file_manager') and window.file_manager:
+            try:
+                # Check if FileManager has multiple selected sheets
+                selected_sheets = window.file_manager.get_selected_sheet_names()
+                is_multiple_plot_mode = len(selected_sheets) > 1
+            except:
+                is_multiple_plot_mode = False
+
+        # Alternative check: see if we have a flag set for multiple plot mode
+        if hasattr(window, 'multiple_plot_mode'):
+            is_multiple_plot_mode = window.multiple_plot_mode
+
+        if is_multiple_plot_mode:
+            # For multiple plots: zoom out to show all data properly
+            self._zoom_out_multiple_plots(window)
+        else:
+            # For single plots: use standard zoom out
+            sheet_name = window.sheet_combobox.GetValue()
+
+            # Reset plot limits to original values
+            self.reset_plot_limits(window, sheet_name)
+
+            # Resize plot with reset limits
+            self.resize_plot(window)
+
+        # Deactivate and remove zoom rectangle if it exists
+        if window.zoom_rect:
+            window.zoom_rect.set_active(False)
+            window.zoom_rect = None
+
+        # Disable zoom mode
+        window.zoom_mode = False
+
+        # Redraw the canvas
+        window.canvas.draw_idle()
+
+        # Disable drag mode if active
+        if window.drag_mode:
+            window.disable_drag()
+            window.drag_mode = False
+
+    def _zoom_out_multiple_plots(self, window):
+        """Zoom out for multiple plots to show all data appropriately"""
+        # Get all plotted lines
+        all_lines = window.ax.lines
+        excluded_labels = ['Background', 'Overall Fit', 'Residuals', 'Envelope']
+
+        # Find data lines (excluding fit components and peaks)
+        data_lines = []
+        for line in all_lines:
+            label = line.get_label()
+            if (label not in excluded_labels and
+                    not label.startswith('Peak') and
+                    not label.startswith('_') and  # matplotlib internal lines
+                    label != ''):
+                data_lines.append(line)
+
+        if not data_lines:
+            # Fallback to standard zoom out if no data lines found
+            sheet_name = window.sheet_combobox.GetValue()
+            self.reset_plot_limits(window, sheet_name)
+            self.resize_plot(window)
+            return
+
+        # Calculate bounds from all data lines
+        all_x_data = []
+        all_y_data = []
+
+        for line in data_lines:
+            x_data = line.get_xdata()
+            y_data = line.get_ydata()
+            if len(x_data) > 0 and len(y_data) > 0:
+                all_x_data.extend(x_data)
+                all_y_data.extend(y_data)
+
+        if all_x_data and all_y_data:
+            # Calculate appropriate bounds with padding
+            x_min, x_max = min(all_x_data), max(all_x_data)
+            y_min, y_max = min(all_y_data), max(all_y_data)
+
+            # Add padding (10% on each side)
+            x_range = x_max - x_min
+            y_range = y_max - y_min
+
+            x_padding = 0
+            y_padding = y_range * 0.1 if y_range > 0 else (y_max * 0.1)
+
+
+
+            # Apply bounds (note: X-axis is reversed for XPS data)
+            window.ax.set_xlim(x_max + x_padding, x_min - x_padding)
+            window.ax.set_ylim(y_min - 0.1*y_padding, y_max + y_padding)
+
+            # Update subplot limits if it exists
+            if hasattr(window, 'residuals_subplot') and window.residuals_subplot:
+                window.residuals_subplot.set_xlim(x_max + x_padding, x_min - x_padding)
+
+            # Update plot manager residuals
+            if hasattr(window, 'plot_manager'):
+                window.plot_manager.update_overall_fit_and_residuals(window)
+
+            # Store the calculated limits for the current sheet
+            sheet_name = window.sheet_combobox.GetValue()
+            if sheet_name not in self.plot_limits:
+                self.plot_limits[sheet_name] = {}
+
+            self.plot_limits[sheet_name].update({
+                'Xmin': float(f"{x_min - x_padding:.2f}"),
+                'Xmax': float(f"{x_max + x_padding:.2f}"),
+                'Ymin': float(f"{y_min - y_padding:.2f}"),
+                'Ymax': float(f"{y_max + y_padding:.2f}")
+            })
+        else:
+            # Fallback to standard zoom out
+            sheet_name = window.sheet_combobox.GetValue()
+            self.reset_plot_limits(window, sheet_name)
+            self.resize_plot(window)
 
     def on_drag_tool(self, window):
         # Toggle drag mode
