@@ -4893,6 +4893,31 @@ class ExperimentalDescriptionWindow(wx.Frame):
 
     def populate_grid(self):
         """Populate the grid with experimental description data"""
+        # First try to get data from window.Data (stored experimental info)
+        core_levels = self.parent.parent.Data.get('Core levels', {})
+        sheet_data = core_levels.get(self.sheet_name, {})
+        experimental_info = sheet_data.get('ExperimentalInfo', {})
+
+        if experimental_info:
+            # Populate from stored data in window.Data
+            row_index = 0
+            for param_name, param_value in experimental_info.items():
+                if row_index >= self.grid.GetNumberRows():
+                    self.grid.AppendRows(1)
+                self.grid.SetCellValue(row_index, 0, str(param_name))
+                self.grid.SetCellValue(row_index, 1, str(param_value))
+                self.grid.SetCellAlignment(row_index, 0, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
+                self.grid.SetCellAlignment(row_index, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
+                self.grid.SetReadOnly(row_index, 0)
+                self.grid.SetReadOnly(row_index, 1)
+                row_index += 1
+
+            # Hide unused rows
+            for i in range(row_index, self.grid.GetNumberRows()):
+                self.grid.SetRowSize(i, 0)
+            return
+
+        # Fallback to reading from Excel file if no data in window.Data
         file_path = self.parent.parent.Data.get('FilePath', '')
         if not file_path or not os.path.exists(file_path):
             return
@@ -5345,14 +5370,38 @@ class FileManagerDropTarget(wx.FileDropTarget):
             print(f"Warning: No valid data found in sheet {original_sheet_name}")
             return
 
-        # Create the data structure WITHOUT individual Description
+        # Extract experimental description data from Excel sheet
+        experimental_info = {}
+
+        # Find experimental description column (search columns 40-60)
+        exp_col = None
+        for col in range(40, min(61, source_sheet.max_column + 1)):
+            if source_sheet.cell(row=1, column=col).value == "Experimental Description":
+                exp_col = col
+                break
+
+        if exp_col:
+            # Read experimental description data
+            for row in range(2, source_sheet.max_row + 1):
+                param_cell = source_sheet.cell(row=row, column=exp_col)
+                value_cell = source_sheet.cell(row=row, column=exp_col + 1)
+
+                if param_cell.value is not None and str(param_cell.value).strip():
+                    param_name = str(param_cell.value).strip()
+                    param_value = str(value_cell.value).strip() if value_cell.value is not None else ""
+                    experimental_info[param_name] = param_value
+
+        # Create the data structure WITH experimental info
         sheet_data = {
-            'B.E.': be_values,
-            'Raw Data': raw_data,
-            'Background': {'Bkg Y': [0.0] * len(be_values)},
+            'B.E.': [f"{val:.2f}" for val in be_values],
+            'Raw Data': [f"{val:.2f}" for val in raw_data],
+            'Background': {'Bkg Y': [f"{val:.2f}" for val in raw_data]},
             'Name': new_sheet_name
-            # REMOVED: 'Description': f"Added from file: {os.path.basename(file_path)}"
         }
+
+        # Add experimental info if available
+        if experimental_info:
+            sheet_data['ExperimentalInfo'] = experimental_info
 
         # Copy peak fitting data from JSON if available
         if 'Core levels' in json_data and original_sheet_name in json_data['Core levels']:

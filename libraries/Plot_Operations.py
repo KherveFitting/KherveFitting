@@ -26,6 +26,7 @@ class PlotManager:
         self.canvas = canvas
         self.figure = ax.figure
         self.window = window
+        self.parent = window  # Add parent attribute for backward compatibility
 
         if window:
             self.peak_manipulation = PeakManipulation(window)

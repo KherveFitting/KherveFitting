@@ -1875,6 +1875,7 @@ def import_avantage_file_direct(window, file_path):
                         new_sheet.cell(row=current_row, column=exp_col + 1, value=param_value)
                         current_row += 1
 
+
                     # Set column widths
                     new_sheet.column_dimensions[get_column_letter(exp_col)].width = 25
                     new_sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
@@ -1883,35 +1884,33 @@ def import_avantage_file_direct(window, file_path):
 
     sample_counter += 1
 
-    # Create and save SampleNames dictionary based on Title sheets
-    sample_names_dict = {}
-    sample_counter = 0
-    for sample_suffix in sorted_samples:
-        if sample_suffix is None:
-            sample_names_dict[str(sample_counter)] = "Sample"
-        else:
-            sample_names_dict[str(sample_counter)] = f"Sample {sample_suffix}"
-        sample_counter += 1
-
-    # Update window.Data with SampleNames
-    if not hasattr(window, 'Data') or window.Data is None:
-        from libraries.ConfigFile import Init_Measurement_Data
-        window.Data = Init_Measurement_Data(window)
-
-    window.Data['SampleNames'] = sample_names_dict
-
-    # Save the updated JSON file with SampleNames
-    json_file_path = os.path.splitext(new_file_path)[0] + '.json'
-    from libraries.FileMenu.Save import convert_to_serializable_and_round
-    json_data = convert_to_serializable_and_round(window.Data)
-    with open(json_file_path, 'w') as json_file:
-        json.dump(json_data, json_file, indent=2)
-
-    new_wb.save(new_file_path)
-    open_xlsx_file(window, new_file_path)
+    # # Create and save SampleNames dictionary based on Title sheets
+    # sample_names_dict = {}
+    # sample_counter = 0
+    # for sample_suffix in sorted_samples:
+    #     if sample_suffix is None:
+    #         sample_names_dict[str(sample_counter)] = "Sample"
+    #     else:
+    #         sample_names_dict[str(sample_counter)] = f"Sample {sample_suffix}"
+    #     sample_counter += 1
+    #
+    # # Update window.Data with SampleNames
+    # if not hasattr(window, 'Data') or window.Data is None:
+    #     from libraries.ConfigFile import Init_Measurement_Data
+    #     window.Data = Init_Measurement_Data(window)
+    #
+    # window.Data['SampleNames'] = sample_names_dict
+    #
+    # # Save the updated JSON file with SampleNames
+    # json_file_path = os.path.splitext(new_file_path)[0] + '.json'
+    # from libraries.FileMenu.Save import convert_to_serializable_and_round
+    # json_data = convert_to_serializable_and_round(window.Data)
+    # with open(json_file_path, 'w') as json_file:
+    #     json.dump(json_data, json_file, indent=2)
 
     new_wb.save(new_file_path)
     open_xlsx_file(window, new_file_path)
+
 
 def import_avantage_file_direct_xls(window, file_path):
     import xlrd
@@ -3690,6 +3689,14 @@ def open_vamas_file(window, file_path):
             # Set column width for experimental data
             ws.column_dimensions[chr(64 + exp_col)].width = 25
             ws.column_dimensions[chr(64 + exp_col + 1)].width = 40
+
+            # Store experimental info in sheet data structure for JSON
+            experimental_info = {}
+            for j, (label, value) in enumerate(zip(exp_labels, block_exp_data[1:])):
+                experimental_info[label] = value
+
+            # This needs to be stored when sheet data is created in window.Data
+            # Add to the sheet data dictionary when it's created
 
         update_console("Creating experimental description sheet...")
 

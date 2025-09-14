@@ -22,7 +22,7 @@ def Init_Measurement_Data(window):
     return Data
 
 
-def add_core_level_Data(data, window, file_path, sheet_name):
+def add_core_level_Data_OLD(data, window, file_path, sheet_name):
     """
     Extracts X and Y data from the given Excel file and adds it to the core level in the data dictionary.
     The sheet_name corresponds to the core level label.
@@ -77,6 +77,120 @@ def add_core_level_Data(data, window, file_path, sheet_name):
     print(f"Skipped {skip_rows} rows. Data starts from row {skip_rows + 1}")
 
     return data
+
+
+def add_core_level_Data(Data, window, file_path, sheet_name):
+    """
+    Add core level data from Excel sheet to Data structure, including experimental info
+    """
+    import openpyxl
+    import pandas as pd
+    import numpy as np
+
+    try:
+        # Read the Excel file
+        df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+
+        # Extract B.E. and Raw Data columns
+        be_values = []
+        raw_data = []
+        corrected_data = []
+        transmission = []
+
+        # Skip the header row and extract data
+        for index, row in df.iterrows():
+            if index == 0:  # Skip header
+                continue
+
+            be_val = row.iloc[0]  # Column A (B.E.)
+            raw_val = row.iloc[1]  # Column B (Raw Data)
+
+            # Handle missing or invalid data
+            if pd.isna(be_val) or pd.isna(raw_val):
+                continue
+
+            try:
+                be_values.append(float(be_val))
+                raw_data.append(float(raw_val))
+
+                # Check if corrected data column exists
+                if len(row) > 2 and not pd.isna(row.iloc[2]):
+                    corrected_data.append(float(row.iloc[2]))
+                else:
+                    corrected_data.append(float(raw_val))
+
+                # Check if transmission column exists
+                if len(row) > 3 and not pd.isna(row.iloc[3]):
+                    transmission.append(float(row.iloc[3]))
+                else:
+                    transmission.append(1.0)
+
+            except (ValueError, TypeError):
+                continue
+
+        # Extract experimental description data from Excel file
+        experimental_info = {}
+
+        # Load workbook to access experimental description columns
+        wb = openpyxl.load_workbook(file_path)
+        if sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+
+            # Search for experimental description column (typically around column 45-50)
+            exp_col = None
+            for col in range(40, min(61, ws.max_column + 1)):
+                cell_value = ws.cell(row=1, column=col).value
+                if cell_value and "Experimental Description" in str(cell_value):
+                    exp_col = col
+                    break
+
+            if exp_col:
+                # Read experimental description data
+                for row in range(2, ws.max_row + 1):
+                    param_cell = ws.cell(row=row, column=exp_col)
+                    value_cell = ws.cell(row=row, column=exp_col + 1)
+
+                    if param_cell.value is not None and str(param_cell.value).strip():
+                        param_name = str(param_cell.value).strip()
+                        param_value = str(value_cell.value).strip() if value_cell.value is not None else ""
+                        experimental_info[param_name] = param_value
+
+        # Create the core level data structure with .2f formatting
+        core_level_data = {
+            'B.E.': [float(f"{val:.2f}") for val in be_values],
+            'Raw Data': [float(f"{val:.2f}") for val in raw_data],
+            'Corrected Data': [float(f"{val:.2f}") for val in corrected_data],
+            'Transmission': [float(f"{val:.2f}") for val in transmission],
+            'Name': sheet_name
+        }
+
+        # Add experimental info to the core level data if found
+        if experimental_info:
+            core_level_data['ExperimentalInfo'] = experimental_info
+
+        # Initialize background structure
+        if be_values:
+            core_level_data['Background'] = {
+                'Bkg Y': core_level_data['Raw Data'],
+                'Bkg Type': '',
+                'Bkg Low': float(f"{min(be_values):.2f}"),
+                'Bkg High': float(f"{max(be_values):.2f}"),
+                'Bkg Offset Low': 0,
+                'Bkg Offset High': 0
+            }
+
+        # Add to Data structure
+        if 'Core levels' not in Data:
+            Data['Core levels'] = {}
+
+        Data['Core levels'][sheet_name] = core_level_data
+        Data['Number of Core levels'] = len(Data['Core levels'])
+
+        return Data
+
+    except Exception as e:
+        print(f"Error adding core level data for {sheet_name}: {e}")
+        return Data
 
 
 def add_peak_to_core_level_Data(data, core_name, peak_data):
