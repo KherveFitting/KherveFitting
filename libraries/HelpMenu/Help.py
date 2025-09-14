@@ -425,6 +425,10 @@ Philosophy:
 Version 1.600-1.690
 - Improve Smart background
 - Added U2 Tougaard
+- Added Mini-Fitting Screen
+- Added center lines to Area Screen 
+- Correct Zoom out with multiple plots
+- Correct Re for AreaFit Screen
 - Improve U4 Tougaard window
 - Improve peak, envelope, residuals visualisation / to be just in between the defined regions
 - Added missing elements in the AreaFit library
