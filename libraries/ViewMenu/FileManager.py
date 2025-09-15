@@ -4863,7 +4863,7 @@ class CoreLevelPreviewDialog(wx.Dialog):
         self.CenterOnParent()
 
 
-class ExperimentalDescriptionWindow(wx.Frame):
+class ExperimentalDescriptionWindow_OLD(wx.Frame):
     def __init__(self, parent, sheet_name):
         super().__init__(parent, title="Experimental Description",
                          size=(600, 600), style=wx.DEFAULT_FRAME_STYLE)
@@ -4982,6 +4982,389 @@ class ExperimentalDescriptionWindow(wx.Frame):
             wx.MessageBox(f"Error loading experimental description: {str(e)}",
                           "Error", wx.OK | wx.ICON_ERROR)
 
+
+class ExperimentalDescriptionWindow(wx.Frame):
+    def __init__(self, parent, sheet_name):
+        super().__init__(parent, title=f"Experimental Description - {sheet_name}",
+                         size=(450, 340), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+
+        self.parent = parent
+        self.sheet_name = sheet_name
+
+        self.panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Create toolbar
+        self.create_toolbar()
+        main_sizer.Add(self.toolbar, 0, wx.EXPAND)
+
+
+        # Create grid with more rows for expansion
+        self.grid = wx.grid.Grid(self.panel)
+        self.grid.CreateGrid(50, 2)
+
+        self.grid.SetColLabelValue(0, "Parameter")
+        self.grid.SetColLabelValue(1, "Value")
+        self.grid.SetColSize(0, 180)  # Smaller width for Parameter column
+        self.grid.SetColSize(1, 200)  # Narrower width for Value column
+        self.grid.SetRowLabelSize(30)
+
+        # Make all cells editable and set formatting
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                self.grid.SetCellAlignment(row, col, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
+                # Make Value column (column 1) bold
+                if col == 0:
+                    font = self.grid.GetCellFont(row, col)
+                    font.SetWeight(wx.FONTWEIGHT_BOLD)
+                    self.grid.SetCellFont(row, col, font)
+
+        self.populate_grid()
+
+        main_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 10)
+
+        self.panel.SetSizer(main_sizer)
+        self.CenterOnParent()
+
+        # Bind grid events
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
+        self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
+    def create_toolbar(self):
+        """Create toolbar with icons similar to FileManager"""
+        self.toolbar = wx.ToolBar(self.panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+        self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+        # Get icon path
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+
+        # Add Row button
+        add_icon = os.path.join(icon_path, "add-3.png")
+        if os.path.exists(add_icon):
+            add_bmp = wx.Bitmap(add_icon)
+        else:
+            add_bmp = wx.ArtProvider.GetBitmap(wx.ART_PLUS, wx.ART_TOOLBAR)
+        add_tool = self.toolbar.AddTool(wx.ID_ANY, "Add Row", add_bmp, "Add new row")
+        self.Bind(wx.EVT_TOOL, self.on_add_row, add_tool)
+
+        # Remove Row button
+        remove_icon = os.path.join(icon_path, "delete-rows-25.png")
+        if os.path.exists(remove_icon):
+            remove_bmp = wx.Bitmap(remove_icon)
+        else:
+            remove_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
+        remove_tool = self.toolbar.AddTool(wx.ID_ANY, "Remove Row", remove_bmp, "Remove selected row")
+        self.Bind(wx.EVT_TOOL, self.on_remove_row, remove_tool)
+
+        self.toolbar.AddSeparator()
+
+        # Save JSON button (auto-save on Enter, but also manual save)
+        save_json_icon = os.path.join(icon_path, "Save_Json-3.png")
+        if os.path.exists(save_json_icon):
+            save_json_bmp = wx.Bitmap(save_json_icon)
+        else:
+            save_json_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_TOOLBAR)
+        save_json_tool = self.toolbar.AddTool(wx.ID_ANY, "Save Data", save_json_bmp,
+                                              "Save data to JSON (also auto-saves on Enter)")
+        self.Bind(wx.EVT_TOOL, self.on_save_json, save_json_tool)
+
+        # Export to Excel button
+        export_excel_icon = os.path.join(icon_path, "Save-excel-3.png")
+        if os.path.exists(export_excel_icon):
+            export_excel_bmp = wx.Bitmap(export_excel_icon)
+        else:
+            export_excel_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
+        export_excel_tool = self.toolbar.AddTool(wx.ID_ANY, "Export to Excel", export_excel_bmp,
+                                                 "Export to Excel file at column 45")
+        self.Bind(wx.EVT_TOOL, self.on_export_to_excel, export_excel_tool)
+
+        # self.toolbar.AddStretchableSpace()
+        #
+        # # Close button
+        # close_icon = os.path.join(icon_path, "close-3.png")
+        # if os.path.exists(close_icon):
+        #     close_bmp = wx.Bitmap(close_icon)
+        # else:
+        #     close_bmp = wx.ArtProvider.GetBitmap(wx.ART_QUIT, wx.ART_TOOLBAR)
+        # close_tool = self.toolbar.AddTool(wx.ID_ANY, "Close", close_bmp, "Close window")
+        # self.Bind(wx.EVT_TOOL, self.on_close, close_tool)
+
+        self.toolbar.Realize()
+
+    def populate_grid(self):
+        """Populate the grid with experimental description data"""
+        # First try to get data from window.Data (stored experimental info)
+        core_levels = self.parent.parent.Data.get('Core levels', {})
+        sheet_data = core_levels.get(self.sheet_name, {})
+        experimental_info = sheet_data.get('ExperimentalInfo', {})
+
+        if experimental_info:
+            # Populate from stored data in window.Data
+            row_index = 0
+            for param_name, param_value in experimental_info.items():
+                if row_index >= self.grid.GetNumberRows():
+                    self.grid.AppendRows(1)
+                self.grid.SetCellValue(row_index, 0, str(param_name))
+                # Format numeric values to .2f
+                if isinstance(param_value, (int, float)):
+                    self.grid.SetCellValue(row_index, 1, f"{param_value:.2f}")
+                else:
+                    self.grid.SetCellValue(row_index, 1, str(param_value))
+
+                # Apply bold formatting to Value column
+                font = self.grid.GetCellFont(row_index, 0)
+                font.SetWeight(wx.FONTWEIGHT_BOLD)
+                self.grid.SetCellFont(row_index, 0, font)
+
+                row_index += 1
+
+            # Hide unused rows
+            for i in range(row_index, self.grid.GetNumberRows()):
+                self.grid.SetRowSize(i, 0)
+            return
+
+        # Fallback to reading from Excel file if no data in window.Data
+        file_path = self.parent.parent.Data.get('FilePath', '')
+        if not file_path or not os.path.exists(file_path):
+            return
+
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            if self.sheet_name not in wb.sheetnames:
+                return
+
+            sheet = wb[self.sheet_name]
+
+            # Find experimental description column (typically column 45/AS)
+            exp_col = None
+            for col in range(40, min(60, sheet.max_column + 1)):
+                if sheet.cell(row=1, column=col).value == "Experimental Description":
+                    exp_col = col
+                    break
+
+            if not exp_col:
+                return
+
+            # Count rows with data
+            row_count = 0
+            for row in range(2, sheet.max_row + 1):
+                param_cell = sheet.cell(row=row, column=exp_col)
+                if param_cell.value is not None and str(param_cell.value).strip():
+                    row_count += 1
+                elif row_count > 0:
+                    # Continue checking a few more rows before breaking
+                    empty_count = 0
+                    for r in range(row, min(row + 5, sheet.max_row + 1)):
+                        if not sheet.cell(row=r, column=exp_col).value:
+                            empty_count += 1
+                    if empty_count >= 3:
+                        break
+
+            # Resize grid if needed
+            if row_count > self.grid.GetNumberRows():
+                self.grid.AppendRows(row_count - self.grid.GetNumberRows())
+
+            # Populate grid with data
+            for i in range(row_count):
+                row = i + 2  # Start from row 2 in Excel (after header)
+                parameter = sheet.cell(row=row, column=exp_col).value
+                value = sheet.cell(row=row, column=exp_col + 1).value
+
+                if parameter:
+                    self.grid.SetCellValue(i, 0, str(parameter))
+                    # Format numeric values to .2f
+                    if isinstance(value, (int, float)):
+                        self.grid.SetCellValue(i, 1, f"{value:.2f}")
+                    else:
+                        self.grid.SetCellValue(i, 1, str(value) if value is not None else "")
+
+                    # Apply bold formatting to Value column
+                    font = self.grid.GetCellFont(i, 0)
+                    font.SetWeight(wx.FONTWEIGHT_BOLD)
+                    self.grid.SetCellFont(i, 0, font)
+
+            # Hide unused rows
+            for i in range(row_count, self.grid.GetNumberRows()):
+                self.grid.SetRowSize(i, 0)
+
+        except Exception as e:
+            print(f"Error reading experimental description: {e}")
+
+    def on_key_down(self, event):
+        """Handle key events - auto-save on Enter"""
+        if event.GetKeyCode() == wx.WXK_RETURN or event.GetKeyCode() == wx.WXK_NUMPAD_ENTER:
+            # Auto-save to window.Data when Enter is pressed
+            self.auto_save_to_data()
+        event.Skip()
+
+    def auto_save_to_data(self):
+        """Automatically save grid data to window.Data"""
+        experimental_info = {}
+
+        for row in range(self.grid.GetNumberRows()):
+            param = self.grid.GetCellValue(row, 0).strip()
+            value = self.grid.GetCellValue(row, 1).strip()
+
+            if param:  # Only save non-empty parameters
+                # Try to convert to float if it's a number
+                try:
+                    if value and '.' in value:
+                        value = float(value)
+                    elif value and value.isdigit():
+                        value = int(value)
+                except ValueError:
+                    pass  # Keep as string
+
+                experimental_info[param] = value
+
+        # Store in window.Data
+        if 'Core levels' not in self.parent.parent.Data:
+            self.parent.parent.Data['Core levels'] = {}
+
+        if self.sheet_name not in self.parent.parent.Data['Core levels']:
+            self.parent.parent.Data['Core levels'][self.sheet_name] = {}
+
+        self.parent.parent.Data['Core levels'][self.sheet_name]['ExperimentalInfo'] = experimental_info
+
+    def on_add_row(self, event):
+        """Add a new row to the grid"""
+        # Find the last row with data
+        last_row = 0
+        for row in range(self.grid.GetNumberRows()):
+            if (self.grid.GetCellValue(row, 0).strip() or
+                    self.grid.GetCellValue(row, 1).strip()):
+                last_row = row
+
+        # Show the next row and position cursor there
+        next_row = last_row + 1
+        if next_row < self.grid.GetNumberRows():
+            self.grid.SetRowSize(next_row, -1)  # Show the row
+            self.grid.SetGridCursor(next_row, 0)
+            self.grid.MakeCellVisible(next_row, 0)
+        else:
+            # Add more rows if needed
+            self.grid.AppendRows(10)
+            self.grid.SetGridCursor(next_row, 0)
+
+        # Apply bold formatting to the new Value cell
+        font = self.grid.GetCellFont(next_row, 0)
+        font.SetWeight(wx.FONTWEIGHT_BOLD)
+        self.grid.SetCellFont(next_row, 0, font)
+
+    def on_remove_row(self, event):
+        """Remove the currently selected row"""
+        selected_row = self.grid.GetGridCursorRow()
+        if selected_row >= 0:
+            # Clear the row content
+            self.grid.SetCellValue(selected_row, 0, "")
+            self.grid.SetCellValue(selected_row, 1, "")
+
+            # Shift all rows up
+            for row in range(selected_row, self.grid.GetNumberRows() - 1):
+                param_val = self.grid.GetCellValue(row + 1, 0)
+                value_val = self.grid.GetCellValue(row + 1, 1)
+                self.grid.SetCellValue(row, 0, param_val)
+                self.grid.SetCellValue(row, 1, value_val)
+
+                # Maintain bold formatting for Value column
+                font = self.grid.GetCellFont(row, 0)
+                font.SetWeight(wx.FONTWEIGHT_BOLD)
+                self.grid.SetCellFont(row, 0, font)
+
+            # Clear the last row
+            last_row = self.grid.GetNumberRows() - 1
+            self.grid.SetCellValue(last_row, 0, "")
+            self.grid.SetCellValue(last_row, 1, "")
+
+            # Auto-save after removing
+            self.auto_save_to_data()
+
+    def on_cell_changed(self, event):
+        """Handle cell value changes - auto-save"""
+        self.auto_save_to_data()
+        event.Skip()
+
+    def on_save_json(self, event):
+        """Save JSON using the save_json_only function"""
+        from libraries.FileMenu.Save import save_json_only
+        save_json_only(self.parent.parent)
+
+    def on_export_to_excel(self, event):
+        """Export the experimental description to Excel file"""
+        file_path = self.parent.parent.Data.get('FilePath', '')
+        if not file_path:
+            wx.MessageBox("No Excel file is currently loaded.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        try:
+            import openpyxl
+            from openpyxl.utils import get_column_letter
+
+            wb = openpyxl.load_workbook(file_path)
+
+            if self.sheet_name not in wb.sheetnames:
+                wx.MessageBox(f"Sheet '{self.sheet_name}' not found in Excel file.", "Error", wx.OK | wx.ICON_ERROR)
+                return
+
+            sheet = wb[self.sheet_name]
+
+            # Use column 45 (AS) for experimental description
+            exp_col = 45
+
+            # Clear existing experimental description data
+            for row in range(1, sheet.max_row + 1):
+                if sheet.cell(row=row, column=exp_col).value is not None:
+                    sheet.cell(row=row, column=exp_col, value=None)
+                    sheet.cell(row=row, column=exp_col + 1, value=None)
+
+            # Add header
+            sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+            # Add data from grid
+            current_row = 2
+            for row in range(self.grid.GetNumberRows()):
+                param = self.grid.GetCellValue(row, 0).strip()
+                value = self.grid.GetCellValue(row, 1).strip()
+
+                if param:  # Only export non-empty parameters
+                    sheet.cell(row=current_row, column=exp_col, value=param)
+
+                    # Format numeric values to .2f
+                    try:
+                        if value and ('.' in value or value.isdigit()):
+                            numeric_value = float(value)
+                            sheet.cell(row=current_row, column=exp_col + 1, value=f"{numeric_value:.2f}")
+                        else:
+                            sheet.cell(row=current_row, column=exp_col + 1, value=value)
+                    except ValueError:
+                        sheet.cell(row=current_row, column=exp_col + 1, value=value)
+
+                    current_row += 1
+
+            # Set column widths
+            sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+            sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
+            # Save the workbook
+            wb.save(file_path)
+            wb.close()
+
+            # Also save to window.Data
+            self.auto_save_to_data()
+
+            wx.MessageBox(f"Experimental description exported successfully to {self.sheet_name} sheet, column {get_column_letter(exp_col)}!",
+                          "Success", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error exporting to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_close(self, event):
+        """Close the window"""
+        self.Close()
 
 import wx
 import os
