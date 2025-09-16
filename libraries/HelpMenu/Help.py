@@ -427,6 +427,7 @@ Version 1.600-1.690
 - Added U2 Tougaard
 - Added Mini-Fitting Screen
 - Added center lines to Area Screen 
+- Fix import of Avantage files with missing intensity values 
 - Correct Zoom out with multiple plots
 - Correct Re for AreaFit Screen
 - Improve U4 Tougaard window

@@ -541,7 +541,7 @@ class MouseEventHandler:
             self.window.show_hide_vlines()
             self.window.canvas.draw()
 
-    def on_mouse_wheel(self, event):
+    def on_mouse_wheel_OLD(self, event):
         self.window.shift_key_pressed = False
         shift_currently_pressed = event.key == 'shift'
 
@@ -595,6 +595,95 @@ class MouseEventHandler:
                 on_sheet_selected(self.window, new_sheet)
 
         self.window.canvas.draw_idle()
+
+        # Refresh vline text labels after mouse wheel zoom
+        self.window.refresh_vline_text_labels()
+
+    def on_mouse_wheel(self, event):
+        shift_currently_pressed = False
+        shift_currently_pressed = event.key == 'shift'
+
+        if shift_currently_pressed:
+            self.window.shift_key_pressed = True
+        else:
+            self.window.shift_key_pressed = False
+
+        # Check if AreaFit screen is open and active
+        if (hasattr(self.window, 'background_window') and self.window.background_window is not None and
+                hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected):
+            # AreaFit screen: adjust vLine range (closer/further from center)
+            if (self.window.vline1 is not None and self.window.vline2 is not None and
+                    hasattr(self.window, 'vline_center') and self.window.vline_center is not None):
+
+                save_state(self.window)
+
+                # Get current positions
+                vline1_x = self.window.vline1.get_xdata()[0]
+                vline2_x = self.window.vline2.get_xdata()[0]
+                center_x = self.window.vline_center.get_xdata()[0]
+
+                # Calculate current half-gap
+                current_gap = abs(vline1_x - vline2_x)
+                half_gap = current_gap / 2
+
+                # Adjust gap based on scroll direction
+                delta = 0.5 if event.step > 0 else -0.5
+                new_half_gap = max(half_gap + delta, 0.5)  # Minimum gap of 1.0 eV
+
+                # Update vline positions around center
+                new_vline1_x = center_x - new_half_gap
+                new_vline2_x = center_x + new_half_gap
+
+                # Update vlines
+                self.window.vline1.set_xdata([new_vline1_x, new_vline1_x])
+                self.window.vline2.set_xdata([new_vline2_x, new_vline2_x])
+
+                # Update range controls if they exist
+                if hasattr(self.window.background_window, 'min_range_text') and hasattr(self.window.background_window, 'max_range_text'):
+                    min_pos = min(new_vline1_x, new_vline2_x)
+                    max_pos = max(new_vline1_x, new_vline2_x)
+                    self.window.background_window.min_range_text.SetValue(f"{min_pos:.2f}")
+                    self.window.background_window.max_range_text.SetValue(f"{max_pos:.2f}")
+
+                # Update text labels
+                if hasattr(self.window.background_window, 'update_vline_text_labels'):
+                    self.window.background_window.update_vline_text_labels()
+
+                self.window.canvas.draw_idle()
+            return
+
+        # Check if Fitting screen is active and a peak is selected
+        elif (self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None):
+            # Fitting screen: adjust selected peak width
+            save_state(self.window)
+            delta = 0.05 if event.step > 0 else -0.05
+            row = self.window.selected_peak_index * 2
+            fitting_model = self.window.peak_params_grid.GetCellValue(row, 13)
+
+            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
+                                 "Voigt (Area, L/G, \u03c3, S)"]:
+                current_sigma = float(self.window.peak_params_grid.GetCellValue(row, 7))
+                new_sigma = max(current_sigma + delta, 0.2)
+
+                self.window.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
+
+                lg_ratio = float(self.window.peak_params_grid.GetCellValue(row, 5))
+                new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
+                self.window.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
+            else:
+                current_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
+                new_fwhm = max(current_fwhm + delta, 0.3)
+                self.window.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
+
+            self.window.recalculate_peak_area(self.window.selected_peak_index)
+            self.window.update_linked_fwhm_recursive(self.window.selected_peak_index,
+                                                     new_sigma if fitting_model.startswith("Voigt") else new_fwhm)
+            self.window.clear_and_replot()
+            self.window.peak_manipulation.highlight_selected_peak()
+            self.window.canvas.draw_idle()
+            return
+
+        # For all other cases, do nothing (core level changing removed)
 
         # Refresh vline text labels after mouse wheel zoom
         self.window.refresh_vline_text_labels()

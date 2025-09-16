@@ -1781,22 +1781,20 @@ def import_avantage_file_direct(window, file_path):
                     # Copy data
                     row_new = 2
                     for row in range(start_row, sheet.max_row + 1):
+
                         be_value = sheet.cell(row=row, column=1).value
                         intensity_value = sheet.cell(row=row, column=data_col).value
 
-                        # Enhanced validation - check for None, NaN, and invalid values
-                        if (be_value is None or intensity_value is None or
-                                (isinstance(be_value, float) and math.isnan(be_value)) or
-                                (isinstance(intensity_value, float) and math.isnan(intensity_value))):
-                            continue
-
-                        # Additional check for string "NaN" or empty strings
-                        if (str(be_value).lower() in ['nan', 'Nan', '#NAME?', '', ' '] or
-                                str(intensity_value).lower() in ['nan', '', ' ']):
+                        # Simple validation - check if values can be converted to float
+                        try:
+                            be_val = float(be_value)
+                            raw_val = float(intensity_value)
+                        except (ValueError, TypeError):
+                            print("Skipping invalid data row (simple float conversion):", be_value, intensity_value)
                             continue
 
                         new_sheet.cell(row=row_new, column=1, value=f"{be_value:.2f}")
-                        new_sheet.cell(row=row_new, column=2, value=f"{intensity_value:.2f}")
+                        new_sheet.cell(row=row_new, column=2, value=f"{intensity_value}")
                         row_new += 1
 
                     # Add experimental description with Title sheet info and acquisition parameters
@@ -1842,15 +1840,12 @@ def import_avantage_file_direct(window, file_path):
                     be_value = sheet.cell(row=row, column=1).value
                     intensity_value = sheet.cell(row=row, column=3).value  # Column C
 
-                    # Enhanced validation - check for None, NaN, and invalid values
-                    if (be_value is None or intensity_value is None or
-                            (isinstance(be_value, float) and math.isnan(be_value)) or
-                            (isinstance(intensity_value, float) and math.isnan(intensity_value))):
-                        continue
-
-                    # Additional check for string "NaN" or empty strings
-                    if (str(be_value).lower() in ['nan', '', ' '] or
-                            str(intensity_value).lower() in ['nan', '', ' ']):
+                    # Simple validation - check if values can be converted to float
+                    try:
+                        be_val = float(be_value)
+                        raw_val = float(intensity_value)
+                    except (ValueError, TypeError):
+                        print("Skipping invalid data row (simple float conversion):", be_value, intensity_value)
                         continue
 
                     new_sheet['A{}'.format(row - start_row + 2)] = f"{be_value:.2f}"
@@ -2061,11 +2056,12 @@ def import_avantage_file_direct_xls(window, file_path):
                 be_value = row_values[0]
                 intensity_value = row_values[2]  # Column C (index 2)
 
-                # Enhanced validation for .xls files
-                if (be_value is None or intensity_value is None or
-                        be_value == '' or intensity_value == '' or
-                        (isinstance(be_value, float) and math.isnan(be_value)) or
-                        (isinstance(intensity_value, float) and math.isnan(intensity_value))):
+                # Simple validation - check if values can be converted to float
+                try:
+                    be_val = float(be_value)
+                    raw_val = float(intensity_value)
+                except (ValueError, TypeError):
+                    print("Skipping invalid data row (simple float conversion):", be_value, intensity_value)
                     continue
 
                 # Check for xlrd-specific empty cell types
