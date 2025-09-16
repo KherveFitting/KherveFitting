@@ -1587,7 +1587,7 @@ class MouseEventHandler:
             menu = wx.Menu()
             zoom_in = menu.Append(-1, "Zoom In")
             zoom_out = menu.Append(-1, "Zoom Out")
-            drag = menu.Append(-1, "Drag")
+            # drag = menu.Append(-1, "Drag")
 
             menu.AppendSeparator()
 
@@ -1601,6 +1601,11 @@ class MouseEventHandler:
 
             copy_peak_table = menu.Append(-1, "Copy Peak Table")
             paste_peak_table = menu.Append(-1, "Paste Peak Table")
+
+            menu.AppendSeparator()
+
+            info = menu.Append(wx.ID_ANY, "Info")
+
             peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
 
             has_peak_clipboard_data = os.path.exists(peak_clipboard_file)
@@ -1612,14 +1617,32 @@ class MouseEventHandler:
 
             self.window.Bind(wx.EVT_MENU, self.window.on_zoom_in_tool, zoom_in)
             self.window.Bind(wx.EVT_MENU, self.window.on_zoom_out, zoom_out)
-            self.window.Bind(wx.EVT_MENU, self.window.on_drag_tool, drag)
+            # self.window.Bind(wx.EVT_MENU, self.window.on_drag_tool, drag)
             self.window.Bind(wx.EVT_MENU, lambda evt: copy_core_level(self.window), copy)
             self.window.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self.window), paste)
             self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_peak_table)
             self.window.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self.window), paste_peak_table)
+            self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
 
             self.window.PopupMenu(menu)
             menu.Destroy()
+
+    def open_experimental_description(self):
+        """Open the Experimental Description window for the current sheet"""
+        sheet_name = self.window.sheet_combobox.GetValue()
+        from libraries.ViewMenu.FileManager import ExperimentalDescriptionWindow
+
+        # Check if window already exists and close it
+        if hasattr(self.window, 'experimental_description_window') and self.window.experimental_description_window is not None:
+            try:
+                self.window.experimental_description_window.Close()
+                self.window.experimental_description_window.Destroy()
+            except:
+                pass
+
+        # Create new window
+        self.window.experimental_description_window = ExperimentalDescriptionWindow(self.window, sheet_name)
+        self.window.experimental_description_window.Show()
 
     def on_peak_params_right_click(self, event):
         import tempfile

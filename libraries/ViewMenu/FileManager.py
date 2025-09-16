@@ -3127,6 +3127,14 @@ class FileManagerWindow(wx.Frame):
         delete_row_item = menu.Append(wx.ID_ANY, f"Delete Row {row}")
         self.Bind(wx.EVT_MENU, lambda evt, r=row: self.on_delete_row(r), delete_row_item)
 
+        # Add info option for core level cells only
+        if col > 0 and col <= len(self.core_levels):  # Only for core level columns
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                menu.AppendSeparator()
+                info_item = menu.Append(wx.ID_ANY, f"Info")
+                self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.open_experimental_description(sheet), info_item)
+
         # Check if paste should be enabled (clipboard has data)
         import os
         import tempfile
@@ -3173,6 +3181,20 @@ class FileManagerWindow(wx.Frame):
 
         # wx.MessageBox(f"Value '{value}' propagated to all rows.", "Success", wx.OK | wx.ICON_INFORMATION)
         self.parent.show_popup_message2("Success", f"Value '{value}' propagated to all rows.")
+
+    def open_experimental_description(self, sheet_name):
+        """Open the Experimental Description window for the specified sheet"""
+        # Check if window already exists and close it
+        if hasattr(self.parent, 'experimental_description_window') and self.parent.experimental_description_window is not None:
+            try:
+                self.parent.experimental_description_window.Close()
+                self.parent.experimental_description_window.Destroy()
+            except:
+                pass
+
+        # Create new window
+        self.parent.experimental_description_window = ExperimentalDescriptionWindow(self.parent, sheet_name)
+        self.parent.experimental_description_window.Show()
 
     def highlight_current_sheet(self, sheet_name):
         """Highlight the cell containing the current sheet name"""
@@ -4863,125 +4885,6 @@ class CoreLevelPreviewDialog(wx.Dialog):
         self.CenterOnParent()
 
 
-class ExperimentalDescriptionWindow_OLD(wx.Frame):
-    def __init__(self, parent, sheet_name):
-        super().__init__(parent, title="Experimental Description",
-                         size=(600, 600), style=wx.DEFAULT_FRAME_STYLE)
-
-        self.parent = parent
-        self.sheet_name = sheet_name
-
-        self.panel = wx.Panel(self)
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        self.grid = wx.grid.Grid(self.panel)
-        self.grid.CreateGrid(30, 2)
-
-        self.grid.SetColLabelValue(0, "Parameter")
-        self.grid.SetColLabelValue(1, "Value")
-        self.grid.SetColSize(0, 200)
-        self.grid.SetColSize(1, 350)
-
-        self.populate_grid()
-
-        main_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 10)
-        self.panel.SetSizer(main_sizer)
-        self.CenterOnParent()
-
-        from libraries.ConfigFile import set_consistent_fonts
-        set_consistent_fonts(self)
-
-    def populate_grid(self):
-        """Populate the grid with experimental description data"""
-        # First try to get data from window.Data (stored experimental info)
-        core_levels = self.parent.parent.Data.get('Core levels', {})
-        sheet_data = core_levels.get(self.sheet_name, {})
-        experimental_info = sheet_data.get('ExperimentalInfo', {})
-
-        if experimental_info:
-            # Populate from stored data in window.Data
-            row_index = 0
-            for param_name, param_value in experimental_info.items():
-                if row_index >= self.grid.GetNumberRows():
-                    self.grid.AppendRows(1)
-                self.grid.SetCellValue(row_index, 0, str(param_name))
-                self.grid.SetCellValue(row_index, 1, str(param_value))
-                self.grid.SetCellAlignment(row_index, 0, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
-                self.grid.SetCellAlignment(row_index, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
-                self.grid.SetReadOnly(row_index, 0)
-                self.grid.SetReadOnly(row_index, 1)
-                row_index += 1
-
-            # Hide unused rows
-            for i in range(row_index, self.grid.GetNumberRows()):
-                self.grid.SetRowSize(i, 0)
-            return
-
-        # Fallback to reading from Excel file if no data in window.Data
-        file_path = self.parent.parent.Data.get('FilePath', '')
-        if not file_path or not os.path.exists(file_path):
-            return
-
-        try:
-            import openpyxl
-            wb = openpyxl.load_workbook(file_path)
-            if self.sheet_name not in wb.sheetnames:
-                return
-
-            sheet = wb[self.sheet_name]
-
-            # Find experimental description column
-            exp_col = None
-            for col in range(1, sheet.max_column + 1):
-                if sheet.cell(row=1, column=col).value == "Experimental Description":
-                    exp_col = col
-                    break
-
-            if not exp_col:
-                return
-
-            # Count rows with data
-            row_count = 0
-            for row in range(2, sheet.max_row + 1):
-                if sheet.cell(row=row, column=exp_col).value:
-                    row_count += 1
-                else:
-                    # Continue checking a few more rows before breaking
-                    empty_count = 0
-                    for r in range(row, min(row + 5, sheet.max_row + 1)):
-                        if not sheet.cell(row=r, column=exp_col).value:
-                            empty_count += 1
-                    if empty_count >= 3:
-                        break
-                    row_count += 1
-
-            # Resize grid if needed
-            if row_count > self.grid.GetNumberRows():
-                self.grid.AppendRows(row_count - self.grid.GetNumberRows())
-
-            # Populate grid with data
-            for i in range(row_count):
-                row = i + 2  # Start from row 2 in Excel (after header)
-                parameter = sheet.cell(row=row, column=exp_col).value
-                value = sheet.cell(row=row, column=exp_col + 1).value
-
-                if parameter:
-                    self.grid.SetCellValue(i, 0, str(parameter))
-                    self.grid.SetCellValue(i, 1, str(value) if value is not None else "")
-
-                    self.grid.SetCellAlignment(i, 0, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
-                    self.grid.SetCellAlignment(i, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
-                    self.grid.SetReadOnly(i, 0)
-                    self.grid.SetReadOnly(i, 1)
-
-            # Hide unused rows
-            for i in range(row_count, self.grid.GetNumberRows()):
-                self.grid.SetRowSize(i, 0)
-
-        except Exception as e:
-            wx.MessageBox(f"Error loading experimental description: {str(e)}",
-                          "Error", wx.OK | wx.ICON_ERROR)
-
 
 class ExperimentalDescriptionWindow(wx.Frame):
     def __init__(self, parent, sheet_name):
@@ -5001,7 +4904,7 @@ class ExperimentalDescriptionWindow(wx.Frame):
 
         # Create grid with more rows for expansion
         self.grid = wx.grid.Grid(self.panel)
-        self.grid.CreateGrid(50, 2)
+        self.grid.CreateGrid(13, 2)
 
         self.grid.SetColLabelValue(0, "Parameter")
         self.grid.SetColLabelValue(1, "Value")
@@ -5020,6 +4923,7 @@ class ExperimentalDescriptionWindow(wx.Frame):
                     self.grid.SetCellFont(row, col, font)
 
         self.populate_grid()
+        self.setup_grid_rendering()
 
         main_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 10)
 
@@ -5029,9 +4933,22 @@ class ExperimentalDescriptionWindow(wx.Frame):
         # Bind grid events
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
         self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_hover)
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
+
+    def on_cell_hover(self, event):
+        """Show tooltip for cells with long content"""
+        row = event.GetRow()
+        col = event.GetCol()
+        if col == 1:  # Value column
+            cell_value = self.grid.GetCellValue(row, col)
+            if len(cell_value) > 13:
+                self.grid.SetToolTip(cell_value)
+            else:
+                self.grid.SetToolTip("")
+        event.Skip()
 
     def create_toolbar(self):
         """Create toolbar with icons similar to FileManager"""
@@ -5094,10 +5011,25 @@ class ExperimentalDescriptionWindow(wx.Frame):
 
         self.toolbar.Realize()
 
+    def setup_grid_rendering(self):
+        """Setup better rendering for multi-line text"""
+        # Enable text wrapping for better visualization of long content
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                self.grid.SetCellAlignment(row, col, wx.ALIGN_LEFT, wx.ALIGN_TOP)
+                if col == 0:  # Value column
+                    font = self.grid.GetCellFont(row, col)
+                    font.SetWeight(wx.FONTWEIGHT_BOLD)
+                    self.grid.SetCellFont(row, col, font)
+
+        # Set default row height and enable auto-sizing
+        self.grid.SetDefaultRowSize(25, True)
+        self.grid.EnableDragRowSize(True)
+
     def populate_grid(self):
         """Populate the grid with experimental description data"""
         # First try to get data from window.Data (stored experimental info)
-        core_levels = self.parent.parent.Data.get('Core levels', {})
+        core_levels = self.parent.Data.get('Core levels', {})  # Fixed: removed extra .parent
         sheet_data = core_levels.get(self.sheet_name, {})
         experimental_info = sheet_data.get('ExperimentalInfo', {})
 
@@ -5108,13 +5040,22 @@ class ExperimentalDescriptionWindow(wx.Frame):
                 if row_index >= self.grid.GetNumberRows():
                     self.grid.AppendRows(1)
                 self.grid.SetCellValue(row_index, 0, str(param_name))
-                # Format numeric values to .2f
-                if isinstance(param_value, (int, float)):
-                    self.grid.SetCellValue(row_index, 1, f"{param_value:.2f}")
-                else:
-                    self.grid.SetCellValue(row_index, 1, str(param_value))
 
-                # Apply bold formatting to Value column
+                # Handle multi-line content
+                value_str = ""
+                if isinstance(param_value, (int, float)):
+                    value_str = f"{param_value:.2f}"
+                else:
+                    value_str = str(param_value)
+
+                self.grid.SetCellValue(row_index, 1, value_str)
+
+                # Auto-adjust row height based on actual content
+                new_height = self.calculate_cell_height(value_str, row_index)
+                if new_height > 25:  # Only adjust if taller than default
+                    self.grid.SetRowSize(row_index, new_height)
+
+                # Apply formatting
                 font = self.grid.GetCellFont(row_index, 0)
                 font.SetWeight(wx.FONTWEIGHT_BOLD)
                 self.grid.SetCellFont(row_index, 0, font)
@@ -5127,7 +5068,7 @@ class ExperimentalDescriptionWindow(wx.Frame):
             return
 
         # Fallback to reading from Excel file if no data in window.Data
-        file_path = self.parent.parent.Data.get('FilePath', '')
+        file_path = self.parent.Data.get('FilePath', '')  # Fixed: removed extra .parent
         if not file_path or not os.path.exists(file_path):
             return
 
@@ -5149,50 +5090,109 @@ class ExperimentalDescriptionWindow(wx.Frame):
             if not exp_col:
                 return
 
-            # Count rows with data
-            row_count = 0
+            # Populate grid with data and auto-sizing
+            row_index = 0
             for row in range(2, sheet.max_row + 1):
                 param_cell = sheet.cell(row=row, column=exp_col)
+                value_cell = sheet.cell(row=row, column=exp_col + 1)
+
                 if param_cell.value is not None and str(param_cell.value).strip():
-                    row_count += 1
-                elif row_count > 0:
-                    # Continue checking a few more rows before breaking
-                    empty_count = 0
-                    for r in range(row, min(row + 5, sheet.max_row + 1)):
-                        if not sheet.cell(row=r, column=exp_col).value:
-                            empty_count += 1
-                    if empty_count >= 3:
-                        break
+                    if row_index >= self.grid.GetNumberRows():
+                        self.grid.AppendRows(1)
 
-            # Resize grid if needed
-            if row_count > self.grid.GetNumberRows():
-                self.grid.AppendRows(row_count - self.grid.GetNumberRows())
+                    self.grid.SetCellValue(row_index, 0, str(param_cell.value))
 
-            # Populate grid with data
-            for i in range(row_count):
-                row = i + 2  # Start from row 2 in Excel (after header)
-                parameter = sheet.cell(row=row, column=exp_col).value
-                value = sheet.cell(row=row, column=exp_col + 1).value
-
-                if parameter:
-                    self.grid.SetCellValue(i, 0, str(parameter))
-                    # Format numeric values to .2f
-                    if isinstance(value, (int, float)):
-                        self.grid.SetCellValue(i, 1, f"{value:.2f}")
+                    # Handle value formatting and multi-line content
+                    value_str = ""
+                    if isinstance(value_cell.value, (int, float)):
+                        value_str = f"{value_cell.value:.2f}"
                     else:
-                        self.grid.SetCellValue(i, 1, str(value) if value is not None else "")
+                        value_str = str(value_cell.value) if value_cell.value is not None else ""
+
+                    self.grid.SetCellValue(row_index, 1, value_str)
+
+                    # Auto-adjust row height for long content
+                    if len(value_str) > 50 or '\n' in value_str:
+                        lines = value_str.count('\n') + 1
+                        char_lines = len(value_str) // 50 + 1
+                        needed_lines = max(lines, char_lines)
+                        new_height = max(25, min(150, needed_lines * 20))
+                        self.grid.SetRowSize(row_index, new_height)
 
                     # Apply bold formatting to Value column
-                    font = self.grid.GetCellFont(i, 0)
+                    font = self.grid.GetCellFont(row_index, 0)
                     font.SetWeight(wx.FONTWEIGHT_BOLD)
-                    self.grid.SetCellFont(i, 0, font)
+                    self.grid.SetCellFont(row_index, 0, font)
+
+                    row_index += 1
 
             # Hide unused rows
-            for i in range(row_count, self.grid.GetNumberRows()):
+            for i in range(row_index, self.grid.GetNumberRows()):
                 self.grid.SetRowSize(i, 0)
 
         except Exception as e:
             print(f"Error reading experimental description: {e}")
+
+    def calculate_cell_height(self, text, row):
+        """Calculate optimal cell height based on text content and column width"""
+        if not text or text.strip() == "":
+            return 25  # Default height for empty cells
+
+        # Get column width in pixels
+        col_width = self.grid.GetColSize(1)  # Value column
+
+        # Get font metrics
+        dc = wx.MemoryDC()
+        dc.SelectObject(wx.Bitmap(1, 1))
+        font = self.grid.GetCellFont(row, 1)
+        dc.SetFont(font)
+
+        # Calculate character width and height
+        char_width = dc.GetTextExtent("W")[0]  # Use 'W' as average character width
+        line_height = dc.GetTextExtent("W")[1] + 4  # Add some padding
+
+        # Account for cell padding (approximately 10 pixels on each side)
+        usable_width = max(col_width - 20, 50)
+        chars_per_line = max(usable_width // char_width, 1)
+
+        # Count explicit line breaks
+        explicit_lines = text.count('\n') + 1
+
+        # Calculate wrapped lines for each segment
+        total_lines = 0
+        segments = text.split('\n')
+
+        for segment in segments:
+            if len(segment) == 0:
+                total_lines += 1  # Empty line
+            else:
+                # Calculate how many lines this segment will need when wrapped
+                wrapped_lines = max(1, (len(segment) + chars_per_line - 1) // chars_per_line)
+                total_lines += wrapped_lines
+
+        # Calculate total height needed
+        total_height = total_lines * line_height + 10  # Add some top/bottom padding
+
+        # Set reasonable limits
+        min_height = 25
+        max_height = 200  # Increased max height for very long content
+
+        return max(min_height, min(max_height, total_height))
+
+    def on_cell_changed(self, event):
+        """Handle cell value changes - auto-save and resize if needed"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        if col == 1:  # Value column - check if height needs adjustment
+            cell_value = self.grid.GetCellValue(row, col)
+            new_height = self.calculate_cell_height(cell_value, row)
+            if new_height != self.grid.GetRowSize(row):
+                self.grid.SetRowSize(row, new_height)
+                self.grid.ForceRefresh()
+
+        self.auto_save_to_data()
+        event.Skip()
 
     def on_key_down(self, event):
         """Handle key events - auto-save on Enter"""
@@ -5222,13 +5222,13 @@ class ExperimentalDescriptionWindow(wx.Frame):
                 experimental_info[param] = value
 
         # Store in window.Data
-        if 'Core levels' not in self.parent.parent.Data:
-            self.parent.parent.Data['Core levels'] = {}
+        if 'Core levels' not in self.parent.Data:  # Fixed
+            self.parent.Data['Core levels'] = {}
 
-        if self.sheet_name not in self.parent.parent.Data['Core levels']:
-            self.parent.parent.Data['Core levels'][self.sheet_name] = {}
+        if self.sheet_name not in self.parent.Data['Core levels']:  # Fixed
+            self.parent.Data['Core levels'][self.sheet_name] = {}
 
-        self.parent.parent.Data['Core levels'][self.sheet_name]['ExperimentalInfo'] = experimental_info
+        self.parent.Data['Core levels'][self.sheet_name]['ExperimentalInfo'] = experimental_info  # Fixed
 
     def on_add_row(self, event):
         """Add a new row to the grid"""
@@ -5291,11 +5291,11 @@ class ExperimentalDescriptionWindow(wx.Frame):
     def on_save_json(self, event):
         """Save JSON using the save_json_only function"""
         from libraries.FileMenu.Save import save_json_only
-        save_json_only(self.parent.parent)
+        save_json_only(self.parent)
 
     def on_export_to_excel(self, event):
         """Export the experimental description to Excel file"""
-        file_path = self.parent.parent.Data.get('FilePath', '')
+        file_path = self.parent.Data.get('FilePath', '')  # Fixed
         if not file_path:
             wx.MessageBox("No Excel file is currently loaded.", "Error", wx.OK | wx.ICON_ERROR)
             return
