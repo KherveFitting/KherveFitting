@@ -303,6 +303,8 @@ class MouseEventHandler:
                     if current_vline1_pos is not None and current_vline2_pos is not None:
                         wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
                     return
+
+
             elif event.button == 1:
                 # Handle center vline dragging (without CTRL key) - CHECK THIS FIRST
                 if ((self.window.background_tab_selected or
@@ -311,7 +313,7 @@ class MouseEventHandler:
                     self.window.vline1 is not None and self.window.vline2 is not None):
 
                     center_x = self.window.vline_center.get_xdata()[0]
-                    tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.02
+                    tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.01
 
                     if abs(x_click - center_x) < tolerance:
                         vline1_x = self.window.vline1.get_xdata()[0]
@@ -1463,6 +1465,11 @@ class MouseEventHandler:
                 self.window.canvas.mpl_disconnect(self.window.release_cid)
                 delattr(self.window, 'release_cid')
 
+            if hasattr(self.window, 'drag_mode'):
+                self.window.drag_mode = False
+            if hasattr(self.window, 'show_hide_vlines'):
+                self.window.show_hide_vlines()
+
             return
         elif self.ctrl_drag_active:
             print(f"CTRL+drag ended")
@@ -1503,6 +1510,11 @@ class MouseEventHandler:
             if hasattr(self.window, 'release_cid'):
                 self.window.canvas.mpl_disconnect(self.window.release_cid)
                 delattr(self.window, 'release_cid')
+            if hasattr(self.window, 'drag_mode'):
+                self.window.drag_mode = False
+            if hasattr(self.window, 'show_hide_vlines'):
+                self.window.show_hide_vlines()
+
 
             return  # CRITICAL: Exit here to prevent normal release handling
 
@@ -1523,6 +1535,11 @@ class MouseEventHandler:
             if hasattr(self.window, 'release_cid'):
                 self.window.canvas.mpl_disconnect(self.window.release_cid)
                 delattr(self.window, 'release_cid')
+            if hasattr(self.window, 'drag_mode'):
+                self.window.drag_mode = False
+            if hasattr(self.window, 'show_hide_vlines'):
+                self.window.show_hide_vlines()
+
 
             # Reset the moving vline to None
             self.window.moving_vline = None
