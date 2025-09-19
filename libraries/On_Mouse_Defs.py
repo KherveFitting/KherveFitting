@@ -148,30 +148,32 @@ class MouseEventHandler:
                     self.ctrl_drag_reference_pos = x_click
                     self.ctrl_drag_active = True
 
-                    center_x = self.window.vline_center.get_xdata()[0]
-                    tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.02
+                    # Check if vline_center exists before accessing it (only exists in AreaFit_Screen)
+                    if (hasattr(self.window, 'vline_center') and self.window.vline_center is not None):
+                        center_x = self.window.vline_center.get_xdata()[0]
+                        tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.02
 
-                    if abs(x_click - center_x) < tolerance:
-                        vline1_x = self.window.vline1.get_xdata()[0]
-                        vline2_x = self.window.vline2.get_xdata()[0]
-                        self.vline_gap = vline2_x - vline1_x
-                        self.center_drag_reference_pos = x_click
-                        self.center_drag_active = True
-                        self.window.moving_vline = None
+                        if abs(x_click - center_x) < tolerance:
+                            vline1_x = self.window.vline1.get_xdata()[0]
+                            vline2_x = self.window.vline2.get_xdata()[0]
+                            self.vline_gap = vline2_x - vline1_x
+                            self.center_drag_reference_pos = x_click
+                            self.center_drag_active = True
+                            self.window.moving_vline = None
 
-                        # Clean up existing handlers
-                        if hasattr(self.window, 'motion_cid'):
-                            self.window.canvas.mpl_disconnect(self.window.motion_cid)
-                            delattr(self.window, 'motion_cid')
-                        if hasattr(self.window, 'release_cid'):
-                            self.window.canvas.mpl_disconnect(self.window.release_cid)
-                            delattr(self.window, 'release_cid')
+                            # Clean up existing handlers
+                            if hasattr(self.window, 'motion_cid'):
+                                self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                                delattr(self.window, 'motion_cid')
+                            if hasattr(self.window, 'release_cid'):
+                                self.window.canvas.mpl_disconnect(self.window.release_cid)
+                                delattr(self.window, 'release_cid')
 
-                        # Set up motion and release handlers
-                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
-                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+                            # Set up motion and release handlers
+                            self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                            self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
 
-                        return
+                            return
 
 
                     # Explicitly prevent normal vline movement
@@ -304,13 +306,12 @@ class MouseEventHandler:
                         wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
                     return
 
-
             elif event.button == 1:
                 # Handle center vline dragging (without CTRL key) - CHECK THIS FIRST
                 if ((self.window.background_tab_selected or
                      (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected)) and
-                    hasattr(self.window, 'vline_center') and self.window.vline_center is not None and
-                    self.window.vline1 is not None and self.window.vline2 is not None):
+                        hasattr(self.window, 'vline_center') and self.window.vline_center is not None and
+                        self.window.vline1 is not None and self.window.vline2 is not None):
 
                     center_x = self.window.vline_center.get_xdata()[0]
                     tolerance = (max(self.window.x_values) - min(self.window.x_values)) * 0.01
@@ -541,63 +542,6 @@ class MouseEventHandler:
             self.window.show_hide_vlines()
             self.window.canvas.draw()
 
-    def on_mouse_wheel_OLD(self, event):
-        self.window.shift_key_pressed = False
-        shift_currently_pressed = event.key == 'shift'
-
-        if shift_currently_pressed:
-            self.window.shift_key_pressed = True
-        else:
-            self.window.shift_key_pressed = False
-
-        if self.window.shift_key_pressed and self.window.selected_peak_index is not None and self.window.peak_fitting_tab_selected:
-            save_state(self.window)
-            delta = 0.05 if event.step > 0 else -0.05
-            row = self.window.selected_peak_index * 2
-            fitting_model = self.window.peak_params_grid.GetCellValue(row, 13)
-
-            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
-                                 "Voigt (Area, L/G, \u03c3, S)"]:
-                current_sigma = float(self.window.peak_params_grid.GetCellValue(row, 7))
-                new_sigma = max(current_sigma + delta, 0.2)
-
-                self.window.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.3f}")
-
-                lg_ratio = float(self.window.peak_params_grid.GetCellValue(row, 5))
-                new_gamma = (lg_ratio / 100 * new_sigma) / (1 - lg_ratio / 100)
-                self.window.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.3f}")
-            else:
-                current_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
-                new_fwhm = max(current_fwhm + delta, 0.3)
-                self.window.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
-
-            self.window.recalculate_peak_area(self.window.selected_peak_index)
-            self.window.update_linked_fwhm_recursive(self.window.selected_peak_index,
-                                                     new_sigma if fitting_model.startswith("Voigt") else new_fwhm)
-            self.window.clear_and_replot()
-            self.window.peak_manipulation.highlight_selected_peak()
-
-        elif not self.window.shift_key_pressed:
-            if platform.system() == 'Darwin':  # Darwin is macOS
-                return
-
-            current_index = self.window.sheet_combobox.GetSelection()
-            num_sheets = self.window.sheet_combobox.GetCount()
-
-            if event.step > 0:
-                new_index = (current_index - 1) % num_sheets
-            else:
-                new_index = (current_index + 1) % num_sheets
-
-            if num_sheets > 0:
-                self.window.sheet_combobox.SetSelection(new_index)
-                new_sheet = self.window.sheet_combobox.GetString(new_index)
-                on_sheet_selected(self.window, new_sheet)
-
-        self.window.canvas.draw_idle()
-
-        # Refresh vline text labels after mouse wheel zoom
-        self.window.refresh_vline_text_labels()
 
     def on_mouse_wheel(self, event):
         shift_currently_pressed = False
@@ -656,14 +600,14 @@ class MouseEventHandler:
         elif (self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None):
             # Fitting screen: adjust selected peak width
             save_state(self.window)
-            delta = 0.05 if event.step > 0 else -0.05
+            delta = 0.025 if event.step > 0 else -0.025
             row = self.window.selected_peak_index * 2
             fitting_model = self.window.peak_params_grid.GetCellValue(row, 13)
 
             if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
                                  "Voigt (Area, L/G, \u03c3, S)"]:
                 current_sigma = float(self.window.peak_params_grid.GetCellValue(row, 7))
-                new_sigma = max(current_sigma + delta, 0.2)
+                new_sigma = max(current_sigma + delta, 0.1)
 
                 self.window.peak_params_grid.SetCellValue(row, 7, f"{new_sigma:.2f}")
 
@@ -672,7 +616,7 @@ class MouseEventHandler:
                 self.window.peak_params_grid.SetCellValue(row, 8, f"{new_gamma:.2f}")
             else:
                 current_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
-                new_fwhm = max(current_fwhm + delta, 0.3)
+                new_fwhm = max(current_fwhm + delta, 0.1)
                 self.window.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
 
             self.window.recalculate_peak_area(self.window.selected_peak_index)
@@ -923,6 +867,9 @@ class MouseEventHandler:
                     bkg_high = core_level_data['Background']['Bkg High']
                     core_level_data['Background']['Bkg Low'] = min(bkg_low, bkg_high)
                     core_level_data['Background']['Bkg High'] = max(bkg_low, bkg_high)
+
+                    if hasattr(self.window, 'background_method') and self.window.background_method:
+                        core_level_data['Background']['Bkg Type'] = self.window.background_method
 
                     # Update text labels when vlines are moved
                     self.window.update_vline_text_labels()
@@ -1531,18 +1478,50 @@ class MouseEventHandler:
             self.center_drag_reference_pos = 0.0
             self.window.moving_vline = None
 
-            # DON'T create background when center vline is dragged - just update positions
+
             # Update data structure with new vline positions
             if self.window.vline1 is not None and self.window.vline2 is not None:
+                print("Center-drag ended, updating background vLine positions...")
                 vline1_x = self.window.vline1.get_xdata()[0]
                 vline2_x = self.window.vline2.get_xdata()[0]
 
                 sheet_name = self.window.sheet_combobox.GetValue()
                 if sheet_name in self.window.Data['Core levels']:
+                    print(f"Updating background vLine positions in window.data for sheet: {sheet_name}")
                     if 'Background' not in self.window.Data['Core levels'][sheet_name]:
                         self.window.Data['Core levels'][sheet_name]['Background'] = {}
+
+                    # Update background section
                     self.window.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = float(min(vline1_x, vline2_x))
                     self.window.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(max(vline1_x, vline2_x))
+
+                    # Save current background method from UI
+                    if hasattr(self.window, 'background_method') and self.window.background_method:
+                        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Type'] = self.window.background_method
+
+                    # Update all peaks in Fitting section if they exist
+                    if ('Fitting' in self.window.Data['Core levels'][sheet_name] and
+                            'Peaks' in self.window.Data['Core levels'][sheet_name]['Fitting']):
+                        print("Updating all peak background parameters to match new vLine positions...")
+
+                        peaks = self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                        for peak_label, peak_data in peaks.items():
+                            peak_data['Bkg Type'] = self.window.background_method
+                            peak_data['Bkg Low'] = float(min(vline1_x, vline2_x))
+                            peak_data['Bkg High'] = float(max(vline1_x, vline2_x))
+
+                        # Update peak fitting grid if it exists and has data
+                        if (hasattr(self.window, 'peak_params_grid') and
+                                self.window.peak_params_grid.GetNumberRows() > 0):
+                            print("Updating peak fitting grid background columns...")
+
+                            num_peaks = self.window.peak_params_grid.GetNumberRows() // 2
+                            for i in range(num_peaks):
+                                row = i * 2
+                                # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
+                                self.window.peak_params_grid.SetCellValue(row, 14, self.window.background_method)
+                                self.window.peak_params_grid.SetCellValue(row, 15, f"{min(vline1_x, vline2_x):.2f}")
+                                self.window.peak_params_grid.SetCellValue(row, 16, f"{max(vline1_x, vline2_x):.2f}")
 
             save_state(self.window)
 
@@ -1608,6 +1587,7 @@ class MouseEventHandler:
             return  # CRITICAL: Exit here to prevent normal release handling
 
         elif self.window.moving_vline is not None:
+            print("1. Single vline drag ended, updating background vLine positions...")
             # Store which vline was moved before resetting to None
             moved_vline = self.window.moving_vline
 
@@ -1629,19 +1609,72 @@ class MouseEventHandler:
             if hasattr(self.window, 'show_hide_vlines'):
                 self.window.show_hide_vlines()
 
-
             # Reset the moving vline to None
             self.window.moving_vline = None
 
+            # Update data structure with background method and overall range from recorded ranges
             sheet_name = self.window.sheet_combobox.GetValue()
             if sheet_name in self.window.Data['Core levels']:
                 core_level_data = self.window.Data['Core levels'][sheet_name]
-                if 'Background' in core_level_data:
+
+                if 'Background' not in core_level_data:
+                    core_level_data['Background'] = {}
+
+                # Save current background method from UI
+                if hasattr(self.window, 'background_method') and self.window.background_method:
+                    core_level_data['Background']['Bkg Type'] = self.window.background_method
+
+                # Get overall background range from all recorded ranges
+                overall_bg_low = None
+                overall_bg_high = None
+
+                if (hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None and
+                        hasattr(self.window.fitting_window, 'get_overall_background_range')):
+                    overall_bg_low, overall_bg_high = self.window.fitting_window.get_overall_background_range()
+                else:
+                    # Fallback: get from existing background data or vline positions
                     bg_low = core_level_data['Background'].get('Bkg Low')
                     bg_high = core_level_data['Background'].get('Bkg High')
                     if bg_low is not None and bg_high is not None:
-                        core_level_data['Background']['Bkg Low'] = min(bg_low, bg_high)
-                        core_level_data['Background']['Bkg High'] = max(bg_low, bg_high)
+                        overall_bg_low = min(bg_low, bg_high)
+                        overall_bg_high = max(bg_low, bg_high)
+                    elif self.window.vline1 is not None and self.window.vline2 is not None:
+                        vline1_x = self.window.vline1.get_xdata()[0]
+                        vline2_x = self.window.vline2.get_xdata()[0]
+                        overall_bg_low = min(vline1_x, vline2_x)
+                        overall_bg_high = max(vline1_x, vline2_x)
+
+                # Update background section with overall range
+                if overall_bg_low is not None and overall_bg_high is not None:
+                    print(f"2. Setting overall background range: {overall_bg_low:.2f} - {overall_bg_high:.2f} eV")
+                    core_level_data['Background']['Bkg Low'] = float(overall_bg_low)
+                    core_level_data['Background']['Bkg High'] = float(overall_bg_high)
+
+                    # Update all peaks in Fitting section if they exist
+                    if ('Fitting' in core_level_data and 'Peaks' in core_level_data['Fitting']):
+                        print("3. Updating all peak background parameters to match new overall range...")
+                        peaks = core_level_data['Fitting']['Peaks']
+                        for peak_label, peak_data in peaks.items():
+                            peak_data['Bkg Type'] = self.window.background_method
+                            peak_data['Bkg Low'] = float(overall_bg_low)
+                            peak_data['Bkg High'] = float(overall_bg_high)
+
+                        # Update peak fitting grid if it exists and has data
+                        if (hasattr(self.window, 'peak_params_grid') and
+                                self.window.peak_params_grid.GetNumberRows() > 0):
+                            print("4. Updating peak fitting grid background columns...")
+
+                            num_peaks = self.window.peak_params_grid.GetNumberRows() // 2
+                            print(f" 5.  - Number of peaks to update: {num_peaks}")
+                            for i in range(num_peaks):
+                                print(f"   - Updating peak {i + 1} background info")
+                                row = i * 2
+                                # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
+                                self.window.peak_params_grid.SetCellValue(row, 14, self.window.background_method)
+                                self.window.peak_params_grid.SetCellValue(row, 15, f"{overall_bg_low:.2f}")
+                                self.window.peak_params_grid.SetCellValue(row, 16, f"{overall_bg_high:.2f}")
+                                print(f"     - Set row {row} columns 14-16")
+                                print()
 
                 # Handle background redraw for fitting window cases
                 if (moved_vline in [self.window.vline1, self.window.vline2] and
@@ -1651,6 +1684,8 @@ class MouseEventHandler:
                     print('Regular vline drag - redrawing all regions')
                     # Redraw all regions in sequence
                     self.redraw_all_regions_background()
+
+
 
         # Handle peak updates
         if self.window.selected_peak_index is not None:

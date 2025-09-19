@@ -237,6 +237,7 @@ class DownloadStatsWindow(wx.Frame):
             'Hong Kong': 'HK', 'HK': 'HK',
             'Taiwan': 'TW', 'TW': 'TW',
             'Senegal': 'SN', 'SN': 'SN',
+            'Nepal': 'NP', 'NP': 'NP',
             'Iran': 'IR', 'IR': 'IR',
         }
 
@@ -309,6 +310,7 @@ class DownloadStatsWindow(wx.Frame):
             'Hong Kong': (114, 22), 'HK': (114, 22),
             'Taiwan': (121, 24), 'TW': (121, 24),
             'Senegal': (-14, -26), 'SN': (-14, -26),
+            'Nepal': (84, 28), 'NP': (84, 28),
             'Iran': (53, 32), 'IR': (53, 32),
         }
 

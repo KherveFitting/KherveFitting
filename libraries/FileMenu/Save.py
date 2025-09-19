@@ -19,6 +19,147 @@ import requests
 
 # from Functions import convert_to_serializable_and_round
 
+def copy_all_peak_parameters(window):
+    """Copy all peak parameters and background data including recorded ranges"""
+    import os
+    import json
+    import tempfile
+
+    if not hasattr(window, 'peak_params_grid') or window.peak_params_grid.GetNumberRows() == 0:
+        return
+
+    sheet_name = window.sheet_combobox.GetValue()
+    if sheet_name not in window.Data['Core levels']:
+        return
+
+    core_level_data = window.Data['Core levels'][sheet_name]
+
+    # Get all grid data
+    grid_data = []
+    for row in range(window.peak_params_grid.GetNumberRows()):
+        row_data = []
+        for col in range(window.peak_params_grid.GetNumberCols()):
+            row_data.append(window.peak_params_grid.GetCellValue(row, col))
+        grid_data.append(row_data)
+
+    # Get background data including recorded ranges
+    background_data = core_level_data.get('Background', {})
+    recorded_ranges = background_data.get('Recorded_Ranges', [])
+
+    clipboard_data = {
+        'grid_data': grid_data,
+        'background': {
+            'type': background_data.get('Bkg Type', ''),
+            'low': background_data.get('Bkg Low', ''),
+            'high': background_data.get('Bkg High', ''),
+            'offset_low': background_data.get('Bkg Offset Low', ''),
+            'offset_high': background_data.get('Bkg Offset High', ''),
+            'Recorded_Ranges': recorded_ranges[:] if recorded_ranges else []
+        },
+        'num_rows': window.peak_params_grid.GetNumberRows(),
+        'num_cols': window.peak_params_grid.GetNumberCols(),
+        'sheet_name': sheet_name
+    }
+
+    # Save to clipboard file
+    peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+    with open(peak_clipboard_file, 'w') as f:
+        json.dump(clipboard_data, f, indent=2)
+
+    print(f"DEBUG: Copied peak table with {len(recorded_ranges)} recorded ranges from {sheet_name}")
+
+def paste_all_peak_parameters(window):
+    """Paste all peak parameters and background data including recorded ranges"""
+    import os
+    import json
+    import tempfile
+
+    # Check clipboard
+    peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+    if not os.path.exists(peak_clipboard_file):
+        return
+
+    try:
+        with open(peak_clipboard_file, 'r') as f:
+            clipboard_data = json.load(f)
+    except:
+        return
+
+    if 'grid_data' not in clipboard_data:
+        return
+
+    sheet_name = window.sheet_combobox.GetValue()
+
+    # Clear existing grid
+    if window.peak_params_grid.GetNumberRows() > 0:
+        window.peak_params_grid.DeleteRows(0, window.peak_params_grid.GetNumberRows())
+
+    # Restore grid data
+    grid_data = clipboard_data['grid_data']
+    num_rows = len(grid_data)
+
+    # Add rows
+    for i in range(num_rows):
+        window.peak_params_grid.AppendRows(1)
+
+    # Fill grid with .2f formatting for numeric values
+    for row in range(num_rows):
+        for col in range(len(grid_data[row])):
+            if col < window.peak_params_grid.GetNumberCols():
+                value = grid_data[row][col]
+                # Format numeric values with .2f for specific columns
+                if (row % 2 == 0 and col in [2, 3, 4, 5, 6, 7, 8, 9] and
+                        value and str(value).replace('.', '').replace('-', '').replace('+', '').isdigit()):
+                    try:
+                        value = f"{float(value):.2f}"
+                    except:
+                        pass
+                window.peak_params_grid.SetCellValue(row, col, str(value))
+
+    # Restore background data and recorded ranges
+    if 'background' in clipboard_data and sheet_name in window.Data['Core levels']:
+        if 'Background' not in window.Data['Core levels'][sheet_name]:
+            window.Data['Core levels'][sheet_name]['Background'] = {}
+
+        bg_data = window.Data['Core levels'][sheet_name]['Background']
+        background_info = clipboard_data['background']
+
+        # Set basic background data
+        bg_data['Bkg Type'] = background_info.get('type', '')
+        bg_data['Bkg Low'] = background_info.get('low', '')
+        bg_data['Bkg High'] = background_info.get('high', '')
+        bg_data['Bkg Offset Low'] = background_info.get('offset_low', '')
+        bg_data['Bkg Offset High'] = background_info.get('offset_high', '')
+
+        # CRUCIAL: Restore recorded ranges - use correct capitalization
+        if 'Recorded_Ranges' in background_info and background_info['Recorded_Ranges']:
+            bg_data['Recorded_Ranges'] = background_info['Recorded_Ranges'][:]
+            print(f"DEBUG: Restored {len(background_info['Recorded_Ranges'])} recorded ranges to {sheet_name}")
+
+            # Update window background values from recorded ranges
+            all_mins = [r[2] for r in background_info['Recorded_Ranges']]  # min_range at index 2
+            all_maxs = [r[3] for r in background_info['Recorded_Ranges']]  # max_range at index 3
+            window.bg_min_energy = min(all_mins)
+            window.bg_max_energy = max(all_maxs)
+
+            # Update the background range in window.Data
+            bg_data['Bkg Low'] = f"{window.bg_min_energy:.2f}"
+            bg_data['Bkg High'] = f"{window.bg_max_energy:.2f}"
+        else:
+            print("DEBUG: No Recorded_Ranges found in clipboard data")
+
+    # Apply model choice editors
+    if hasattr(window, 'set_model_choice_editors'):
+        window.set_model_choice_editors(window)
+
+    window.peak_params_grid.ForceRefresh()
+
+    # Trigger background creation from recorded ranges
+    if (hasattr(window, 'mouse_handler') and
+            hasattr(window.mouse_handler, 'redraw_all_regions_background')):
+        wx.CallAfter(window.mouse_handler.redraw_all_regions_background)
+
+    print(f"DEBUG: Pasted peak table with background data to {sheet_name}")
 
 def save_json_only(window):
     """Save only the JSON file with console updates"""

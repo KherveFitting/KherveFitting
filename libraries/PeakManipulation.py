@@ -76,7 +76,7 @@ class PeakManipulation:
                                      f'FWHM meas.: {actual_fwhm:.3f} eV\n'
                                      f'Area: {area:.1f} CPS\n\n'
                                      f'\u00BF Change width ?\n'
-                                     f'SHIFT + wheel button')
+                                     f'Scroll the wheel')
 
                         max_y = self.window.ax.get_ylim()[1]
                         y_offset = max_y * 0.02

@@ -7,7 +7,9 @@ import json
 from matplotlib.ticker import ScalarFormatter
 import shutil
 import sys
+import tempfile
 from libraries.FileMenu.Save import save_state
+
 
 
 class FileManagerWindow(wx.Frame):
@@ -3101,6 +3103,9 @@ class FileManagerWindow(wx.Frame):
 
     def on_grid_right_click(self, event):
         """Handle right-click on grid to show context menu"""
+        import os
+        import tempfile
+
         row = event.GetRow()
         col = event.GetCol()
 
@@ -3110,6 +3115,20 @@ class FileManagerWindow(wx.Frame):
         # Add standard menu items
         copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
         paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
+
+        menu.AppendSeparator()
+
+        # Add peak table copy/paste functionality
+        copy_peak_table = menu.Append(wx.ID_ANY, "Copy Peak Table")
+        paste_peak_table = menu.Append(wx.ID_ANY, "Paste Peak Table (Single)")
+        paste_peak_table_column = menu.Append(wx.ID_ANY, "Paste Peak Table (Multi)")
+
+        menu.AppendSeparator()
+
+        # Add background copy/paste functionality
+        copy_background = menu.Append(wx.ID_ANY, "Copy Background")
+        paste_background = menu.Append(wx.ID_ANY, "Paste Background (Single)")
+        paste_background_select = menu.Append(wx.ID_ANY, "Paste Background (Multi)")
 
         # Add rename option for core level cells only
         if col > 0 and col <= len(self.core_levels):  # Only for core level columns
@@ -3136,14 +3155,30 @@ class FileManagerWindow(wx.Frame):
                 self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.open_experimental_description(sheet), info_item)
 
         # Check if paste should be enabled (clipboard has data)
-        import os
-        import tempfile
         clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+
         paste_item.Enable(os.path.exists(clipboard_file))
+
+        # Enable peak table functions only for core level columns and if clipboard exists
+        has_peak_clipboard = os.path.exists(peak_clipboard_file)
+        is_core_level_column = col > 0 and col <= len(self.core_levels)
+        has_current_core_level = is_core_level_column and bool(self.grid.GetCellValue(row, col).strip())
+
+        copy_peak_table.Enable(has_current_core_level)
+        paste_peak_table.Enable(has_peak_clipboard and has_current_core_level)
+        paste_peak_table_column.Enable(has_peak_clipboard and is_core_level_column)
 
         # Bind events
         self.Bind(wx.EVT_MENU, self.on_copy, copy_item)
         self.Bind(wx.EVT_MENU, self.on_paste, paste_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_from_filemanager(row, col), copy_peak_table)
+        self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_from_filemanager(row, col), paste_peak_table)
+        self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_to_column_from_filemanager(row, col), paste_peak_table_column)
+        self.Bind(wx.EVT_MENU, lambda evt: self.copy_background_from_filemanager(row, col), copy_background)
+        self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_from_filemanager(row, col), paste_background)
+        self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_to_column_from_filemanager(row, col), paste_background_select)
+
 
         # Add normalization propagation options for BE and Area normalization columns
         norm_be_col = len(self.core_levels) + 2
@@ -4816,6 +4851,991 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             update_console(f"Error: {str(e)}")
             wx.CallLater(2000, console_frame.Close)
+
+    def copy_peak_table_from_filemanager(self, row, col):
+        """Copy peak table from the selected core level in file manager"""
+        import os
+        import json
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Copy Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get the main window reference and call the existing copy function
+        from libraries.FileMenu.Save import copy_all_peak_parameters
+
+        # Temporarily set the sheet to the selected one
+        original_sheet = self.parent.sheet_combobox.GetValue()
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Load the sheet data
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        # Copy the peak parameters
+        copy_all_peak_parameters(self.parent)
+
+        # Restore original sheet
+        self.parent.sheet_combobox.SetValue(original_sheet)
+        on_sheet_selected(self.parent, original_sheet)
+
+    def paste_peak_table_from_filemanager(self, row, col):
+        """Paste peak table to the selected core level in file manager"""
+        import os
+        import json
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check if clipboard has data
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+        if not os.path.exists(peak_clipboard_file):
+            wx.MessageBox("No peak table in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get the main window reference and call the existing paste function
+        from libraries.FileMenu.Save import paste_all_peak_parameters
+
+        # Temporarily set the sheet to the selected one
+        original_sheet = self.parent.sheet_combobox.GetValue()
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Load the sheet data
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        # Paste the peak parameters
+        paste_all_peak_parameters(self.parent)
+
+        # Restore original sheet
+        self.parent.sheet_combobox.SetValue(original_sheet)
+        on_sheet_selected(self.parent, original_sheet)
+
+    def paste_peak_table_to_column_from_filemanager(self, row, col):
+        """Paste peak table to selected core levels in the same column with background regions"""
+        import os
+        import json
+        import tempfile
+        import re
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if clipboard has data
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+        if not os.path.exists(peak_clipboard_file):
+            wx.MessageBox("No peak table in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load clipboard data
+        try:
+            with open(peak_clipboard_file, 'r') as f:
+                clipboard_data = json.load(f)
+        except:
+            wx.MessageBox("Invalid clipboard data", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # DEBUG: Print clipboard structure
+        print("DEBUG: Clipboard data keys:", clipboard_data.keys())
+        if 'background' in clipboard_data:
+            print("DEBUG: Background data keys:", clipboard_data['background'].keys())
+            if 'recorded_ranges' in clipboard_data['background']:
+                recorded_ranges = clipboard_data['background']['recorded_ranges']
+                print(f"DEBUG: Found {len(recorded_ranges)} recorded ranges in clipboard")
+                print(f"DEBUG: Recorded ranges: {recorded_ranges}")
+            else:
+                print("DEBUG: No 'recorded_ranges' key in background data")
+        else:
+            print("DEBUG: No 'background' key in clipboard data")
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+        # Find all core levels that match this base name
+        matching_core_levels = []
+        for core_level_name in self.parent.Data['Core levels'].keys():
+            if (core_level_name == core_level_base or
+                    (core_level_name.startswith(core_level_base) and
+                     re.match(rf'^{re.escape(core_level_base)}\d+$', core_level_name))):
+                matching_core_levels.append(core_level_name)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            from libraries.FileMenu.Save import paste_all_peak_parameters
+            from libraries.Sheet_Operations import on_sheet_selected
+
+            success_count = 0
+
+            for core_level_name in selected_core_levels:
+                try:
+                    # Set the sheet
+                    self.parent.sheet_combobox.SetValue(core_level_name)
+                    on_sheet_selected(self.parent, core_level_name)
+
+                    # Paste peak parameters (this now includes recorded ranges)
+                    paste_all_peak_parameters(self.parent)
+
+                    # Create background from the recorded ranges
+                    self.create_background_from_recorded_ranges(core_level_name)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to paste to {core_level_name}: {e}")
+
+            # Restore original sheet
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+
+        except Exception as e:
+            # Restore original sheet on error
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+            wx.MessageBox(f"Error during paste operation: {str(e)}", "Paste Failed", wx.OK | wx.ICON_ERROR)
+
+    def create_background_from_recorded_ranges(self, core_level_name):
+        """Create background from recorded ranges using existing Fitting_Screen functionality"""
+        try:
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet == core_level_name:
+                # Check if we have recorded ranges
+                if (core_level_name in self.parent.Data['Core levels'] and
+                        'Background' in self.parent.Data['Core levels'][core_level_name] and
+                        'Recorded_Ranges' in self.parent.Data['Core levels'][core_level_name]['Background']):
+
+                    recorded_ranges = self.parent.Data['Core levels'][core_level_name]['Background']['Recorded_Ranges']
+                    if recorded_ranges:
+                        print(f"Creating background from {len(recorded_ranges)} recorded ranges for {core_level_name}")
+
+                        # Use the existing function from mouse_handler
+                        if (hasattr(self.parent, 'mouse_handler') and
+                                hasattr(self.parent.mouse_handler, 'redraw_all_regions_background')):
+                            wx.CallAfter(self.parent.mouse_handler.redraw_all_regions_background)
+                        else:
+                            print(f"Warning: redraw_all_regions_background not available for {core_level_name}")
+                    else:
+                        print(f"No recorded ranges found for {core_level_name}")
+                else:
+                    print(f"No background data or recorded ranges found for {core_level_name}")
+        except Exception as e:
+            print(f"Error creating background for {core_level_name}: {e}")
+
+    def show_core_level_selection_dialog(self, core_levels, base_name):
+        """Show dialog to select which core levels to paste to"""
+        dialog = CoreLevelSelectionDialog(self, core_levels, base_name)
+        selected = []
+        if dialog.ShowModal() == wx.ID_OK:
+            selected = dialog.get_selected_core_levels()
+        dialog.Destroy()
+        return selected
+
+    def copy_background_from_filemanager(self, row, col):
+        """Copy background from the selected core level in file manager"""
+        import os
+        import json
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Copy Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+        # Check if background exists
+        if 'Background' not in core_level_data or 'Bkg Y' not in core_level_data['Background']:
+            wx.MessageBox("No background found in selected core level", "Copy Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Copy all background data with .2f formatting for numeric values
+        background_data = {}
+        bg_source = core_level_data['Background']
+
+        # Copy background array
+        background_data['Bkg Y'] = bg_source['Bkg Y'][:]
+
+        # Copy other background properties with .2f formatting where applicable
+        for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+            if key in bg_source:
+                if key == 'Recorded_Ranges' and bg_source[key]:
+                    # Format recorded ranges with .2f precision
+                    formatted_ranges = []
+                    for range_tuple in bg_source[key]:
+                        formatted_range = (
+                            float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                            float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                            float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                            float(f"{float(range_tuple[3]):.2f}")  # max_range
+                        )
+                        formatted_ranges.append(formatted_range)
+                    background_data[key] = formatted_ranges
+                elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                    try:
+                        value = float(bg_source[key])
+                        background_data[key] = f"{value:.2f}"
+                    except (ValueError, TypeError):
+                        background_data[key] = bg_source[key]
+                else:
+                    background_data[key] = bg_source[key]
+
+        # Save to clipboard file
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        with open(background_clipboard_file, 'w') as f:
+            json.dump(background_data, f)
+
+        self.parent.show_popup_message2("Background Copied", f"Background copied from '{sheet_name}'")
+
+    def paste_background_from_filemanager(self, row, col):
+        """Paste background to the selected core level in file manager"""
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load the background clipboard data
+        try:
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid background clipboard data", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not background_data:
+            wx.MessageBox("Background clipboard is empty or invalid", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Save state before making changes
+        save_state(self.parent)
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            # Set the target sheet
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+
+            # Get target core level data
+            target_core_level = self.parent.Data['Core levels'][sheet_name]
+
+            # Initialize Background structure if it doesn't exist
+            if 'Background' not in target_core_level:
+                target_core_level['Background'] = {}
+
+            target_bg = target_core_level['Background']
+
+            # Initialize Bkg Y to Raw Data and Bkg X to B.E. from the TARGET core level
+            if 'Raw Data' in target_core_level:
+                target_bg['Bkg Y'] = target_core_level['Raw Data'][:]
+            else:
+                wx.MessageBox(f"No Raw Data found in '{sheet_name}'", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+                return
+
+            if 'B.E.' in target_core_level:
+                target_bg['Bkg X'] = target_core_level['B.E.'][:]
+
+            # Copy other background properties (NOT the Y values)
+            for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+                if key in background_data:
+                    if key == 'Recorded_Ranges' and background_data[key]:
+                        # Format recorded ranges with .2f precision
+                        formatted_ranges = []
+                        for range_tuple in background_data[key]:
+                            formatted_range = (
+                                float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                                float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                                float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                                float(f"{float(range_tuple[3]):.2f}")  # max_range
+                            )
+                            formatted_ranges.append(formatted_range)
+                        target_bg[key] = formatted_ranges
+                    elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                        try:
+                            value = float(background_data[key])
+                            target_bg[key] = f"{value:.2f}"
+                        except (ValueError, TypeError):
+                            target_bg[key] = background_data[key]
+                    else:
+                        target_bg[key] = background_data[key]
+
+            # Update window background array to Raw Data initially
+            self.parent.background = np.array(target_core_level['Raw Data'])
+
+            # Update background range values if they exist
+            if 'Bkg Low' in background_data and 'Bkg High' in background_data:
+                try:
+                    self.parent.bg_min_energy = float(background_data['Bkg Low'])
+                    self.parent.bg_max_energy = float(background_data['Bkg High'])
+                except (ValueError, TypeError):
+                    pass
+
+            # If we have recorded ranges, recreate the background from them using the target's data
+            if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+
+                # recreate background manually
+                wx.CallAfter(self.recreate_background_from_ranges, sheet_name, background_data['Recorded_Ranges'])
+
+            else:
+                # No recorded ranges, just replot with the initialized background (Raw Data)
+                wx.CallAfter(self.parent.clear_and_replot)
+
+            self.parent.show_popup_message2("Background Pasted", f"Background pasted to '{sheet_name}'")
+
+        except Exception as e:
+            wx.MessageBox(f"Error pasting background: {str(e)}", "Paste Background Error", wx.OK | wx.ICON_ERROR)
+        finally:
+            # Restore original sheet
+            if original_sheet != sheet_name:
+                wx.CallAfter(lambda: self.parent.sheet_combobox.SetValue(original_sheet))
+                wx.CallAfter(lambda: on_sheet_selected(self.parent, original_sheet))
+
+    def recreate_background_from_ranges(self, sheet_name, recorded_ranges):
+        """Recreate background from recorded ranges without fitting window dependency"""
+        try:
+            from libraries.Peak_Functions import BackgroundCalculations
+            import numpy as np
+
+            if sheet_name not in self.parent.Data['Core levels']:
+                return
+
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+            # Get the data
+            x_values = np.array(core_level_data['B.E.'], dtype=float)
+            y_values = np.array(core_level_data['Raw Data'], dtype=float)
+
+            # Initialize background to raw data
+            current_background = np.array(y_values)
+
+            # Get background method (default to Smart if not available)
+            method = getattr(self.parent, 'background_method', 'Smart')
+
+            # Special handling for Tougaard methods - they cannot be applied region-by-region
+            if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
+                try:
+                    # Apply Tougaard method to the entire spectrum
+                    if method == "U2-Tougaard":
+                        current_background = BackgroundCalculations.calculate_u2_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif method == "U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif method == "2x U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_double_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif method == "3x U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_triple_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+
+                except Exception as e:
+                    print(f"Error applying Tougaard background method {method}: {e}")
+
+            else:
+                # Apply each recorded range in sequence for non-Tougaard methods
+                for offset_h, offset_l, min_range, max_range in recorded_ranges:
+                    try:
+                        # Apply background calculation for this range
+                        if method == "Multi-Regions Smart":
+                            current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif method == "Shirley":
+                            current_background = BackgroundCalculations.calculate_adaptive_shirley_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif method == "Linear":
+                            current_background = BackgroundCalculations.calculate_adaptive_linear_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif method == "Smart":
+                            current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        else:
+                            # Fallback to smart for unknown methods
+                            current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+
+                    except Exception as e:
+                        print(f"Error applying background range {min_range}-{max_range}: {e}")
+                        continue
+
+            # Update the background in the data structure
+            core_level_data['Background']['Bkg Y'] = current_background.tolist()
+            self.parent.background = current_background
+
+            # Replot to show the new background
+            self.parent.clear_and_replot()
+
+        except Exception as e:
+            print(f"Error recreating background for {sheet_name}: {e}")
+            # If background recreation fails, just replot with raw data
+            self.parent.clear_and_replot()
+
+    def recreate_background_from_ranges_NEW(self, sheet_name, recorded_ranges):
+        """Recreate background from recorded ranges using existing Fitting_Screen functionality"""
+        print(f"DEBUG: recreate_background_from_ranges called for {sheet_name} with {len(recorded_ranges) if recorded_ranges else 0} ranges")
+
+        try:
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            print(f"DEBUG: Current sheet: {current_sheet}, Target sheet: {sheet_name}")
+
+            # SWITCH TO TARGET SHEET IF NEEDED
+            if current_sheet != sheet_name:
+                print(f"DEBUG: Switching from {current_sheet} to {sheet_name}")
+                self.parent.sheet_combobox.SetValue(sheet_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_name)
+                print(f"DEBUG: Sheet switch completed")
+
+            print(f"DEBUG: Checking for core level data in {sheet_name}")
+
+            # Check if we have the target sheet data
+            if (sheet_name in self.parent.Data['Core levels'] and
+                    'Background' in self.parent.Data['Core levels'][sheet_name]):
+                print(f"DEBUG: Found background data structure")
+
+                if recorded_ranges:
+                    print(f"DEBUG: Creating background from {len(recorded_ranges)} recorded ranges for {sheet_name}")
+                    print(f"DEBUG: Recorded ranges: {recorded_ranges}")
+
+                    # Ensure background array matches current x_values length
+                    core_level_data = self.parent.Data['Core levels'][sheet_name]
+                    if 'B.E.' in core_level_data and 'Raw Data' in core_level_data:
+                        target_length = len(core_level_data['B.E.'])
+                        print(f"DEBUG: Target data length: {target_length}")
+
+                        # Initialize background to raw data with correct length
+                        if 'Background' not in core_level_data:
+                            core_level_data['Background'] = {}
+                            print(f"DEBUG: Created new Background structure")
+
+                        core_level_data['Background']['Bkg Y'] = core_level_data['Raw Data'][:]
+                        core_level_data['Background']['Bkg X'] = core_level_data['B.E.'][:]
+                        core_level_data['Background']['Recorded_Ranges'] = recorded_ranges
+                        print(f"DEBUG: Updated background data structure")
+
+                        # Update window arrays to match
+                        self.parent.background = np.array(core_level_data['Raw Data'])
+                        self.parent.x_values = np.array(core_level_data['B.E.'])
+                        print(f"DEBUG: Updated window arrays")
+
+                    # Check for mouse_handler and redraw function
+                    if hasattr(self.parent, 'mouse_handler'):
+                        print(f"DEBUG: Found mouse_handler")
+                        if hasattr(self.parent.mouse_handler, 'redraw_all_regions_background'):
+                            print(f"DEBUG: Found redraw_all_regions_background method, calling it...")
+                            wx.CallAfter(self.parent.mouse_handler.redraw_all_regions_background)
+                            print(f"DEBUG: Called wx.CallAfter for redraw_all_regions_background")
+                        else:
+                            print(f"DEBUG: redraw_all_regions_background method not found in mouse_handler")
+                    else:
+                        print(f"DEBUG: mouse_handler not found in parent")
+                        print(f"WARNING: redraw_all_regions_background not available for {sheet_name}")
+                else:
+                    print(f"DEBUG: No recorded ranges provided for {sheet_name}")
+            else:
+                print(f"DEBUG: No background data structure found for {sheet_name}")
+                if sheet_name not in self.parent.Data['Core levels']:
+                    print(f"DEBUG: Sheet {sheet_name} not found in Core levels")
+                elif 'Background' not in self.parent.Data['Core levels'][sheet_name]:
+                    print(f"DEBUG: Background key not found in {sheet_name}")
+                    # Create the Background structure if it doesn't exist
+                    self.parent.Data['Core levels'][sheet_name]['Background'] = {}
+                    print(f"DEBUG: Created Background structure for {sheet_name}")
+
+        except Exception as e:
+            print(f"ERROR: Exception in recreate_background_from_ranges for {sheet_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            # If background recreation fails, ensure arrays are consistent
+            try:
+                core_level_data = self.parent.Data['Core levels'][sheet_name]
+                if 'B.E.' in core_level_data and 'Raw Data' in core_level_data:
+                    self.parent.background = np.array(core_level_data['Raw Data'])
+                    self.parent.x_values = np.array(core_level_data['B.E.'])
+                    print(f"DEBUG: Reset arrays to raw data after error")
+            except:
+                print(f"DEBUG: Failed to reset arrays after error")
+            # Just replot with raw data
+            self.parent.clear_and_replot()
+            print(f"DEBUG: Called clear_and_replot after error")
+
+    def paste_background_to_column_from_filemanager_OLD(self, row, col):
+        """Paste background to selected core levels in the column using CoreLevelSelectionDialog"""
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load the background clipboard data
+        try:
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid background clipboard data", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not background_data:
+            wx.MessageBox("Background clipboard is empty", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+        # Find all core levels that match this base name
+        matching_core_levels = []
+        for core_level_name in self.parent.Data['Core levels'].keys():
+            if (core_level_name == core_level_base or
+                    (core_level_name.startswith(core_level_base) and
+                     re.match(rf'^{re.escape(core_level_base)}\d+$', core_level_name))):
+                matching_core_levels.append(core_level_name)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return
+
+        # Save state before making changes
+        save_state(self.parent)
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            from libraries.Sheet_Operations import on_sheet_selected
+            success_count = 0
+
+            for core_level_name in selected_core_levels:
+                try:
+                    # Set the target sheet
+                    self.parent.sheet_combobox.SetValue(core_level_name)
+                    on_sheet_selected(self.parent, core_level_name)
+
+                    # Get target core level data
+                    target_core_level = self.parent.Data['Core levels'][core_level_name]
+
+                    # Initialize Background structure if it doesn't exist
+                    if 'Background' not in target_core_level:
+                        target_core_level['Background'] = {}
+
+                    target_bg = target_core_level['Background']
+
+                    # Initialize Bkg Y to Raw Data and Bkg X to B.E. from the TARGET core level
+                    if 'Raw Data' in target_core_level:
+                        target_bg['Bkg Y'] = target_core_level['Raw Data'][:]
+                        self.parent.background = np.array(target_core_level['Raw Data'])
+                    else:
+                        print(f"Warning: No Raw Data found in '{core_level_name}', skipping")
+                        continue
+
+                    if 'B.E.' in target_core_level:
+                        target_bg['Bkg X'] = target_core_level['B.E.'][:]
+
+                    # Copy background parameters (but NOT Bkg Y array) with .2f formatting
+                    for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+                        if key in background_data:
+                            if key == 'Recorded_Ranges' and background_data[key]:
+                                # Ensure recorded ranges maintain .2f precision
+                                formatted_ranges = []
+                                for range_tuple in background_data[key]:
+                                    formatted_range = (
+                                        float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                                        float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                                        float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                                        float(f"{float(range_tuple[3]):.2f}")  # max_range
+                                    )
+                                    formatted_ranges.append(formatted_range)
+                                target_bg[key] = formatted_ranges
+                            elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                                try:
+                                    value = float(background_data[key])
+                                    target_bg[key] = f"{value:.2f}"
+                                except (ValueError, TypeError):
+                                    target_bg[key] = background_data[key]
+                            else:
+                                target_bg[key] = background_data[key]
+
+                    # Update background range values if they exist
+                    if 'Bkg Low' in background_data and 'Bkg High' in background_data:
+                        try:
+                            self.parent.bg_min_energy = float(background_data['Bkg Low'])
+                            self.parent.bg_max_energy = float(background_data['Bkg High'])
+                        except (ValueError, TypeError):
+                            pass
+
+                    # If we have recorded ranges, recreate the background from them (this will generate correct Bkg Y)
+                    if ('Recorded_Ranges' in background_data and background_data['Recorded_Ranges'] and
+                            hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler, 'redraw_all_regions_background')):
+
+                        # Update fitting window if it exists
+                        if (hasattr(self.parent, 'fitting_window') and self.parent.fitting_window is not None and
+                                hasattr(self.parent.fitting_window, 'update_range_boxes')):
+                            wx.CallAfter(self.parent.fitting_window.update_range_boxes)
+                            wx.CallAfter(self.parent.fitting_window.update_window_data_background_range)
+
+                        # Recreate background from recorded ranges (this generates correct Bkg Y for each core level)
+                        wx.CallAfter(self.parent.mouse_handler.redraw_all_regions_background)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to paste background to {core_level_name}: {e}")
+
+            # Show success message
+            if success_count > 0:
+                self.parent.show_popup_message2("Background Pasted",
+                                                f"Background pasted to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to paste background to any core levels", "Paste Background Error",
+                              wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error pasting background: {str(e)}", "Paste Background Error", wx.OK | wx.ICON_ERROR)
+        finally:
+            # Restore original sheet
+            if original_sheet:
+                wx.CallAfter(lambda: self.parent.sheet_combobox.SetValue(original_sheet))
+                wx.CallAfter(lambda: on_sheet_selected(self.parent, original_sheet))
+
+    def paste_background_to_column_from_filemanager_OLD2(self, row, col):
+        """Paste background to selected core levels in the column using CoreLevelSelectionDialog"""
+
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load the background clipboard data
+        try:
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid background clipboard data", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not background_data:
+            wx.MessageBox("Background clipboard is empty", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+        # Find all core levels that match this base name
+        matching_core_levels = []
+        for core_level_name in self.parent.Data['Core levels'].keys():
+            if (core_level_name == core_level_base or
+                    (core_level_name.startswith(core_level_base) and
+                     re.match(rf'^{re.escape(core_level_base)}\d+$', core_level_name))):
+                matching_core_levels.append(core_level_name)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return
+
+        # Save state before making changes
+        save_state(self.parent)
+
+        # For each selected core level, find its row and call paste_background_from_filemanager
+        success_count = 0
+
+        for core_level_name in selected_core_levels:
+            try:
+                # Find the row containing this core level name
+                target_row = -1
+                for grid_row in range(self.grid.GetNumberRows()):
+                    if self.grid.GetCellValue(grid_row, col) == core_level_name:
+                        target_row = grid_row
+                        break
+
+                if target_row == -1:
+                    print(f"Could not find grid row for core level: {core_level_name}")
+                    continue
+
+                # Call the single paste function with the found row and column
+                self.paste_background_from_filemanager(target_row, col)
+                success_count += 1
+
+            except Exception as e:
+                print(f"Failed to paste background to {core_level_name}: {e}")
+
+        # Show success message
+        if success_count > 0:
+            self.parent.show_popup_message2("Background Pasted",
+                                            f"Background pasted to {success_count} core level(s)")
+        else:
+            wx.MessageBox("Failed to paste background to any core levels", "Paste Background Error",
+                          wx.OK | wx.ICON_ERROR)
+
+    def paste_background_to_column_from_filemanager(self, row, col):
+        """Paste background to selected core levels in the column using CoreLevelSelectionDialog"""
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load the background clipboard data
+        try:
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid background clipboard data", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not background_data:
+            wx.MessageBox("Background clipboard is empty", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "C1s"
+
+        # Find all core levels that match this base name
+        matching_core_levels = []
+        for core_level_name in self.parent.Data['Core levels'].keys():
+            if (core_level_name == core_level_base or
+                    (core_level_name.startswith(core_level_base) and
+                     re.match(rf'^{re.escape(core_level_base)}\d+$', core_level_name))):
+                matching_core_levels.append(core_level_name)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return
+
+        # Save state before making changes
+        save_state(self.parent)
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            success_count = 0
+
+            for core_level_name in selected_core_levels:
+                try:
+                    # Set the target sheet
+                    self.parent.sheet_combobox.SetValue(core_level_name)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, core_level_name)
+
+                    # Get target core level data
+                    target_core_level = self.parent.Data['Core levels'][core_level_name]
+
+                    # Initialize Background structure if it doesn't exist
+                    if 'Background' not in target_core_level:
+                        target_core_level['Background'] = {}
+
+                    target_bg = target_core_level['Background']
+
+                    # Initialize Bkg Y to Raw Data and Bkg X to B.E. from the TARGET core level
+                    if 'Raw Data' in target_core_level:
+                        target_bg['Bkg Y'] = target_core_level['Raw Data'][:]
+                    else:
+                        print(f"No Raw Data found in '{core_level_name}'")
+                        continue
+
+                    if 'B.E.' in target_core_level:
+                        target_bg['Bkg X'] = target_core_level['B.E.'][:]
+
+                    # Copy background properties (NOT the Y values)
+                    for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+                        if key in background_data:
+                            if key == 'Recorded_Ranges' and background_data[key]:
+                                # Format recorded ranges with .2f precision
+                                formatted_ranges = []
+                                for range_tuple in background_data[key]:
+                                    formatted_range = (
+                                        float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                                        float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                                        float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                                        float(f"{float(range_tuple[3]):.2f}")  # max_range
+                                    )
+                                    formatted_ranges.append(formatted_range)
+                                target_bg[key] = formatted_ranges
+                            elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                                try:
+                                    value = float(background_data[key])
+                                    target_bg[key] = f"{value:.2f}"
+                                except (ValueError, TypeError):
+                                    target_bg[key] = background_data[key]
+                            else:
+                                target_bg[key] = background_data[key]
+
+                    # Update window background array to Raw Data initially
+                    self.parent.background = np.array(target_core_level['Raw Data'])
+
+                    # If we have recorded ranges, recreate the background from them
+                    if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+                        # Call the working recreate method directly
+                        self.recreate_background_from_ranges(core_level_name, background_data['Recorded_Ranges'])
+                    else:
+                        # No recorded ranges, just replot with the initialized background (Raw Data)
+                        self.parent.clear_and_replot()
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to paste background to {core_level_name}: {e}")
+
+            # Show success message
+            if success_count > 0:
+                self.parent.show_popup_message2("Background Pasted",
+                                                f"Background pasted to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to paste background to any core levels", "Paste Background Error",
+                              wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error pasting background: {str(e)}", "Paste Background Error", wx.OK | wx.ICON_ERROR)
+        finally:
+            # Restore original sheet
+            if original_sheet:
+                self.parent.sheet_combobox.SetValue(original_sheet)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, original_sheet)
+
+class CoreLevelSelectionDialog(wx.Dialog):
+    """Dialog for selecting which core levels to paste peak table to"""
+
+    def __init__(self, parent, core_levels, base_name):
+        super().__init__(parent, title=f"Select Core Levels for {base_name}",
+                         size=(400, 300), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+
+        self.core_levels = core_levels
+        self.create_controls()
+        self.center_on_parent()
+
+    def create_controls(self):
+        """Create dialog controls"""
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Instructions
+        instruction_text = wx.StaticText(self, label="Select core levels to paste peak table and background:")
+        main_sizer.Add(instruction_text, 0, wx.ALL | wx.EXPAND, 10)
+
+        # Selection buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        select_all_btn = wx.Button(self, label="Select All")
+        unselect_all_btn = wx.Button(self, label="Unselect All")
+
+        select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
+        unselect_all_btn.Bind(wx.EVT_BUTTON, self.on_unselect_all)
+
+        button_sizer.Add(select_all_btn, 0, wx.ALL, 5)
+        button_sizer.Add(unselect_all_btn, 0, wx.ALL, 5)
+
+        main_sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 5)
+
+        # Checklist
+        self.checklist = wx.CheckListBox(self, choices=self.core_levels)
+
+        # Select all by default
+        for i in range(self.checklist.GetCount()):
+            self.checklist.Check(i, True)
+
+        main_sizer.Add(self.checklist, 1, wx.ALL | wx.EXPAND, 10)
+
+        # OK/Cancel buttons
+        btn_sizer = self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+        main_sizer.Add(btn_sizer, 0, wx.ALL | wx.EXPAND, 10)
+
+        self.SetSizer(main_sizer)
+
+    def on_select_all(self, event):
+        """Select all items"""
+        for i in range(self.checklist.GetCount()):
+            self.checklist.Check(i, True)
+
+    def on_unselect_all(self, event):
+        """Unselect all items"""
+        for i in range(self.checklist.GetCount()):
+            self.checklist.Check(i, False)
+
+    def get_selected_core_levels(self):
+        """Get list of selected core levels"""
+        selected = []
+        for i in range(self.checklist.GetCount()):
+            if self.checklist.IsChecked(i):
+                selected.append(self.core_levels[i])
+        return selected
+
+    def center_on_parent(self):
+        """Center dialog on parent window"""
+        if self.GetParent():
+            parent_pos = self.GetParent().GetPosition()
+            parent_size = self.GetParent().GetSize()
+            dialog_size = self.GetSize()
+
+            pos_x = parent_pos.x + (parent_size.width - dialog_size.width) // 2
+            pos_y = parent_pos.y + (parent_size.height - dialog_size.height) // 2
+
+            self.SetPosition((pos_x, pos_y))
 
 class CoreLevelPreviewDialog(wx.Dialog):
     def __init__(self, parent, title, core_levels_data, operation_type):
