@@ -5102,6 +5102,7 @@ class FileManagerWindow(wx.Frame):
                         background_data[key] = bg_source[key]
                 else:
                     background_data[key] = bg_source[key]
+                    print(f"Copied background property '{key}': {bg_source[key]}")
 
         # Save to clipboard file
         background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
@@ -5204,6 +5205,60 @@ class FileManagerWindow(wx.Frame):
                     self.parent.bg_max_energy = float(background_data['Bkg High'])
                 except (ValueError, TypeError):
                     pass
+
+            # Update parent window properties to match pasted data
+            self.parent.background_method = background_data.get('Bkg Type', 'Smart')
+            print(f"DEBUG: Set parent background_method to: {self.parent.background_method}")
+
+            # Update offset values from first recorded range if available
+            if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+                first_range = background_data['Recorded_Ranges'][0]
+                self.parent.offset_h = float(f"{float(first_range[0]):.2f}")  # offset_h
+                self.parent.offset_l = float(f"{float(first_range[1]):.2f}")  # offset_l
+                print(f"DEBUG: Set offsets - h: {self.parent.offset_h}, l: {self.parent.offset_l}")
+
+            # Force peak fitting grid refresh if it exists
+            if hasattr(self.parent, 'peak_params_grid'):
+                try:
+                    wx.CallAfter(self.parent.peak_params_grid.ForceRefresh)
+                    print(f"DEBUG: Peak fitting grid refresh queued")
+                except Exception as e:
+                    print(f"WARNING: Could not refresh peak fitting grid: {e}")
+
+            # Update peak fitting grid if it exists and has data (following On_Mouse_Defs.py pattern)
+            if (hasattr(self.parent, 'peak_params_grid') and
+                    self.parent.peak_params_grid.GetNumberRows() > 0):
+                print("DEBUG: Updating peak fitting grid background columns...")
+
+                num_peaks = self.parent.peak_params_grid.GetNumberRows() // 2
+                print(f"DEBUG: Number of peaks to update: {num_peaks}")
+
+                # Get the background values from the pasted data
+                bkg_type = background_data.get('Bkg Type', 'Smart')
+                bkg_low = background_data.get('Bkg Low', '')
+                bkg_high = background_data.get('Bkg High', '')
+
+                # Convert to float for .2f formatting
+                try:
+                    bkg_low_val = float(bkg_low)
+                    bkg_high_val = float(bkg_high)
+                except (ValueError, TypeError):
+                    bkg_low_val = 0.0
+                    bkg_high_val = 0.0
+
+                for i in range(num_peaks):
+                    print(f"DEBUG: Updating peak {i + 1} background info")
+                    row = i * 2
+                    # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
+                    self.parent.peak_params_grid.SetCellValue(row, 14, bkg_type)
+                    self.parent.peak_params_grid.SetCellValue(row, 15, f"{bkg_low_val:.2f}")
+                    self.parent.peak_params_grid.SetCellValue(row, 16, f"{bkg_high_val:.2f}")
+
+                # Force grid refresh after updating cells
+                wx.CallAfter(self.parent.peak_params_grid.ForceRefresh)
+                print(f"DEBUG: Peak fitting grid updated with pasted background data")
+            else:
+                print("DEBUG: No peak fitting grid to update or grid is empty")
 
             # If we have recorded ranges, recreate the background from them using the target's data
             if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:

@@ -1673,8 +1673,6 @@ class MouseEventHandler:
                                 self.window.peak_params_grid.SetCellValue(row, 14, self.window.background_method)
                                 self.window.peak_params_grid.SetCellValue(row, 15, f"{overall_bg_low:.2f}")
                                 self.window.peak_params_grid.SetCellValue(row, 16, f"{overall_bg_high:.2f}")
-                                print(f"     - Set row {row} columns 14-16")
-                                print()
 
                 # Handle background redraw for fitting window cases
                 if (moved_vline in [self.window.vline1, self.window.vline2] and
