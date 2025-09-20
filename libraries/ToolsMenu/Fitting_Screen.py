@@ -95,6 +95,7 @@ class FittingWindow(wx.Frame):
             notebook.SetBackgroundColour(wx.Colour(240, 250, 250))
         self.init_background_tab(notebook)
         self.init_fitting_tab(notebook)
+        self.init_batch_operations_tab(notebook)
 
         main_sizer.Add(notebook, 1, wx.EXPAND,border=5)
         panel.SetSizer(main_sizer)
@@ -1877,7 +1878,7 @@ class FittingWindow(wx.Frame):
                 child.SetToolTip(self.get_fitting_description(self.parent.selected_fitting_method))
                 break
 
-    def on_tab_change(self, event):
+    def on_tab_change_OLD(self, event):
         selected_page = event.GetSelection()
 
         # Store previous state
@@ -1948,125 +1949,522 @@ class FittingWindow(wx.Frame):
 
         event.Skip()
 
+    def on_tab_change(self, event):
+        selected_page = event.GetSelection()
 
-    def on_key_down_OLD(self, event):
-        """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""
-        key_code = event.GetKeyCode()
+        # Store previous state
+        was_background_tab = self.parent.background_tab_selected
 
-        # Only handle UP/DOWN arrows - let everything else pass through
-        if key_code not in [wx.WXK_UP, wx.WXK_DOWN]:
-            event.Skip()
+        # Update tab states
+        self.parent.background_tab_selected = (selected_page == 0)
+        self.parent.peak_fitting_tab_selected = (selected_page == 1)
+        self.parent.batch_operations_tab_selected = (selected_page == 2)
+
+        # Handle background interaction
+        if self.parent.background_tab_selected:
+            self.parent.enable_background_interaction()
+            # Show vlines when entering background tab
+            self.parent.show_hide_vlines()
+
+            # AUTO-activate first region if regions exist
+            ranges = self.get_recorded_ranges_from_data()
+            if ranges:
+                # Set first region as active
+                self.set_active_range(0)
+
+                # Get first region data
+                offset_h, offset_l, min_range, max_range = ranges[0]
+
+                # Update all controls with first region values
+                self.updating_range_controls = True
+                self._updating_offsets = True  # Prevent save_state calls from offset handlers
+                self.offset_h_text.SetValue(f"{offset_h:.2f}")
+                self.offset_l_text.SetValue(f"{offset_l:.2f}")
+                self.min_range_text.SetValue(f"{min_range:.2f}")
+                self.max_range_text.SetValue(f"{max_range:.2f}")
+                self._updating_offsets = False
+                self.updating_range_controls = False
+
+                # Position vLines at first region's range
+                if self.parent.vline1 is not None and self.parent.vline2 is not None:
+                    min_display = self.parent.convert_energy_for_display(min_range)
+                    max_display = self.parent.convert_energy_for_display(max_range)
+                    self.parent.vline1.set_xdata([min_display, min_display])
+                    self.parent.vline2.set_xdata([max_display, max_display])
+
+                    # Update text labels
+                    if hasattr(self.parent, 'update_vline_text_labels'):
+                        self.parent.update_vline_text_labels()
+
+                    # Update averaging indicator lines
+                    if hasattr(self.parent, 'add_averaging_indicator_lines'):
+                        self.parent.add_averaging_indicator_lines()
+
+                    # Force canvas redraw
+                    self.parent.canvas.draw_idle()
+
+                # DELAY the color update to ensure UI is ready
+                wx.CallAfter(self.update_range_box_colors)
+                wx.CallAfter(self.force_range_box_refresh)
+
+                # print(f"Auto-activated region 1: {min_range:.2f} - {max_range:.2f}")
+
+        else:
+            self.parent.disable_background_interaction()
+            # Reset vlines when leaving background tab (same as Reset Vertical Lines button)
+            if was_background_tab:
+                self.on_reset_vlines(None)
+
+        # Handle peak selection
+        if not self.parent.peak_fitting_tab_selected:
+            self.parent.peak_manipulation.deselect_all_peaks()
+
+        event.Skip()
+
+    def init_batch_operations_tab(self, notebook):
+        """Initialize the batch operations tab in the notebook."""
+        self.batch_panel = wx.Panel(notebook)
+
+        # Create main sizer
+        batch_sizer = wx.GridBagSizer(0, 0)
+
+        # # Title
+        # title_label = wx.StaticText(self.batch_panel, label="Batching")
+        # title_font = title_label.GetFont()
+        # title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        # title_label.SetFont(title_font)
+        # batch_sizer.Add(title_label, pos=(0, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=5)
+
+        # N# of Iterations control (same as in fitting tab)
+        batch_sizer.Add(wx.StaticText(self.batch_panel, label="N# of Iterations:"), pos=(0, 0),
+                        flag=wx.ALL | wx.EXPAND, border=1)
+        self.batch_iterations_spin = wx.SpinCtrl(self.batch_panel, value="20", min=2, max=100)
+        batch_sizer.Add(self.batch_iterations_spin, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Progress indicator
+        self.batch_progress_label = wx.StaticText(self.batch_panel, label="Progress:")
+        self.batch_progress_text = wx.TextCtrl(self.batch_panel, style=wx.TE_READONLY)
+        batch_sizer.Add(self.batch_progress_label, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        batch_sizer.Add(self.batch_progress_text, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Core levels selection label
+        core_levels_label = wx.StaticText(self.batch_panel, label="Select Core Levels to Fit:")
+        batch_sizer.Add(core_levels_label, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Core levels checklist box
+        self.core_levels_checklist = wx.CheckListBox(self.batch_panel, style=wx.LB_MULTIPLE)
+        self.core_levels_checklist.SetMinSize((250, 120))
+        self.populate_core_levels_list()
+        batch_sizer.Add(self.core_levels_checklist, pos=(5, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Select All and Unselect All buttons
+        select_all_button = wx.Button(self.batch_panel, label="Select All")
+        if 'wxMac' in wx.PlatformInfo:
+            select_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            select_all_button.SetMinSize((125, 35))
+        else:
+            select_all_button.SetMinSize((125, 35))
+        select_all_button.Bind(wx.EVT_BUTTON, self.on_select_all)
+        batch_sizer.Add(select_all_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        unselect_all_button = wx.Button(self.batch_panel, label="Unselect All")
+        if 'wxMac' in wx.PlatformInfo:
+            unselect_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            unselect_all_button.SetMinSize((125, 35))
+        else:
+            unselect_all_button.SetMinSize((125, 35))
+        unselect_all_button.Bind(wx.EVT_BUTTON, self.on_unselect_all)
+        batch_sizer.Add(unselect_all_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Fittings button
+        propagate_button = wx.Button(self.batch_panel, label="Propagate\nFittings")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_button.SetMinSize((125, 35))
+        else:
+            propagate_button.SetMinSize((125, 35))
+        propagate_button.Bind(wx.EVT_BUTTON, self.on_propagate_fittings)
+        batch_sizer.Add(propagate_button, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Fit Selected button
+        fit_all_button = wx.Button(self.batch_panel, label="Fit Selected\nCore Levels")
+        if 'wxMac' in wx.PlatformInfo:
+            fit_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            fit_all_button.SetMinSize((125, 35))
+        else:
+            fit_all_button.SetMinSize((125, 35))
+        fit_all_button.Bind(wx.EVT_BUTTON, self.on_fit_all)
+        batch_sizer.Add(fit_all_button, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        self.batch_panel.SetSizer(batch_sizer)
+        notebook.AddPage(self.batch_panel, "Batching")
+
+
+    def recreate_background_from_ranges_local(self, sheet_name, recorded_ranges, background_method):
+        """Recreate background from recorded ranges for the given sheet"""
+        import numpy as np
+
+        try:
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+            if 'B.E.' not in core_level_data or 'Raw Data' not in core_level_data:
+                return
+
+            x_values = np.array(core_level_data['B.E.'], dtype=float)
+            y_values = np.array(core_level_data['Raw Data'], dtype=float)
+
+            # Initialize background to raw data
+            current_background = np.array(y_values)
+
+            # Special handling for Tougaard methods
+            if background_method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
+                try:
+                    from libraries.Peak_Functions import BackgroundCalculations
+                    # Apply Tougaard method to the entire spectrum
+                    if background_method == "U2-Tougaard":
+                        current_background = BackgroundCalculations.calculate_u2_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif background_method == "U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif background_method == "2x U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_double_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif background_method == "3x U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_triple_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                except Exception as e:
+                    print(f"Error applying Tougaard background method {background_method}: {e}")
+            else:
+                # Apply each recorded range in sequence for non-Tougaard methods
+                from libraries.Peak_Functions import BackgroundCalculations
+                for offset_h, offset_l, min_range, max_range in recorded_ranges:
+                    try:
+                        # Apply background calculation for this range
+                        if background_method == "Multi-Regions Smart":
+                            current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif background_method == "Shirley":
+                            current_background = BackgroundCalculations.calculate_adaptive_shirley_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif background_method == "Linear":
+                            current_background = BackgroundCalculations.calculate_adaptive_linear_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif background_method == "Smart":
+                            current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        else:
+                            # Fallback to smart for unknown methods
+                            current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                    except Exception as e:
+                        print(f"Error applying background range {min_range}-{max_range}: {e}")
+                        continue
+
+            # Update the background in the data structure
+            core_level_data['Background']['Bkg Y'] = current_background.tolist()
+            self.parent.background = current_background
+
+            # Replot to show the new background
+            self.parent.clear_and_replot()
+
+        except Exception as e:
+            print(f"Error recreating background for {sheet_name}: {e}")
+            # If background recreation fails, just replot
+            self.parent.clear_and_replot()
+
+    def on_propagate_fittings(self, event):
+        """Handle propagate fittings button click"""
+        import os
+        import tempfile
+        import json
+        from libraries.FileMenu.Save import copy_all_peak_parameters, paste_all_peak_parameters
+        from libraries.ViewMenu.FileManager import CoreLevelSelectionDialog
+
+        # Get current sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if not current_sheet or current_sheet not in self.parent.Data['Core levels']:
+            wx.MessageBox("No core level selected", "Propagate Failed", wx.OK | wx.ICON_WARNING)
             return
 
-        text_ctrl = event.GetEventObject()
-        current_value = text_ctrl.GetValue()
-        cursor_pos = text_ctrl.GetInsertionPoint()
+        # Check if current sheet has peaks to copy
+        if not hasattr(self.parent, 'peak_params_grid') or self.parent.peak_params_grid.GetNumberRows() == 0:
+            wx.MessageBox("No peaks to propagate from current core level", "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
 
-        # Skip if empty or cursor at invalid position
-        if not current_value or cursor_pos >= len(current_value):
-            event.Skip()
+        # Find matching core levels for the current sheet
+        current_base = current_sheet.split('_')[0] if '_' in current_sheet else current_sheet.rstrip('0123456789')
+        matching_core_levels = []
+
+        for core_level in self.parent.Data['Core levels'].keys():
+            if core_level != current_sheet:
+                core_base = core_level.split('_')[0] if '_' in core_level else core_level.rstrip('0123456789')
+                if core_base == current_base:
+                    matching_core_levels.append(core_level)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No other core levels found for {current_base} to propagate to",
+                          "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        dialog = CoreLevelSelectionDialog(self, matching_core_levels, current_base)
+        selected_core_levels = []
+        if dialog.ShowModal() == wx.ID_OK:
+            selected_core_levels = dialog.get_selected_core_levels()
+        dialog.Destroy()
+
+        if not selected_core_levels:
+            return  # User cancelled
+
+        try:
+            # Copy peak table and background from current sheet
+            copy_all_peak_parameters(self.parent)
+            self.copy_current_background_directly()
+
+            # Store original sheet
+            original_sheet = self.parent.sheet_combobox.GetValue()
+
+            # Paste to selected core levels
+            success_count = 0
+            for target_sheet in selected_core_levels:
+                try:
+                    # Switch to target sheet
+                    self.parent.sheet_combobox.SetValue(target_sheet)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, target_sheet)
+
+                    # Paste background first, then peak table
+                    self.paste_background_directly()
+                    paste_all_peak_parameters(self.parent)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to propagate to {target_sheet}: {e}")
+
+            # Restore original sheet
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+
+            if success_count > 0:
+                self.parent.show_popup_message2("Fittings Propagated",
+                                                f"Fittings propagated to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to propagate to any core levels", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error propagating fittings: {str(e)}", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+    def copy_current_background_directly(self):
+        """Copy background from current sheet using FileManager logic"""
+        import os
+        import json
+        import tempfile
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+        if 'Background' not in core_level_data or 'Bkg Y' not in core_level_data['Background']:
+            return
+
+        # Use the same logic as copy_background_from_filemanager
+        background_data = {}
+        bg_source = core_level_data['Background']
+
+        # Copy background properties with .2f formatting where applicable
+        for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+            if key in bg_source:
+                if key == 'Bkg Type':
+                    background_data[key] = bg_source[key]
+                    print(f"Copied background method from data structure: {bg_source[key]}")
+                elif key == 'Recorded_Ranges' and bg_source[key]:
+                    formatted_ranges = []
+                    for range_tuple in bg_source[key]:
+                        formatted_range = (
+                            float(f"{float(range_tuple[0]):.2f}"),
+                            float(f"{float(range_tuple[1]):.2f}"),
+                            float(f"{float(range_tuple[2]):.2f}"),
+                            float(f"{float(range_tuple[3]):.2f}")
+                        )
+                        formatted_ranges.append(formatted_range)
+                    background_data[key] = formatted_ranges
+                elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                    try:
+                        value = float(bg_source[key])
+                        background_data[key] = f"{value:.2f}"
+                    except (ValueError, TypeError):
+                        background_data[key] = bg_source[key]
+                else:
+                    background_data[key] = bg_source[key]
+
+        # Save to clipboard
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        with open(background_clipboard_file, 'w') as f:
+            json.dump(background_data, f)
+
+
+    def paste_background_directly(self):
+        """Paste background to current sheet using FileManager logic"""
+        import os
+        import json
+        import tempfile
+        import numpy as np
+        # from libraries.State_Management import save_state
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
             return
 
         try:
-            # Parse the number
-            original_number = float(current_value)
-            is_negative = original_number < 0
-
-            # Work with absolute value for easier processing
-            abs_value = abs(original_number)
-
-            # Split into integer and decimal parts
-            str_abs = f"{abs_value:.10f}".rstrip('0').rstrip('.')
-            if '.' in str_abs:
-                integer_part, decimal_part = str_abs.split('.')
-            else:
-                integer_part = str_abs
-                decimal_part = ""
-
-            # Find which digit position cursor is on
-            full_str = current_value.replace('-', '')  # Remove minus for position calculation
-            adjusted_cursor = cursor_pos
-            if is_negative:
-                adjusted_cursor -= 1  # Account for minus sign
-
-            # Determine digit position (power of 10)
-            if '.' in full_str:
-                decimal_pos = full_str.index('.')
-                if adjusted_cursor < decimal_pos:
-                    # Integer part - modify character to the RIGHT of cursor
-                    # Increment adjusted_cursor to get the character we want to modify
-                    target_char_pos = adjusted_cursor
-                    digit_power = (decimal_pos - 1) - target_char_pos
-                else:
-                    # Decimal part - modify character to the RIGHT of cursor
-                    target_char_pos = adjusted_cursor
-                    digit_power = decimal_pos - target_char_pos
-            else:
-                # No decimal point - modify character to the RIGHT of cursor
-                target_char_pos = adjusted_cursor
-                digit_power = (len(full_str) - 1) - target_char_pos
-
-            # Skip if we're at the end or on decimal point
-            if adjusted_cursor >= len(full_str) or (
-                    adjusted_cursor < len(full_str) and full_str[adjusted_cursor] == '.'):
-                event.Skip()
-                return
-
-            # Calculate increment value
-            increment_value = 10 ** digit_power
-            if key_code == wx.WXK_DOWN:
-                increment_value = -increment_value
-
-            # Apply increment
-            new_number = original_number + increment_value
-
-            # Format the result
-            if digit_power >= 0:
-                # Integer digit changed
-                if abs(new_number - round(new_number)) < 1e-10:
-                    formatted_result = f"{int(round(new_number))}"
-                else:
-                    decimal_places = len(decimal_part) if decimal_part else 0
-                    formatted_result = f"{new_number:.{decimal_places}f}"
-            else:
-                # Decimal digit changed
-                required_decimals = abs(digit_power)
-                existing_decimals = len(decimal_part) if decimal_part else 0
-                decimal_places = max(required_decimals, existing_decimals)
-                formatted_result = f"{new_number:.{decimal_places}f}".rstrip('0').rstrip('.')
-
-            # Update the text control
-            text_ctrl.SetValue(formatted_result)
-
-            # Calculate desired cursor position BEFORE calling change event
-            new_length = len(formatted_result)
-            old_length = len(current_value)
-            desired_cursor_pos = min(cursor_pos + (new_length - old_length), new_length)
-
-            # Trigger the appropriate change event manually
-            if text_ctrl == self.offset_h_text:
-                self.on_offset_h_change(event)
-            elif text_ctrl == self.offset_l_text:
-                self.on_offset_l_change(event)
-            elif text_ctrl == self.min_range_text:
-                self.on_min_range_change(event)
-                # RESTORE cursor position after change event (which may call SetValue again)
-                wx.CallAfter(lambda: text_ctrl.SetInsertionPoint(desired_cursor_pos))
-            elif text_ctrl == self.max_range_text:
-                self.on_max_range_change(event)
-                # RESTORE cursor position after change event (which may call SetValue again)
-                wx.CallAfter(lambda: text_ctrl.SetInsertionPoint(desired_cursor_pos))
-
-            # For offset controls, set cursor position immediately since they don't interfere
-            if text_ctrl in [self.offset_h_text, self.offset_l_text]:
-                text_ctrl.SetInsertionPoint(desired_cursor_pos)
-
-            # DO NOT call event.Skip() - we handled this completely
-
-        except (ValueError, IndexError):
-            # If parsing fails, allow default behavior
-            event.Skip()
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except:
             return
+
+        save_state(self.parent)
+
+        # Use the same logic as paste_background_from_filemanager
+        target_core_level = self.parent.Data['Core levels'][sheet_name]
+
+        if 'Background' not in target_core_level:
+            target_core_level['Background'] = {}
+
+        target_bg = target_core_level['Background']
+
+        # Initialize from target's raw data
+        if 'Raw Data' in target_core_level:
+            target_bg['Bkg Y'] = target_core_level['Raw Data'][:]
+        if 'B.E.' in target_core_level:
+            target_bg['Bkg X'] = target_core_level['B.E.'][:]
+
+        # Copy properties from clipboard
+        for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+            if key in background_data:
+                target_bg[key] = background_data[key]
+
+        # Update parent properties
+        self.parent.background_method = background_data.get('Bkg Type', 'Smart')
+        self.parent.background = np.array(target_core_level['Raw Data'])
+        if 'B.E.' in target_core_level:
+            self.parent.x_values = np.array(target_core_level['B.E.'])
+
+        # Recreate background if recorded ranges exist
+        if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+            # Import the FileManager class to access its static method
+            from libraries.ViewMenu.FileManager import FileManagerWindow
+
+            # Create a minimal object with the required parent attribute
+            dummy_manager = type('DummyManager', (), {'parent': self.parent})()
+
+            # Call the recreate method
+            FileManagerWindow.recreate_background_from_ranges(
+                dummy_manager, sheet_name, background_data['Recorded_Ranges'],
+                background_data.get('Bkg Type', 'Smart'))
+        else:
+            self.parent.clear_and_replot()
+
+    def on_fit_all(self, event):
+        """Handle fit selected button click"""
+        # from libraries.State_Management import save_state
+        from Functions import fit_peaks
+
+        save_state(self.parent)
+
+        # Get selected core levels instead of all core levels
+        selected_core_levels = self.get_selected_core_levels_for_fitting()
+        if not selected_core_levels:
+            wx.MessageBox("No core levels selected", "Fit Selected Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get iterations from batch tab
+        iterations = self.batch_iterations_spin.GetValue()
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            total_core_levels = len(selected_core_levels)
+
+            for i, sheet_name in enumerate(selected_core_levels):
+                # Update progress
+                self.batch_progress_text.SetValue(f"Fitting {sheet_name} ({i + 1}/{total_core_levels})")
+                wx.Yield()
+
+                # Switch to the core level
+                self.parent.sheet_combobox.SetValue(sheet_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_name)
+
+                # Check if there are peaks to fit
+                if not hasattr(self.parent, 'peak_params_grid') or self.parent.peak_params_grid.GetNumberRows() == 0:
+                    print(f"No peaks to fit for {sheet_name}, skipping...")
+                    continue
+
+                # Perform multiple iterations of fitting
+                for iteration in range(iterations):
+                    result = fit_peaks(self.parent, self.parent.peak_params_grid)
+                    if result:
+                        self.parent.clear_and_replot()
+                    wx.Yield()
+
+            self.batch_progress_text.SetValue("Selected fittings complete")
+            self.parent.show_popup_message2("Fit Selected Complete", f"Fitted {total_core_levels} selected core levels with {iterations} iterations each")
+
+        except Exception as e:
+            wx.MessageBox(f"Error during fit selected: {str(e)}", "Fit Selected Failed", wx.OK | wx.ICON_ERROR)
+        finally:
+            # Restore original sheet
+            if original_sheet:
+                self.parent.sheet_combobox.SetValue(original_sheet)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, original_sheet)
+
+    def populate_core_levels_list(self):
+        """Populate the core levels checklist with current core levels"""
+        self.core_levels_checklist.Clear()
+
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            core_levels = list(self.parent.Data['Core levels'].keys())
+            for core_level in core_levels:
+                self.core_levels_checklist.Append(core_level)
+
+            # Select all by default
+            for i in range(self.core_levels_checklist.GetCount()):
+                self.core_levels_checklist.Check(i, True)
+
+    def on_select_all(self, event):
+        """Select all core levels in the checklist"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, True)
+
+    def on_unselect_all(self, event):
+        """Unselect all core levels in the checklist"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, False)
+
+    def get_selected_core_levels_for_fitting(self):
+        """Get list of selected core levels from the checklist"""
+        selected = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.IsChecked(i):
+                selected.append(self.core_levels_checklist.GetString(i))
+        return selected
 
     def on_key_down(self, event):
         """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""

@@ -5761,6 +5761,41 @@ class FileManagerWindow(wx.Frame):
             wx.MessageBox(f"Error propagating fittings: {str(e)}",
                           "Propagate Failed", wx.OK | wx.ICON_ERROR)
 
+    # Add these methods to FileManagerWindow class in FileManager.py
+    def copy_peak_table_and_background_from_current_sheet(self, sheet_name):
+        """Copy peak table and background from specified sheet"""
+        # Simulate a file manager row/col for the current sheet
+        row, col = 0, 1  # Dummy values
+
+        # Temporarily set grid value
+        if hasattr(self, 'grid'):
+            original_value = self.grid.GetCellValue(row, col) if self.grid.GetNumberRows() > 0 else ""
+            if self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, sheet_name)
+
+        try:
+            self.copy_peak_table_and_background_from_filemanager(row, col)
+        finally:
+            # Restore original value
+            if hasattr(self, 'grid') and self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, original_value)
+
+    def paste_peak_table_and_background_to_sheet(self, sheet_name):
+        """Paste peak table and background to specified sheet"""
+        # Similar approach as above
+        row, col = 0, 1
+
+        if hasattr(self, 'grid'):
+            original_value = self.grid.GetCellValue(row, col) if self.grid.GetNumberRows() > 0 else ""
+            if self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, sheet_name)
+
+        try:
+            self.paste_peak_table_and_background_single_from_filemanager(row, col)
+        finally:
+            if hasattr(self, 'grid') and self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, original_value)
+
 class CoreLevelSelectionDialog(wx.Dialog):
     """Dialog for selecting which core levels to paste peak table to"""
 
