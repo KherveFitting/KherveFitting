@@ -3116,26 +3116,31 @@ class FileManagerWindow(wx.Frame):
         copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
         paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
 
+        # menu.AppendSeparator()
+        #
+        # # Add peak table copy/paste functionality
+        # copy_peak_table = menu.Append(wx.ID_ANY, "Copy Peak Table")
+        # paste_peak_table = menu.Append(wx.ID_ANY, "Paste Peak Table (Single)")
+        # paste_peak_table_column = menu.Append(wx.ID_ANY, "Paste Peak Table (Multi)")
+        #
+        # menu.AppendSeparator()
+        #
+        # # Add background copy/paste functionality
+        # copy_background = menu.Append(wx.ID_ANY, "Copy Background")
+        # paste_background = menu.Append(wx.ID_ANY, "Paste Background (Single)")
+        # paste_background_select = menu.Append(wx.ID_ANY, "Paste Background (Multi)")
+        #
+        # menu.AppendSeparator()
+        #
+        # # Add combined peak table + background functionality
+        # copy_peak_bkg = menu.Append(wx.ID_ANY, "Copy Peak Table + Bkg")
+        # paste_peak_bkg_single = menu.Append(wx.ID_ANY, "Paste Peak Table + Bkg (Single)")
+        # paste_peak_bkg_multi = menu.Append(wx.ID_ANY, "Paste Peak Table + Bkg (Multi)")
+
         menu.AppendSeparator()
 
-        # Add peak table copy/paste functionality
-        copy_peak_table = menu.Append(wx.ID_ANY, "Copy Peak Table")
-        paste_peak_table = menu.Append(wx.ID_ANY, "Paste Peak Table (Single)")
-        paste_peak_table_column = menu.Append(wx.ID_ANY, "Paste Peak Table (Multi)")
-
-        menu.AppendSeparator()
-
-        # Add background copy/paste functionality
-        copy_background = menu.Append(wx.ID_ANY, "Copy Background")
-        paste_background = menu.Append(wx.ID_ANY, "Paste Background (Single)")
-        paste_background_select = menu.Append(wx.ID_ANY, "Paste Background (Multi)")
-
-        menu.AppendSeparator()
-
-        # Add combined peak table + background functionality
-        copy_peak_bkg = menu.Append(wx.ID_ANY, "Copy Peak Table + Bkg")
-        paste_peak_bkg_single = menu.Append(wx.ID_ANY, "Paste Peak Table + Bkg (Single)")
-        paste_peak_bkg_multi = menu.Append(wx.ID_ANY, "Paste Peak Table + Bkg (Multi)")
+        # Add propagate fittings functionality
+        propagate_fittings = menu.Append(wx.ID_ANY, "Propagate Fittings")
 
         # Add rename option for core level cells only
         if col > 0 and col <= len(self.core_levels):  # Only for core level columns
@@ -3167,39 +3172,48 @@ class FileManagerWindow(wx.Frame):
 
         paste_item.Enable(os.path.exists(clipboard_file))
 
-        # Enable peak table functions only for core level columns and if clipboard exists
-        has_peak_clipboard = os.path.exists(peak_clipboard_file)
-        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
-        has_background_clipboard = os.path.exists(background_clipboard_file)
+        # # Enable peak table functions only for core level columns and if clipboard exists
+        # has_peak_clipboard = os.path.exists(peak_clipboard_file)
+        # background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        # has_background_clipboard = os.path.exists(background_clipboard_file)
+        # is_core_level_column = col > 0 and col <= len(self.core_levels)
+        # has_current_core_level = is_core_level_column and bool(self.grid.GetCellValue(row, col).strip())
+        #
+        # copy_peak_table.Enable(has_current_core_level)
+        # paste_peak_table.Enable(has_peak_clipboard and has_current_core_level)
+        # paste_peak_table_column.Enable(has_peak_clipboard and is_core_level_column)
+        #
+        # # Enable background functions
+        # copy_background.Enable(has_current_core_level)
+        # paste_background.Enable(has_background_clipboard and has_current_core_level)
+        # paste_background_select.Enable(has_background_clipboard and is_core_level_column)
+        #
+        # # Enable combined functions
+        # has_both_clipboards = has_peak_clipboard and has_background_clipboard
+        # copy_peak_bkg.Enable(has_current_core_level)
+        # paste_peak_bkg_single.Enable(has_both_clipboards and has_current_core_level)
+        # paste_peak_bkg_multi.Enable(has_both_clipboards and is_core_level_column)
+
+        # Enable propagate fittings for core level columns with current core level
         is_core_level_column = col > 0 and col <= len(self.core_levels)
         has_current_core_level = is_core_level_column and bool(self.grid.GetCellValue(row, col).strip())
 
-        copy_peak_table.Enable(has_current_core_level)
-        paste_peak_table.Enable(has_peak_clipboard and has_current_core_level)
-        paste_peak_table_column.Enable(has_peak_clipboard and is_core_level_column)
-
-        # Enable background functions
-        copy_background.Enable(has_current_core_level)
-        paste_background.Enable(has_background_clipboard and has_current_core_level)
-        paste_background_select.Enable(has_background_clipboard and is_core_level_column)
-
-        # Enable combined functions
-        has_both_clipboards = has_peak_clipboard and has_background_clipboard
-        copy_peak_bkg.Enable(has_current_core_level)
-        paste_peak_bkg_single.Enable(has_both_clipboards and has_current_core_level)
-        paste_peak_bkg_multi.Enable(has_both_clipboards and is_core_level_column)
+        propagate_fittings.Enable(has_current_core_level)
 
         # Bind events
         self.Bind(wx.EVT_MENU, self.on_copy, copy_item)
         self.Bind(wx.EVT_MENU, self.on_paste, paste_item)
-        self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_from_filemanager(row, col), copy_peak_table)
-        self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_from_filemanager(row, col), paste_peak_table)
-        self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_to_column_from_filemanager(row, col), paste_peak_table_column)
-        self.Bind(wx.EVT_MENU, lambda evt: self.copy_background_from_filemanager(row, col), copy_background)
-        self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_from_filemanager(row, col), paste_background)
-        self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_to_column_from_filemanager(row, col), paste_background_select)
-        self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_and_background_single_from_filemanager(row, col), paste_peak_bkg_single)
-        self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_and_background_multi_from_filemanager(row, col), paste_peak_bkg_multi)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_from_filemanager(row, col), copy_peak_table)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_from_filemanager(row, col), paste_peak_table)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_to_column_from_filemanager(row, col), paste_peak_table_column)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.copy_background_from_filemanager(row, col), copy_background)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_from_filemanager(row, col), paste_background)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_to_column_from_filemanager(row, col), paste_background_select)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_and_background_from_filemanager(row, col), copy_peak_bkg)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_and_background_single_from_filemanager(row, col), paste_peak_bkg_single)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_and_background_multi_from_filemanager(row, col), paste_peak_bkg_multi)
+
+        self.Bind(wx.EVT_MENU, lambda evt: self.propagate_fittings_from_filemanager(row, col), propagate_fittings)
 
         # Add normalization propagation options for BE and Area normalization columns
         norm_be_col = len(self.core_levels) + 2
@@ -5284,8 +5298,8 @@ class FileManagerWindow(wx.Frame):
             # If we have recorded ranges, recreate the background from them using the target's data
             if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
 
-                # recreate background manually
-                wx.CallAfter(self.recreate_background_from_ranges, sheet_name, background_data['Recorded_Ranges'])
+                # recreate background manually - pass the background type from clipboard
+                wx.CallAfter(self.recreate_background_from_ranges, sheet_name, background_data['Recorded_Ranges'], background_data.get('Bkg Type', 'Smart'))
 
             else:
                 # No recorded ranges, just replot with the initialized background (Raw Data)
@@ -5301,7 +5315,7 @@ class FileManagerWindow(wx.Frame):
                 wx.CallAfter(lambda: self.parent.sheet_combobox.SetValue(original_sheet))
                 wx.CallAfter(lambda: on_sheet_selected(self.parent, original_sheet))
 
-    def recreate_background_from_ranges(self, sheet_name, recorded_ranges):
+    def recreate_background_from_ranges(self, sheet_name, recorded_ranges, background_method=None):
         """Recreate background from recorded ranges without fitting window dependency"""
         try:
             from libraries.Peak_Functions import BackgroundCalculations
@@ -5319,8 +5333,8 @@ class FileManagerWindow(wx.Frame):
             # Initialize background to raw data
             current_background = np.array(y_values)
 
-            # Get background method (default to Smart if not available)
-            method = getattr(self.parent, 'background_method', 'Smart')
+            # Get background method from parameter or parent (default to Smart if not available)
+            method = background_method or getattr(self.parent, 'background_method', 'Smart')
 
             # Special handling for Tougaard methods - they cannot be applied region-by-region
             if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
@@ -5377,9 +5391,9 @@ class FileManagerWindow(wx.Frame):
             core_level_data['Background']['Bkg Y'] = current_background.tolist()
             self.parent.background = current_background
 
-            # Ensure arrays are aligned before replotting
-            if hasattr(self.parent, 'x_values') and 'B.E.' in core_level_data:
-                self.parent.x_values = np.array(core_level_data['B.E.'])
+            # # Ensure arrays are aligned before replotting
+            # if hasattr(self.parent, 'x_values') and 'B.E.' in core_level_data:
+            #     self.parent.x_values = np.array(core_level_data['B.E.'])
 
             # Replot to show the new background
             self.parent.clear_and_replot()
@@ -5531,8 +5545,8 @@ class FileManagerWindow(wx.Frame):
 
     def copy_peak_table_and_background_from_filemanager(self, row, col):
         """Copy both peak table and background from the selected core level in file manager"""
-        import os
-        import tempfile
+
+        print("DEBUG: Starting copy of peak table and background")
 
         if col <= 0 or col > len(self.core_levels):
             return
@@ -5545,9 +5559,11 @@ class FileManagerWindow(wx.Frame):
         try:
             # Copy peak table first
             self.copy_peak_table_from_filemanager(row, col)
+            print("DEBUG: Peak table copied successfully")
 
             # Copy background second
             self.copy_background_from_filemanager(row, col)
+            print("DEBUG: Background copied successfully")
 
             self.parent.show_popup_message2("Peak Table + Background Copied",
                                             f"Peak table and background copied from '{sheet_name}'")
@@ -5671,6 +5687,79 @@ class FileManagerWindow(wx.Frame):
         except Exception as e:
             wx.MessageBox(f"Error pasting peak table and background: {str(e)}",
                           "Paste Failed", wx.OK | wx.ICON_ERROR)
+
+    def propagate_fittings_from_filemanager(self, row, col):
+        """Propagate fittings (copy peak table + background from selected core level, then paste to selected core levels in column)"""
+        import os
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        try:
+            # Step 1: Copy peak table and background from the selected core level
+            self.copy_peak_table_and_background_from_filemanager(row, col)
+
+            # Step 2: Get the column header (core level base name)
+            core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+            # Find all core levels that match this base name in the column
+            matching_core_levels = []
+            for grid_row in range(self.grid.GetNumberRows()):
+                cell_value = self.grid.GetCellValue(grid_row, col).strip()
+                if cell_value and cell_value in self.parent.Data['Core levels']:
+                    if cell_value.startswith(core_level_base) and cell_value != sheet_name:  # Exclude source
+                        matching_core_levels.append(cell_value)
+
+            if not matching_core_levels:
+                wx.MessageBox(f"No other core levels found for {core_level_base} to propagate to",
+                              "Propagate Failed", wx.OK | wx.ICON_WARNING)
+                return
+
+            # Step 3: Show selection dialog for target core levels
+            selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+            if not selected_core_levels:
+                return  # User cancelled
+
+            # Step 4: Paste to all selected core levels
+            success_count = 0
+            for core_level_name in selected_core_levels:
+                try:
+                    # Find the row containing this core level name
+                    target_row = -1
+                    for grid_row in range(self.grid.GetNumberRows()):
+                        if self.grid.GetCellValue(grid_row, col) == core_level_name:
+                            target_row = grid_row
+                            break
+
+                    if target_row == -1:
+                        print(f"Could not find grid row for core level: {core_level_name}")
+                        continue
+
+                    # Paste background first, then peak table
+                    self.paste_background_from_filemanager(target_row, col)
+                    self.paste_peak_table_from_filemanager(target_row, col)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to propagate fittings to {core_level_name}: {e}")
+
+            # Show success message
+            if success_count > 0:
+                self.parent.show_popup_message2("Fittings Propagated",
+                                                f"Fittings propagated from '{sheet_name}' to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to propagate fittings to any core levels", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error propagating fittings: {str(e)}",
+                          "Propagate Failed", wx.OK | wx.ICON_ERROR)
 
 class CoreLevelSelectionDialog(wx.Dialog):
     """Dialog for selecting which core levels to paste peak table to"""
