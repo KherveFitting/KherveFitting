@@ -46,9 +46,9 @@ class FittingWindow(wx.Frame):
         else:
             # Mini mode - smaller window
             if 'wxMac' in wx.PlatformInfo:
-                self.SetSize((262, 220))
-                self.SetMinSize((262, 220))
-                self.SetMaxSize((262, 220))
+                self.SetSize((262, 200))
+                self.SetMinSize((262, 200))
+                self.SetMaxSize((262, 200))
             elif 'wxGTK' in wx.PlatformInfo:
                 self.SetSize((260, 220))
             else:
@@ -571,7 +571,7 @@ class FittingWindow(wx.Frame):
         self.red_chi_squared_label = wx.StaticText(self.fitting_panel, label="Red. Chi²:")
         self.red_chi_squared_text = wx.TextCtrl(self.fitting_panel, style=wx.TE_READONLY)
         if not self.normal:
-            self.red_chi_squared_text.Hide()
+            self.red_chi_squared_label.Hide()
             self.red_chi_squared_text.Hide()
 
         # self.actual_iter_label = wx.StaticText(self.fitting_panel, label="Actual Iterations:")
