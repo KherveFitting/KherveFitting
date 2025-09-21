@@ -605,7 +605,7 @@ class MouseEventHandler:
 
         # Check if Fitting screen is active and a peak is selected
         elif (self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None):
-            print("Mouse wheel detected in Peak Fitting screen with a selected peak")
+            # print("Mouse wheel detected in Peak Fitting screen with a selected peak")
             # # Give focus to the canvas parent frame
             # if hasattr(self.window, 'right_frame'):
             #     self.window.right_frame.SetFocus()

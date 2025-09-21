@@ -95,7 +95,8 @@ class FittingWindow(wx.Frame):
             notebook.SetBackgroundColour(wx.Colour(240, 250, 250))
         self.init_background_tab(notebook)
         self.init_fitting_tab(notebook)
-        self.init_batch_operations_tab(notebook)
+        if not self.normal:
+            self.init_batch_operations_tab(notebook)
 
         main_sizer.Add(notebook, 1, wx.EXPAND,border=5)
         panel.SetSizer(main_sizer)
@@ -1958,7 +1959,10 @@ class FittingWindow(wx.Frame):
         # Update tab states
         self.parent.background_tab_selected = (selected_page == 0)
         self.parent.peak_fitting_tab_selected = (selected_page == 1)
-        self.parent.batch_operations_tab_selected = (selected_page == 2)
+        if self.normal:
+            self.parent.batch_operations_tab_selected = (selected_page == 2)
+        else:
+            self.parent.batch_operations_tab_selected = False
 
         # Handle background interaction
         if self.parent.background_tab_selected:
@@ -2023,6 +2027,9 @@ class FittingWindow(wx.Frame):
 
     def init_batch_operations_tab(self, notebook):
         """Initialize the batch operations tab in the notebook."""
+        if not self.normal:  # Don't create controls in mini mode
+            return
+
         self.batch_panel = wx.Panel(notebook)
 
         # Create main sizer
@@ -2101,7 +2108,8 @@ class FittingWindow(wx.Frame):
         batch_sizer.Add(fit_all_button, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         self.batch_panel.SetSizer(batch_sizer)
-        notebook.AddPage(self.batch_panel, "Batching")
+        if self.normal:  # Only add the page if in normal mode
+            notebook.AddPage(self.batch_panel, "Batching")
 
 
     def recreate_background_from_ranges_local(self, sheet_name, recorded_ranges, background_method):
@@ -3388,7 +3396,7 @@ class FittingWindow(wx.Frame):
                 self.parent.plot_manager.plot_background(self.parent)
         else:
             # STEP 5: No regions - don't create any background, just plot raw data
-            self.parent.plot_manager.clear_background(self.parent)
+            self.parent.plot_manager.clear_background_only(self.parent)
             self.parent.plot_data()
 
         save_state(self.parent)
