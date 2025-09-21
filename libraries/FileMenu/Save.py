@@ -1385,6 +1385,32 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None):
             window.Data['SampleNames'] = sample_names
             print(f"DEBUG---: Restored SampleNames after refresh: {window.Data['SampleNames']}")
 
+        # Add experimental description if missing in window.Data but available in Excel
+        update_console("Checking for experimental description data...")
+        # import pandas as pd
+        for sheet_name in sheet_names:
+            if 'experimental_description' not in window.Data['Core levels'][sheet_name]:
+                try:
+                    # Read experimental description from Excel column AX (around column 50)
+                    df_exp = pd.read_excel(file_path, sheet_name=sheet_name, usecols=[49, 50], header=None)
+
+                    experimental_data = []
+                    for idx, row in df_exp.iterrows():
+                        if pd.notna(row.iloc[0]) and pd.notna(row.iloc[1]):
+                            key = str(row.iloc[0]).strip()
+                            value = str(row.iloc[1]).strip()
+                            if key and value:  # Only add non-empty entries
+                                experimental_data.append([key, value])
+
+                    # Add experimental description to window.Data if found
+                    if experimental_data:
+                        window.Data['Core levels'][sheet_name]['experimental_description'] = experimental_data
+                        update_console(f"Added experimental description for {sheet_name}")
+
+                except Exception as exp_err:
+                    # Silently continue if experimental description cannot be read
+                    pass
+
         # Handle current sheet selection after normalization
         if current_sheet in name_changes:
             current_sheet = name_changes[current_sheet]

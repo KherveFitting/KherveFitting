@@ -1733,7 +1733,8 @@ class MouseEventHandler:
             copy = menu.Append(-1, "Copy Core Level")
             paste = menu.Append(-1, "Paste Core Level")
 
-            clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+            # clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
+            clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
             has_clipboard_data = os.path.exists(clipboard_file)
 
             menu.AppendSeparator()

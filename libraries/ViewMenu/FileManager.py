@@ -4399,7 +4399,7 @@ class FileManagerWindow(wx.Frame):
             return
 
         sheet_name = sheet_names[0]
-        exp_window = ExperimentalDescriptionWindow(self, sheet_name)
+        exp_window = ExperimentalDescriptionWindow(self.parent, sheet_name)
         exp_window.Show()
 
 
