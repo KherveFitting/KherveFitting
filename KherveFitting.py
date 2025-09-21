@@ -958,6 +958,11 @@ class MyFrame(wx.Frame):
 
                 self.peak_manipulation.remove_cross_from_peak()
                 self.peak_manipulation.highlight_selected_peak()  # Highlight the selected peak
+
+                self.motion_cid = self.canvas.mpl_connect('motion_notify_event',
+                                                          self.peak_manipulation.on_cross_drag)
+                self.release_cid = self.canvas.mpl_connect('button_release_event',
+                                                           self.peak_manipulation.on_cross_release)
             else:
                 self.selected_peak_index = None
                 self.peak_manipulation.deselect_all_peaks()

@@ -544,6 +544,13 @@ class MouseEventHandler:
 
 
     def on_mouse_wheel(self, event):
+
+        # # DEBUG: Print the two conditions
+        # print(f"DEBUG: peak_fitting_tab_selected = {self.window.peak_fitting_tab_selected}")
+        # print(f"DEBUG: selected_peak_index = {self.window.selected_peak_index}")
+        # print(f"DEBUG: Both conditions met = {self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None}")
+        # print("---")
+
         shift_currently_pressed = False
         shift_currently_pressed = event.key == 'shift'
 
@@ -598,6 +605,14 @@ class MouseEventHandler:
 
         # Check if Fitting screen is active and a peak is selected
         elif (self.window.peak_fitting_tab_selected and self.window.selected_peak_index is not None):
+            print("Mouse wheel detected in Peak Fitting screen with a selected peak")
+            # # Give focus to the canvas parent frame
+            # if hasattr(self.window, 'right_frame'):
+            #     self.window.right_frame.SetFocus()
+
+            # Give focus to the canvas so it can receive wheel events
+            self.window.canvas.SetFocus()
+
             # Fitting screen: adjust selected peak width
             save_state(self.window)
             delta = 0.025 if event.step > 0 else -0.025
@@ -911,278 +926,6 @@ class MouseEventHandler:
         # UPDATE AVERAGING INDICATOR LINES
         if hasattr(self.window, 'add_averaging_indicator_lines'):
             self.window.add_averaging_indicator_lines()
-
-    def redraw_all_regions_background_OLD(self):
-        """Delete whole background and redraw from region 1, 2, 3... in sequence"""
-        if not hasattr(self.window, 'fitting_window') or self.window.fitting_window is None:
-            return
-
-        sheet_name = self.window.sheet_combobox.GetValue()
-        if sheet_name not in self.window.Data['Core levels']:
-            return
-
-        # Get all recorded ranges from window.data
-        ranges = self.window.fitting_window.get_recorded_ranges_from_data()
-        if not ranges:
-            return
-
-        # Store current vline positions before they get destroyed
-        current_vline1_pos = None
-        current_vline2_pos = None
-        if self.window.vline1 is not None:
-            current_vline1_pos = self.window.vline1.get_xdata()[0]
-        if self.window.vline2 is not None:
-            current_vline2_pos = self.window.vline2.get_xdata()[0]
-
-        # Clear existing background
-        x_values = np.array(self.window.Data['Core levels'][sheet_name]['B.E.'], dtype=float)
-        y_values = np.array(self.window.Data['Core levels'][sheet_name]['Raw Data'], dtype=float)
-
-        # Initialize background to raw data
-        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_values.tolist()
-        current_background = np.array(y_values)
-
-        # Get active region index
-        active_region_index = getattr(self.window.fitting_window, 'active_range_index', -1)
-
-        # Apply each region in sequence: region 1, then 2, then 3, etc.
-        for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-            # # Calculate background for this specific region using window.data offset values
-            # from libraries.Peak_Functions import BackgroundCalculations
-            # current_background = BackgroundCalculations.calculate_adaptive_smart_background(
-            #     x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l
-            # )
-
-            # Calculate background for this specific region based on selected method
-            from libraries.Peak_Functions import BackgroundCalculations
-            method = self.window.background_method
-
-            # SPECIAL HANDLING FOR TOUGAARD METHODS - they cannot be applied region-by-region
-            if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
-                # Skip region-by-region processing for Tougaard methods
-                # They will be handled by the final step outside the loop
-                pass
-            elif method == "Multi-Regions Smart":
-                current_background = BackgroundCalculations.calculate_adaptive_smart_background(
-                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-            elif method == "Shirley":
-                current_background = BackgroundCalculations.calculate_adaptive_shirley_background(
-                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-            elif method == "Linear":
-                current_background = BackgroundCalculations.calculate_adaptive_linear_background(
-                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-            elif method == "Smart":
-                current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
-                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-            else:
-                # Fallback to smart for unknown methods
-                current_background = BackgroundCalculations.calculate_adaptive_smart_background(
-                    x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-
-            # Handle Tougaard methods AFTER processing all regions
-            method = self.window.background_method
-            if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
-                print(f"Applying {method} to all regions...")
-
-                # Store original values
-                temp_bg_min = self.window.bg_min_energy
-                temp_bg_max = self.window.bg_max_energy
-
-                # Set full range for Tougaard calculation
-                self.window.bg_min_energy = float(np.min(x_values))
-                self.window.bg_max_energy = float(np.max(x_values))
-
-                try:
-                    # Calculate Tougaard background for entire spectrum or per-region
-                    if method == "U4-Tougaard":
-                        full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
-                            x_values, y_values, sheet_name, self.window)
-                    elif method == "U2-Tougaard":
-                        # For U2-Tougaard: Calculate backgrounds region by region using CURRENT background state
-                        current_background = np.array(y_values)  # Start with raw data
-
-                        for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-                            print(f"Calculating U2-Tougaard for region {i + 1}: {min_range:.2f} - {max_range:.2f} eV")
-
-                            # Use the current cumulative background state (includes previous regions)
-                            # This is critical - each region builds on the previous ones
-                            region_vline_range = (min_range, max_range)
-
-                            # Pass the current background state, not raw y_values
-                            region_tougaard_bg = BackgroundCalculations.calculate_u2_tougaard_background(
-                                x_values, current_background, sheet_name, self.window, region_vline_range)
-
-                            # Apply only to this region
-                            region_mask = (x_values >= min_range) & (x_values <= max_range)
-                            current_background[region_mask] = region_tougaard_bg[region_mask]
-
-                            # Get the fitted parameters for logging
-                            fitted_b = self.window.Data['Core levels'][sheet_name]['Background'].get('Fitted_B', 0)
-                            fitted_c = self.window.Data['Core levels'][sheet_name]['Background'].get('Fitted_C', 1643)
-                            print(f"Region {i + 1} U2-Tougaard: B={fitted_b:.2f}, C={fitted_c:.2f} applied to {min_range:.2f}-{max_range:.2f}")
-
-                        # Don't apply again outside the loop
-                        full_tougaard_bg = current_background
-                    else:
-                        full_tougaard_bg = current_background  # fallback
-
-                    # Apply Tougaard background ONLY in the defined regions (skip for U2 since already done)
-                    if method != "U2-Tougaard":
-                        current_background = np.array(y_values)  # Start fresh with raw data
-                        for offset_h, offset_l, min_range, max_range in ranges:
-                            region_mask = (x_values >= min_range) & (x_values <= max_range)
-                            current_background[region_mask] = full_tougaard_bg[region_mask]
-
-                finally:
-                    # Restore original values
-                    self.window.bg_min_energy = temp_bg_min
-                    self.window.bg_max_energy = temp_bg_max
-        # Update the final background
-        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
-        self.window.background = current_background
-
-        # CRITICAL: Update window offset values to match active region offsets
-        # This ensures plot_background() uses correct offsets for the active region
-        if active_region_index >= 0 and active_region_index < len(ranges):
-            active_offset_h, active_offset_l, _, _ = ranges[active_region_index]
-            self.window.offset_h = active_offset_h
-            self.window.offset_l = active_offset_l
-            # print(f"Updated window offsets to active region values: {active_offset_h:.1f}, {active_offset_l:.1f}")
-
-        # Redraw the plot
-        self.window.plot_manager.plot_background(self.window)
-
-        # Force correct legend update for Multi-Regions Smart background
-        if hasattr(self.window.plot_manager, 'update_legend'):
-            self.window.plot_manager.update_legend(self.window)
-
-        # RESTORE vLines after plotting (they get destroyed by clear_and_replot)
-        if current_vline1_pos is not None and current_vline2_pos is not None:
-            # Force vline recreation at stored positions
-            wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
-
-    def redraw_all_regions_background_OLD2(self):
-        """Delete whole background and redraw from region 1, 2, 3... in sequence"""
-
-        from libraries.Peak_Functions import BackgroundCalculations
-        if not hasattr(self.window, 'fitting_window') or self.window.fitting_window is None:
-            return
-
-        sheet_name = self.window.sheet_combobox.GetValue()
-        if sheet_name not in self.window.Data['Core levels']:
-            return
-
-        # Get all recorded ranges from window.data
-        ranges = self.window.fitting_window.get_recorded_ranges_from_data()
-        if not ranges:
-            return
-
-        # Store current vline positions before they get destroyed
-        current_vline1_pos = None
-        current_vline2_pos = None
-        if self.window.vline1 is not None:
-            current_vline1_pos = self.window.vline1.get_xdata()[0]
-        if self.window.vline2 is not None:
-            current_vline2_pos = self.window.vline2.get_xdata()[0]
-
-        # Clear existing background
-        x_values = np.array(self.window.Data['Core levels'][sheet_name]['B.E.'], dtype=float)
-        y_values = np.array(self.window.Data['Core levels'][sheet_name]['Raw Data'], dtype=float)
-
-        # Initialize background to raw data
-        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_values.tolist()
-        current_background = np.array(y_values)
-
-        # Get active region index
-        active_region_index = getattr(self.window.fitting_window, 'active_range_index', -1)
-
-        method = self.window.background_method
-
-        # HANDLE TOUGAARD METHODS SEPARATELY (OUTSIDE THE MAIN LOOP)
-        if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
-            print(f"Applying {method} to all regions...")
-
-            # Store original values
-            temp_bg_min = self.window.bg_min_energy
-            temp_bg_max = self.window.bg_max_energy
-
-            # Set full range for Tougaard calculation
-            self.window.bg_min_energy = float(np.min(x_values))
-            self.window.bg_max_energy = float(np.max(x_values))
-
-            try:
-                if method == "U4-Tougaard":
-                    full_tougaard_bg = BackgroundCalculations.calculate_tougaard_background(
-                        x_values, y_values, sheet_name, self.window)
-                    # Apply to all regions
-                    for offset_h, offset_l, min_range, max_range in ranges:
-                        region_mask = (x_values >= min_range) & (x_values <= max_range)
-                        current_background[region_mask] = full_tougaard_bg[region_mask]
-
-                elif method == "U2-Tougaard":
-                    # For U2-Tougaard: Calculate each region independently
-                    for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-                        print(f"Calculating U2-Tougaard for region {i + 1}: {min_range:.2f} - {max_range:.2f} eV")
-
-                        region_vline_range = (min_range, max_range)
-                        region_tougaard_bg = BackgroundCalculations.calculate_u2_tougaard_background(
-                            x_values, current_background, sheet_name, self.window, region_vline_range)
-
-                        # Apply only to this region
-                        region_mask = (x_values >= min_range) & (x_values <= max_range)
-                        current_background[region_mask] = region_tougaard_bg[region_mask]
-
-                        # Get the fitted parameters for logging
-                        fitted_b = self.window.Data['Core levels'][sheet_name]['Background'].get('Fitted_B', 0)
-                        fitted_c = self.window.Data['Core levels'][sheet_name]['Background'].get('Fitted_C', 1643)
-                        print(f"Region {i + 1} U2-Tougaard: B={fitted_b:.2f}, C={fitted_c:.2f} applied to {min_range:.2f}-{max_range:.2f}")
-            finally:
-                # Restore original values
-                self.window.bg_min_energy = temp_bg_min
-                self.window.bg_max_energy = temp_bg_max
-
-        else:
-            # HANDLE NON-TOUGAARD METHODS WITH MAIN LOOP
-            for i, (offset_h, offset_l, min_range, max_range) in enumerate(ranges):
-
-
-                if method == "Multi-Regions Smart":
-                    current_background = BackgroundCalculations.calculate_adaptive_smart_background(
-                        x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-                elif method == "Shirley":
-                    current_background = BackgroundCalculations.calculate_adaptive_shirley_background(
-                        x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-                elif method == "Linear":
-                    current_background = BackgroundCalculations.calculate_adaptive_linear_background(
-                        x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-                elif method == "Smart":
-                    current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
-                        x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-                else:
-                    # Fallback to smart for unknown methods
-                    current_background = BackgroundCalculations.calculate_adaptive_smart_background(
-                        x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-
-        # Update the final background
-        self.window.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = current_background.tolist()
-        self.window.background = current_background
-
-        # CRITICAL: Update window offset values to match active region offsets
-        if active_region_index >= 0 and active_region_index < len(ranges):
-            active_offset_h, active_offset_l, _, _ = ranges[active_region_index]
-            self.window.offset_h = active_offset_h
-            self.window.offset_l = active_offset_l
-
-        # Redraw the plot
-        self.window.plot_manager.plot_background(self.window)
-
-        # Force correct legend update
-        if hasattr(self.window.plot_manager, 'update_legend'):
-            self.window.plot_manager.update_legend(self.window)
-
-        # RESTORE vLines after plotting
-        if current_vline1_pos is not None and current_vline2_pos is not None:
-            wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
 
     def redraw_all_regions_background(self):
         """Delete whole background and redraw from region 1, 2, 3... in sequence"""
