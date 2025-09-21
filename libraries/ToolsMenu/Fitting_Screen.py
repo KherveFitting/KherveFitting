@@ -46,11 +46,11 @@ class FittingWindow(wx.Frame):
         else:
             # Mini mode - smaller window
             if 'wxMac' in wx.PlatformInfo:
-                self.SetSize((262, 280))
-                self.SetMinSize((262, 280))
-                self.SetMaxSize((262, 350))
+                self.SetSize((262, 220))
+                self.SetMinSize((262, 220))
+                self.SetMaxSize((262, 220))
             elif 'wxGTK' in wx.PlatformInfo:
-                self.SetSize((260, 320))
+                self.SetSize((260, 220))
             else:
                 self.SetSize((275, 220))
 
@@ -389,9 +389,9 @@ class FittingWindow(wx.Frame):
                 background_sizer.Add(reset_vlines_button, pos=(2, 0), flag=wx.ALL | wx.EXPAND, border=1)
                 # background_sizer.Add(clear_background_button, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
                 # background_sizer.Add(self.tougaard_fit_btn, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
-                background_sizer.Add(clear_background_only_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
-                background_sizer.Add(background_button, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
-                background_sizer.Add(remove_active_region_button, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+                background_sizer.Add(clear_background_only_button, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
+                background_sizer.Add(background_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+                background_sizer.Add(remove_active_region_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
         else:
 
