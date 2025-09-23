@@ -1750,6 +1750,9 @@ class FittingWindow(wx.Frame):
                     offset_l_value = self.get_offset_actual_value(self.offset_l_text)
                     self.update_active_range_offsets(offset_h_value, offset_l_value)
 
+                # Update peak fitting grid like vline dragging does
+                self.update_peak_fitting_grid_background_data()
+
                 # Redraw background from all regions
                 if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
                                                                      'redraw_all_regions_background'):
@@ -1779,6 +1782,10 @@ class FittingWindow(wx.Frame):
                 if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
                     offset_h_value = self.get_offset_actual_value(self.offset_h_text)
                     self.update_active_range_offsets(offset_h_value, offset_l_value)
+
+                # Update peak fitting grid like vline dragging does
+                print("Updating peak fitting grid background data due to offset_l change")
+                self.update_peak_fitting_grid_background_data()
 
                 # Redraw background from all regions
                 if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
@@ -2054,15 +2061,12 @@ class FittingWindow(wx.Frame):
         batch_sizer.Add(self.batch_progress_label, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=1)
         batch_sizer.Add(self.batch_progress_text, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        # Core levels selection label
-        core_levels_label = wx.StaticText(self.batch_panel, label="Select Core Levels to Fit:")
-        batch_sizer.Add(core_levels_label, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
 
         # Core levels checklist box
         self.core_levels_checklist = wx.CheckListBox(self.batch_panel, style=wx.LB_MULTIPLE)
         self.core_levels_checklist.SetMinSize((250, 120))
         self.populate_core_levels_list()
-        batch_sizer.Add(self.core_levels_checklist, pos=(5, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+        batch_sizer.Add(self.core_levels_checklist, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
 
         # Select All and Unselect All buttons
         select_all_button = wx.Button(self.batch_panel, label="Select All")
@@ -2086,7 +2090,7 @@ class FittingWindow(wx.Frame):
         batch_sizer.Add(unselect_all_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Propagate Fittings button
-        propagate_button = wx.Button(self.batch_panel, label="Propagate\nFittings")
+        propagate_button = wx.Button(self.batch_panel, label="Propagate Fit\nto Column")
         if 'wxMac' in wx.PlatformInfo:
             propagate_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -2094,7 +2098,18 @@ class FittingWindow(wx.Frame):
         else:
             propagate_button.SetMinSize((125, 35))
         propagate_button.Bind(wx.EVT_BUTTON, self.on_propagate_fittings)
-        batch_sizer.Add(propagate_button, pos=(7, 0), flag=wx.ALL | wx.EXPAND, border=0)
+        batch_sizer.Add(propagate_button, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Constraints button
+        propagate_constraints_button = wx.Button(self.batch_panel, label="Propagate Constraints\nto Column")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_constraints_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_constraints_button.SetMinSize((125, 35))
+        else:
+            propagate_constraints_button.SetMinSize((125, 35))
+        propagate_constraints_button.Bind(wx.EVT_BUTTON, self.on_propagate_constraints)
+        batch_sizer.Add(propagate_constraints_button, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Fit Selected button
         fit_all_button = wx.Button(self.batch_panel, label="Fit Selected\nCore Levels")
@@ -2105,7 +2120,7 @@ class FittingWindow(wx.Frame):
         else:
             fit_all_button.SetMinSize((125, 35))
         fit_all_button.Bind(wx.EVT_BUTTON, self.on_fit_all)
-        batch_sizer.Add(fit_all_button, pos=(7, 1), flag=wx.ALL | wx.EXPAND, border=0)
+        batch_sizer.Add(fit_all_button, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         self.batch_panel.SetSizer(batch_sizer)
         if self.normal:  # Only add the page if in normal mode
@@ -2196,7 +2211,6 @@ class FittingWindow(wx.Frame):
         import tempfile
         import json
         from libraries.FileMenu.Save import copy_all_peak_parameters, paste_all_peak_parameters
-        from libraries.ViewMenu.FileManager import CoreLevelSelectionDialog
 
         # Get current sheet
         current_sheet = self.parent.sheet_combobox.GetValue()
@@ -2209,30 +2223,35 @@ class FittingWindow(wx.Frame):
             wx.MessageBox("No peaks to propagate from current core level", "Propagate Failed", wx.OK | wx.ICON_WARNING)
             return
 
-        # Find matching core levels for the current sheet
-        current_base = current_sheet.split('_')[0] if '_' in current_sheet else current_sheet.rstrip('0123456789')
-        matching_core_levels = []
+        # Get selected core levels from checklist
+        selected_sheets = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.IsChecked(i):
+                selected_sheets.append(self.core_levels_checklist.GetString(i))
 
-        for core_level in self.parent.Data['Core levels'].keys():
-            if core_level != current_sheet:
-                core_base = core_level.split('_')[0] if '_' in core_level else core_level.rstrip('0123456789')
-                if core_base == current_base:
-                    matching_core_levels.append(core_level)
-
-        if not matching_core_levels:
-            wx.MessageBox(f"No other core levels found for {current_base} to propagate to",
-                          "Propagate Failed", wx.OK | wx.ICON_WARNING)
+        if not selected_sheets:
+            wx.MessageBox("No core levels selected for propagation.", "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        # Show selection dialog
-        dialog = CoreLevelSelectionDialog(self, matching_core_levels, current_base)
-        selected_core_levels = []
-        if dialog.ShowModal() == wx.ID_OK:
-            selected_core_levels = dialog.get_selected_core_levels()
-        dialog.Destroy()
+        # Filter to same column only
+        current_column = self.extract_column_type(current_sheet)
+        same_column_sheets = []
+        omitted_sheets = []
 
-        if not selected_core_levels:
-            return  # User cancelled
+        for sheet in selected_sheets:
+            if sheet == current_sheet:
+                continue  # Skip self
+
+            sheet_column = self.extract_column_type(sheet)
+            if sheet_column == current_column:
+                same_column_sheets.append(sheet)
+            else:
+                omitted_sheets.append(sheet)
+
+        if not same_column_sheets:
+            wx.MessageBox(f"No core levels of the same column type ({current_column}) are selected for propagation.",
+                          "Nothing to Propagate", wx.OK | wx.ICON_WARNING)
+            return
 
         try:
             # Copy peak table and background from current sheet
@@ -2244,7 +2263,8 @@ class FittingWindow(wx.Frame):
 
             # Paste to selected core levels
             success_count = 0
-            for target_sheet in selected_core_levels:
+            failed_sheets = []
+            for target_sheet in same_column_sheets:
                 try:
                     # Switch to target sheet
                     self.parent.sheet_combobox.SetValue(target_sheet)
@@ -2259,14 +2279,30 @@ class FittingWindow(wx.Frame):
 
                 except Exception as e:
                     print(f"Failed to propagate to {target_sheet}: {e}")
+                    failed_sheets.append(target_sheet)
 
             # Restore original sheet
             self.parent.sheet_combobox.SetValue(original_sheet)
             on_sheet_selected(self.parent, original_sheet)
 
+            # Show completion message with omitted info
+            total_sheets = len(same_column_sheets)
+            completion_msg = f"Successfully propagated fittings to {success_count}/{total_sheets} {current_column} core levels."
+
+            if failed_sheets:
+                completion_msg += f"\n\nFailed to propagate to {len(failed_sheets)} core levels: {', '.join(failed_sheets[:3])}"
+                if len(failed_sheets) > 3:
+                    completion_msg += f" and {len(failed_sheets) - 3} more..."
+
+            if omitted_sheets:
+                completion_msg += f"\n\n{len(omitted_sheets)} core levels were omitted (different column type):\n"
+                completion_msg += ", ".join(omitted_sheets[:5])  # Show first 5
+                if len(omitted_sheets) > 5:
+                    completion_msg += f" and {len(omitted_sheets) - 5} more..."
+
             if success_count > 0:
-                self.parent.show_popup_message2("Fittings Propagated",
-                                                f"Fittings propagated to {success_count} core level(s)")
+                self.batch_progress_text.SetValue(f"Fittings propagated to {success_count}/{total_sheets} {current_column} core levels")
+                wx.MessageBox(completion_msg, "Success", wx.OK | wx.ICON_INFORMATION)
             else:
                 wx.MessageBox("Failed to propagate to any core levels", "Propagate Failed", wx.OK | wx.ICON_ERROR)
 
@@ -2473,6 +2509,51 @@ class FittingWindow(wx.Frame):
             if self.core_levels_checklist.IsChecked(i):
                 selected.append(self.core_levels_checklist.GetString(i))
         return selected
+
+    def update_peak_fitting_grid_background_data(self):
+        """Update peak fitting grid background data like vline dragging does"""
+        if not (hasattr(self.parent, 'peak_params_grid') and
+                self.parent.peak_params_grid.GetNumberRows() > 0):
+            return
+
+        # Get overall background range
+        overall_bg_low, overall_bg_high = self.get_overall_background_range()
+
+        # Get current offset values from text controls
+        try:
+            offset_h_value = float(self.offset_h_text.GetValue())  # Left/High BE side
+            offset_l_value = float(self.offset_l_text.GetValue())  # Right/Low BE side
+        except (ValueError, AttributeError):
+            offset_h_value = 0.0
+            offset_l_value = 0.0
+
+        # Update all peaks in peak fitting grid
+        num_peaks = self.parent.peak_params_grid.GetNumberRows() // 2
+        for i in range(num_peaks):
+            row = i * 2
+            # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High, 17=Bkg Offset Low, 18=Bkg Offset High
+            self.parent.peak_params_grid.SetCellValue(row, 14, self.parent.background_method)
+            self.parent.peak_params_grid.SetCellValue(row, 15, f"{overall_bg_low:.2f}")
+            self.parent.peak_params_grid.SetCellValue(row, 16, f"{overall_bg_high:.2f}")
+            self.parent.peak_params_grid.SetCellValue(row, 17, f"{offset_l_value:.2f}")  # Bkg Offset Low (Right)
+            self.parent.peak_params_grid.SetCellValue(row, 18, f"{offset_h_value:.2f}")  # Bkg Offset High (Left)
+
+        # Update window.Data peak parameters
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        if (sheet_name in self.parent.Data['Core levels'] and
+                'Fitting' in self.parent.Data['Core levels'][sheet_name] and
+                'Peaks' in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+
+            peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+            for peak_label, peak_data in peaks.items():
+                peak_data['Bkg Type'] = self.parent.background_method
+                peak_data['Bkg Low'] = float(overall_bg_low)
+                peak_data['Bkg High'] = float(overall_bg_high)
+                peak_data['Bkg Offset Low'] = float(offset_l_value)  # Right/Low BE side
+                peak_data['Bkg Offset High'] = float(offset_h_value)  # Left/High BE side
+
+        # Force grid refresh
+        self.parent.peak_params_grid.ForceRefresh()
 
     def on_key_down(self, event):
         """Handle KEY_DOWN events for UP/DOWN arrow increment before TextCtrl processes them"""
@@ -3128,57 +3209,8 @@ class FittingWindow(wx.Frame):
 
                 self.parent.canvas.draw_idle()
 
-            # Update active range positions if one is selected
-            if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
-                if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
-                                                                     'update_active_region_positions'):
-                    self.parent.mouse_handler.update_active_region_positions()
-
-            # Redraw background from all regions
-            if hasattr(self.parent, 'mouse_handler') and hasattr(self.parent.mouse_handler,
-                                                                 'redraw_all_regions_background'):
-                self.parent.mouse_handler.redraw_all_regions_background()
-
-        except ValueError:
-            pass
-
-    def on_max_range_change_OLD_BE(self, event):
-        if self.updating_range_controls:
-            return
-
-        try:
-            new_max = float(self.max_range_text.GetValue())
-            min_val = float(self.min_range_text.GetValue())
-
-            new_max = round(new_max, 2)
-            min_val = round(min_val, 2)
-
-            if new_max < min_val:
-                self.updating_range_controls = True
-                self.max_range_text.SetValue(f"{min_val:.2f}")
-                self.min_range_text.SetValue(f"{new_max:.2f}")
-                self.updating_range_controls = False
-                new_max = min_val
-
-            if self.parent.vline2 is not None:
-                self.parent.vline2.set_xdata([new_max, new_max])
-
-                # Update data structure
-                sheet_name = self.parent.sheet_combobox.GetValue()
-                if sheet_name in self.parent.Data['Core levels']:
-                    if 'Background' not in self.parent.Data['Core levels'][sheet_name]:
-                        self.parent.Data['Core levels'][sheet_name]['Background'] = {}
-                    self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = float(new_max)
-
-                # Update text labels
-                if hasattr(self.parent, 'update_vline_text_labels'):
-                    self.parent.update_vline_text_labels()
-
-                # Update averaging indicator lines
-                if hasattr(self.parent, 'add_averaging_indicator_lines'):
-                    self.parent.add_averaging_indicator_lines()
-
-                self.parent.canvas.draw_idle()
+            # Update peak fitting grid like vline dragging does
+            self.update_peak_fitting_grid_background_data()
 
             # Update active range positions if one is selected
             if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
@@ -3193,6 +3225,7 @@ class FittingWindow(wx.Frame):
 
         except ValueError:
             pass
+
 
     def on_max_range_change(self, event):
         if self.updating_range_controls:
@@ -3234,6 +3267,9 @@ class FittingWindow(wx.Frame):
                 if hasattr(self.parent, 'add_averaging_indicator_lines'):
                     self.parent.add_averaging_indicator_lines()
                 self.parent.canvas.draw_idle()
+
+            # Update peak fitting grid like vline dragging does
+            self.update_peak_fitting_grid_background_data()
 
             # Update active range positions and redraw background
             if hasattr(self, 'active_range_index') and self.active_range_index >= 0:
@@ -3304,6 +3340,221 @@ class FittingWindow(wx.Frame):
 
         finally:
             self.updating_range_controls = False
+
+    def on_propagate_constraints(self, event):
+        """Propagate constraints from current core level to selected core levels in same column"""
+        from libraries.FileMenu.Save import save_state
+
+        save_state(self.parent)
+
+        # Get current sheet name
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if not current_sheet:
+            wx.MessageBox("No current core level selected.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get selected core levels from checklist
+        selected_sheets = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.IsChecked(i):
+                selected_sheets.append(self.core_levels_checklist.GetString(i))
+
+        if not selected_sheets:
+            wx.MessageBox("No core levels selected for propagation.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Filter to same column only
+        current_column = self.extract_column_type(current_sheet)
+        same_column_sheets = []
+        omitted_sheets = []
+
+        for sheet in selected_sheets:
+            if sheet == current_sheet:
+                continue  # Skip self
+
+            sheet_column = self.extract_column_type(sheet)
+            if sheet_column == current_column:
+                same_column_sheets.append(sheet)
+            else:
+                omitted_sheets.append(sheet)
+
+        # Get constraints from current core level
+        source_constraints = self.get_current_constraints(current_sheet)
+        if not source_constraints:
+            wx.MessageBox("No constraints found in current core level.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Simple confirmation message
+        if not same_column_sheets:
+            wx.MessageBox(f"No core levels of the same column type ({current_column}) are selected for propagation.",
+                          "Nothing to Propagate", wx.OK | wx.ICON_WARNING)
+            return
+
+        # msg = f"Propagate constraints from '{current_sheet}' to {len(same_column_sheets)} selected {current_column} core levels?"
+        #
+        # if wx.MessageBox(msg, "Confirm Propagation", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+        #     return
+
+        # Progress tracking
+        total_sheets = len(same_column_sheets)
+        propagated_count = 0
+
+        # Propagate to each same-column sheet
+        for target_sheet in same_column_sheets:
+            try:
+                if self.propagate_constraints_to_sheet(source_constraints, target_sheet):
+                    propagated_count += 1
+            except Exception as e:
+                print(f"Error propagating constraints to {target_sheet}: {e}")
+                continue
+
+        # Show completion message with omitted info
+        completion_msg = f"Successfully propagated constraints to {propagated_count}/{total_sheets} {current_column} core levels."
+
+        if omitted_sheets:
+            completion_msg += f"\n\n{len(omitted_sheets)} core levels were omitted (different column type):\n"
+            completion_msg += ", ".join(omitted_sheets[:5])  # Show first 5
+            if len(omitted_sheets) > 5:
+                completion_msg += f" and {len(omitted_sheets) - 5} more..."
+
+        if propagated_count > 0:
+            self.batch_progress_text.SetValue(f"Constraints propagated to {propagated_count}/{total_sheets} {current_column} core levels")
+            wx.MessageBox(completion_msg, "Success", wx.OK | wx.ICON_INFORMATION)
+        else:
+            wx.MessageBox("No constraints were propagated.", "Warning", wx.OK | wx.ICON_WARNING)
+
+    def extract_column_type(self, sheet_name):
+        """Extract the column type (element + orbital) from sheet name"""
+        if not sheet_name:
+            return ""
+
+        # Handle common XPS naming patterns
+        import re
+
+        # Remove common suffixes/prefixes that might indicate sample info
+        cleaned_name = sheet_name.strip()
+
+        # Look for pattern: Element + orbital (e.g., C1s, O1s, Au4f, Ti2p, etc.)
+        # Pattern matches: Letters followed by numbers and optional letters
+        pattern = r'^([A-Z][a-z]?\d+[a-z]*).*'
+        match = re.match(pattern, cleaned_name)
+
+        if match:
+            return match.group(1)
+
+        # Fallback: look for first part before underscore, space, or dash
+        separators = ['_', ' ', '-', '.']
+        for sep in separators:
+            if sep in cleaned_name:
+                first_part = cleaned_name.split(sep)[0]
+                # Check if first part looks like a core level (has both letters and numbers)
+                if re.match(r'^[A-Z][a-z]?\d+[a-z]*$', first_part):
+                    return first_part
+                break
+
+        # Final fallback: return first 4 characters or whole name if shorter
+        return cleaned_name[:4] if len(cleaned_name) > 4 else cleaned_name
+
+    def get_current_constraints(self, sheet_name):
+        """Extract all constraints from the current core level"""
+        constraints_data = {}
+
+        # Check if sheet exists and has fitting data
+        if (sheet_name not in self.parent.Data['Core levels'] or
+                'Fitting' not in self.parent.Data['Core levels'][sheet_name] or
+                'Peaks' not in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+            return constraints_data
+
+        # Get constraints from grid
+        if self.parent.peak_params_grid.GetNumberRows() == 0:
+            return constraints_data
+
+        # Iterate through constraint rows (odd rows: 1, 3, 5, etc.)
+        peak_index = 0
+        for row in range(1, self.parent.peak_params_grid.GetNumberRows(), 2):
+            peak_constraints = {}
+
+            # Extract constraints from columns 2-9 (Position, Height, FWHM, L/G, Area, Sigma, Gamma, Skew)
+            constraint_columns = {
+                2: 'Position', 3: 'Height', 4: 'FWHM', 5: 'L/G',
+                6: 'Area', 7: 'Sigma', 8: 'Gamma', 9: 'Skew'
+            }
+
+            for col, constraint_name in constraint_columns.items():
+                constraint_value = self.parent.peak_params_grid.GetCellValue(row, col)
+                if constraint_value and constraint_value.strip():
+                    peak_constraints[constraint_name] = constraint_value.strip()
+
+            if peak_constraints:
+                constraints_data[peak_index] = peak_constraints
+
+            peak_index += 1
+
+        return constraints_data
+
+    def propagate_constraints_to_sheet(self, source_constraints, target_sheet):
+        """Apply source constraints to target sheet"""
+        try:
+            # Temporarily switch to target sheet
+            original_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.SetValue(target_sheet)
+
+            # Load the target sheet
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, target_sheet)
+
+            # Apply constraints to matching peaks
+            rows_updated = 0
+            for peak_index, constraints in source_constraints.items():
+                # Calculate constraint row (peak_index * 2 + 1)
+                constraint_row = peak_index * 2 + 1
+
+                # Check if this constraint row exists in target sheet
+                if constraint_row >= self.parent.peak_params_grid.GetNumberRows():
+                    continue
+
+                # Apply each constraint
+                constraint_columns = {
+                    'Position': 2, 'Height': 3, 'FWHM': 4, 'L/G': 5,
+                    'Area': 6, 'Sigma': 7, 'Gamma': 8, 'Skew': 9
+                }
+
+                for constraint_name, constraint_value in constraints.items():
+                    if constraint_name in constraint_columns:
+                        col = constraint_columns[constraint_name]
+                        self.parent.peak_params_grid.SetCellValue(constraint_row, col, constraint_value)
+
+                rows_updated += 1
+
+            # Update the data structure
+            if target_sheet in self.parent.Data['Core levels']:
+                fitting_data = self.parent.Data['Core levels'][target_sheet].get('Fitting', {})
+                peaks_data = fitting_data.get('Peaks', {})
+
+                peak_keys = list(peaks_data.keys())
+                for peak_index, constraints in source_constraints.items():
+                    if peak_index < len(peak_keys):
+                        peak_key = peak_keys[peak_index]
+                        if 'Constraints' not in peaks_data[peak_key]:
+                            peaks_data[peak_key]['Constraints'] = {}
+
+                        # Update constraints in data structure
+                        for constraint_name, constraint_value in constraints.items():
+                            peaks_data[peak_key]['Constraints'][constraint_name] = constraint_value
+
+            # Force grid refresh
+            self.parent.peak_params_grid.ForceRefresh()
+
+            # Switch back to original sheet
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+
+            return rows_updated > 0
+
+        except Exception as e:
+            print(f"Error in propagate_constraints_to_sheet: {e}")
+            return False
+
 
     def on_remove_active_region(self, event):
         """Remove the currently active region"""
