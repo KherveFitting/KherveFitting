@@ -1039,7 +1039,7 @@ class AutoSurveyID:
             print(f"  Priority: {element_data['priority']}")
             print(f"  Prominence: {element_data['prominence']:.4f}")
 
-            # Calculate area and height with Multi-Regions Smart background
+            # Calculate area and height with U2-Tougaard background
             area, bg_low, bg_high, peak_height = self.calculate_peak_area_and_height_with_background(
                 element_data['peak_position'],
                 x_data,
@@ -1075,7 +1075,7 @@ class AutoSurveyID:
             self.parent.peak_params_grid.SetCellValue(row, 8, "0.00")  # Gamma
             self.parent.peak_params_grid.SetCellValue(row, 9, "0.00")  # Skew
             self.parent.peak_params_grid.SetCellValue(row, 13, "Unfitted")  # Model
-            self.parent.peak_params_grid.SetCellValue(row, 14, "Multi-Regions Smart")  # Bkg Type
+            self.parent.peak_params_grid.SetCellValue(row, 14, "U2-Tougaard")  # Bkg Type
             self.parent.peak_params_grid.SetCellValue(row, 15, f"{bg_low:.2f}")  # Bkg Low
             self.parent.peak_params_grid.SetCellValue(row, 16, f"{bg_high:.2f}")  # Bkg High
             self.parent.peak_params_grid.SetCellValue(row, 17, "0.00")  # Offset Low
@@ -1103,7 +1103,7 @@ class AutoSurveyID:
                 'Gamma': 0.00,
                 'Skew': 0.00,
                 'Fitting Model': 'Unfitted',
-                'Bkg Type': 'Multi-Regions Smart',
+                'Bkg Type': 'U2-Tougaard',
                 'Bkg Low': float(f"{bg_low:.2f}"),
                 'Bkg High': float(f"{bg_high:.2f}"),
                 'Bkg Offset Low': 0.00,
@@ -1146,7 +1146,7 @@ class AutoSurveyID:
         return bg_low, bg_high
 
     def calculate_peak_area_and_height_with_background(self, peak_position, x_data, y_data, sheet_name):
-        """Calculate area and height with Multi-Regions Smart background using adaptive ranges"""
+        """Calculate area and height with U2-Tougaard background using adaptive ranges"""
         from libraries.Peak_Functions import BackgroundCalculations
 
         # Use adaptive range determination based on peak position
@@ -1155,14 +1155,31 @@ class AutoSurveyID:
         # Always use the current background data (which was reset in create_peaks_and_measure)
         current_background = np.array(self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
 
-        # Calculate Multi-Regions Smart background for this range
+        # Calculate U2-Tougaard background for this range
         adaptive_range = (bg_low, bg_high)
-        offset_h = 0.0
-        offset_l = 0.0
 
-        background_filtered = BackgroundCalculations.calculate_adaptive_smart_background(
-            x_data, y_data, adaptive_range, current_background, offset_h, offset_l
-        )
+        # Extract only the data in the range for U2-Tougaard calculation
+        mask = (x_data >= bg_low) & (x_data <= bg_high)
+        x_range = x_data[mask]
+        y_range = y_data[mask]
+
+        if len(x_range) < 3:
+            print(f"    WARNING: Insufficient data points in range for U2-Tougaard")
+            return 0.0, bg_low, bg_high, 0.0
+
+        # Calculate U2-Tougaard background using only the range data
+        try:
+            range_tougaard_bg = BackgroundCalculations.calculate_u2_tougaard_background(
+                x_range, y_range, sheet_name, self.parent, adaptive_range
+            )
+
+            # Update the full background array with the calculated range
+            background_filtered = current_background.copy()
+            background_filtered[mask] = range_tougaard_bg
+        except Exception as e:
+            print(f"    WARNING: U2-Tougaard calculation failed: {e}")
+            print(f"    Falling back to raw data")
+            background_filtered = current_background.copy()
 
         # Update background in data structure
         self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = background_filtered.tolist()

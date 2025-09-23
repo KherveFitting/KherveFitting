@@ -54,7 +54,7 @@ class BackgroundWindow(wx.Frame):
         self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart", "Shirley", "Linear",
                                                            'U4-Tougaard', 'U2-Tougaard'],
                                            style=wx.CB_READONLY)
-        self.method_combobox.SetSelection(0)  # Default to Shirley
+        self.method_combobox.SetSelection(4)  # Default to Shirley
         self.method_combobox.SetMaxSize((125,25))
 
         offset_h_label = wx.StaticText(panel, label="Offset (Left):")
@@ -123,12 +123,6 @@ class BackgroundWindow(wx.Frame):
             remove_peak_button.SetMinSize((90, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
-        # clear_background_button = wx.Button(panel, label="Clear\nAll")
-        # if 'wxMac' in wx.PlatformInfo:
-        #     clear_background_button.SetMinSize((125, 30))
-        # else:
-        #     clear_background_button.SetMinSize((110, 35))
-        # clear_background_button.Bind(wx.EVT_BUTTON, self.on_clear_background)
 
         auto_id_button = wx.Button(panel, label="Automatic\nIdentification")
         if 'wxMac' in wx.PlatformInfo:
@@ -731,6 +725,17 @@ class BackgroundWindow(wx.Frame):
         if hasattr(self, 'update_range_controls_from_data'):
             self.update_range_controls_from_data()
 
+        # CRITICAL: Reset mouse interaction system to make vlines draggable again
+        if hasattr(self.parent, 'mouse_handler'):
+            # Reset any existing mouse handlers
+            self.parent.mouse_handler.cleanup_vline_handlers()
+            # Reset moving vline state
+            self.parent.moving_vline = None
+
+        # Update range controls to reflect current vline positions
+        if hasattr(self, 'update_range_controls_from_data'):
+            self.update_range_controls_from_data()
+
         # Use the same plotting sequence as sheet change for proper display
         # Apply choice editors to the fitting model column
         self.parent.set_model_choice_editors(self.parent)
@@ -747,6 +752,10 @@ class BackgroundWindow(wx.Frame):
             # Recreate vlines at stored positions (vline1_x and vline2_x were stored earlier)
             self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
             self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
+
+            # Recreate center vline
+            center_pos = (vline1_x + vline2_x) / 2
+            self.parent.vline_center = self.parent.ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.4, linewidth=1.0)
 
             # Add text labels back
             self.add_vline_text_labels()

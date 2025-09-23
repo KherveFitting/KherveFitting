@@ -1221,9 +1221,11 @@ class MouseEventHandler:
             self.center_drag_reference_pos = 0.0
             self.window.moving_vline = None
 
-
             # Update data structure with new vline positions
-            if self.window.vline1 is not None and self.window.vline2 is not None:
+            # ONLY when Fitting_Screen is active, NOT when AreaFit_Screen is active
+            if (self.window.vline1 is not None and self.window.vline2 is not None and
+                    not (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected) and
+                    not (hasattr(self.window, 'background_window') and self.window.background_window is not None)):
                 print("Center-drag ended, updating background vLine positions...")
                 vline1_x = self.window.vline1.get_xdata()[0]
                 vline2_x = self.window.vline2.get_xdata()[0]
@@ -1245,6 +1247,7 @@ class MouseEventHandler:
                     # Update all peaks in Fitting section if they exist
                     if ('Fitting' in self.window.Data['Core levels'][sheet_name] and
                             'Peaks' in self.window.Data['Core levels'][sheet_name]['Fitting']):
+
                         print("Updating all peak background parameters to match new vLine positions...")
 
                         peaks = self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
@@ -1253,18 +1256,24 @@ class MouseEventHandler:
                             peak_data['Bkg Low'] = float(min(vline1_x, vline2_x))
                             peak_data['Bkg High'] = float(max(vline1_x, vline2_x))
 
+
                         # Update peak fitting grid if it exists and has data
+                        # ONLY when Fitting_Screen is active, NOT when AreaFit_Screen is active
                         if (hasattr(self.window, 'peak_params_grid') and
-                                self.window.peak_params_grid.GetNumberRows() > 0):
-                            print("Updating peak fitting grid background columns...")
+                                self.window.peak_params_grid.GetNumberRows() > 0 and
+                                not (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected) and
+                                not (hasattr(self.window, 'background_window') and self.window.background_window is not None)):
+                            print("4. Updating peak fitting grid background columns...")
 
                             num_peaks = self.window.peak_params_grid.GetNumberRows() // 2
+                            print(f" 5.  - Number of peaks to update: {num_peaks}")
                             for i in range(num_peaks):
+                                print(f"   - Updating peak {i + 1} background info")
                                 row = i * 2
                                 # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
                                 self.window.peak_params_grid.SetCellValue(row, 14, self.window.background_method)
-                                self.window.peak_params_grid.SetCellValue(row, 15, f"{min(vline1_x, vline2_x):.2f}")
-                                self.window.peak_params_grid.SetCellValue(row, 16, f"{max(vline1_x, vline2_x):.2f}")
+                                self.window.peak_params_grid.SetCellValue(row, 15, f"{overall_bg_low:.2f}")
+                                self.window.peak_params_grid.SetCellValue(row, 16, f"{overall_bg_high:.2f}")
 
             save_state(self.window)
 
@@ -1388,7 +1397,10 @@ class MouseEventHandler:
                         overall_bg_high = max(vline1_x, vline2_x)
 
                 # Update background section with overall range
-                if overall_bg_low is not None and overall_bg_high is not None:
+                # ONLY when Fitting_Screen is active, NOT when AreaFit_Screen is active
+                if (overall_bg_low is not None and overall_bg_high is not None and
+                        not (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected) and
+                        not (hasattr(self.window, 'background_window') and self.window.background_window is not None)):
                     print(f"2. Setting overall background range: {overall_bg_low:.2f} - {overall_bg_high:.2f} eV")
                     core_level_data['Background']['Bkg Low'] = float(overall_bg_low)
                     core_level_data['Background']['Bkg High'] = float(overall_bg_high)
@@ -1402,9 +1414,13 @@ class MouseEventHandler:
                             peak_data['Bkg Low'] = float(overall_bg_low)
                             peak_data['Bkg High'] = float(overall_bg_high)
 
+
                         # Update peak fitting grid if it exists and has data
+                        # ONLY when Fitting_Screen is active, NOT when AreaFit_Screen is active
                         if (hasattr(self.window, 'peak_params_grid') and
-                                self.window.peak_params_grid.GetNumberRows() > 0):
+                                self.window.peak_params_grid.GetNumberRows() > 0 and
+                                not (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected) and
+                                not (hasattr(self.window, 'background_window') and self.window.background_window is not None)):
                             print("4. Updating peak fitting grid background columns...")
 
                             num_peaks = self.window.peak_params_grid.GetNumberRows() // 2

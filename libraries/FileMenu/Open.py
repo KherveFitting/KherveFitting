@@ -2506,7 +2506,7 @@ def import_avantage_file(window):
             import_avantage_file_direct_xls(window, file_path)
 
 
-def parse_avg_file(file_path):
+def parse_avg_file_OLD(file_path):
     with open(file_path, 'r') as file:
         content = file.read()
 
@@ -2561,6 +2561,100 @@ def parse_avg_file(file_path):
 
     return photon_energy, start_energy, width, int(num_points), y_values
 
+
+def parse_avg_file(file_path):
+    with open(file_path, 'r') as file:
+        content = file.read()
+
+    # Check for photon energy with error handling
+    energy_match = re.search(r'DS_SOPROPID_ENERGY\s+:\s+VT_R4\s+=\s+(\d+\.?\d*)', content)
+    if energy_match:
+        photon_energy = float(energy_match.group(1))
+    else:
+        print(f"Warning: Could not find photon energy in {file_path}, using default UPS energy 21.22 eV")
+        photon_energy = 21.22  # Default HeI energy for UPS
+
+    # Try multiple patterns for space axes information
+    start_energy = None
+    width = None
+    num_points = None
+
+    # Pattern 1: XPS format - $SPACEAXES=1 0= start, width, points,
+    axes_match = re.search(r'\$SPACEAXES=1\s+0=\s+(\d+\.?\d*),\s+(\d+\.?\d*),\s+(\d+)', content)
+    if axes_match:
+        start_energy, width, num_points = map(float, axes_match.groups())
+        print(f"Found XPS format: start={start_energy}, width={width}, points={int(num_points)}")
+
+    # Pattern 2: UPS format - $SPACEAXES=3 with axis 0 being energy
+    if not axes_match:
+        # Look for the energy axis (axis 0) in multi-axis format
+        axes_match = re.search(r'\$SPACEAXES=3.*?0=\s+(\d+\.?\d*),\s+(\d+\.?\d*),\s+(\d+),\s+ENERGY', content, re.DOTALL)
+        if axes_match:
+            start_energy, width, num_points = map(float, axes_match.groups())
+            print(f"Found UPS format: start={start_energy}, width={width}, points={int(num_points)}")
+
+    # Pattern 3: General multi-axis format
+    if not axes_match:
+        axes_match = re.search(r'\$SPACEAXES=\d+.*?0=\s+(\d+\.?\d*),\s+(\d+\.?\d*),\s+(\d+)', content, re.DOTALL)
+        if axes_match:
+            start_energy, width, num_points = map(float, axes_match.groups())
+            print(f"Found general format: start={start_energy}, width={width}, points={int(num_points)}")
+
+    if start_energy is None:
+        # Debug output
+        print(f"DEBUG: Could not find energy range in {file_path}")
+        spaceaxes_section = re.search(r'\$SPACEAXES=.*?(?=\$|\Z)', content, re.DOTALL)
+        if spaceaxes_section:
+            print("SPACEAXES section found:")
+            print(spaceaxes_section.group(0))
+        raise ValueError(f"Could not find energy range information in {file_path}")
+
+    # Extract acquisition time and periods for intensity correction
+    acq_time_match = re.search(r'DS_ACPROPID_ACQ_TIME\s+:\s+VT_R4\s+=\s+(\d+\.?\d*)', content)
+    periods_match = re.search(r'DS_ACPROPID_PERIODS\s+:\s+VT_I4\s+=\s+(\d+)', content)
+
+    acq_time = float(acq_time_match.group(1)) if acq_time_match else 0.05
+    periods = int(periods_match.group(1)) if periods_match else 1
+
+    # Extract all intensity values
+    y_values = []
+    in_list_section = False
+
+    for line in content.split('\n'):
+        if line.strip().startswith('LIST@'):
+            in_list_section = True
+            values_part = line.split('=', 1)[1].strip()
+            for val in values_part.split(','):
+                if val.strip():
+                    try:
+                        y_values.append(float(val.strip()))
+                    except ValueError:
+                        pass
+        elif in_list_section:
+            if ',' in line and not line.strip().startswith('$') and not line.strip().startswith('DS_'):
+                for val in line.split(','):
+                    if val.strip():
+                        try:
+                            y_values.append(float(val.strip()))
+                        except ValueError:
+                            pass
+            else:
+                in_list_section = False
+
+    # Ensure we have the correct number of points
+    if len(y_values) > int(num_points):
+        y_values = y_values[:int(num_points)]
+
+    if len(y_values) < int(num_points):
+        print(f"Warning: Expected {int(num_points)} points but found only {len(y_values)}.")
+
+    # Apply intensity correction: raw_intensity / (acq_time * periods)
+    correction_factor = acq_time * periods
+    if correction_factor > 0:
+        y_values = [y / correction_factor for y in y_values]
+        print(f"Applied intensity correction: divided by ({acq_time} * {periods}) = {correction_factor}")
+
+    return photon_energy, start_energy, width, int(num_points), y_values
 
 def create_excel_from_avg(avg_file_path):
     from openpyxl.utils import get_column_letter

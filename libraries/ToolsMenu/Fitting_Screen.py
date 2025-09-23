@@ -95,7 +95,7 @@ class FittingWindow(wx.Frame):
             notebook.SetBackgroundColour(wx.Colour(240, 250, 250))
         self.init_background_tab(notebook)
         self.init_fitting_tab(notebook)
-        if not self.normal:
+        if self.normal:
             self.init_batch_operations_tab(notebook)
 
         main_sizer.Add(notebook, 1, wx.EXPAND,border=5)
