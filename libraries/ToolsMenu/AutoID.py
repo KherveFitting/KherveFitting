@@ -2764,7 +2764,7 @@ class AutoIDWindow(wx.Frame):
         if not hasattr(self.parent, 'ax'):
             return
 
-        position = peak_data['position']
+        position = float(f"{peak_data['position']:.2f}")
         assignment = peak_data['assignment']
 
         # Get y position for label (slightly above the peak)
@@ -2775,15 +2775,16 @@ class AutoIDWindow(wx.Frame):
 
             # Find closest x point to position
             closest_idx = min(range(len(x_data)), key=lambda i: abs(x_data[i] - position))
-            y_pos = y_data[closest_idx] * 1.1  # 10% above peak
+            y_pos = float(f"{y_data[closest_idx] * 1.02:.2f}")  # 2% above peak (much closer)
 
             # Create label
             self.parent.ax.annotate(assignment,
                                     xy=(position, y_pos),
-                                    xytext=(position, y_pos * 1.2),
+                                    xytext=(position, y_pos),
                                     ha='center', va='bottom',
                                     fontsize=9,
-                                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
+                                    rotation=90,
+                                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", edgecolor="none", alpha=0.5))
 
     def _create_region_and_label(self, peak_data):
         """Create a region and label for a peak"""
@@ -2857,7 +2858,7 @@ class AutoIDWindow(wx.Frame):
         self.parent.canvas.draw_idle()
 
     def _show_ticked_peak_labels(self):
-        """Show labels only for peaks that are ticked - using simple yellow container style (0° rotation)"""
+        """Show labels only for peaks that are ticked - using simple yellow container style (90° rotation)"""
         if not hasattr(self, 'all_peaks'):
             return
 
@@ -2874,25 +2875,25 @@ class AutoIDWindow(wx.Frame):
         ticked_peaks = self._get_ticked_peaks_for_show_labels()
 
         for peak_data in ticked_peaks:
-            position = peak_data['position']
+            position = float(f"{peak_data['position']:.2f}")
             label_text = peak_data['assignment']
 
             # Find local maximum for label positioning
             mask = (x_data >= position - 2) & (x_data <= position + 2)
             if np.any(mask):
                 local_max = np.max(y_data[mask])
-                label_y = local_max + 0.08 * max_y  # Slightly higher than create labels
+                label_y = float(f"{local_max + 0.02 * max_y:.2f}")  # Much closer to peak
 
-                # Add simple label with yellow background container (0° rotation)
+                # Add simple label with yellow background container (90° rotation)
                 self.parent.ax.text(position, label_y, label_text,
-                                    rotation=0,  # 0 degrees for show labels
+                                    rotation=90,  # 90 degrees for show labels
                                     va='bottom',
                                     ha='center',
                                     fontsize=8,  # Smaller font for show labels
                                     color='black',
                                     bbox=dict(facecolor='yellow',
-                                              edgecolor='black',
-                                              alpha=0.7,
+                                              edgecolor='grey',
+                                              alpha=0.4,
                                               boxstyle='round,pad=0.3'))
 
     def _get_ticked_peaks_for_show_labels(self):
