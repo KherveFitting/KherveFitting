@@ -1358,8 +1358,8 @@ class MouseEventHandler:
                 delattr(self.window, 'release_cid')
             if hasattr(self.window, 'drag_mode'):
                 self.window.drag_mode = False
-            if hasattr(self.window, 'show_hide_vlines'):
-                self.window.show_hide_vlines()
+            # if hasattr(self.window, 'show_hide_vlines'):
+            #     self.window.show_hide_vlines()
 
             # Reset the moving vline to None
             self.window.moving_vline = None

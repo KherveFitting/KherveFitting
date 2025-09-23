@@ -2179,9 +2179,12 @@ class BackgroundWindow(wx.Frame):
             self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Low'] = min_val
             self.parent.Data['Core levels'][sheet_name]['Background']['Bkg High'] = max_val
 
+        # # Update text labels
+        # if hasattr(self.parent, 'update_vline_text_labels'):
+        #     self.parent.update_vline_text_labels()
+
         # Update text labels
-        if hasattr(self.parent, 'update_vline_text_labels'):
-            self.parent.update_vline_text_labels()
+        self.update_vline_text_labels()
 
         # Update averaging indicator lines
         if hasattr(self.parent, 'add_averaging_indicator_lines'):
