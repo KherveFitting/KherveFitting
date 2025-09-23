@@ -5603,8 +5603,8 @@ class FileManagerWindow(wx.Frame):
             # Then paste peak table
             self.paste_peak_table_from_filemanager(row, col)
 
-            self.parent.show_popup_message2("Peak Table + Background Pasted",
-                                            f"Background and peak table pasted to '{sheet_name}'")
+            # self.parent.show_popup_message2("Peak Table + Background Pasted",
+            #                                 f"Background and peak table pasted to '{sheet_name}'")
         except Exception as e:
             wx.MessageBox(f"Error pasting peak table and background: {str(e)}",
                           "Paste Failed", wx.OK | wx.ICON_ERROR)
@@ -5679,7 +5679,9 @@ class FileManagerWindow(wx.Frame):
 
             # Show success message
             if success_count > 0:
-                self.parent.show_popup_message2("Peak Table + Background Pasted",
+                # self.parent.show_popup_message2("Peak Table + Background Pasted",
+                #                                 f"Background and peak table pasted to {success_count} core level(s)")
+                print("Peak Table + Background Pasted",
                                                 f"Background and peak table pasted to {success_count} core level(s)")
             else:
                 wx.MessageBox("Failed to paste to any core levels", "Paste Failed", wx.OK | wx.ICON_ERROR)

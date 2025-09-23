@@ -3815,7 +3815,7 @@ def copy_all_peak_parameters(window):
     with open(clipboard_file, 'w') as f:
         json.dump(convert_to_serializable_and_round(clipboard_data), f)
 
-    window.show_popup_message2("Parameters Copied", f"All peak parameters from {sheet_name} copied")
+    # window.show_popup_message2("Parameters Copied", f"All peak parameters from {sheet_name} copied")
 
 
 def paste_all_peak_parameters(window):
@@ -3867,7 +3867,7 @@ def paste_all_peak_parameters(window):
         window.update_ratios()
         window.clear_and_replot()
 
-        window.show_popup_message2("Peak Table Pasted", f"All peak parameters pasted to {sheet_name}")
+        # window.show_popup_message2("Peak Table Pasted", f"All peak parameters pasted to {sheet_name}")
     except Exception as e:
         import traceback
         traceback.print_exc()

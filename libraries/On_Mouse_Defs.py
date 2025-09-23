@@ -615,7 +615,7 @@ class MouseEventHandler:
 
             # Fitting screen: adjust selected peak width
             save_state(self.window)
-            delta = 0.025 if event.step > 0 else -0.025
+            delta = 0.05 if event.step > 0 else -0.05
             row = self.window.selected_peak_index * 2
             fitting_model = self.window.peak_params_grid.GetCellValue(row, 13)
 

@@ -1044,24 +1044,6 @@ class FittingWindow(wx.Frame):
         save_state(self.parent)
         remove_peak(self.parent)
 
-    def on_fit_multi_OLD(self, event):
-        save_state(self.parent)
-        if self.parent.peak_params_grid.GetNumberRows() == 0:
-            # wx.MessageBox("No peaks to fit. Add at least one peak first.", "Error", wx.OK | wx.ICON_ERROR)
-            self.parent.show_popup_message2("Error", "No peaks to fit. Add at least one peak first.")
-            return
-        save_state(self.parent)
-        iterations = self.fit_iterations_spin.GetValue()
-        for i in range(1, iterations + 1):
-            self.current_fit_text.SetValue(f"{i}/{iterations}")
-            result = fit_peaks(self.parent, self.parent.peak_params_grid)
-            if result:
-                r_squared, rsd, red_chi_square = result
-                self.update_fit_indicators(r_squared, rsd, red_chi_square)
-                # self.actual_iter_text.SetValue(str(self.parent.fit_results['nfev']))
-            self.parent.clear_and_replot()
-            wx.Yield()
-        self.current_fit_text.SetValue("Complete")
 
     def on_fit_multi(self, event):
         save_state(self.parent)
@@ -2061,11 +2043,12 @@ class FittingWindow(wx.Frame):
         batch_sizer.Add(self.batch_progress_label, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=1)
         batch_sizer.Add(self.batch_progress_text, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-
         # Core levels checklist box
         self.core_levels_checklist = wx.CheckListBox(self.batch_panel, style=wx.LB_MULTIPLE)
         self.core_levels_checklist.SetMinSize((250, 120))
         self.populate_core_levels_list()
+        # Add this line for right-click context menu
+        self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
         batch_sizer.Add(self.core_levels_checklist, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
 
         # Select All and Unselect All buttons
@@ -2110,6 +2093,17 @@ class FittingWindow(wx.Frame):
             propagate_constraints_button.SetMinSize((125, 35))
         propagate_constraints_button.Bind(wx.EVT_BUTTON, self.on_propagate_constraints)
         batch_sizer.Add(propagate_constraints_button, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Row to Selected Core Levels button
+        propagate_row_button = wx.Button(self.batch_panel, label="Propagate Row to\nSelected Core Levels")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_row_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_row_button.SetMinSize((125, 35))
+        else:
+            propagate_row_button.SetMinSize((125, 35))
+        propagate_row_button.Bind(wx.EVT_BUTTON, self.on_propagate_row)
+        batch_sizer.Add(propagate_row_button, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Fit Selected button
         fit_all_button = wx.Button(self.batch_panel, label="Fit Selected\nCore Levels")
@@ -2308,6 +2302,171 @@ class FittingWindow(wx.Frame):
 
         except Exception as e:
             wx.MessageBox(f"Error propagating fittings: {str(e)}", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+    def on_propagate_row(self, event):
+        """Propagate fits from current row to selected core levels by matching types"""
+        from libraries.FileMenu.Save import save_state
+
+        save_state(self.parent)
+
+        # Get current sheet to determine row number
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if not current_sheet:
+            wx.MessageBox("No current core level selected.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Extract row number from current sheet
+        current_row = self.extract_row_number(current_sheet)
+        if current_row is None:
+            wx.MessageBox("Cannot determine row number from current core level.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get selected core levels from checklist
+        selected_sheets = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.IsChecked(i):
+                selected_sheets.append(self.core_levels_checklist.GetString(i))
+
+        if not selected_sheets:
+            wx.MessageBox("No core levels selected for propagation.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Group selected sheets by core level type
+        core_level_groups = {}
+        for sheet in selected_sheets:
+            core_type = self.extract_column_type(sheet)
+            if core_type not in core_level_groups:
+                core_level_groups[core_type] = []
+            core_level_groups[core_type].append(sheet)
+
+        # Find source sheets for current row and each core type
+        propagation_groups = []
+        missing_sources = []
+
+        for core_type, target_sheets in core_level_groups.items():
+            # Find source sheet for this core type and current row
+            source_sheet = self.find_source_sheet_for_row_and_type(current_row, core_type)
+
+            if source_sheet and source_sheet in self.parent.Data['Core levels']:
+                # Remove source from targets if present
+                filtered_targets = [sheet for sheet in target_sheets if sheet != source_sheet]
+                if filtered_targets:
+                    propagation_groups.append({
+                        'source': source_sheet,
+                        'targets': filtered_targets,
+                        'core_type': core_type
+                    })
+            else:
+                missing_sources.append(core_type)
+
+        if not propagation_groups:
+            wx.MessageBox("No valid source core levels found for selected targets.", "Nothing to Propagate", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        # Propagate each group
+        total_propagated = 0
+        total_targets = 0
+        propagation_summary = []
+
+        try:
+            for group in propagation_groups:
+                source_sheet = group['source']
+                target_sheets = group['targets']
+                core_type = group['core_type']
+
+                # Switch to source sheet
+                self.parent.sheet_combobox.SetValue(source_sheet)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, source_sheet)
+
+                # Check if source has fitting data
+                if not hasattr(self.parent, 'peak_params_grid') or self.parent.peak_params_grid.GetNumberRows() == 0:
+                    propagation_summary.append(f"{core_type}: No fitting data in source {source_sheet}")
+                    continue
+
+                # Copy from source
+                from libraries.FileMenu.Save import copy_all_peak_parameters, paste_all_peak_parameters
+                copy_all_peak_parameters(self.parent)
+                self.copy_current_background_directly()
+
+                # Propagate to targets
+                success_count = 0
+                for target_sheet in target_sheets:
+                    try:
+                        # Switch to target sheet
+                        self.parent.sheet_combobox.SetValue(target_sheet)
+                        on_sheet_selected(self.parent, target_sheet)
+
+                        # Paste background first, then peak table
+                        self.paste_background_directly()
+                        paste_all_peak_parameters(self.parent)
+
+                        success_count += 1
+                        total_propagated += 1
+
+                    except Exception as e:
+                        print(f"Failed to propagate {core_type} to {target_sheet}: {e}")
+
+                total_targets += len(target_sheets)
+                propagation_summary.append(f"{core_type}: {success_count}/{len(target_sheets)} core levels")
+
+        finally:
+            # Restore original sheet
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+
+        # Show completion message
+        completion_msg = f"Row {current_row} propagation completed: {total_propagated}/{total_targets} core levels updated."
+        completion_msg += f"\n\nDetails:\n" + "\n".join(propagation_summary)
+
+        if missing_sources:
+            completion_msg += f"\n\nMissing sources for: {', '.join(missing_sources)}"
+
+        if total_propagated > 0:
+            self.batch_progress_text.SetValue(f"Row {current_row} propagated to {total_propagated} core levels")
+            wx.MessageBox(completion_msg, "Propagation Complete", wx.OK | wx.ICON_INFORMATION)
+        else:
+            wx.MessageBox("No fits were propagated.", "Warning", wx.OK | wx.ICON_WARNING)
+
+    def extract_row_number(self, sheet_name):
+        """Extract row number from sheet name (e.g., 'C1s3' -> 3, 'C1s' -> 0, 'O1s12' -> 12)"""
+        import re
+
+        # Look for numbers at the end of the sheet name (before any underscore or suffix)
+        match = re.search(r'(\d+)(?:_.*)?$', sheet_name)
+        if match:
+            return int(match.group(1))
+
+        # If no number found, treat as row 0
+        return 0
+
+    def find_source_sheet_for_row_and_type(self, row_number, core_type):
+        """Find the sheet name that matches the row number and core type"""
+        # Check all available core levels
+        for sheet_name in self.parent.Data['Core levels'].keys():
+            sheet_core_type = self.extract_column_type(sheet_name)
+            sheet_row = self.extract_row_number(sheet_name)
+
+            if sheet_core_type == core_type and sheet_row == row_number:
+                return sheet_name
+
+        # If looking for row 0, also check for core level without any number
+        if row_number == 0:
+            for sheet_name in self.parent.Data['Core levels'].keys():
+                # Check if sheet name is exactly the core type (no numbers)
+                if sheet_name == core_type:
+                    return sheet_name
+
+                # Check if sheet name starts with core type and has no digits before underscore/end
+                import re
+                pattern = f"^{re.escape(core_type)}(?:_.*)?$"
+                if re.match(pattern, sheet_name) and not re.search(r'\d', sheet_name.split('_')[0]):
+                    return sheet_name
+
+        return None
 
     def copy_current_background_directly(self):
         """Copy background from current sheet using FileManager logic"""
@@ -3435,8 +3594,8 @@ class FittingWindow(wx.Frame):
         cleaned_name = sheet_name.strip()
 
         # Look for pattern: Element + orbital (e.g., C1s, O1s, Au4f, Ti2p, etc.)
-        # Pattern matches: Letters followed by numbers and optional letters
-        pattern = r'^([A-Z][a-z]?\d+[a-z]*).*'
+        # Pattern matches: Letters followed by numbers and optional letters, followed by optional digits
+        pattern = r'^([A-Z][a-z]?\d+[a-z]*)(?:\d+)?.*'
         match = re.match(pattern, cleaned_name)
 
         if match:
@@ -3448,11 +3607,19 @@ class FittingWindow(wx.Frame):
             if sep in cleaned_name:
                 first_part = cleaned_name.split(sep)[0]
                 # Check if first part looks like a core level (has both letters and numbers)
-                if re.match(r'^[A-Z][a-z]?\d+[a-z]*$', first_part):
-                    return first_part
+                if re.match(r'^[A-Z][a-z]?\d+[a-z]*\d*$', first_part):
+                    # Remove trailing digits to get just the core level type
+                    core_level_match = re.match(r'^([A-Z][a-z]?\d+[a-z]*)', first_part)
+                    if core_level_match:
+                        return core_level_match.group(1)
                 break
 
-        # Final fallback: return first 4 characters or whole name if shorter
+        # Final fallback: extract core level pattern from anywhere in name
+        core_level_match = re.search(r'([A-Z][a-z]?\d+[a-z]*)', cleaned_name)
+        if core_level_match:
+            return core_level_match.group(1)
+
+        # Last resort: return first 4 characters or whole name if shorter
         return cleaned_name[:4] if len(cleaned_name) > 4 else cleaned_name
 
     def get_current_constraints(self, sheet_name):
@@ -3555,6 +3722,62 @@ class FittingWindow(wx.Frame):
             print(f"Error in propagate_constraints_to_sheet: {e}")
             return False
 
+    def on_core_levels_context_menu(self, event):
+        """Handle right-click on core levels checklist"""
+        # Get all core level names from the checklist
+        all_core_levels = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            all_core_levels.append(self.core_levels_checklist.GetString(i))
+
+        if not all_core_levels:
+            return
+
+        # Group core levels by type
+        core_level_groups = {}
+        for core_level in all_core_levels:
+            core_type = self.extract_column_type(core_level)
+            if core_type not in core_level_groups:
+                core_level_groups[core_type] = []
+            core_level_groups[core_type].append(core_level)
+
+        # Create context menu
+        menu = wx.Menu()
+
+        # Sort core level types for consistent ordering
+        sorted_core_types = sorted(core_level_groups.keys())
+
+        for core_type in sorted_core_types:
+            core_levels_of_type = core_level_groups[core_type]
+
+            # Create select and unselect items for this core level type
+            select_item = menu.Append(wx.ID_ANY, f"Select All {core_type} ({len(core_levels_of_type)})")
+            unselect_item = menu.Append(wx.ID_ANY, f"Unselect All {core_type} ({len(core_levels_of_type)})")
+
+            # Bind events
+            self.Bind(wx.EVT_MENU, lambda evt, ct=core_type: self.select_all_core_type(ct), select_item)
+            self.Bind(wx.EVT_MENU, lambda evt, ct=core_type: self.unselect_all_core_type(ct), unselect_item)
+
+            # Add separator after each core level type (except the last one)
+            if core_type != sorted_core_types[-1]:
+                menu.AppendSeparator()
+
+        # Show the menu
+        self.core_levels_checklist.PopupMenu(menu)
+        menu.Destroy()
+
+    def select_all_core_type(self, core_type):
+        """Select all core levels of a specific type"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            core_level = self.core_levels_checklist.GetString(i)
+            if self.extract_column_type(core_level) == core_type:
+                self.core_levels_checklist.Check(i, True)
+
+    def unselect_all_core_type(self, core_type):
+        """Unselect all core levels of a specific type"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            core_level = self.core_levels_checklist.GetString(i)
+            if self.extract_column_type(core_level) == core_type:
+                self.core_levels_checklist.Check(i, False)
 
     def on_remove_active_region(self, event):
         """Remove the currently active region"""
