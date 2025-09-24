@@ -1771,6 +1771,10 @@ class AutoIDWindow(wx.Frame):
         # Row 2
         row2_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
+        self.select_main_btn = wx.Button(panel, label="Select Main Peaks")
+        self.select_main_btn.Bind(wx.EVT_BUTTON, self.on_select_main_peaks)
+        row2_sizer.Add(self.select_main_btn, 0, wx.ALL, 3)
+
         self.select_all_btn = wx.Button(panel, label="Select All")
         self.select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
         row2_sizer.Add(self.select_all_btn, 0, wx.ALL, 3)
@@ -2591,7 +2595,7 @@ class AutoIDWindow(wx.Frame):
                     text_obj = self.parent.ax.text(position, label_y, label_text,
                                                    rotation=90, va='bottom', ha='center',
                                                    fontsize=self.parent.label_font_size,
-                                                   color='blue')
+                                                   color='black')
 
                     # Save to data structure (same format as label manager)
                     self.parent.Data['Core levels'][sheet_name]['Labels'].append({
@@ -2784,7 +2788,7 @@ class AutoIDWindow(wx.Frame):
                                     ha='center', va='bottom',
                                     fontsize=9,
                                     rotation=90,
-                                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", edgecolor="none", alpha=0.5))
+                                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", edgecolor="grey", alpha=0.5))
 
     def _create_region_and_label(self, peak_data):
         """Create a region and label for a peak"""
@@ -2942,47 +2946,135 @@ class AutoIDWindow(wx.Frame):
 
         return ticked_peaks
 
-    # def _add_labels_from_list(self, list_ctrl, assigned_only, x_data, y_data, max_y):
-    #     """Add labels from a specific list control"""
-    #     sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
-    #
-    #     if assigned_only:
-    #         # Results list - only assigned peaks
-    #         peaks_to_check = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
-    #     else:
-    #         # Peaks list - all non-dismissed peaks
-    #         peaks_to_check = [p for p in sorted_peaks if not p.get('dismissed')]
-    #
-    #     for i in range(list_ctrl.GetItemCount()):
-    #         checkbox_text = list_ctrl.GetItem(i, 0).GetText()
-    #         if checkbox_text == "✓" and i < len(peaks_to_check):
-    #             peak = peaks_to_check[i]
-    #             position = peak['position']
-    #
-    #             # Get assignment text
-    #             if assigned_only and peak.get('assignment'):
-    #                 label_text = peak['assignment']
-    #             elif not assigned_only:
-    #                 # For peaks list, show possible assignments or position
-    #                 possible_assignments = self._get_possible_assignments_for_peak(peak)
-    #                 if possible_assignments:
-    #                     label_text = possible_assignments[0]  # Use first/best assignment
-    #                 else:
-    #                     label_text = f"{position:.1f}"
-    #             else:
-    #                 continue
-    #
-    #             # Find local maximum for label positioning
-    #             mask = (x_data >= position - 2) & (x_data <= position + 2)
-    #             if np.any(mask):
-    #                 local_max = np.max(y_data[mask])
-    #                 label_y = local_max + 0.05 * max_y
-    #
-    #                 # Add label to plot
-    #                 self.parent.ax.text(position, label_y, label_text,
-    #                                     rotation=90, va='bottom', ha='center',
-    #                                     fontsize=self.parent.label_font_size,
-    #                                     color='blue')
+    def on_select_main_peaks(self, event):
+        """Select main peaks (including doublets) with confidence above 90%, and always select C1s, O1s, Na1s"""
+        current_page = self.notebook.GetSelection()
+        peak_list = self.peaks_list if current_page == 0 else self.results_list
+
+        # First deselect all
+        for row in range(peak_list.GetItemCount()):
+            peak_list.SetItem(row, 0, "")
+
+        if not hasattr(self, 'all_peaks'):
+            return
+
+        # Define main orbitals for elements (extended from existing code)
+        main_orbitals = {
+            # Period 1
+            'H': '1s', 'He': '1s',
+
+            # Period 2
+            'Li': '1s', 'Be': '1s', 'B': '1s', 'C': '1s', 'N': '1s',
+            'O': '1s', 'F': '1s', 'Ne': '1s',
+
+            # Period 3
+            'Na': '1s', 'Mg': '1s', 'Al': '2p', 'Si': '2p', 'P': '2p',
+            'S': '2p', 'Cl': '2p', 'Ar': '2p',
+
+            # Period 4
+            'K': '2p', 'Ca': '2p', 'Sc': '2p', 'Ti': '2p', 'V': '2p',
+            'Cr': '2p', 'Mn': '2p', 'Fe': '2p', 'Co': '2p', 'Ni': '2p',
+            'Cu': '2p', 'Zn': '2p', 'Ga': '2p', 'Ge': '2p', 'As': '2p',
+            'Se': '2p', 'Br': '2p', 'Kr': '2p',
+
+            # Period 5
+            'Rb': '3d', 'Sr': '3d', 'Y': '3d', 'Zr': '3d', 'Nb': '3d',
+            'Mo': '3d', 'Tc': '3d', 'Ru': '3d', 'Rh': '3d', 'Pd': '3d',
+            'Ag': '3d', 'Cd': '3d', 'In': '3d', 'Sn': '3d', 'Sb': '3d',
+            'Te': '3d', 'I': '3d', 'Xe': '3d',
+
+            # Period 6
+            'Cs': '3d', 'Ba': '3d', 'La': '3d', 'Ce': '3d', 'Pr': '3d',
+            'Nd': '3d', 'Pm': '3d', 'Sm': '3d', 'Eu': '3d', 'Gd': '3d',
+            'Tb': '3d', 'Dy': '3d', 'Ho': '3d', 'Er': '3d', 'Tm': '3d',
+            'Yb': '3d', 'Lu': '3d', 'Hf': '4f', 'Ta': '4f', 'W': '4f',
+            'Re': '4f', 'Os': '4f', 'Ir': '4f', 'Pt': '4f', 'Au': '4f',
+            'Hg': '4f', 'Tl': '4f', 'Pb': '4f', 'Bi': '4f', 'Po': '4f',
+            'At': '4f', 'Rn': '4f',
+
+            # Period 7 (Actinides)
+            'Fr': '4f', 'Ra': '4f', 'Ac': '4f', 'Th': '4f', 'Pa': '4f',
+            'U': '4f', 'Np': '4f', 'Pu': '4f', 'Am': '4f', 'Cm': '4f',
+            'Bk': '4f', 'Cf': '4f', 'Es': '4f', 'Fm': '4f', 'Md': '4f',
+            'No': '4f', 'Lr': '4f'
+        }
+
+        # Elements that should always be selected regardless of confidence
+        always_select_elements = ['C', 'O', 'N', 'Na', 'Mg']
+
+        sorted_peaks = sorted(self.all_peaks, key=lambda x: x['position'])
+        main_peaks_selected = 0
+
+        if current_page == 0:  # Find Peaks tab
+            non_dismissed_peaks = [p for p in sorted_peaks if not p.get('dismissed')]
+
+            for i in range(min(peak_list.GetItemCount(), len(non_dismissed_peaks))):
+                peak = non_dismissed_peaks[i]
+
+                # Check if it has an assignment
+                assignment = peak.get('assignment', '')
+                if not assignment:
+                    continue
+
+                # Parse element and orbital from assignment (e.g., "Si2p" or "Si2p3/2" -> element="Si", orbital="2p")
+                import re
+                match = re.match(r'([A-Z][a-z]?)(\d+[spdf])(?:\d+/\d+)?', assignment)
+                if not match:
+                    continue
+
+                element, orbital = match.groups()
+
+                # Check confidence (must be above 90% unless it's an always-select element)
+                confidence = float(peak.get('confidence', 0))
+                is_always_select = element in always_select_elements and main_orbitals.get(element) == orbital
+
+                if not is_always_select and confidence < 90.0:
+                    continue
+
+                # Check if this is a main orbital (including doublets)
+                if element in main_orbitals and main_orbitals[element] == orbital:
+                    peak_list.SetItem(i, 0, "✓")
+                    main_peaks_selected += 1
+
+        else:  # Results tab
+            assigned_peaks = [p for p in sorted_peaks if not p.get('dismissed') and p.get('assignment') and p.get('assignment') != '']
+
+            for i in range(min(peak_list.GetItemCount(), len(assigned_peaks))):
+                peak = assigned_peaks[i]
+
+                assignment = peak.get('assignment', '')
+                if not assignment:
+                    continue
+
+                # Parse element and orbital from assignment (including doublets)
+                import re
+                match = re.match(r'([A-Z][a-z]?)(\d+[spdf])(?:\d+/\d+)?', assignment)
+                if not match:
+                    continue
+
+                element, orbital = match.groups()
+
+                # Check confidence (must be above 90% unless it's an always-select element)
+                confidence = float(peak.get('confidence', 0))
+                is_always_select = element in always_select_elements and main_orbitals.get(element) == orbital
+
+                if not is_always_select and confidence < 90.0:
+                    continue
+
+                # Check if this is a main orbital (including doublets)
+                if element in main_orbitals and main_orbitals[element] == orbital:
+                    peak_list.SetItem(i, 0, "✓")
+                    main_peaks_selected += 1
+
+        # # Show confirmation message
+        # if main_peaks_selected > 0:
+        #     wx.MessageBox(f"Selected {main_peaks_selected} main peaks (including doublets)\n" +
+        #                   "• Main peaks with confidence ≥ 90%\n" +
+        #                   "• C1s, O1s, N1s, Na1s, Mg1s (any confidence)",
+        #                   "Main Peaks Selected", wx.OK | wx.ICON_INFORMATION)
+        # else:
+        #     wx.MessageBox("No main peaks found",
+        #                   "No Main Peaks", wx.OK | wx.ICON_INFORMATION)
 
     def _get_possible_assignments_for_peak(self, peak):
         """Get possible assignments for a peak"""
@@ -4287,12 +4379,44 @@ class Method2Identifier:
 
     def _get_main_orbital_for_element(self, element):
         """Get main orbital (highest RSF) for element"""
-        # This would need to search through library for highest RSF
-        # Simplified version:
         main_orbitals = {
-            'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s',
-            'Na': '1s', 'Mg': '1s', 'Al': '2p', 'Si': '2p',
-            'P': '2p', 'S': '2p', 'Cl': '2p', 'K': '2p', 'Ca': '2p'
+            # Period 1
+            'H': '1s', 'He': '1s',
+
+            # Period 2
+            'Li': '1s', 'Be': '1s', 'B': '1s', 'C': '1s', 'N': '1s',
+            'O': '1s', 'F': '1s', 'Ne': '1s',
+
+            # Period 3
+            'Na': '1s', 'Mg': '1s', 'Al': '2p', 'Si': '2p', 'P': '2p',
+            'S': '2p', 'Cl': '2p', 'Ar': '2p',
+
+            # Period 4
+            'K': '2p', 'Ca': '2p', 'Sc': '2p', 'Ti': '2p', 'V': '2p',
+            'Cr': '2p', 'Mn': '2p', 'Fe': '2p', 'Co': '2p', 'Ni': '2p',
+            'Cu': '2p', 'Zn': '2p', 'Ga': '2p', 'Ge': '2p', 'As': '2p',
+            'Se': '2p', 'Br': '2p', 'Kr': '2p',
+
+            # Period 5
+            'Rb': '3d', 'Sr': '3d', 'Y': '3d', 'Zr': '3d', 'Nb': '3d',
+            'Mo': '3d', 'Tc': '3d', 'Ru': '3d', 'Rh': '3d', 'Pd': '3d',
+            'Ag': '3d', 'Cd': '3d', 'In': '3d', 'Sn': '3d', 'Sb': '3d',
+            'Te': '3d', 'I': '3d', 'Xe': '3d',
+
+            # Period 6
+            'Cs': '3d', 'Ba': '3d', 'La': '3d', 'Ce': '3d', 'Pr': '3d',
+            'Nd': '3d', 'Pm': '3d', 'Sm': '3d', 'Eu': '3d', 'Gd': '3d',
+            'Tb': '3d', 'Dy': '3d', 'Ho': '3d', 'Er': '3d', 'Tm': '3d',
+            'Yb': '3d', 'Lu': '3d', 'Hf': '4f', 'Ta': '4f', 'W': '4f',
+            'Re': '4f', 'Os': '4f', 'Ir': '4f', 'Pt': '4f', 'Au': '4f',
+            'Hg': '4f', 'Tl': '4f', 'Pb': '4f', 'Bi': '4f', 'Po': '4f',
+            'At': '4f', 'Rn': '4f',
+
+            # Period 7 (Actinides)
+            'Fr': '4f', 'Ra': '4f', 'Ac': '4f', 'Th': '4f', 'Pa': '4f',
+            'U': '4f', 'Np': '4f', 'Pu': '4f', 'Am': '4f', 'Cm': '4f',
+            'Bk': '4f', 'Cf': '4f', 'Es': '4f', 'Fm': '4f', 'Md': '4f',
+            'No': '4f', 'Lr': '4f'
         }
         return main_orbitals.get(element, '2p')
 

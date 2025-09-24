@@ -1046,7 +1046,7 @@ def create_horizontal_toolbar(parent, window):
 
     mini_fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1sMini-3.png"),
                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
-                                                                                                  "Model \tCtrl+P")
+                                                                                                  "Model / Simplified Version")
 
 
     diff_tool = toolbar.AddTool(wx.ID_ANY, 'Differentiate',
