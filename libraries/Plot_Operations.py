@@ -81,6 +81,9 @@ class PlotManager:
 
         self.y_axis_visible = True
 
+        self.survey_table_state = getattr(window, 'survey_table_state', 0)
+        self.survey_table_text = []
+
 
     def toggle_y_axis_OLD(self):
         if not hasattr(self, 'y_axis_state'):
@@ -626,57 +629,6 @@ class PlotManager:
             line_color = color
 
         line_alpha = min(alpha + 0.1, 1)
-        # if self.peak_fill_enabled:
-        #     label = peak_label
-        #
-        #     # Identify doublets
-        #     num_peaks = window.peak_params_grid.GetNumberRows() // 2
-        #     doublets = []
-        #     for i in range(0, num_peaks - 1):
-        #         current_label = window.peak_params_grid.GetCellValue(i * 2, 1)
-        #         next_label = window.peak_params_grid.GetCellValue((i + 1) * 2, 1)
-        #         if self.is_part_of_doublet(current_label, next_label):
-        #             doublets.extend([i, i + 1])
-        #
-        #     # Find current peak index
-        #     for i in range(num_peaks):
-        #         if window.peak_params_grid.GetCellValue(i * 2, 1) == peak_label:
-        #             peak_index = i
-        #             break
-        #
-        #     # If part of doublet, get fill type from first peak of the pair
-        #     if peak_index in doublets:
-        #         if doublets.index(peak_index) % 2 == 1:  # Second peak of doublet
-        #             peak_index = peak_index - 1  # Use first peak's settings
-        #
-        #     if window.peak_fill_types[peak_index] == "Solid Fill":
-        #         fill_params = {
-        #             'color': color,
-        #             'alpha': alpha,
-        #             'edgecolor': 'none'
-        #         }
-        #     elif window.peak_fill_types[peak_index] == "Hatch":
-        #         fill_params = {
-        #             'color': 'none',
-        #             'hatch': window.peak_hatch_patterns[peak_index] * window.hatch_density,
-        #             'linewidth': window.peak_line_thickness,
-        #             'edgecolor': color,
-        #             'alpha': alpha
-        #         }
-        #     elif window.peak_fill_types[peak_index] == "None":
-        #         # Skip the fill_between call and only draw the line
-        #         if window.peak_line_style != "No Line":
-        #             if window.energy_scale == 'KE':
-        #                 self.ax.plot(window.photons - x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
-        #                              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
-        #                              label=peak_label)
-        #             else:
-        #                 self.ax.plot(x_values, peak_y, color=line_color, alpha=window.peak_line_alpha,
-        #                              linewidth=window.peak_line_thickness, linestyle=window.peak_line_pattern,
-        #                              label=peak_label)
-        #         return peak_y
-
-        # From Here---------------------------------------
 
         if self.peak_fill_enabled:
             label = peak_label
@@ -1273,21 +1225,6 @@ class PlotManager:
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
                                                 color=color, alpha=alpha)
 
-        # # Only plot background if it's different from raw data or if Bkg Type is not empty
-        # if (core_level_data['Background'].get('Bkg Type') != "" and
-        #         core_level_data['Background'].get('Bkg Low') != "" and
-        #         core_level_data['Background'].get('Bkg High') != ""):
-        #     if window.energy_scale == 'KE':
-        #         self.ax.plot(window.photons - x_values, core_level_data['Background']['Bkg Y'],
-        #                      color=self.background_color, linewidth=self.background_thickness,
-        #                      linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background')
-        #     else:
-        #         self.ax.plot(x_values, core_level_data['Background']['Bkg Y'], color=self.background_color,
-        #                      linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
-        #                      linewidth=self.background_thickness)
-
-        # ADD NEW CODE HERE-----------------------------------
-
         # Only plot background if it's different from raw data or if Bkg Type is not empty
         if (core_level_data['Background'].get('Bkg Type') != "" and
                 core_level_data['Background'].get('Bkg Low') != "" and
@@ -1328,7 +1265,7 @@ class PlotManager:
                     self.ax.plot(bg_x, bg_y, color=self.background_color,
                                  linestyle=self.background_linestyle, alpha=self.background_alpha, label='Background',
                                  linewidth=self.background_thickness)
-        # TO HERE-------------------------------------------
+
 
 
         # Update overall fit and residuals
@@ -1411,10 +1348,16 @@ class PlotManager:
                 hasattr(window, 'background_tab_selected') and window.background_tab_selected):
             window.show_hide_vlines()
 
+        # Call survey table drawing if enabled and it's a survey plot
+        if (hasattr(self, 'survey_table_state') and
+                self.survey_table_state == 1 and
+                self.is_survey_plot()):
+            self.draw_survey_table()
+
 
         # Draw the canvas
         self.canvas.draw_idle()
-        # window.update_checkbox_visuals()
+
 
         # Make sure checkboxes retain their state
         wx.CallAfter(window.update_checkboxes_from_data)
@@ -1778,37 +1721,6 @@ class PlotManager:
                 line.remove()
 
 
-
-        # # Plot the overall fit
-        # try:
-        #     good_indices = ~np.isnan(overall_fit)
-        #     x_plot = x_values[good_indices]
-        #     y_plot = overall_fit[good_indices]
-        #     # x_plot = x_values
-        #     # y_plot = overall_fit
-        #     if window.energy_scale == 'KE':
-        #         self.ax.plot(window.photons - window.x_values, overall_fit, color=self.envelope_color,
-        #                      linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
-        #                      linewidth=self.envelope_thickness,
-        #                      label='D-parameter' if fitting_model == "D-parameter" else
-        #                             'Fermi' if fitting_model == "Fermi" else
-        #                             'VBM' if fitting_model == "VBM" else
-        #                             'Cut-Off' if fitting_model == "Cut-Off" else
-        #                             'Overall Fit')
-        #     else:
-        #         # self.ax.plot(window.x_values, overall_fit, color=self.envelope_color,
-        #         self.ax.plot(x_plot, y_plot, color=self.envelope_color,
-        #                      linestyle=self.envelope_linestyle, alpha=self.envelope_alpha,
-        #                      linewidth=self.envelope_thickness,
-        #                      label='D-parameter' if fitting_model == "D-parameter" else
-        #                      'Fermi' if fitting_model == "Fermi" else
-        #                      'VBM' if fitting_model == "VBM" else
-        #                      'Cut-Off' if fitting_model == "Cut-Off" else
-        #                      'Overall Fit')
-        # except:
-        #     return
-
-        # Add HERE --------------------------------
         # Get background regions for envelope masking too
         bg_regions = self.get_background_regions(window)
 
@@ -1868,31 +1780,7 @@ class PlotManager:
                                  'Overall Fit')
         except:
             return
-        # Add END --------------------------------
 
-        # # Handle residuals based on state
-        # if hasattr(self, 'residuals_state'):
-        #     if self.residuals_state == 1:  # On main plot
-        #         residual_height = 1.07 * max(window.y_values)
-        #         residual_base = self.ax.axhline(y=residual_height, color='grey', linestyle='-.', alpha=0.1)
-        #
-        #         if window.energy_scale == 'KE':
-        #             residual_line = self.ax.plot(window.photons - window.x_values, masked_residuals + residual_height,
-        #                                          color=self.residual_color, linestyle=self.residual_linestyle,
-        #                                          alpha=self.residual_alpha, label='Residuals',
-        #                                          linewidth=self.residual_thickness)
-        #         else:
-        #             residual_line = self.ax.plot(window.x_values, masked_residuals + residual_height,
-        #                                          color=self.residual_color, linestyle=self.residual_linestyle,
-        #                                          alpha=self.residual_alpha, label='Residuals',
-        #                                          linewidth=self.residual_thickness)
-        #
-        #         residual_line[0].set_visible(True)
-        #         residual_base.set_visible(True)
-        #         self.ax.get_xaxis().set_visible(True)
-        #     elif self.residuals_state == 2:  # Separate subplot
-        #         self.setup_residual_subplot(window, x_values, masked_residuals, self.residual_thickness,
-        #                                     scaling_factor=1.0)
 
         # Handle residuals based on state
         if hasattr(self, 'residuals_state'):
@@ -1955,7 +1843,7 @@ class PlotManager:
                     self.setup_residual_subplot(window, x_values, masked_residuals_subplot, self.residual_thickness,
                                                 scaling_factor=1.0)
 
-            # UP TO HERE---------------------------------
+
             else:
                 self.ax.get_xaxis().set_visible(True)
 
@@ -2016,72 +1904,6 @@ class PlotManager:
         self.canvas.draw_idle()
         return residuals
 
-    def setup_residual_subplot_OLD(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
-        # Create gridspec at start
-        gs = self.figure.add_gridspec(20, 1, hspace=0.0)
-
-        if not self.residuals_subplot:
-            self.ax.set_position(gs[0:18, 0].get_position(self.figure))
-            self.residuals_subplot = self.figure.add_subplot(gs[18:, 0])
-
-        self.residuals_subplot.clear()
-
-        # Determine x values based on energy scale
-        x_plot = window.photons - x_values if window.energy_scale == 'KE' else x_values
-
-        # Plot residuals
-        self.residuals_subplot.plot(x_plot, masked_residuals * scaling_factor,
-                                    color=self.residual_color,
-                                    linestyle=self.residual_linestyle,
-                                    alpha=self.residual_alpha,
-                                    linewidth=residual_thickness)
-
-        # Configure main plot
-        self.ax.get_xaxis().set_visible(False)
-
-        sheet_name = window.sheet_combobox.GetValue()
-        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
-
-        # Configure subplot
-        self.residuals_subplot.set_ylabel('Res.')
-        if is_raman:
-            self.residuals_subplot.set_xlabel('Wavenumber (cm$^{-1}$)')
-        elif window.energy_scale == 'KE':
-            self.residuals_subplot.set_xlabel('Kinetic Energy (eV)')
-        else:
-            self.residuals_subplot.set_xlabel('Binding Energy (eV)')
-        # x_label = "Kinetic Energy (eV)" if window.energy_scale == 'KE' else "Binding Energy (eV)"
-        # self.residuals_subplot.set_xlabel(x_label)
-        # self.residuals_subplot.set_xlabel('Binding Energy (eV)')
-        self.residuals_subplot.tick_params(axis='x', bottom=True, labelbottom=True,
-                                           labelsize=window.axis_number_size, pad=8)
-        self.residuals_subplot.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-        self.residuals_subplot.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-
-        # Set font sizes
-        self.residuals_subplot.xaxis.label.set_size(window.axis_title_size)
-        self.residuals_subplot.yaxis.label.set_size(window.axis_title_size)
-
-        # Set y limits with margin
-        y_min, y_max = np.min(masked_residuals), np.max(masked_residuals)
-        margin = 0.1 * (y_max - y_min)
-        self.residuals_subplot.set_ylim(y_min - margin, y_max + margin)
-
-        # Get current main plot limits
-        main_xlim = self.ax.get_xlim()
-
-        self.residuals_subplot.set_xlim(main_xlim[0], main_xlim[1])
-
-
-        # Set subplot to share x axis
-        self.residuals_subplot.sharex(self.ax)
-
-        # Final styling
-        self.residuals_subplot.tick_params(axis='both', labelsize=window.axis_number_size)
-        self.residuals_subplot.grid(True, alpha=0.8)
-        self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))
-        self.residuals_subplot.set_visible(True)
-        self.residuals_subplot.yaxis.set_visible(self.y_axis_visible)
 
     def setup_residual_subplot(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
         # Create gridspec at start
@@ -2197,79 +2019,6 @@ class PlotManager:
             return float(value)
         except (ValueError, TypeError):
             return default
-
-    def add_cross_to_peak_OLD(self, window, index, skip_fwhm_calc=False):
-        try:
-            row = index * 2
-            peak_x = float(window.peak_params_grid.GetCellValue(row, 2))
-            peak_y = float(window.peak_params_grid.GetCellValue(row, 3))
-            grid_fwhm = float(window.peak_params_grid.GetCellValue(row, 4))
-            area = float(window.peak_params_grid.GetCellValue(row, 6))
-            model = window.peak_params_grid.GetCellValue(row, 13)
-
-            # Use stored FWHM value if available and skipping calculation
-            if skip_fwhm_calc and index in window.actual_fwhms:
-                fwhm = window.actual_fwhms[index]
-            # Otherwise check if we have stored FWHM
-            elif index in window.actual_fwhms:
-                fwhm = window.actual_fwhms[index]
-            # Calculate if needed
-            else:
-                # Calculate and store the actual FWHM
-                lg_ratio = float(window.peak_params_grid.GetCellValue(row, 5))
-                sigma = self.try_float(window.peak_params_grid.GetCellValue(row, 7), 0.0)
-                gamma = self.try_float(window.peak_params_grid.GetCellValue(row, 8), 0.0)
-                skew = self.try_float(window.peak_params_grid.GetCellValue(row, 9), 0.0)
-
-                from libraries.Peak_Functions import PeakFunctions
-                fwhm = PeakFunctions.calculate_actual_fwhm(
-                    window.x_values, peak_x, peak_y, grid_fwhm, lg_ratio, area, sigma, gamma, skew, model
-                )
-                window.actual_fwhms[index] = fwhm
-
-            # Rest of method stays the same
-            closest_index = np.argmin(np.abs(window.x_values - peak_x))
-            bkg_y = window.background[closest_index]
-            peak_y += bkg_y
-
-            if self.cross:
-                self.cross.remove()
-            if self.peak_info_t:
-                self.peak_info_t.remove()
-            if self.peak_letter_t:
-                self.peak_letter_t.remove()
-
-            self.cross, = self.ax.plot(peak_x, peak_y, 'bx', markersize=15, markerfacecolor='none', picker=5,
-                                       linewidth=3)
-            self.peak_letter = chr(65 + index)
-            self.peak_info = (f'Model: {model}\n'
-                              f'Position: {peak_x} eV\n'
-                              f'FWHM meas.: {fwhm:.3f} eV\n'
-                              f'Area: {area} CPS')
-
-            max_y = window.ax.get_ylim()[1]
-            y_offset = max_y * 0.02
-            if skip_fwhm_calc:
-                self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
-                                                  ha='center', va='bottom', fontsize=12)
-                self.peak_info_t = None
-            else:
-                self.peak_letter_t = self.ax.text(peak_x, peak_y + y_offset, self.peak_letter,
-                                                  ha='center', va='bottom', fontsize=12)
-                self.peak_info_t = self.ax.text(peak_x - fwhm / 2, peak_y + y_offset, self.peak_info,
-                                                ha='left', va='top', fontsize=8, color='grey')
-
-            self.canvas.mpl_disconnect('motion_notify_event')
-            self.canvas.mpl_disconnect('button_release_event')
-            self.motion_notify_id = self.canvas.mpl_connect('motion_notify_event', window.peak_mon_cross_drag)
-            self.button_release_id = self.canvas.mpl_connect('button_release_event', window.on_cross_release)
-
-            self.canvas.draw_idle()
-
-        except ValueError as e:
-            print(f"Error adding cross to peak: {e}")
-        except Exception as e:
-            print(f"Unexpected error adding cross to peak: {e}")
 
     def add_cross_to_peak(self, window, index, skip_fwhm_calc=False):
         try:
@@ -2392,29 +2141,6 @@ class PlotManager:
         self.fitting_results_text.set_visible(self.fitting_results_visible)
 
 
-    def toggle_legend_OLD(self):
-        self.legend_visible = (self.legend_visible + 1) % 3
-        legend = self.ax.get_legend()
-        if legend:
-            if self.legend_visible == 0:
-                legend.set_visible(False)
-            elif self.legend_visible == 1:
-                legend.set_visible(True)
-            else:
-                handles, labels = self.ax.get_legend_handles_labels()
-                filtered_handles = []
-                filtered_labels = []
-                for h, l in zip(handles, labels):
-                    if l not in ["Raw Data", "Background", "Overall Fit"]:
-                        clean_label = re.sub(r'\$.*?\$', '', l)
-                        split_label = clean_label.split()
-                        if len(split_label) > 1 and split_label[1].strip():
-                            filtered_handles.append(h)
-                            filtered_labels.append(l)
-                self.ax.legend(filtered_handles, filtered_labels, loc='upper left', frameon=True, fancybox=True,
-                               framealpha=0.1, edgecolor='gray')
-        self.canvas.draw_idle()
-
     def toggle_legend(self):
         self.legend_visible = (self.legend_visible + 1) % 3
 
@@ -2457,77 +2183,6 @@ class PlotManager:
                                framealpha=0.1, edgecolor='gray')
         self.canvas.draw_idle()
 
-    def update_legend_OLD(self, window):
-        sheet_name = window.sheet_combobox.GetValue()
-        handles, labels = self.ax.get_legend_handles_labels()
-
-        # Extract current core level name for compact legend
-        current_core_level = self.extract_core_level_name(sheet_name)
-
-        num_peaks = window.peak_params_grid.GetNumberRows() // 2
-        peak_labels = []
-        filtered_peak_labels = []
-        compact_peak_labels = []  # Separate list for compact labels
-
-        for i in range(num_peaks):
-            label = window.peak_params_grid.GetCellValue(i * 2, 1)
-            formatted_label = re.sub(r'(\d+/\d+)', r'$_{\1}$', label)
-
-            # Create compact version for peaks-only mode
-            compact_label = self.make_compact_legend_label(formatted_label, current_core_level)
-
-            clean_label = re.sub(r'\$.*?\$', '', formatted_label)
-            split_label = clean_label.split()
-            if len(split_label) > 1 and split_label[1].strip():
-                peak_labels.append(label)
-                filtered_peak_labels.append(formatted_label)  # Full name for full legend
-                compact_peak_labels.append(compact_label)  # Compact name for peaks-only
-
-        if self.legend_visible == 2:
-            ordered_handles = []
-            for l in peak_labels:
-                for index, label in enumerate(labels):
-                    if label == l:
-                        ordered_handles.append(handles[index])
-                        break
-            if ordered_handles and compact_peak_labels:
-                self.ax.legend(ordered_handles, compact_peak_labels, loc='upper left', frameon=True, fancybox=True,
-                               framealpha=0.1, edgecolor='gray')
-            else:
-                self.ax.legend().set_visible(False)
-        else:
-            has_overall_fit = "Overall Fit" in labels
-            has_raw_data = "Raw Data" in labels
-
-            legend_order = []
-            legend_order2 = []
-
-            if has_raw_data:
-                legend_order.append("Raw Data")
-                legend_order2.append("Raw Data")
-            legend_order.append("Background")
-            legend_order2.append("Background")
-            if has_overall_fit:
-                legend_order.append("Overall Fit")
-                legend_order2.append("Overall Fit")
-
-            legend_order += peak_labels
-            legend_order2 += filtered_peak_labels  # Use full names for full legend
-
-            if legend_order and self.legend_visible:
-                ordered_handles = []
-                for l in legend_order:
-                    for index, label in enumerate(labels):
-                        if label == l:
-                            ordered_handles.append(handles[index])
-                            break
-                self.ax.legend(ordered_handles, legend_order2, loc='upper left', frameon=True, fancybox=True,
-                               framealpha=0.1, edgecolor='gray')
-            else:
-                self.ax.legend().remove()
-                self.ax.legend().set_visible(False)
-
-        self.canvas.draw_idle()
 
     def update_legend(self, window):
         sheet_name = window.sheet_combobox.GetValue()
@@ -3172,6 +2827,151 @@ class PlotManager:
 
         # Return None if no valid regions found (means show everything)
         return bg_regions if bg_regions else None
-# --------------------- HISTORY --------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------
+
+    # Add this method to PlotManager class in Plot_Operations.py
+
+    def toggle_survey_table(self):
+        """Toggle survey table display on/off"""
+        if hasattr(self, 'survey_table_text') and self.survey_table_text:
+            for text_obj in self.survey_table_text:
+                text_obj.remove()
+            self.survey_table_text = []
+
+        # If turning on and it's a survey plot, draw the table
+        if (hasattr(self, 'survey_table_state') and self.survey_table_state == 1):
+            self.draw_survey_table()
+
+        self.canvas.draw_idle()
+
+    def is_survey_plot(self):
+        """Check if current sheet is a survey/wide scan"""
+        if not hasattr(self.window, 'sheet_combobox'):
+            return False
+
+        sheet_name = self.window.sheet_combobox.GetValue().lower()
+        return any(x in sheet_name for x in ['survey', 'wide'])
+
+    def draw_survey_table(self):
+        """Draw table with core levels, BE, and atomic concentrations for survey plots only"""
+        if not self.is_survey_plot():
+            return
+
+        if not hasattr(self, 'survey_table_state') or self.survey_table_state == 0:
+            return
+
+        # Clear existing table
+        if hasattr(self, 'survey_table_text') and self.survey_table_text:
+            for text_obj in self.survey_table_text:
+                text_obj.remove()
+
+        self.survey_table_text = []
+
+        # Get data from peak fitting grid
+        grid = self.window.peak_params_grid
+        num_peaks = grid.GetNumberRows() // 2
+
+        if num_peaks == 0:
+            return
+
+        # Collect peak data
+        table_data = []
+        for i in range(num_peaks):
+            row = i * 2
+            try:
+                core_level = grid.GetCellValue(row, 1)  # Peak name
+                be = float(grid.GetCellValue(row, 2))  # BE position
+                atomic_conc = float(grid.GetCellValue(row, 10))  # Atomic concentration
+
+                # Clean up core level name (remove " p1", " p2" etc.)
+                import re
+                core_level_clean = re.sub(r'\s+p\d+$', '', core_level)
+
+                # Skip if atomic concentration is 0 (not significant)
+                if atomic_conc > 0.1:  # Only show peaks with >0.1% concentration
+                    table_data.append((core_level_clean, be, atomic_conc))
+            except (ValueError, IndexError):
+                continue
+
+        if not table_data:
+            return
+
+        # Sort by atomic concentration (highest first)
+        table_data.sort(key=lambda x: x[2], reverse=True)
+
+        # Get font size from preferences
+        font_size = getattr(self.window, 'label_font_size', 12)
+
+        # Table dimensions
+        row_height = 0.04
+        header_height = 0.045
+        col_widths = [0.09, 0.09, 0.09]  # Core Level, BE(eV), At.(%)
+        table_width = sum(col_widths)
+        table_height = header_height + len(table_data) * row_height
+
+        # Position table in top-right corner with some padding
+        x_start = 0.18 # - table_width
+        y_start = 0.98
+
+        # Draw table background
+        from matplotlib.patches import Rectangle
+        table_bg = Rectangle((x_start, y_start - table_height), table_width, table_height,
+                             transform=self.ax.transAxes, facecolor='white',
+                             edgecolor='black', linewidth=2, alpha=0.95)
+        self.ax.add_patch(table_bg)
+        self.survey_table_text.append(table_bg)
+
+        # Draw table header with merged cells look
+        headers = ['', 'BE (eV)', 'At. (%)']
+        header_y = y_start - header_height / 2
+
+        x_pos = x_start
+        for col, (header, width) in enumerate(zip(headers, col_widths)):
+            # Draw header cell background
+            header_bg = Rectangle((x_pos, y_start - header_height), width, header_height,
+                                  transform=self.ax.transAxes, facecolor='lightgray',
+                                  edgecolor='gray', linewidth=0.5, alpha=0.9)
+            self.ax.add_patch(header_bg)
+            self.survey_table_text.append(header_bg)
+
+            # Add header text
+            text_obj = self.ax.text(x_pos + width / 2, header_y, header,
+                                    transform=self.ax.transAxes,
+                                    fontsize=font_size - 1,
+                                    fontweight='bold',
+                                    ha='center', va='center',
+                                    color='black')
+            self.survey_table_text.append(text_obj)
+
+            x_pos += width
+
+        # Draw data rows
+        for row_idx, (core_level, be, atomic_conc) in enumerate(table_data):
+            y_pos = y_start - header_height - (row_idx + 1) * row_height
+            row_y = y_pos + row_height / 2
+
+            x_pos = x_start
+            row_data = [core_level, f"{be:.1f}", f"{atomic_conc:.1f}"]
+            alignments = ['center', 'center', 'center']
+
+            for col, (data, width, align) in enumerate(zip(row_data, col_widths, alignments)):
+                # Draw cell background (alternating colors)
+                cell_color = 'white' if row_idx % 2 == 0 else '#f8f8f8'
+                cell_bg = Rectangle((x_pos, y_pos), width, row_height,
+                                    transform=self.ax.transAxes, facecolor=cell_color,
+                                    edgecolor='gray', linewidth=0.5, alpha=0.9)
+                self.ax.add_patch(cell_bg)
+                self.survey_table_text.append(cell_bg)
+
+                # Add cell text
+                text_obj = self.ax.text(x_pos + width / 2, row_y, data,
+                                        transform=self.ax.transAxes,
+                                        fontsize=font_size - 1,
+                                        ha=align, va='center',
+                                        color='black')
+                self.survey_table_text.append(text_obj)
+
+                x_pos += width
+
+
+
 

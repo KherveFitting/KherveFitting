@@ -1695,7 +1695,7 @@ class AtomicConcentrations:
         beta = beta_values.get(orbital_type, 0)
 
         correction = 1 + beta * (3 * np.cos(angle_rad) ** 2 - 1) / 4
-        print(f'correction for angle {angle_degrees}: {correction}')
+        # print(f'correction for angle {angle_degrees}: {correction}')
         return correction
 
     @staticmethod

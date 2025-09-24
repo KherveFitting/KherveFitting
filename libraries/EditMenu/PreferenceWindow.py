@@ -761,6 +761,13 @@ class PreferenceWindow(wx.Frame):
                                             style=wx.CB_READONLY)
         sizer.Add(residuals_label, pos=(17, 4), flag=wx.BOTTOM | wx.TOP, border=0)
         sizer.Add(self.residuals_choice, pos=(17, 5), flag=wx.BOTTOM | wx.TOP, border=0)
+
+        survey_table_label = wx.StaticText(self.plot_tab, label="Survey Table Display:")
+        self.survey_table_choice = wx.ComboBox(self.plot_tab, choices=["Off", "On"],
+                                               style=wx.CB_READONLY)
+        sizer.Add(survey_table_label, pos=(18, 4), flag=wx.BOTTOM | wx.TOP, border=0)
+        sizer.Add(self.survey_table_choice, pos=(18, 5), flag=wx.BOTTOM | wx.TOP, border=0)
+
         for item in sizer.GetChildren():
             if 'wxGTK' in wx.PlatformInfo: #adapt borders for Linux
                 item.SetBorder(3)
@@ -794,9 +801,17 @@ class PreferenceWindow(wx.Frame):
         self.legend_choice.Bind(wx.EVT_CHOICE, self.OnLegendDisplayChange)
         self.y_axis_choice.Bind(wx.EVT_CHOICE, self.OnYAxisDisplayChange)
         self.residuals_choice.Bind(wx.EVT_CHOICE, self.OnResidualsDisplayChange)
+        self.survey_table_choice.Bind(wx.EVT_CHOICE, self.OnSurveyTableDisplayChange)
 
         self.plot_tab.SetSizer(sizer)
         self.Centre()
+
+    def OnSurveyTableDisplayChange(self, event):
+        selection = self.survey_table_choice.GetSelection()
+        self.parent.survey_table_state = selection
+        self.parent.plot_manager.survey_table_state = selection
+        self.parent.plot_manager.toggle_survey_table()
+        self.update_plot()
 
     def OnLegendDisplayChange(self, event):
         selection = self.legend_choice.GetSelection()
@@ -962,6 +977,9 @@ class PreferenceWindow(wx.Frame):
 
         if hasattr(self.parent, 'residuals_state'):
             self.residuals_choice.SetSelection(self.parent.residuals_state)
+
+        if hasattr(self.parent, 'survey_table_state'):
+            self.survey_table_choice.SetSelection(self.parent.survey_table_state)
 
         # Add loading of text settings
         self.font_combo.SetValue(self.parent.plot_font)
@@ -1152,6 +1170,10 @@ class PreferenceWindow(wx.Frame):
         selection = self.residuals_choice.GetSelection()
         self.parent.residuals_state = selection
         self.parent.plot_manager.residuals_state = selection
+
+        selection = self.survey_table_choice.GetSelection()
+        self.parent.survey_table_state = selection
+        self.parent.plot_manager.survey_table_state = selection
 
         # Save text settings
         self.parent.plot_font = self.font_combo.GetValue()

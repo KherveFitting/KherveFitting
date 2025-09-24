@@ -263,7 +263,7 @@ class MyFrame(wx.Frame):
 
         self.current_instrument = 'A-ALTHERMO01'  # Default instrument
         self.library_data = load_library_data()
-        # data, instruments = load_library_data()
+        print(f"Library data loaded successfully. Keys count: {len(self.library_data)}")
 
         self.averaging_points = 5
 
@@ -324,6 +324,10 @@ class MyFrame(wx.Frame):
         self.use_angular_correction = False
         self.analysis_angle = 54.7
 
+        # In MyFrame.__init__(), add this with other display states around line where residuals_state is initialized
+        self.survey_table_state = 1  # 0=Off, 1=On
+
+
        # Word report default settings
         self.word_width=5
         self.word_height=5
@@ -382,22 +386,13 @@ class MyFrame(wx.Frame):
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
 
-
-        # self.canvas.mpl_connect("button_press_event", self.on_click)
-        # self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-        # self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
-        # self.canvas.mpl_connect('button_press_event', self.on_right_click)
         self.mouse_handler = setup_mouse_handlers(self)
 
-        # self.canvas.mpl_connect('key_press_event', self.on_key_press)
-        # self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press_global)
         setup_key_handlers(self)
 
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.peak_fitting_grid.on_peak_params_cell_changed)
         self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.peak_fitting_grid.on_peak_params_cell_changed)
         self.Bind(wx.EVT_CLOSE, self.on_close)
-
-        # self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_peak_params_right_click)
 
         self.Bind(wx.EVT_SIZE, self.on_window_resize)
 
@@ -406,6 +401,8 @@ class MyFrame(wx.Frame):
         self.plot_manager.residuals_state = self.residuals_state
         self.plot_manager.legend_visible = self.legend_visible
         self.plot_manager.y_axis_state = self.y_axis_state
+
+
 
 
     def on_peak_params_context_menu(self, event):
@@ -2777,7 +2774,7 @@ class MyFrame(wx.Frame):
             wx.MessageBox(f"Auto ID failed: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-    def update_ratios(self):
+    def update_ratios_OLD_Area_Conc(self):
         num_peaks = self.peak_params_grid.GetNumberRows() // 2
         if num_peaks < 1:
             return
@@ -2822,6 +2819,204 @@ class MyFrame(wx.Frame):
 
         self.peak_params_grid.ForceRefresh()
 
+    def update_ratios(self):
+        # Check if library data is available
+        if not hasattr(self, 'library_data') or not self.library_data:
+            self._update_ratios_simple()
+            return
+
+        from libraries.Peak_Functions import AtomicConcentrations
+
+        num_peaks = self.peak_params_grid.GetNumberRows() // 2
+        if num_peaks < 1:
+            return
+
+        # Calculate normalized areas using same method as results grid
+        total_normalized_area = 0
+        normalized_areas = []
+
+        for i in range(num_peaks):
+            row = i * 2
+            try:
+                peak_name = self.peak_params_grid.GetCellValue(row, 1)
+                position = float(self.peak_params_grid.GetCellValue(row, 2))
+                area = float(self.peak_params_grid.GetCellValue(row, 6))
+
+                # Get RSF value for this peak
+                rsf = self.get_rsf_for_peak(peak_name)
+
+                # Calculate kinetic energy
+                kinetic_energy = self.photons - position
+
+                # Calculate TXFN (transmission function)
+                txfn = self.calculate_transmission_function(kinetic_energy)
+
+                # Calculate ECF based on method selected
+                ecf = 1.0  # Default
+                if self.library_type == "Scofield":
+                    ecf = kinetic_energy ** 0.6
+                elif self.library_type == "Wagner":
+                    ecf = kinetic_energy ** 1.0
+                elif self.library_type == "TPP-2M":
+                    imfp = AtomicConcentrations.calculate_imfp_tpp2m(kinetic_energy)
+                    ecf = imfp * 26.2
+                elif self.library_type == "EAL":
+                    z_avg = 50
+                    eal = (0.65 + 0.007 * kinetic_energy ** 0.93) / (z_avg ** 0.38)
+                    ecf = eal
+                elif self.library_type == "None":
+                    ecf = 1.0
+
+                # Angular correction
+                angular_correction = 1.0
+                if self.use_angular_correction:
+                    angular_correction = AtomicConcentrations.calculate_angular_correction(
+                        self, peak_name, self.analysis_angle
+                    )
+
+                # Calculate normalized area with all corrections (RSF, TXFN, ECF, ACF)
+                normalized_area = area / (rsf * txfn * ecf * angular_correction)
+
+                total_normalized_area += normalized_area
+                normalized_areas.append((i, normalized_area))
+
+            except ValueError:
+                normalized_areas.append((i, 0))
+                continue
+
+        # Get first peak area for A/Aa ratio calculation
+        try:
+            first_position = float(self.peak_params_grid.GetCellValue(0, 2))
+            first_area = float(self.peak_params_grid.GetCellValue(0, 6))
+        except ValueError:
+            first_position = 0
+            first_area = 1
+
+        # Calculate atomic concentrations and update grid
+        for i, normalized_area in normalized_areas:
+            row = i * 2
+            try:
+                position = float(self.peak_params_grid.GetCellValue(row, 2))
+                area = float(self.peak_params_grid.GetCellValue(row, 6))
+
+                # Calculate atomic concentration from normalized area
+                atomic_concentration = (normalized_area / total_normalized_area * 100) if total_normalized_area > 0 else 0
+
+                # Calculate A/Aa ratio
+                a_ratio = area / first_area if first_area != 0 else 0
+
+                # Calculate split
+                split = position - first_position
+
+                # Update grid with .2f formatting
+                self.peak_params_grid.SetCellValue(row, 10, f"{atomic_concentration:.1f}")
+                self.peak_params_grid.SetCellValue(row, 11, f"{a_ratio * 100:.2f}")
+                self.peak_params_grid.SetCellValue(row, 12, f"{split:.2f}")
+
+            except ValueError:
+                continue
+
+        # Redraw survey table if enabled (concentrations may have changed)
+        if (hasattr(self.plot_manager, 'survey_table_state') and
+                self.plot_manager.survey_table_state == 1):
+            self.plot_manager.draw_survey_table()
+            self.canvas.draw_idle()
+
+    def get_rsf_for_peak(self, peak_name):
+        """Get RSF value for a peak - handles spin-orbit coupling like Sr3d5/2, Sr3d3/2"""
+        import re
+
+        # Parse peak name to get element, orbital, and suborbital (e.g., Sr3d5/2)
+        match = re.match(r'([A-Z][a-z]*)(\d+[spdf])(?:(\d+/\d+))?(?:\s+.*)?', peak_name)
+        if match:
+            element, orbital, suborbital = match.groups()
+
+            # If suborbital exists (like 5/2, 3/2), include it in the key
+            if suborbital:
+                key = (element, orbital + suborbital)  # e.g., ('Sr', '3d5/2')
+            else:
+                key = (element, orbital)  # e.g., ('C', '1s')
+
+            if key in self.library_data:
+                if self.current_instrument in self.library_data[key]:
+                    return float(self.library_data[key][self.current_instrument]['rsf'])
+                else:
+                    # Fallback to first available instrument
+                    instruments = list(self.library_data[key].keys())
+                    if instruments:
+                        return float(self.library_data[key][instruments[0]]['rsf'])
+            else:
+                # If suborbital search failed, try without suborbital as fallback
+                if suborbital:
+                    fallback_key = (element, orbital)
+                    if fallback_key in self.library_data:
+                        if self.current_instrument in self.library_data[fallback_key]:
+                            return float(self.library_data[fallback_key][self.current_instrument]['rsf'])
+                        else:
+                            instruments = list(self.library_data[fallback_key].keys())
+                            if instruments:
+                                return float(self.library_data[fallback_key][instruments[0]]['rsf'])
+
+        return 1.0  # Default RSF
+
+
+    def _update_ratios_simple(self):
+        """Fallback method using simple area calculation"""
+        print("Using simple area calculation (fallback)")
+        num_peaks = self.peak_params_grid.GetNumberRows() // 2
+        if num_peaks < 1:
+            return
+
+        # Calculate total area for concentrations
+        total_area = 0
+        for i in range(num_peaks):
+            row = i * 2
+            try:
+                area = float(self.peak_params_grid.GetCellValue(row, 6))
+                total_area += area
+            except ValueError:
+                continue
+
+        # Get first peak area for A/Aa ratio calculation
+        try:
+            first_position = float(self.peak_params_grid.GetCellValue(0, 2))
+            first_area = float(self.peak_params_grid.GetCellValue(0, 6))
+        except ValueError:
+            return
+
+        for i in range(num_peaks):
+            row = i * 2
+            try:
+                position = float(self.peak_params_grid.GetCellValue(row, 2))
+                area = float(self.peak_params_grid.GetCellValue(row, 6))
+
+                # Calculate concentration from area (simple method)
+                concentration = (area / total_area * 100) if total_area > 0 else 0
+
+                # Calculate A/Aa ratio
+                a_ratio = area / first_area if first_area != 0 else 0
+
+                split = position - first_position
+
+                # Update grid
+                self.peak_params_grid.SetCellValue(row, 10, f"{concentration:.2f}")
+                self.peak_params_grid.SetCellValue(row, 11, f"{a_ratio * 100:.2f}")
+                self.peak_params_grid.SetCellValue(row, 12, f"{split:.2f}")
+
+            except ValueError:
+                continue
+
+    def calculate_transmission_function(self, kinetic_energy):
+        """Calculate transmission function from kinetic energy"""
+        # Standard transmission function calculation for XPS
+        a, b, c = 31.826, 0.229, 0.5  # Default coefficients
+
+        if kinetic_energy > 0:
+            txfn = a + b * (kinetic_energy ** -c)
+            # return max(txfn, 0.1)  # Ensure positive value
+            return 1.0
+        else:
+            return 1.0
 
 
     # In MyFrame class
@@ -3166,6 +3361,7 @@ class MyFrame(wx.Frame):
                 self.y_axis_state = config.get('y_axis_state', 0)
                 self.residuals_state = config.get('residuals_state', 2)
                 self.enable_quick_settings = config.get('enable_quick_settings', False)
+                self.survey_table_state = config.get('survey_table_state', 0)
 
                 # Set registered flag
                 self.registered = config.get('registered', False)
@@ -3230,6 +3426,7 @@ class MyFrame(wx.Frame):
             'legend_font_size': self.legend_font_size,
             'core_level_text_size': self.core_level_text_size,
             'label_font_size': self.label_font_size,
+            'survey_table_state': self.survey_table_state,
 
             # Instruments settings
             'library_type': self.library_type,

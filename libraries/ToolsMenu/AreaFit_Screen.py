@@ -672,6 +672,9 @@ class BackgroundWindow(wx.Frame):
         grid.SetCellValue(row + 1, 8, "")
         grid.SetCellValue(row + 1, 9, "")
 
+        # Update ratios after area calculation
+        self.parent.update_ratios()
+
         # Update Data structure
         if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
             self.parent.Data['Core levels'][sheet_name]['Fitting'] = {}
@@ -896,6 +899,9 @@ class BackgroundWindow(wx.Frame):
         # Call the remove peak function
         # from libraries.Peak_Functions import remove_peak
         remove_peak(self.parent)
+
+        # Update atomic concentrations after removing peak
+        self.parent.update_ratios()
 
         # Reinitialize vLines after remove_peak calls clear_and_replot
         if hasattr(self, 'initialize_or_restore_area_vlines'):
