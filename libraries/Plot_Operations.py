@@ -2833,9 +2833,14 @@ class PlotManager:
     def toggle_survey_table(self):
         """Toggle survey table display on/off"""
         if hasattr(self, 'survey_table_text') and self.survey_table_text:
-            for text_obj in self.survey_table_text:
-                text_obj.remove()
-            self.survey_table_text = []
+            for text_obj in self.survey_table_text[:]:  # Create a copy of the list
+                try:
+                    if text_obj in self.ax.texts or hasattr(text_obj, 'remove'):
+                        text_obj.remove()
+                except (ValueError, AttributeError):
+                    # Text object may have already been removed or doesn't exist
+                    pass
+            self.survey_table_text.clear()
 
         # If turning on and it's a survey plot, draw the table
         if (hasattr(self, 'survey_table_state') and self.survey_table_state == 1):
@@ -2851,7 +2856,7 @@ class PlotManager:
         sheet_name = self.window.sheet_combobox.GetValue().lower()
         return any(x in sheet_name for x in ['survey', 'wide'])
 
-    def draw_survey_table(self):
+    def draw_survey_table_OLD(self):
         """Draw table with core levels, BE, and atomic concentrations for survey plots only"""
         if not self.is_survey_plot():
             return
@@ -2859,10 +2864,21 @@ class PlotManager:
         if not hasattr(self, 'survey_table_state') or self.survey_table_state == 0:
             return
 
+        # Hide the plot legend when drawing survey table
+        legend = self.ax.get_legend()
+        if legend:
+            legend.set_visible(False)
+
         # Clear existing table
         if hasattr(self, 'survey_table_text') and self.survey_table_text:
-            for text_obj in self.survey_table_text:
-                text_obj.remove()
+            for text_obj in self.survey_table_text[:]:  # Create a copy of the list
+                try:
+                    if text_obj in self.ax.texts or hasattr(text_obj, 'remove'):
+                        text_obj.remove()
+                except (ValueError, AttributeError):
+                    # Text object may have already been removed or doesn't exist
+                    pass
+            self.survey_table_text.clear()
 
         self.survey_table_text = []
 
@@ -2873,7 +2889,7 @@ class PlotManager:
         if num_peaks == 0:
             return
 
-        # Collect peak data
+        # Collect peak data with color indices
         table_data = []
         for i in range(num_peaks):
             row = i * 2
@@ -2888,7 +2904,7 @@ class PlotManager:
 
                 # Skip if atomic concentration is 0 (not significant)
                 if atomic_conc > 0.1:  # Only show peaks with >0.1% concentration
-                    table_data.append((core_level_clean, be, atomic_conc))
+                    table_data.append((core_level_clean, be, atomic_conc, i))  # Include peak index
             except (ValueError, IndexError):
                 continue
 
@@ -2908,15 +2924,15 @@ class PlotManager:
         table_width = sum(col_widths)
         table_height = header_height + len(table_data) * row_height
 
-        # Position table in top-right corner with some padding
-        x_start = 0.18 # - table_width
+        # Position table in top-left corner to hide legend underneath
+        x_start = 0.02
         y_start = 0.98
 
-        # Draw table background
+        # Draw table background - fully opaque
         from matplotlib.patches import Rectangle
         table_bg = Rectangle((x_start, y_start - table_height), table_width, table_height,
                              transform=self.ax.transAxes, facecolor='white',
-                             edgecolor='black', linewidth=2, alpha=0.95)
+                             edgecolor='black', linewidth=2, alpha=1.0)
         self.ax.add_patch(table_bg)
         self.survey_table_text.append(table_bg)
 
@@ -2926,10 +2942,10 @@ class PlotManager:
 
         x_pos = x_start
         for col, (header, width) in enumerate(zip(headers, col_widths)):
-            # Draw header cell background
+            # Draw header cell background - fully opaque
             header_bg = Rectangle((x_pos, y_start - header_height), width, header_height,
                                   transform=self.ax.transAxes, facecolor='lightgray',
-                                  edgecolor='gray', linewidth=0.5, alpha=0.9)
+                                  edgecolor='gray', linewidth=0.5, alpha=1.0)
             self.ax.add_patch(header_bg)
             self.survey_table_text.append(header_bg)
 
@@ -2945,20 +2961,27 @@ class PlotManager:
             x_pos += width
 
         # Draw data rows
-        for row_idx, (core_level, be, atomic_conc) in enumerate(table_data):
+        for row_idx, (core_level, be, atomic_conc, peak_idx) in enumerate(table_data):
             y_pos = y_start - header_height - (row_idx + 1) * row_height
             row_y = y_pos + row_height / 2
 
             x_pos = x_start
-            row_data = [core_level, f"{be:.1f}", f"{atomic_conc:.1f}"]
-            alignments = ['center', 'center', 'center']
+            row_data = [core_level, f"{be:.2f}", f"{atomic_conc:.2f}"]
 
-            for col, (data, width, align) in enumerate(zip(row_data, col_widths, alignments)):
-                # Draw cell background (alternating colors)
-                cell_color = 'white' if row_idx % 2 == 0 else '#f8f8f8'
+            for col, (data, width) in enumerate(zip(row_data, col_widths)):
+                # Set cell background color - peak name column gets peak color, others alternating
+                if col == 0:  # First column (peak name)
+                    if hasattr(self.window, 'peak_colors') and peak_idx < len(self.window.peak_colors):
+                        cell_color = self.window.peak_colors[peak_idx]
+                    else:
+                        cell_color = 'white'
+                else:  # Other columns use alternating colors
+                    cell_color = 'white' if row_idx % 2 == 0 else '#f8f8f8'
+
+                # Draw cell background - fully opaque
                 cell_bg = Rectangle((x_pos, y_pos), width, row_height,
                                     transform=self.ax.transAxes, facecolor=cell_color,
-                                    edgecolor='gray', linewidth=0.5, alpha=0.9)
+                                    edgecolor='gray', linewidth=0.5, alpha=1.0)
                 self.ax.add_patch(cell_bg)
                 self.survey_table_text.append(cell_bg)
 
@@ -2966,12 +2989,154 @@ class PlotManager:
                 text_obj = self.ax.text(x_pos + width / 2, row_y, data,
                                         transform=self.ax.transAxes,
                                         fontsize=font_size - 1,
-                                        ha=align, va='center',
+                                        ha='center', va='center',
                                         color='black')
                 self.survey_table_text.append(text_obj)
 
                 x_pos += width
 
+    def draw_survey_table(self):
+        """Draw table with core levels, BE, and atomic concentrations for survey plots only"""
+        if not self.is_survey_plot():
+            return
+
+        if not hasattr(self, 'survey_table_state') or self.survey_table_state == 0:
+            return
+
+        # Hide the plot legend when drawing survey table
+        legend = self.ax.get_legend()
+        if legend:
+            legend.set_visible(False)
+
+        # Clear existing table
+        if hasattr(self, 'survey_table_text') and self.survey_table_text:
+            for text_obj in self.survey_table_text[:]:  # Create a copy of the list
+                try:
+                    if text_obj in self.ax.texts or hasattr(text_obj, 'remove'):
+                        text_obj.remove()
+                except (ValueError, AttributeError):
+                    # Text object may have already been removed or doesn't exist
+                    pass
+            self.survey_table_text.clear()
+
+        self.survey_table_text = []
+
+        # Get data from peak fitting grid
+        grid = self.window.peak_params_grid
+        num_peaks = grid.GetNumberRows() // 2
+
+        if num_peaks == 0:
+            return
+
+        # Collect peak data with color indices
+        table_data = []
+        for i in range(num_peaks):
+            row = i * 2
+            try:
+                core_level = grid.GetCellValue(row, 1)  # Peak name
+                be = float(grid.GetCellValue(row, 2))  # BE position
+                atomic_conc = float(grid.GetCellValue(row, 10))  # Atomic concentration
+
+                # Clean up core level name (remove " p1", " p2" etc.)
+                import re
+                core_level_clean = re.sub(r'\s+p\d+$', '', core_level)
+
+                # Skip if atomic concentration is 0 (not significant)
+                if atomic_conc > 0.1:  # Only show peaks with >0.1% concentration
+                    table_data.append((core_level_clean, be, atomic_conc, i))  # Include peak index
+            except (ValueError, IndexError):
+                continue
+
+        if not table_data:
+            return
+
+        # Sort by atomic concentration (highest first)
+        table_data.sort(key=lambda x: x[2], reverse=True)
+
+        # Get font size from preferences
+        font_size = getattr(self.window, 'label_font_size', 12)
+
+        # Get alpha transparency from config
+        table_alpha = getattr(self.parent, 'self.peak_alpha', 0.9)
+        name_alpha = 0.6
+
+        # Table dimensions
+        row_height = 0.04
+        header_height = 0.045
+        col_widths = [0.09, 0.09, 0.09]  # Core Level, BE(eV), At.(%)
+        table_width = sum(col_widths)
+        table_height = header_height + len(table_data) * row_height
+
+        # Position table in top-left corner to hide legend underneath
+        x_start = 0.02
+        y_start = 0.98
+
+        # Draw table background - using config alpha
+        from matplotlib.patches import Rectangle
+        table_bg = Rectangle((x_start, y_start - table_height), table_width, table_height,
+                             transform=self.ax.transAxes, facecolor='white',
+                             edgecolor='black', linewidth=2, alpha=table_alpha)
+        self.ax.add_patch(table_bg)
+        self.survey_table_text.append(table_bg)
+
+        # Draw table header with merged cells look
+        headers = ['', 'BE (eV)', 'At. (%)']
+        header_y = y_start - header_height / 2
+
+        x_pos = x_start
+        for col, (header, width) in enumerate(zip(headers, col_widths)):
+            # Draw header cell background - using config alpha
+            header_bg = Rectangle((x_pos, y_start - header_height), width, header_height,
+                                  transform=self.ax.transAxes, facecolor=(79/255, 190/255, 159/255),
+                                  edgecolor='gray', linewidth=0.5, alpha=table_alpha)
+            self.ax.add_patch(header_bg)
+            self.survey_table_text.append(header_bg)
+
+            # Add header text
+            text_obj = self.ax.text(x_pos + width / 2, header_y, header,
+                                    transform=self.ax.transAxes,
+                                    fontsize=font_size - 1,
+                                    fontweight='bold',
+                                    ha='center', va='center',
+                                    color='black')
+            self.survey_table_text.append(text_obj)
+
+            x_pos += width
+
+        # Draw data rows
+        for row_idx, (core_level, be, atomic_conc, peak_idx) in enumerate(table_data):
+            y_pos = y_start - header_height - (row_idx + 1) * row_height
+            row_y = y_pos + row_height / 2
+
+            x_pos = x_start
+            row_data = [core_level, f"{be:.2f}", f"{atomic_conc:.2f}"]
+
+            for col, (data, width) in enumerate(zip(row_data, col_widths)):
+                # Set cell background color - peak name column gets peak color, others alternating
+                if col == 0:  # First column (peak name)
+                    if hasattr(self.window, 'peak_colors') and peak_idx < len(self.window.peak_colors):
+                        cell_color = self.window.peak_colors[peak_idx]
+                    else:
+                        cell_color = 'white'
+                else:  # Other columns use alternating colors
+                    cell_color = 'white' if row_idx % 2 == 0 else '#f8f8f8'
+
+                # Draw cell background - using config alpha
+                cell_bg = Rectangle((x_pos, y_pos), width, row_height,
+                                    transform=self.ax.transAxes, facecolor=cell_color,
+                                    edgecolor='gray', linewidth=0.5, alpha=name_alpha)
+                self.ax.add_patch(cell_bg)
+                self.survey_table_text.append(cell_bg)
+
+                # Add cell text
+                text_obj = self.ax.text(x_pos + width / 2, row_y, data,
+                                        transform=self.ax.transAxes,
+                                        fontsize=font_size - 1,
+                                        ha='center', va='center',
+                                        color='black')
+                self.survey_table_text.append(text_obj)
+
+                x_pos += width
 
 
 

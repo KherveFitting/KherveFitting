@@ -1027,13 +1027,60 @@ class AutoSurveyID:
         self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_data.tolist()
         print(f"  Background reset to raw data for clean AutoID processing")
 
+        # # Sort by binding energy (high to low)
+        # sorted_elements = sorted(identified_elements.items(),
+        #                          key=lambda x: x[1]['peak_position'],
+        #                          reverse=True)
         # Sort by binding energy (high to low)
         sorted_elements = sorted(identified_elements.items(),
                                  key=lambda x: x[1]['peak_position'],
                                  reverse=True)
 
-        row = 0
+        # Filter peaks below 600eV according to orbital rules
+        filtered_elements = {}
         for peak_name, element_data in sorted_elements:
+            print("\nFiltering peak:", peak_name)
+            position = element_data['peak_position']
+            orbital = element_data['orbital']
+            element = element_data['element']
+
+            if position < 600.0:
+                # Dismiss specific orbitals
+                if orbital in ['2p1/2', '3d3/2', '4f5/2']:
+                    print(f"  DISMISSED: {peak_name} at {position:.2f} eV (orbital {orbital} below 600eV)")
+                    continue
+
+                # Convert specific orbitals to simplified forms
+                elif orbital == '2p3/2':
+                    simplified_orbital = '2p'
+                    simplified_name = f"{element}{simplified_orbital}"
+                    element_data = element_data.copy()
+                    element_data['orbital'] = simplified_orbital
+                    filtered_elements[simplified_name] = element_data
+                    print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+                elif orbital == '3d5/2':
+                    simplified_orbital = '3d'
+                    simplified_name = f"{element}{simplified_orbital}"
+                    element_data = element_data.copy()
+                    element_data['orbital'] = simplified_orbital
+                    filtered_elements[simplified_name] = element_data
+                    print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+                elif orbital == '4f7/2':
+                    simplified_orbital = '4f'
+                    simplified_name = f"{element}{simplified_orbital}"
+                    element_data = element_data.copy()
+                    element_data['orbital'] = simplified_orbital
+                    filtered_elements[simplified_name] = element_data
+                    print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+                else:
+                    # Keep other orbitals as-is
+                    filtered_elements[peak_name] = element_data
+            else:
+                # Keep peaks above 600eV as-is
+                filtered_elements[peak_name] = element_data
+
+        row = 0
+        for peak_name, element_data in filtered_elements.items():
             print(f"\nProcessing peak: {peak_name}")
             print(f"  Position: {element_data['peak_position']:.2f} eV")
             print(f"  Priority: {element_data['priority']}")
@@ -1494,7 +1541,7 @@ class AutoSurveyID:
                 'N': {'1s': (395.0, 405.0),'2s': (25.0, 30.0)},
                 'O': {'1s': (521.0, 538.0), 'kll': (969,980) ,'2s': (35.0, 45.0)},          # DONE
                 'F': {'1s': (675.00, 700.00), '2s': (45.0, 55.0)},
-                'Na': {'1s': (1060.50, 1081.50), 'kll': (491.00, 501.00)},                  # DONE
+                'Na': {'1s': (1065.00, 1078.00), 'kll': (491.00, 501.00)},                  # DONE
                 'Mg': {'1s': (1292.50, 1317.50), '2s': (85.0, 95.0), '2p': (45.0, 55.0)},
                 'Al': {'2s': (115.0, 125.0), '2p': (70.0, 78.0)},
                 'Si': {'2s': (145.0, 155.0), '2p': (98.0, 106.0)},  # DONE
@@ -1695,35 +1742,39 @@ class AutoIDWindow(wx.Frame):
         param_box = wx.StaticBox(panel, label="Peak Finding Parameters")
         param_sizer = wx.StaticBoxSizer(param_box, wx.VERTICAL)
 
-        param_grid = wx.FlexGridSizer(3, 4, 5, 5)
+        param_grid = wx.FlexGridSizer(1, 2, 5, 5)
         param_grid.AddGrowableCol(1)
-        param_grid.AddGrowableCol(3)
+        # param_grid.AddGrowableCol(3)
 
-        # Parameters
         param_grid.Add(wx.StaticText(panel, label="Prominence:"), 0, wx.ALIGN_CENTER_VERTICAL)
         self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")
         param_grid.Add(self.prominence_ctrl, 0, wx.EXPAND)
 
-        param_grid.Add(wx.StaticText(panel, label="Width (min):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.width_ctrl = wx.TextCtrl(panel, value=f"{self.width:.1f}")
-        param_grid.Add(self.width_ctrl, 0, wx.EXPAND)
-
-        param_grid.Add(wx.StaticText(panel, label="Width (max):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.width_max_ctrl = wx.TextCtrl(panel, value=f"{self.width_max:.1f}")
-        param_grid.Add(self.width_max_ctrl, 0, wx.EXPAND)
-
-        param_grid.Add(wx.StaticText(panel, label="Distance:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.distance_ctrl = wx.TextCtrl(panel, value=f"{self.distance:.1f}")
-        param_grid.Add(self.distance_ctrl, 0, wx.EXPAND)
-
-        param_grid.Add(wx.StaticText(panel, label="Tolerance (eV):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.tolerance_ctrl = wx.TextCtrl(panel, value=f"{self.tolerance:.1f}")
-        param_grid.Add(self.tolerance_ctrl, 0, wx.EXPAND)
+        # # Parameters
+        # param_grid.Add(wx.StaticText(panel, label="Prominence:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        # self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")
+        # param_grid.Add(self.prominence_ctrl, 0, wx.EXPAND)
+        #
+        # param_grid.Add(wx.StaticText(panel, label="Width (min):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        # self.width_ctrl = wx.TextCtrl(panel, value=f"{self.width:.1f}")
+        # param_grid.Add(self.width_ctrl, 0, wx.EXPAND)
+        #
+        # param_grid.Add(wx.StaticText(panel, label="Width (max):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        # self.width_max_ctrl = wx.TextCtrl(panel, value=f"{self.width_max:.1f}")
+        # param_grid.Add(self.width_max_ctrl, 0, wx.EXPAND)
+        #
+        # param_grid.Add(wx.StaticText(panel, label="Distance:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        # self.distance_ctrl = wx.TextCtrl(panel, value=f"{self.distance:.1f}")
+        # param_grid.Add(self.distance_ctrl, 0, wx.EXPAND)
+        #
+        # param_grid.Add(wx.StaticText(panel, label="Tolerance (eV):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        # self.tolerance_ctrl = wx.TextCtrl(panel, value=f"{self.tolerance:.1f}")
+        # param_grid.Add(self.tolerance_ctrl, 0, wx.EXPAND)
 
         param_sizer.Add(param_grid, 0, wx.EXPAND | wx.ALL, 5)
 
         # Help text
-        help_text = wx.StaticText(panel, label="Prominence: fraction of max peak (0.01 = 1%), Width: in eV, Distance: minimum peak separation")
+        help_text = wx.StaticText(panel, label="Prominence: fraction of max peak (0.01 = 1%)")
         help_text.SetFont(help_text.GetFont().MakeItalic())
         param_sizer.Add(help_text, 0, wx.ALL, 5)
 
@@ -1732,7 +1783,7 @@ class AutoIDWindow(wx.Frame):
         force_sizer = wx.StaticBoxSizer(force_box, wx.VERTICAL)
 
         force_label = wx.StaticText(panel, label="Enter elements or specific core levels to force identification:")
-        force_help = wx.StaticText(panel, label="Examples: Ni, Br3d, Nakll (comma separated)")
+        force_help = wx.StaticText(panel, label="Examples: Ni, Br3d, Nakll, -Zn (comma separated, use - to exclude)")
         force_help.SetFont(force_help.GetFont().MakeItalic())
 
         # Make text box smaller in height
@@ -2264,7 +2315,7 @@ class AutoIDWindow(wx.Frame):
             description = self.current_method.get_process_description()
             self.process_desc_window.update_description(description)
 
-    def on_run(self, event):
+    def on_run_OLD(self, event):
         """Run the selected identification method"""
         # method_selection = self.method_choice.GetSelection()
         method_selection = self.method_selection  # Use default value
@@ -2313,6 +2364,145 @@ class AutoIDWindow(wx.Frame):
         # If Show Labels checkbox is checked, refresh the labels display
         if hasattr(self, 'show_labels_checkbox') and self.show_labels_checkbox.GetValue():
             self.on_show_labels_toggle(None)
+
+    def on_run(self, event):
+        """Run the selected identification method"""
+        method_selection = self.method_selection  # Use default value
+
+        # Update parameters with proper handling
+        try:
+            self.prominence = float(self.prominence_ctrl.GetValue())
+            # Keep tolerance as default value since control was removed
+            # self.tolerance should already be set in __init__
+
+            # Validate parameters
+            if self.prominence <= 0 or self.prominence > 1:
+                wx.MessageBox("Prominence should be between 0 and 1 (e.g., 0.01 for 1%)", "Invalid Parameter")
+                return
+
+            # Debug: Print the actual values being used
+            print(f"DEBUG: Using parameters - Prominence: {self.prominence}, Tolerance: {self.tolerance}")
+
+        except ValueError:
+            wx.MessageBox("Please enter valid numeric values for all parameters", "Invalid Parameters")
+            return
+
+        # Run the selected method
+        if method_selection == 0:
+            self.current_method = Method1Identifier(self)
+            self.current_method.run()
+        else:
+            self.current_method = Method2Identifier(self)
+            self.current_method.run()
+
+        # Update process description if window is open
+        self.update_process_description()
+
+        # Update button states
+        self.update_button_states()
+
+        # Auto-tick all assigned peaks
+        self._auto_tick_assigned_peaks()
+
+        # After AutoID completes, automatically run the sequence:
+        # 1. Create Labels
+        # 2. Select Main Peaks (using existing advanced logic)
+        # 3. Create Areas
+        try:
+            # Create labels for all assigned peaks
+            self.on_create_labels(None)
+
+            # Use the existing advanced select main peaks method
+            self.on_select_main_peaks(None)
+
+            # Create areas only for the main peaks that were selected
+            self.on_create_regions(None)
+
+            # Calculate atomic concentrations using existing method
+            self.parent.update_ratios()
+            print("Atomic concentrations calculated using update_ratios()")
+
+            # Enable survey table for survey plots
+            if hasattr(self.parent, 'plot_manager') and self.parent.plot_manager.is_survey_plot():
+                self.parent.plot_manager.survey_table_state = 1
+                print("Survey table state enabled")
+
+            # Force complete replot by triggering sheet reselection
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            from libraries.Sheet_Operations import on_sheet_selected
+            wx.CallAfter(lambda: on_sheet_selected(self.parent, current_sheet))
+
+            print("Auto ID sequence completed: Labels → Select Main Peaks → Areas")
+
+        except Exception as e:
+            print(f"Error in auto sequence: {str(e)}")
+
+        # If Show Labels checkbox is checked, refresh the labels display
+        if hasattr(self, 'show_labels_checkbox') and self.show_labels_checkbox.GetValue():
+            self.on_show_labels_toggle(None)
+
+
+    def _create_survey_table(self):
+        """Create survey table if this is a survey plot"""
+        try:
+            print("=== Survey Table Creation Debug ===")
+
+            # Check if this is a survey plot
+            if hasattr(self.parent, 'plot_manager'):
+                is_survey = self.parent.plot_manager.is_survey_plot()
+                print(f"Is survey plot: {is_survey}")
+
+                if is_survey:
+                    # Check if peak_params_grid exists and has data
+                    if hasattr(self.parent, 'peak_params_grid'):
+                        num_rows = self.parent.peak_params_grid.GetNumberRows()
+                        num_peaks = num_rows // 2
+                        print(f"Grid rows: {num_rows}, Peaks: {num_peaks}")
+
+                        # Check if peaks have atomic concentrations
+                        peaks_with_concentrations = 0
+                        for i in range(num_peaks):
+                            row = i * 2
+                            try:
+                                core_level = self.parent.peak_params_grid.GetCellValue(row, 1)
+                                area_str = self.parent.peak_params_grid.GetCellValue(row, 6)
+                                rsf_str = self.parent.peak_params_grid.GetCellValue(row, 8)
+                                atomic_str = self.parent.peak_params_grid.GetCellValue(row, 10)
+
+                                print(f"Peak {i}: {core_level}")
+                                print(f"  Area: '{area_str}', RSF: '{rsf_str}', Atomic %: '{atomic_str}'")
+
+                                if atomic_str and atomic_str != '':
+                                    atomic_conc = float(atomic_str)
+                                    if atomic_conc > 0.1:
+                                        peaks_with_concentrations += 1
+
+                            except (ValueError, IndexError) as e:
+                                print(f"Error reading peak {i}: {e}")
+
+                        print(f"Peaks with concentrations > 0.1%: {peaks_with_concentrations}")
+
+                        if peaks_with_concentrations > 0:
+                            # Enable and draw survey table
+                            self.parent.plot_manager.survey_table_state = 1
+                            self.parent.plot_manager.draw_survey_table()
+                            self.parent.canvas.draw()
+                            print("Survey table created and displayed")
+                        else:
+                            print("No peaks with atomic concentrations > 0.1% - survey table not created")
+                    else:
+                        print("peak_params_grid not found")
+                else:
+                    sheet_name = self.parent.sheet_combobox.GetValue().lower() if hasattr(self.parent, 'sheet_combobox') else "unknown"
+                    print(f"Not a survey plot - current sheet: '{sheet_name}'")
+            else:
+                print("plot_manager not found")
+
+        except Exception as e:
+            print(f"Error creating survey table: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
 
     def on_select_all(self, event):
         """Select all peaks in current tab"""
@@ -2461,17 +2651,24 @@ class AutoIDWindow(wx.Frame):
             self.SetPosition((max(0, new_x), max(0, new_y)))
 
     def parse_forced_elements(self, force_text):
-        """Parse forced elements text into elements and core levels"""
+        """Parse forced elements text into elements, core levels, and exclusions"""
         if not force_text.strip():
-            return [], []
+            return [], [], []
 
         forced_elements = []
         forced_core_levels = []
+        excluded_elements = []
 
         items = [item.strip() for item in force_text.split(',')]
 
         for item in items:
             if not item:
+                continue
+
+            # Check for exclusion prefix
+            if item.startswith('-'):
+                excluded_item = item[1:].strip()  # Remove the '-'
+                excluded_elements.append(excluded_item)
                 continue
 
             # Check if it contains digits (core level like Ni2p, Br3d) or 'kll' (Auger)
@@ -2485,7 +2682,7 @@ class AutoIDWindow(wx.Frame):
                 # It's just an element
                 forced_elements.append(item)
 
-        return forced_elements, forced_core_levels
+        return forced_elements, forced_core_levels, excluded_elements
 
     def get_element_core_levels_by_rsf(self, element):
         """Get core levels for an element sorted by RSF (highest first)"""
@@ -2595,7 +2792,8 @@ class AutoIDWindow(wx.Frame):
                     text_obj = self.parent.ax.text(position, label_y, label_text,
                                                    rotation=90, va='bottom', ha='center',
                                                    fontsize=self.parent.label_font_size,
-                                                   color='black')
+                                                   color='black',
+                                                   fontweight='normal')
 
                     # Save to data structure (same format as label manager)
                     self.parent.Data['Core levels'][sheet_name]['Labels'].append({
@@ -2604,7 +2802,8 @@ class AutoIDWindow(wx.Frame):
                         'y': float(f"{label_y:.2f}"),
                         'rotation': 90,
                         'fontsize': self.parent.label_font_size,
-                        'fontfamily': 'Arial'
+                        'fontfamily': 'Arial',
+                        'fontweight': 'normal'
                     })
 
                     labels_created += 1
@@ -2895,6 +3094,7 @@ class AutoIDWindow(wx.Frame):
                                     ha='center',
                                     fontsize=8,  # Smaller font for show labels
                                     color='black',
+                                    fontweight='normal',
                                     bbox=dict(facecolor='yellow',
                                               edgecolor='grey',
                                               alpha=0.4,
@@ -4435,9 +4635,27 @@ class Method2Identifier:
         self.process_log.append("=== Step 2.5: Processing Forced Elements ===")
 
         # Process forced elements/core levels first
-        forced_elements, forced_core_levels = self.parent_window.parse_forced_elements(
+        forced_elements, forced_core_levels, excluded_elements = self.parent_window.parse_forced_elements(
             self.parent_window.force_elements_ctrl.GetValue()
         )
+
+        # Apply exclusions - dismiss peaks that match excluded elements
+        for excluded_element in excluded_elements:
+            self.process_log.append(f"Excluding element: {excluded_element}")
+            for peak in self.parent_window.all_peaks:
+                if peak.get('assigned') or peak.get('dismissed'):
+                    continue
+
+                # Get possible assignments for this peak
+                possible = self.auto_survey_id.get_possible_assignments(peak['position'], self.parent_window.tolerance)
+
+                # Check if any assignment matches the excluded element
+                for p in possible:
+                    if p['element'].lower() == excluded_element.lower():
+                        peak['dismissed'] = True
+                        peak['dismiss_reason'] = f'Excluded: {excluded_element}'
+                        self.process_log.append(f"  Dismissed peak at {peak['position']:.2f} eV (matches excluded {excluded_element})")
+                        break
 
         if not forced_elements and not forced_core_levels:
             self.process_log.append("No forced elements specified")
