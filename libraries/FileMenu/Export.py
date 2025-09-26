@@ -312,8 +312,8 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
     window.results_grid.SetCellValue(row, 13, f"{rel_area:.2f}")
     window.results_grid.SetCellValue(row, 14, f"{peak_params['sigma']:.2f}")  # Sigma
     window.results_grid.SetCellValue(row, 15, f"{peak_params['gamma']:.2f}")  # Gamma
-    window.results_grid.SetCellValue(row, 17, f"{window.bg_min_energy:.2f}" if window.bg_min_energy is not None else "")
-    window.results_grid.SetCellValue(row, 18, f"{window.bg_max_energy:.2f}" if window.bg_max_energy is not None else "")
+    window.results_grid.SetCellValue(row, 17, f"{float(window.bg_min_energy):.2f}" if window.bg_min_energy is not None and window.bg_min_energy != '' else "")
+    window.results_grid.SetCellValue(row, 18, f"{float(window.bg_max_energy):.2f}" if window.bg_max_energy is not None and window.bg_max_energy != '' else "")
     window.results_grid.SetCellValue(row, 21, window.sheet_combobox.GetValue())
 
     # ADD MASS CALCULATION

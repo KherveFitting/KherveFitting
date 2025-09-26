@@ -2776,11 +2776,35 @@ class AutoIDWindow(wx.Frame):
             x_data = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
             max_y = np.max(y_data)
 
+            # # Create labels for each ticked peak
+            # labels_created = 0
+            # for peak_data in ticked_peaks:
+            #     position = peak_data['position']
+            #     label_text = peak_data['assignment']
             # Create labels for each ticked peak
             labels_created = 0
             for peak_data in ticked_peaks:
                 position = peak_data['position']
-                label_text = peak_data['assignment']
+                original_label_text = peak_data['assignment']
+
+                # Apply orbital filtering for labels (same logic as create_peaks_and_measure)
+                label_text = original_label_text
+                if position < 950.0:
+                    # Skip creating labels for dismissed orbitals
+                    if any(orbital in original_label_text for orbital in ['2p1/2', '3d3/2', '4f5/2']):
+                        print(f"  LABEL SKIPPED: {original_label_text} at {position:.2f} eV (dismissed orbital below 600eV)")
+                        continue
+
+                    # Convert orbital names in labels
+                    if '2p3/2' in original_label_text:
+                        label_text = original_label_text.replace('2p3/2', '2p')
+                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                    elif '3d5/2' in original_label_text:
+                        label_text = original_label_text.replace('3d5/2', '3d')
+                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                    elif '4f7/2' in original_label_text:
+                        label_text = original_label_text.replace('4f7/2', '4f')
+                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
 
                 # Find local maximum for positioning
                 mask = (x_data >= position - 2) & (x_data <= position + 2)
