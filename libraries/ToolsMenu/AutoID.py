@@ -1036,47 +1036,159 @@ class AutoSurveyID:
                                  key=lambda x: x[1]['peak_position'],
                                  reverse=True)
 
+        # # Filter peaks below 600eV according to orbital rules
+        # filtered_elements = {}
+        # for peak_name, element_data in sorted_elements:
+        #     print("\nFiltering peak:", peak_name)
+        #     position = element_data['peak_position']
+        #     orbital = element_data['orbital']
+        #     element = element_data['element']
+        #
+        #     if position < 600.0:
+        #         # Dismiss specific orbitals
+        #         if orbital in ['2p1/2', '3d3/2', '4f5/2']:
+        #             print(f"  DISMISSED: {peak_name} at {position:.2f} eV (orbital {orbital} below 600eV)")
+        #             continue
+        #
+        #         # Convert specific orbitals to simplified forms
+        #         elif orbital == '2p3/2':
+        #             simplified_orbital = '2p'
+        #             simplified_name = f"{element}{simplified_orbital}"
+        #             element_data = element_data.copy()
+        #             element_data['orbital'] = simplified_orbital
+        #             filtered_elements[simplified_name] = element_data
+        #             print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+        #         elif orbital == '3d5/2':
+        #             simplified_orbital = '3d'
+        #             simplified_name = f"{element}{simplified_orbital}"
+        #             element_data = element_data.copy()
+        #             element_data['orbital'] = simplified_orbital
+        #             filtered_elements[simplified_name] = element_data
+        #             print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+        #         elif orbital == '4f7/2':
+        #             simplified_orbital = '4f'
+        #             simplified_name = f"{element}{simplified_orbital}"
+        #             element_data = element_data.copy()
+        #             element_data['orbital'] = simplified_orbital
+        #             filtered_elements[simplified_name] = element_data
+        #             print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+        #         else:
+        #             # Keep other orbitals as-is
+        #             filtered_elements[peak_name] = element_data
+        #     else:
+        #         # Keep peaks above 600eV as-is
+        #         filtered_elements[peak_name] = element_data
         # Filter peaks below 600eV according to orbital rules
         filtered_elements = {}
+
+        # First, analyze what orbitals we have for each element below 600eV
+        elements_below_600 = {}
         for peak_name, element_data in sorted_elements:
-            print("\nFiltering peak:", peak_name)
             position = element_data['peak_position']
             orbital = element_data['orbital']
             element = element_data['element']
 
-            if position < 600.0:
-                # Dismiss specific orbitals
-                if orbital in ['2p1/2', '3d3/2', '4f5/2']:
-                    print(f"  DISMISSED: {peak_name} at {position:.2f} eV (orbital {orbital} below 600eV)")
-                    continue
+            if position < 1050.0:
+                if element not in elements_below_600:
+                    elements_below_600[element] = []
+                elements_below_600[element].append({
+                    'peak_name': peak_name,
+                    'orbital': orbital,
+                    'data': element_data
+                })
 
-                # Convert specific orbitals to simplified forms
+        # Now process each element's orbitals
+        for element, orbitals in elements_below_600.items():
+            orbital_names = [o['orbital'] for o in orbitals]
+
+            # Check for 2p orbitals
+            has_2p32 = '2p3/2' in orbital_names
+            has_2p12 = '2p1/2' in orbital_names
+
+            # Check for 3d orbitals
+            has_3d52 = '3d5/2' in orbital_names
+            has_3d32 = '3d3/2' in orbital_names
+
+            # Check for 4f orbitals
+            has_4f72 = '4f7/2' in orbital_names
+            has_4f52 = '4f5/2' in orbital_names
+
+            for orbital_info in orbitals:
+                peak_name = orbital_info['peak_name']
+                orbital = orbital_info['orbital']
+                element_data = orbital_info['data']
+
+                if orbital == '2p1/2':
+                    if has_2p32:
+                        # Both exist - dismiss 2p1/2
+                        print(f"  DISMISSED: {peak_name} (2p1/2 dismissed because 2p3/2 exists)")
+                        continue
+                    else:
+                        # Only 2p1/2 exists - convert to 2p
+                        simplified_name = f"{element}2p"
+                        element_data = element_data.copy()
+                        element_data['orbital'] = '2p'
+                        filtered_elements[simplified_name] = element_data
+                        print(f"  CONVERTED: {peak_name} → {simplified_name} (2p1/2 alone becomes 2p)")
+
                 elif orbital == '2p3/2':
-                    simplified_orbital = '2p'
-                    simplified_name = f"{element}{simplified_orbital}"
+                    # Always convert 2p3/2 to 2p
+                    simplified_name = f"{element}2p"
                     element_data = element_data.copy()
-                    element_data['orbital'] = simplified_orbital
+                    element_data['orbital'] = '2p'
                     filtered_elements[simplified_name] = element_data
-                    print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+                    print(f"  CONVERTED: {peak_name} → {simplified_name} (2p3/2 becomes 2p)")
+
+                elif orbital == '3d3/2':
+                    if has_3d52:
+                        # Both exist - dismiss 3d3/2
+                        print(f"  DISMISSED: {peak_name} (3d3/2 dismissed because 3d5/2 exists)")
+                        continue
+                    else:
+                        # Only 3d3/2 exists - convert to 3d
+                        simplified_name = f"{element}3d"
+                        element_data = element_data.copy()
+                        element_data['orbital'] = '3d'
+                        filtered_elements[simplified_name] = element_data
+                        print(f"  CONVERTED: {peak_name} → {simplified_name} (3d3/2 alone becomes 3d)")
+
                 elif orbital == '3d5/2':
-                    simplified_orbital = '3d'
-                    simplified_name = f"{element}{simplified_orbital}"
+                    # Always convert 3d5/2 to 3d
+                    simplified_name = f"{element}3d"
                     element_data = element_data.copy()
-                    element_data['orbital'] = simplified_orbital
+                    element_data['orbital'] = '3d'
                     filtered_elements[simplified_name] = element_data
-                    print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+                    print(f"  CONVERTED: {peak_name} → {simplified_name} (3d5/2 becomes 3d)")
+
+                elif orbital == '4f5/2':
+                    if has_4f72:
+                        # Both exist - dismiss 4f5/2
+                        print(f"  DISMISSED: {peak_name} (4f5/2 dismissed because 4f7/2 exists)")
+                        continue
+                    else:
+                        # Only 4f5/2 exists - convert to 4f
+                        simplified_name = f"{element}4f"
+                        element_data = element_data.copy()
+                        element_data['orbital'] = '4f'
+                        filtered_elements[simplified_name] = element_data
+                        print(f"  CONVERTED: {peak_name} → {simplified_name} (4f5/2 alone becomes 4f)")
+
                 elif orbital == '4f7/2':
-                    simplified_orbital = '4f'
-                    simplified_name = f"{element}{simplified_orbital}"
+                    # Always convert 4f7/2 to 4f
+                    simplified_name = f"{element}4f"
                     element_data = element_data.copy()
-                    element_data['orbital'] = simplified_orbital
+                    element_data['orbital'] = '4f'
                     filtered_elements[simplified_name] = element_data
-                    print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
+                    print(f"  CONVERTED: {peak_name} → {simplified_name} (4f7/2 becomes 4f)")
+
                 else:
                     # Keep other orbitals as-is
                     filtered_elements[peak_name] = element_data
-            else:
-                # Keep peaks above 600eV as-is
+
+        # Add peaks above 600eV as-is
+        for peak_name, element_data in sorted_elements:
+            position = element_data['peak_position']
+            if position >= 1050.0:
                 filtered_elements[peak_name] = element_data
 
         row = 0
@@ -2787,24 +2899,81 @@ class AutoIDWindow(wx.Frame):
                 position = peak_data['position']
                 original_label_text = peak_data['assignment']
 
+                # # Apply orbital filtering for labels (same logic as create_peaks_and_measure)
+                # label_text = original_label_text
+                # if position < 950.0:
+                #     # Skip creating labels for dismissed orbitals
+                #     if any(orbital in original_label_text for orbital in ['2p1/2', '3d3/2', '4f5/2']):
+                #         print(f"  LABEL SKIPPED: {original_label_text} at {position:.2f} eV (dismissed orbital below 600eV)")
+                #         continue
+                #
+                #     # Convert orbital names in labels
+                #     if '2p3/2' in original_label_text:
+                #         label_text = original_label_text.replace('2p3/2', '2p')
+                #         print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                #     elif '3d5/2' in original_label_text:
+                #         label_text = original_label_text.replace('3d5/2', '3d')
+                #         print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                #     elif '4f7/2' in original_label_text:
+                #         label_text = original_label_text.replace('4f7/2', '4f')
+                #         print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
                 # Apply orbital filtering for labels (same logic as create_peaks_and_measure)
                 label_text = original_label_text
-                if position < 950.0:
-                    # Skip creating labels for dismissed orbitals
-                    if any(orbital in original_label_text for orbital in ['2p1/2', '3d3/2', '4f5/2']):
-                        print(f"  LABEL SKIPPED: {original_label_text} at {position:.2f} eV (dismissed orbital below 600eV)")
-                        continue
+                if position < 600.0:
+                    # More sophisticated orbital filtering
+                    # Extract element from assignment
+                    import re
+                    element_match = re.match(r'([A-Z][a-z]?)', original_label_text)
+                    element = element_match.group(1) if element_match else ""
 
-                    # Convert orbital names in labels
-                    if '2p3/2' in original_label_text:
+                    # Check what other orbitals exist for this element in the ticked peaks
+                    element_orbitals = []
+                    for other_peak in ticked_peaks:
+                        if other_peak['position'] < 600.0 and other_peak['assignment'].startswith(element):
+                            if '2p1/2' in other_peak['assignment']:
+                                element_orbitals.append('2p1/2')
+                            elif '2p3/2' in other_peak['assignment']:
+                                element_orbitals.append('2p3/2')
+                            elif '3d3/2' in other_peak['assignment']:
+                                element_orbitals.append('3d3/2')
+                            elif '3d5/2' in other_peak['assignment']:
+                                element_orbitals.append('3d5/2')
+                            elif '4f5/2' in other_peak['assignment']:
+                                element_orbitals.append('4f5/2')
+                            elif '4f7/2' in other_peak['assignment']:
+                                element_orbitals.append('4f7/2')
+
+                    # Apply same logic as create_peaks_and_measure
+                    if '2p1/2' in original_label_text:
+                        if '2p3/2' in element_orbitals:
+                            print(f"  LABEL SKIPPED: {original_label_text} (2p1/2 dismissed because 2p3/2 exists)")
+                            continue
+                        else:
+                            label_text = original_label_text.replace('2p1/2', '2p')
+                            print(f"  LABEL CONVERTED: {original_label_text} → {label_text} (2p1/2 alone becomes 2p)")
+                    elif '2p3/2' in original_label_text:
                         label_text = original_label_text.replace('2p3/2', '2p')
-                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text} (2p3/2 becomes 2p)")
+                    elif '3d3/2' in original_label_text:
+                        if '3d5/2' in element_orbitals:
+                            print(f"  LABEL SKIPPED: {original_label_text} (3d3/2 dismissed because 3d5/2 exists)")
+                            continue
+                        else:
+                            label_text = original_label_text.replace('3d3/2', '3d')
+                            print(f"  LABEL CONVERTED: {original_label_text} → {label_text} (3d3/2 alone becomes 3d)")
                     elif '3d5/2' in original_label_text:
                         label_text = original_label_text.replace('3d5/2', '3d')
-                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text} (3d5/2 becomes 3d)")
+                    elif '4f5/2' in original_label_text:
+                        if '4f7/2' in element_orbitals:
+                            print(f"  LABEL SKIPPED: {original_label_text} (4f5/2 dismissed because 4f7/2 exists)")
+                            continue
+                        else:
+                            label_text = original_label_text.replace('4f5/2', '4f')
+                            print(f"  LABEL CONVERTED: {original_label_text} → {label_text} (4f5/2 alone becomes 4f)")
                     elif '4f7/2' in original_label_text:
                         label_text = original_label_text.replace('4f7/2', '4f')
-                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
+                        print(f"  LABEL CONVERTED: {original_label_text} → {label_text} (4f7/2 becomes 4f)")
 
                 # Find local maximum for positioning
                 mask = (x_data >= position - 2) & (x_data <= position + 2)
