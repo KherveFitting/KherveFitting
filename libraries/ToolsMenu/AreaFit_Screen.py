@@ -782,6 +782,14 @@ class BackgroundWindow(wx.Frame):
 
         save_state(self.parent)
 
+        # Enable survey table if this is a survey plot
+        if is_survey and hasattr(self.parent, 'plot_manager'):
+            # Enable survey table state
+            self.parent.plot_manager.survey_table_state = 1
+            # Draw the survey table (this will also hide the legend)
+            self.parent.plot_manager.draw_survey_table()
+            print(f"Survey table enabled for {sheet_name}")
+
 
     def handle_tougaard_background_special(self, sheet_name, selected_method, vline1_x, vline2_x):
         import numpy as np

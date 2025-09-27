@@ -505,8 +505,8 @@ class LabelWindow(wx.Frame):
         sheet_name = self.parent.sheet_combobox.GetValue()
         table_exists = False
 
-        print("Labels data:", self.parent.Data['Core levels'][sheet_name].get('Labels', []))  # Debugging line
-        print("is table flag:", [label.get('is_table') for label in self.parent.Data['Core levels'][sheet_name].get('Labels', [])])  # Debugging line
+        # print("Labels data:", self.parent.Data['Core levels'][sheet_name].get('Labels', []))  # Debugging line
+        # print("is table flag:", [label.get('is_table') for label in self.parent.Data['Core levels'][sheet_name].get('Labels', [])])  # Debugging line
         for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
             if label_data.get('text') == 'Table' and label_data.get('is_table'):
                 table_exists = True

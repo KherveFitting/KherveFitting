@@ -1821,7 +1821,7 @@ class AutoIDWindow(wx.Frame):
         self.auto_survey_id = AutoSurveyID(parent)
 
         # Parameters for peak finding - Updated defaults
-        self.prominence = 0.009  # 1% of max peak
+        self.prominence = 0.9  # Default prominence in percentage
         self.width = 0.6
         self.width_max = 20.0
         self.distance = 5.0  # Changed from 30.0 to 5.0
@@ -1854,57 +1854,50 @@ class AutoIDWindow(wx.Frame):
         param_box = wx.StaticBox(panel, label="Peak Finding Parameters")
         param_sizer = wx.StaticBoxSizer(param_box, wx.VERTICAL)
 
-        param_grid = wx.FlexGridSizer(1, 2, 5, 5)
-        param_grid.AddGrowableCol(1)
-        # param_grid.AddGrowableCol(3)
 
-        param_grid.Add(wx.StaticText(panel, label="Prominence:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")
-        param_grid.Add(self.prominence_ctrl, 0, wx.EXPAND)
+        # Parameters and Force Elements in 2 columns
+        param_force_box = wx.StaticBox(panel, label="Parameters / Force Elements")
+        param_force_sizer = wx.StaticBoxSizer(param_force_box, wx.HORIZONTAL)
 
-        # # Parameters
-        # param_grid.Add(wx.StaticText(panel, label="Prominence:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        # self.prominence_ctrl = wx.TextCtrl(panel, value=f"{self.prominence:.3f}")
-        # param_grid.Add(self.prominence_ctrl, 0, wx.EXPAND)
-        #
-        # param_grid.Add(wx.StaticText(panel, label="Width (min):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        # self.width_ctrl = wx.TextCtrl(panel, value=f"{self.width:.1f}")
-        # param_grid.Add(self.width_ctrl, 0, wx.EXPAND)
-        #
-        # param_grid.Add(wx.StaticText(panel, label="Width (max):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        # self.width_max_ctrl = wx.TextCtrl(panel, value=f"{self.width_max:.1f}")
-        # param_grid.Add(self.width_max_ctrl, 0, wx.EXPAND)
-        #
-        # param_grid.Add(wx.StaticText(panel, label="Distance:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        # self.distance_ctrl = wx.TextCtrl(panel, value=f"{self.distance:.1f}")
-        # param_grid.Add(self.distance_ctrl, 0, wx.EXPAND)
-        #
-        # param_grid.Add(wx.StaticText(panel, label="Tolerance (eV):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        # self.tolerance_ctrl = wx.TextCtrl(panel, value=f"{self.tolerance:.1f}")
-        # param_grid.Add(self.tolerance_ctrl, 0, wx.EXPAND)
+        # # Column 0: Prominence
+        # prominence_col_sizer = wx.BoxSizer(wx.VERTICAL)
+        # prominence_label = wx.StaticText(panel, label="Prominence:")
+        # self.prominence_ctrl = wx.SpinCtrlDouble(panel, value="0.009", min=0.001, max=1.0, inc=0.001)
+        # self.prominence_ctrl.SetDigits(3)
+        # self.prominence_ctrl.SetMinSize((100, -1))
+        # prominence_help = wx.StaticText(panel, label="Fraction of max peak\n(0.009 = 0.9%)")
+        # prominence_help.SetFont(prominence_help.GetFont().MakeItalic())
 
-        param_sizer.Add(param_grid, 0, wx.EXPAND | wx.ALL, 5)
+        # Column 0: Prominence
+        prominence_col_sizer = wx.BoxSizer(wx.VERTICAL)
+        prominence_label = wx.StaticText(panel, label="Prominence (%):")
+        self.prominence_ctrl = wx.SpinCtrlDouble(panel, value="0.9", min=0.1, max=100.0, inc=0.1)
+        self.prominence_ctrl.SetDigits(1)
+        self.prominence_ctrl.SetMinSize((100, -1))
+        prominence_help = wx.StaticText(panel, label="Percentage of max peak\n(0.9 = 0.9%)")
+        prominence_help.SetFont(prominence_help.GetFont().MakeItalic())
 
-        # Help text
-        help_text = wx.StaticText(panel, label="Prominence: fraction of max peak (0.01 = 1%)")
-        help_text.SetFont(help_text.GetFont().MakeItalic())
-        param_sizer.Add(help_text, 0, wx.ALL, 5)
+        prominence_col_sizer.Add(prominence_label, 0, wx.ALL, 1)
+        prominence_col_sizer.Add(prominence_help, 0, wx.ALL, 1)
+        prominence_col_sizer.Add(self.prominence_ctrl, 0, wx.ALL, 1)
 
-        # Forced elements text control
-        force_box = wx.StaticBox(panel, label="Force Elements/Core Levels (Optional)")
-        force_sizer = wx.StaticBoxSizer(force_box, wx.VERTICAL)
 
-        force_label = wx.StaticText(panel, label="Enter elements or specific core levels to force identification:")
-        force_help = wx.StaticText(panel, label="Examples: Ni, Br3d, Nakll, -Zn (comma separated, use - to exclude)")
+        # Column 1: Force Elements
+        force_col_sizer = wx.BoxSizer(wx.VERTICAL)
+        force_label = wx.StaticText(panel, label="Force Elements/Core Levels (Optional):")
+        force_help = wx.StaticText(panel, label="Examples: Ni, Br3d, Nakll, -Zn")
+        force_help2 = wx.StaticText(panel, label="(comma separated, use - to exclude)")
         force_help.SetFont(force_help.GetFont().MakeItalic())
+        self.force_elements_ctrl = wx.TextCtrl(panel, value="", style=wx.TE_MULTILINE, size=(-1, 30))
 
-        # Make text box smaller in height
-        self.force_elements_ctrl = wx.TextCtrl(panel, value="", style=wx.TE_MULTILINE, size=(-1, 40))
+        force_col_sizer.Add(force_label, 0, wx.ALL, 1)
+        force_col_sizer.Add(force_help, 0, wx.ALL, 1)
+        force_col_sizer.Add(force_help2, 0, wx.ALL, 1)
+        force_col_sizer.Add(self.force_elements_ctrl, 1, wx.EXPAND | wx.ALL, 1)
 
-
-        force_sizer.Add(force_label, 0, wx.ALL, 2)
-        force_sizer.Add(force_help, 0, wx.ALL, 2)
-        force_sizer.Add(self.force_elements_ctrl, 0, wx.EXPAND | wx.ALL, 5)
+        # Add columns to horizontal sizer
+        param_force_sizer.Add(prominence_col_sizer, 1, wx.EXPAND | wx.ALL, 5)
+        param_force_sizer.Add(force_col_sizer, 2, wx.EXPAND | wx.ALL, 5)
 
         # Control buttons - arranged in 2 rows
         button_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -1912,31 +1905,65 @@ class AutoIDWindow(wx.Frame):
         # Row 1
         row1_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.run_btn = wx.Button(panel, label="Run AutoID")
+        self.run_btn = wx.Button(panel, label="Run")
+        self.run_btn.SetBackgroundColour(wx.Colour(144, 238, 144))  # Light green color
+        if 'wxMac' in wx.PlatformInfo:
+            self.run_btn.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.run_btn.SetMinSize((125, 35))
+        else:
+            self.run_btn.SetMinSize((125, 35))
+        # Try to get a play-like icon from the OS
+        try:
+            # wx.ART_GO_FORWARD often looks like a play button
+            play_icon = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_BUTTON, (16, 16))
+            if play_icon.IsOk():
+                self.run_btn.SetBitmap(play_icon)
+            else:
+                self.run_btn.SetLabel("▶ Run AutoID")
+        except:
+            self.run_btn.SetLabel("▶ Run AutoID")
         self.run_btn.Bind(wx.EVT_BUTTON, self.on_run)
         row1_sizer.Add(self.run_btn, 0, wx.ALL, 3)
 
-        self.create_regions_btn = wx.Button(panel, label="Create Areas")
-        self.create_regions_btn.Bind(wx.EVT_BUTTON, self.on_create_regions)
-        self.create_regions_btn.Enable(False)
-        row1_sizer.Add(self.create_regions_btn, 0, wx.ALL, 3)
+        self.edit_area_btn = wx.Button(panel, label="Edit Area")
+        if 'wxMac' in wx.PlatformInfo:
+            self.edit_area_btn.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.edit_area_btn.SetMinSize((125, 35))
+        else:
+            self.edit_area_btn.SetMinSize((125, 35))
+        self.edit_area_btn.Bind(wx.EVT_BUTTON, self.on_edit_area)
+        row1_sizer.Add(self.edit_area_btn, 0, wx.ALL, 3)
 
-        self.create_labels_btn = wx.Button(panel, label="Create Labels")
-        self.create_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_labels)
-        self.create_labels_btn.Enable(False)  # Initially disabled
-        row1_sizer.Add(self.create_labels_btn, 0, wx.ALL, 3)
+        # Delete All button with icon
+        self.delete_all_btn = wx.Button(panel, label="Delete")
+        if 'wxMac' in wx.PlatformInfo:
+            self.delete_all_btn.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.delete_all_btn.SetMinSize((125, 35))
+        else:
+            self.delete_all_btn.SetMinSize((125, 35))
+        self.delete_all_btn.SetForegroundColour(wx.Colour(139, 0, 0))  # Dark red text
+        try:
+            # Try to load delete icon
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_path = os.path.join(current_dir, "..", "Icons", "delete-25.png")
+            if os.path.exists(icon_path):
+                delete_icon = wx.Bitmap(icon_path, wx.BITMAP_TYPE_PNG)
+                if delete_icon.IsOk():
+                    self.delete_all_btn.SetBitmap(delete_icon)
+        except:
+            # If icon loading fails, just use text
+            pass
+        self.delete_all_btn.Bind(wx.EVT_BUTTON, self.on_delete_all)
+        self.delete_all_btn.SetToolTip("Delete all areas and labels")
+        row1_sizer.Add(self.delete_all_btn, 0, wx.ALL, 3)
 
-        self.create_regions_labels_btn = wx.Button(panel, label="Create Areas + Labels")
-        self.create_regions_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_regions_labels)
-        self.create_regions_labels_btn.Enable(False)  # Initially disabled
-        row1_sizer.Add(self.create_regions_labels_btn, 0, wx.ALL, 3)
 
         # Row 2
         row2_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.select_main_btn = wx.Button(panel, label="Select Main Peaks")
-        self.select_main_btn.Bind(wx.EVT_BUTTON, self.on_select_main_peaks)
-        row2_sizer.Add(self.select_main_btn, 0, wx.ALL, 3)
 
         self.select_all_btn = wx.Button(panel, label="Select All")
         self.select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
@@ -1946,28 +1973,19 @@ class AutoIDWindow(wx.Frame):
         self.deselect_all_btn.Bind(wx.EVT_BUTTON, self.on_deselect_all)
         row2_sizer.Add(self.deselect_all_btn, 0, wx.ALL, 3)
 
-        self.edit_area_btn = wx.Button(panel, label="Edit Area")
-        self.edit_area_btn.Bind(wx.EVT_BUTTON, self.on_edit_area)
-        # self.edit_area_btn.Enable(False)  # Initially disabled
-        row2_sizer.Add(self.edit_area_btn, 0, wx.ALL, 3)
+        self.create_regions_btn = wx.Button(panel, label="Create Areas")
+        self.create_regions_btn.Bind(wx.EVT_BUTTON, self.on_create_regions)
+        self.create_regions_btn.Enable(False)
+        row2_sizer.Add(self.create_regions_btn, 0, wx.ALL, 3)
 
-        # Process description button
-        self.process_desc_btn = wx.Button(panel, label="Description")
-        self.process_desc_btn.Bind(wx.EVT_BUTTON, self.on_show_process_description)
-        row2_sizer.Add(self.process_desc_btn, 0, wx.ALL, 3)
+        self.create_labels_btn = wx.Button(panel, label="Create Labels")
+        self.create_labels_btn.Bind(wx.EVT_BUTTON, self.on_create_labels)
+        self.create_labels_btn.Enable(False)  # Initially disabled
+        row2_sizer.Add(self.create_labels_btn, 0, wx.ALL, 3)
 
-        # Row 3
-        row3_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        # Show/Hide Labels checkbox
-        self.show_labels_checkbox = wx.CheckBox(panel, label="Show Labels")
-        self.show_labels_checkbox.SetValue(True)
-        self.show_labels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_show_labels_toggle)
-        row3_sizer.Add(self.show_labels_checkbox, 0, wx.ALL , 3)
-
-        button_sizer.Add(row1_sizer, 0, wx.CENTER, 0)
         button_sizer.Add(row2_sizer, 0, wx.CENTER, 0)
-        button_sizer.Add(row3_sizer, 0, wx.LEFT, 0)
+        button_sizer.Add(row1_sizer, 0, wx.CENTER, 0)
         # Create notebook with only 2 tabs
         self.notebook = wx.Notebook(panel)
 
@@ -1983,15 +2001,60 @@ class AutoIDWindow(wx.Frame):
         # Status text
         self.status_text = wx.StaticText(panel, label="Ready to run identification...")
 
+
         # Layout
-        main_sizer.Add(param_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        main_sizer.Add(force_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        main_sizer.Add(button_sizer, 0, wx.CENTER | wx.ALL, 5)
-        main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
-        main_sizer.Add(self.status_text, 0, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(param_force_sizer, 0, wx.EXPAND | wx.ALL, 1)
+        main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 1)
+        main_sizer.Add(button_sizer, 0, wx.CENTER | wx.ALL, 1)
+        main_sizer.Add(self.status_text, 0, wx.EXPAND | wx.ALL, 1)
 
         panel.SetSizer(main_sizer)
-        self.SetSize((520, 700))
+        self.SetSize((390, 450))
+
+    def on_delete_all(self, event):
+        """Delete all areas (regions) and labels"""
+        try:
+            # Confirm deletion
+            dlg = wx.MessageDialog(self,
+                                   "This will delete ALL areas and labels.\n\nAre you sure?",
+                                   "Confirm Delete All",
+                                   wx.YES_NO | wx.ICON_QUESTION)
+
+            if dlg.ShowModal() != wx.ID_YES:
+                dlg.Destroy()
+                return
+            dlg.Destroy()
+
+            sheet_name = self.parent.sheet_combobox.GetValue()
+
+            # Clear all peak fitting data (areas/regions)
+            self._clear_all_peaks_and_data(sheet_name)
+
+            # Clear all labels
+            self._remove_all_labels()
+
+            # Clear labels from data structure
+            if 'Labels' in self.parent.Data['Core levels'][sheet_name]:
+                self.parent.Data['Core levels'][sheet_name]['Labels'].clear()
+
+            # Update the plot
+            self.parent.clear_and_replot()
+            self.parent.canvas.draw_idle()
+
+            # Update Label Manager if it's open
+            self._update_label_manager_if_open()
+
+            # Show success message
+            wx.MessageBox("All areas and labels have been deleted.",
+                          "Delete Complete",
+                          wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error deleting areas and labels: {str(e)}",
+                          "Error",
+                          wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
 
     def on_edit_area(self, event):
         """Open the AreaFit screen for editing areas"""
@@ -2000,6 +2063,25 @@ class AutoIDWindow(wx.Frame):
             self.parent.on_open_background_window()
         except Exception as e:
             wx.MessageBox(f"Error opening Area editor: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def update_button_states_OLD(self):
+        """Update button states based on whether there are assigned peaks"""
+        has_assigned_peaks = False
+
+        if hasattr(self, 'all_peaks'):
+            # Check if any peaks are assigned
+            for peak in self.all_peaks:
+                if peak.get('assigned') and peak.get('assignment') and peak.get('assignment').strip():
+                    has_assigned_peaks = True
+                    break
+
+        # Enable/disable buttons based on assigned peaks
+        self.create_labels_btn.Enable(has_assigned_peaks)
+        self.create_regions_labels_btn.Enable(has_assigned_peaks)
+
+        # Create Areas button is enabled if any peaks exist (assigned or not)
+        has_any_peaks = hasattr(self, 'all_peaks') and len(self.all_peaks) > 0
+        self.create_regions_btn.Enable(has_any_peaks)
 
     def update_button_states(self):
         """Update button states based on whether there are assigned peaks"""
@@ -2014,7 +2096,6 @@ class AutoIDWindow(wx.Frame):
 
         # Enable/disable buttons based on assigned peaks
         self.create_labels_btn.Enable(has_assigned_peaks)
-        self.create_regions_labels_btn.Enable(has_assigned_peaks)
 
         # Create Areas button is enabled if any peaks exist (assigned or not)
         has_any_peaks = hasattr(self, 'all_peaks') and len(self.all_peaks) > 0
@@ -2067,11 +2148,11 @@ class AutoIDWindow(wx.Frame):
         # Results list
         self.results_list = wx.ListCtrl(page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.results_list.AppendColumn("✓", width=30)
-        self.results_list.AppendColumn("B.E. (eV)", width=75)
-        self.results_list.AppendColumn("Width", width=60)
-        self.results_list.AppendColumn("Signal", width=70)
+        self.results_list.AppendColumn("B.E. (eV)", width=100)
+        # self.results_list.AppendColumn("Width", width=60)
+        # self.results_list.AppendColumn("Signal", width=70)
         self.results_list.AppendColumn("Assigned To", width=90)
-        self.results_list.AppendColumn("RSF", width=50)
+        # self.results_list.AppendColumn("RSF", width=50)
         self.results_list.AppendColumn("Confidence", width=80)
 
         # Bind events
@@ -2227,7 +2308,7 @@ class AutoIDWindow(wx.Frame):
         if item < len(assigned_peaks):
             peak = assigned_peaks[item]
 
-            if col == 4:  # Assignment column
+            if col == 2:  # Assignment column
                 self._edit_assignment(peak, item)
             elif col == 0:  # Checkbox column
                 # Toggle checkbox
@@ -2364,11 +2445,11 @@ class AutoIDWindow(wx.Frame):
             index = self.results_list.GetItemCount()
             self.results_list.InsertItem(index, "✓" if peak.get('create_region') else "")
             self.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
-            self.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
-            self.results_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
-            self.results_list.SetItem(index, 4, assignment)
-            self.results_list.SetItem(index, 5, f"{rsf:.2f}")
-            self.results_list.SetItem(index, 6, f"{confidence}")
+            # self.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            # self.results_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
+            self.results_list.SetItem(index, 2, assignment)
+            # self.results_list.SetItem(index, 5, f"{rsf:.2f}")
+            self.results_list.SetItem(index, 3, f"{confidence}")
 
             # Color code by confidence
             if confidence >= 90:
@@ -2434,7 +2515,7 @@ class AutoIDWindow(wx.Frame):
 
         # Update parameters with proper handling
         try:
-            self.prominence = float(self.prominence_ctrl.GetValue())
+            self.prominence = self.prominence_ctrl.GetValue()
             self.width = float(self.width_ctrl.GetValue())
             self.width_max = float(self.width_max_ctrl.GetValue())
             self.distance = float(self.distance_ctrl.GetValue())
@@ -2483,17 +2564,18 @@ class AutoIDWindow(wx.Frame):
 
         # Update parameters with proper handling
         try:
-            self.prominence = float(self.prominence_ctrl.GetValue())
+            prominence_percent = self.prominence_ctrl.GetValue()
+            self.prominence = prominence_percent / 100.0  # Convert percentage to decimal
             # Keep tolerance as default value since control was removed
             # self.tolerance should already be set in __init__
 
             # Validate parameters
-            if self.prominence <= 0 or self.prominence > 1:
-                wx.MessageBox("Prominence should be between 0 and 1 (e.g., 0.01 for 1%)", "Invalid Parameter")
+            if prominence_percent <= 0 or prominence_percent > 100:
+                wx.MessageBox("Prominence should be between 0.1% and 100%", "Invalid Parameter")
                 return
 
             # Debug: Print the actual values being used
-            print(f"DEBUG: Using parameters - Prominence: {self.prominence}, Tolerance: {self.tolerance}")
+            # print(f"DEBUG: Using parameters - Prominence: {self.prominence}, Tolerance: {self.tolerance}")
 
         except ValueError:
             wx.MessageBox("Please enter valid numeric values for all parameters", "Invalid Parameters")
@@ -2649,6 +2731,9 @@ class AutoIDWindow(wx.Frame):
                             'assignment': peak['assignment']
                         })
 
+            # Apply exclusions to selected peaks
+            selected_peaks = self._apply_exclusions_to_peaks(selected_peaks)
+
             if not selected_peaks:
                 wx.MessageBox("Please tick peaks to create regions for", "No Ticked Peaks", wx.OK | wx.ICON_INFORMATION)
                 return
@@ -2800,20 +2885,20 @@ class AutoIDWindow(wx.Frame):
         """Get core levels for an element sorted by RSF (highest first)"""
         core_levels = []
 
-        print(f"DEBUG: Looking for element '{element}' in library data")
-        print(f"DEBUG: Library data has {len(self.auto_survey_id.library_data)} entries")
+        # print(f"DEBUG: Looking for element '{element}' in library data")
+        # print(f"DEBUG: Library data has {len(self.auto_survey_id.library_data)} entries")
 
         # Get all possible orbitals for this element from library
         found_entries = []
         for (lib_element, orbital), data in self.auto_survey_id.library_data.items():
             if lib_element.lower() == element.lower():
                 found_entries.append((lib_element, orbital, data))
-                print(f"DEBUG: Found {lib_element}{orbital} in library")
+                # print(f"DEBUG: Found {lib_element}{orbital} in library")
 
-        print(f"DEBUG: Found {len(found_entries)} entries for {element}")
+        # print(f"DEBUG: Found {len(found_entries)} entries for {element}")
 
         if not found_entries:
-            print(f"DEBUG: No entries found for {element}. Checking first 10 library keys:")
+            # print(f"DEBUG: No entries found for {element}. Checking first 10 library keys:")
             keys = list(self.auto_survey_id.library_data.keys())[:10]
             for key in keys:
                 print(f"DEBUG: Available key: {key}")
@@ -2821,12 +2906,12 @@ class AutoIDWindow(wx.Frame):
 
         for lib_element, orbital, data in found_entries:
             instrument = self.parent.current_instrument
-            print(f"DEBUG: Checking instrument '{instrument}' for {lib_element}{orbital}")
-            print(f"DEBUG: Available instruments: {list(data.keys())}")
+            # print(f"DEBUG: Checking instrument '{instrument}' for {lib_element}{orbital}")
+            # print(f"DEBUG: Available instruments: {list(data.keys())}")
 
             if instrument not in data:
                 instrument = next(iter(data))
-                print(f"DEBUG: Using fallback instrument: {instrument}")
+                # print(f"DEBUG: Using fallback instrument: {instrument}")
 
             if 'rsf' in data[instrument]:
                 rsf = float(data[instrument]['rsf'])
@@ -2838,7 +2923,7 @@ class AutoIDWindow(wx.Frame):
                         'be': be,
                         'rsf': rsf
                     })
-                    print(f"DEBUG: Added {element}{orbital}: BE={be:.2f}, RSF={rsf:.3f}")
+                    # print(f"DEBUG: Added {element}{orbital}: BE={be:.2f}, RSF={rsf:.3f}")
                 else:
                     print(f"DEBUG: No 'be' data for {lib_element}{orbital}")
             else:
@@ -2846,7 +2931,7 @@ class AutoIDWindow(wx.Frame):
 
         # Sort by RSF (highest first)
         core_levels.sort(key=lambda x: x['rsf'], reverse=True)
-        print(f"DEBUG: Final core levels for {element}: {[cl['assignment'] for cl in core_levels]}")
+        # print(f"DEBUG: Final core levels for {element}: {[cl['assignment'] for cl in core_levels]}")
         return core_levels
 
     def on_create_labels(self, event):
@@ -2879,6 +2964,9 @@ class AutoIDWindow(wx.Frame):
                             'source': 'results'
                         })
 
+            # Apply exclusions to ticked peaks
+            ticked_peaks = self._apply_exclusions_to_peaks(ticked_peaks)
+
             if not ticked_peaks:
                 wx.MessageBox("No ticked peaks found to create labels", "No Ticked Peaks", wx.OK | wx.ICON_INFORMATION)
                 return
@@ -2899,25 +2987,6 @@ class AutoIDWindow(wx.Frame):
                 position = peak_data['position']
                 original_label_text = peak_data['assignment']
 
-                # # Apply orbital filtering for labels (same logic as create_peaks_and_measure)
-                # label_text = original_label_text
-                # if position < 950.0:
-                #     # Skip creating labels for dismissed orbitals
-                #     if any(orbital in original_label_text for orbital in ['2p1/2', '3d3/2', '4f5/2']):
-                #         print(f"  LABEL SKIPPED: {original_label_text} at {position:.2f} eV (dismissed orbital below 600eV)")
-                #         continue
-                #
-                #     # Convert orbital names in labels
-                #     if '2p3/2' in original_label_text:
-                #         label_text = original_label_text.replace('2p3/2', '2p')
-                #         print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
-                #     elif '3d5/2' in original_label_text:
-                #         label_text = original_label_text.replace('3d5/2', '3d')
-                #         print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
-                #     elif '4f7/2' in original_label_text:
-                #         label_text = original_label_text.replace('4f7/2', '4f')
-                #         print(f"  LABEL CONVERTED: {original_label_text} → {label_text}")
-                # Apply orbital filtering for labels (same logic as create_peaks_and_measure)
                 label_text = original_label_text
                 if position < 600.0:
                     # More sophisticated orbital filtering
@@ -3059,6 +3128,81 @@ class AutoIDWindow(wx.Frame):
                 })
 
         return ticked_peaks
+
+    def _apply_exclusions_to_peaks(self, peaks_to_check):
+        """Apply exclusions to a list of peaks and return filtered list (for manual operations)"""
+        forced_elements, forced_core_levels, excluded_elements = self.parse_forced_elements(
+            self.force_elements_ctrl.GetValue()
+        )
+
+        if not excluded_elements:
+            return peaks_to_check  # No exclusions to apply
+
+        filtered_peaks = []
+        for peak in peaks_to_check:
+            assignment = peak.get('assignment', '')
+            if not assignment:
+                filtered_peaks.append(peak)
+                continue
+
+            # Parse element from assignment (e.g., "Na2p" -> "Na")
+            import re
+            match = re.match(r'([A-Z][a-z]?)', assignment)
+            if match:
+                peak_element = match.group(1)
+
+                # Check if this element is in the exclusion list
+                exclude_peak = False
+                for excluded_element in excluded_elements:
+                    if peak_element.lower() == excluded_element.lower():
+                        exclude_peak = True
+                        print(f"Excluding peak {assignment} at {peak['position']:.2f} eV due to exclusion: -{excluded_element}")
+                        break
+
+                if not exclude_peak:
+                    filtered_peaks.append(peak)
+            else:
+                filtered_peaks.append(peak)
+
+        return filtered_peaks
+
+    def _apply_exclusions_to_final_assignments(self):
+        """Apply exclusions only to peaks that are actually assigned to excluded elements"""
+        forced_elements, forced_core_levels, excluded_elements = self.parse_forced_elements(
+            self.force_elements_ctrl.GetValue()
+        )
+
+        if not excluded_elements:
+            return  # No exclusions to apply
+
+        excluded_count = 0
+        for peak in self.all_peaks:
+            if not peak.get('assigned') or peak.get('dismissed'):
+                continue
+
+            assignment = peak.get('assignment', '')
+            if not assignment:
+                continue
+
+            # Parse element from assignment (e.g., "Na2p" -> "Na")
+            import re
+            match = re.match(r'([A-Z][a-z]?)', assignment)
+            if match:
+                peak_element = match.group(1)
+
+                # Check if this element is in the exclusion list
+                for excluded_element in excluded_elements:
+                    if peak_element.lower() == excluded_element.lower():
+                        # Remove the assignment but don't dismiss the peak
+                        peak['assigned'] = False
+                        peak['assignment'] = ''
+                        peak['confidence'] = 0
+                        excluded_count += 1
+                        print(f"Excluded assignment: {assignment} at {peak['position']:.2f} eV")
+                        break
+
+        if excluded_count > 0:
+            print(f"Excluded {excluded_count} peak assignments due to force element exclusions")
 
     def _update_label_manager_if_open(self):
         """Update the Label Manager list if it's currently open"""
@@ -3601,6 +3745,9 @@ class Method1Identifier:
         # Step 2: Get possibilities and populate tables
         self._analyze_peaks()
 
+        # NEW: Apply exclusions to any manually assigned peaks
+        self.parent_window._apply_exclusions_to_final_assignments()
+
         # Update status
         self.parent_window.status_text.SetLabel(f"Method 1 complete. Found {len(self.parent_window.all_peaks)} peaks.")
     def _find_peaks(self):
@@ -3696,10 +3843,8 @@ class Method1Identifier:
             index = self.parent_window.peaks_list.GetItemCount()
             self.parent_window.peaks_list.InsertItem(index, "")
             self.parent_window.peaks_list.SetItem(index, 1, f"{peak['position']:.2f}")
-            self.parent_window.peaks_list.SetItem(index, 2, f"{peak['width']:.2f}")
-            self.parent_window.peaks_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
-            self.parent_window.peaks_list.SetItem(index, 4, possibilities_text)
-            self.parent_window.peaks_list.SetItem(index, 5, distances_text)
+            self.parent_window.peaks_list.SetItem(index, 2, possibilities_text)
+            self.parent_window.peaks_list.SetItem(index, 3, distances_text)
 
             # Add to Results tab ONLY if assigned
             assignment = peak.get('assignment', '')
@@ -3707,11 +3852,8 @@ class Method1Identifier:
                 index = self.parent_window.results_list.GetItemCount()
                 self.parent_window.results_list.InsertItem(index, "")
                 self.parent_window.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
-                self.parent_window.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
-                self.parent_window.results_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
-                self.parent_window.results_list.SetItem(index, 4, assignment)
-                self.parent_window.results_list.SetItem(index, 5, "1.00")  # Default RSF
-                self.parent_window.results_list.SetItem(index, 6, f"{peak.get('confidence', 0)}")
+                self.parent_window.results_list.SetItem(index, 2, assignment)
+                self.parent_window.results_list.SetItem(index, 3, f"{peak.get('confidence', 0)}")
 
         self.process_log.append(f"Populated Find Peaks with {len(sorted_peaks)} peaks ordered by binding energy")
         assigned_count = len([p for p in sorted_peaks if p.get('assignment')])
@@ -3785,6 +3927,9 @@ class Method2Identifier:
 
         # Step 4: Check companions for remaining peaks
         self._check_companions()
+
+        # NEW: Apply exclusions to final assignments only
+        self.parent_window._apply_exclusions_to_final_assignments()
 
         # Update tables and status
         self._populate_results()
@@ -4623,25 +4768,36 @@ class Method2Identifier:
             index = self.parent_window.peaks_list.GetItemCount()
             self.parent_window.peaks_list.InsertItem(index, "")
             self.parent_window.peaks_list.SetItem(index, 1, f"{peak['position']:.2f}")
-            self.parent_window.peaks_list.SetItem(index, 2, f"{peak['width']:.2f}")
-            self.parent_window.peaks_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
-            self.parent_window.peaks_list.SetItem(index, 4, possibilities_text)
-            self.parent_window.peaks_list.SetItem(index, 5, distances_text)
+            # self.parent_window.peaks_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            # self.parent_window.peaks_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
+            self.parent_window.peaks_list.SetItem(index, 2, possibilities_text)
+            self.parent_window.peaks_list.SetItem(index, 3, distances_text)
+
+            # # Add to Results tab ONLY if assigned
+            # assignment = peak.get('assignment', '')
+            # if assignment and assignment != '':
+            #     rsf_value = self._get_rsf_for_assignment(assignment) if assignment else 1.0
+            #     confidence = peak.get('confidence', 0)
+            #
+            #     index = self.parent_window.results_list.GetItemCount()
+            #     self.parent_window.results_list.InsertItem(index, "")
+            #     self.parent_window.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
+            #     self.parent_window.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
+            #     self.parent_window.results_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
+            #     self.parent_window.results_list.SetItem(index, 4, assignment)
+            #     self.parent_window.results_list.SetItem(index, 5, f"{rsf_value:.2f}")
+            #     self.parent_window.results_list.SetItem(index, 6, f"{confidence}")
 
             # Add to Results tab ONLY if assigned
             assignment = peak.get('assignment', '')
             if assignment and assignment != '':
-                rsf_value = self._get_rsf_for_assignment(assignment) if assignment else 1.0
                 confidence = peak.get('confidence', 0)
 
                 index = self.parent_window.results_list.GetItemCount()
                 self.parent_window.results_list.InsertItem(index, "")
                 self.parent_window.results_list.SetItem(index, 1, f"{peak['position']:.2f}")
-                self.parent_window.results_list.SetItem(index, 2, f"{peak['width']:.2f}")
-                self.parent_window.results_list.SetItem(index, 3, f"{peak['prominence']:.2f}")
-                self.parent_window.results_list.SetItem(index, 4, assignment)
-                self.parent_window.results_list.SetItem(index, 5, f"{rsf_value:.2f}")
-                self.parent_window.results_list.SetItem(index, 6, f"{confidence}")
+                self.parent_window.results_list.SetItem(index, 2, assignment)
+                self.parent_window.results_list.SetItem(index, 3, f"{confidence}")
 
                 # Color code by confidence
                 if confidence >= 90:
