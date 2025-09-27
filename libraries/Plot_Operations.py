@@ -856,8 +856,14 @@ class PlotManager:
                                  alpha=self.line_alpha, linestyle=self.raw_data_linestyle, label='Raw Data')
 
             if 'Labels' in window.Data['Core levels'][sheet_name]:
+                table_exists = False
 
                 for label_data in window.Data['Core levels'][sheet_name]['Labels']:
+                    # Skip drawing Table entities - they are handled separately
+                    if label_data.get('text') == 'Table' and label_data.get('is_table'):
+                        table_exists = True
+                        continue
+
                     window.ax.text(
                         label_data['x'],
                         label_data['y'],
@@ -867,6 +873,11 @@ class PlotManager:
                         ha='center',
                         fontsize=window.label_font_size
                     )
+
+                # Redraw survey table if Table entity exists and it's a survey plot
+                if table_exists and hasattr(self, 'is_survey_plot') and self.is_survey_plot():
+                    if hasattr(self, 'survey_table_state') and self.survey_table_state == 1:
+                        self.draw_survey_table()
 
 
             # Hide the cross if it exists
@@ -1151,17 +1162,28 @@ class PlotManager:
             elif fitting_model == "SurveyID":
                 cst_unfit = "SurveyID"
             if 'Labels' in window.Data['Core levels'][sheet_name]:
+                table_exists = False
 
                 for label_data in window.Data['Core levels'][sheet_name]['Labels']:
+                    # Skip drawing Table entities - they are handled separately
+                    if label_data.get('text') == 'Table' and label_data.get('is_table'):
+                        table_exists = True
+                        continue
+
                     window.ax.text(
                         label_data['x'],
                         label_data['y'],
                         label_data['text'],
                         rotation=label_data.get('rotation', 90),
-                        va = 'bottom',
-                        ha = 'center',
-                        fontsize = window.label_font_size
+                        va='bottom',
+                        ha='center',
+                        fontsize=window.label_font_size
                     )
+
+                # Redraw survey table if Table entity exists and it's a survey plot
+                if table_exists and hasattr(self, 'is_survey_plot') and self.is_survey_plot():
+                    if hasattr(self, 'survey_table_state') and self.survey_table_state == 1:
+                        self.draw_survey_table()
             if fitting_model == "Unfitted":
                 cst_unfit = "Unfitted"
                 XrangeMin = float(window.peak_params_grid.GetCellValue(row, 15))
@@ -3067,12 +3089,21 @@ class PlotManager:
         table_width = sum(col_widths)
         table_height = header_height + len(table_data) * row_height
 
-        # Position table in top-left corner to hide legend underneath
+        # Get table position from existing table entry in labels or use defaults
+        sheet_name = self.window.sheet_combobox.GetValue()
         x_start = 0.02
         y_start = 0.98
 
+        # Check if table already exists in labels
+        if 'Labels' in self.window.Data['Core levels'][sheet_name]:
+            for label in self.window.Data['Core levels'][sheet_name]['Labels']:
+                if label.get('text') == 'Table':
+                    x_start = label['x']
+                    y_start = label['y']
+                    break
+
         # Draw table background - using config alpha
-        from matplotlib.patches import Rectangle
+        from matplotlib.patches import Rectangle, Circle
         table_bg = Rectangle((x_start, y_start - table_height), table_width, table_height,
                              transform=self.ax.transAxes, facecolor='white',
                              edgecolor='black', linewidth=2, alpha=table_alpha)
@@ -3137,6 +3168,36 @@ class PlotManager:
                 self.survey_table_text.append(text_obj)
 
                 x_pos += width
+
+            # Add/update table entry in Labels data structure with axes coordinates
+            if 'Labels' not in self.window.Data['Core levels'][sheet_name]:
+                self.window.Data['Core levels'][sheet_name]['Labels'] = []
+
+            labels = self.window.Data['Core levels'][sheet_name]['Labels']
+
+            # Check if Table already exists in labels
+            table_found = False
+            for label in labels:
+                if label.get('text') == 'Table' and label.get('is_table'):
+                    # Update existing table position in axes coordinates
+                    label['x'] = x_start
+                    label['y'] = y_start
+                    table_found = True
+                    break
+
+            # If table doesn't exist in labels, add it with axes coordinates
+            if not table_found:
+                table_label = {
+                    'text': 'Table',
+                    'x': x_start,
+                    'y': y_start,
+                    'rotation': 0,
+                    'fontsize': 10,
+                    'fontfamily': 'Arial',
+                    'is_table': True,  # Special flag to identify table entities
+                    'coordinate_system': 'axes'  # Flag to indicate axes coordinates (0-1)
+                }
+                labels.append(table_label)
 
 
 

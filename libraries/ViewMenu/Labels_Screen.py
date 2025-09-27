@@ -1,6 +1,6 @@
 import wx
 import wx.grid
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Circle
 from matplotlib.transforms import Affine2D
 import numpy as np
 
@@ -163,31 +163,42 @@ class LabelWindow(wx.Frame):
             return
 
         label = self.parent.Data['Core levels'][sheet_name]['Labels'][selection]
-        max_y = max(self.parent.y_values)
 
-        if direction == 'left':
-            label['x'] += 2
-        elif direction == 'right':
-            label['x'] -= 2
-        elif direction == 'up':
-            label['y'] += max_y * 0.02
-        elif direction == 'down':
-            label['y'] -= max_y * 0.02
+        # Check if this is a Table entity - use axes coordinates
+        if label.get('text') == 'Table' and label.get('is_table'):
+            # Table uses axes coordinates (0-1), move in small increments
+            if direction == 'left':
+                label['x'] -= 0.02  # Move 2% of plot width
+            elif direction == 'right':
+                label['x'] += 0.02
+            elif direction == 'up':
+                label['y'] += 0.02  # Move 2% of plot height
+            elif direction == 'down':
+                label['y'] -= 0.02
 
-        for txt in self.parent.ax.texts[:]:
-            txt.remove()
+            # Ensure Table stays within bounds
+            label['x'] = max(0, min(1, label['x']))
+            label['y'] = max(0, min(1, label['y']))
 
-        for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
-            self.parent.ax.text(
-                label_data['x'],
-                label_data['y'],
-                label_data['text'],
-                rotation=label_data.get('rotation', 90),
-                fontsize=label_data.get('fontsize', 10),
-                fontfamily=label_data.get('fontfamily', 'Arial'),
-                va='bottom',
-                ha='center'
-            )
+            # Redraw the survey table at new position
+            if hasattr(self.parent, 'plot_manager'):
+                self.parent.plot_manager.draw_survey_table()
+
+        else:
+            # Regular text labels use data coordinates
+            max_y = max(self.parent.y_values)
+
+            if direction == 'left':
+                label['x'] += 2
+            elif direction == 'right':
+                label['x'] -= 2
+            elif direction == 'up':
+                label['y'] += max_y * 0.02
+            elif direction == 'down':
+                label['y'] -= max_y * 0.02
+
+            # Redraw all labels (this will handle both regular labels and table)
+            self.redraw_labels()
 
         self.parent.canvas.draw_idle()
         self.update_list()
@@ -264,19 +275,42 @@ class LabelWindow(wx.Frame):
         clicked_index = None
 
         for i, label_data in enumerate(self.parent.Data['Core levels'][sheet_name]['Labels']):
-            # Check if click is near text position
-            text_x = label_data['x']
-            text_y = label_data['y']
+            # Special handling for Table entities
+            if label_data.get('text') == 'Table' and label_data.get('is_table'):
+                # Convert data coordinates to axes coordinates
+                display_coords = self.parent.ax.transData.transform((event.xdata, event.ydata))
+                axes_coords = self.parent.ax.transAxes.inverted().transform(display_coords)
+                click_ax_x = axes_coords[0]
+                click_ax_y = axes_coords[1]
 
-            # Create larger clickable area based on percentage of plot size
-            bbox_width = x_range * 0.03  # 3% of x-axis range
-            bbox_height = y_range * 0.03  # 5% of y-axis range
+                table_x = label_data['x']
+                table_y = label_data['y']
+                table_width = 0.27
+                table_height = 0.2
 
-            if (abs(event.xdata - text_x) < bbox_width and
-                    abs(event.ydata - text_y) < bbox_height):
-                clicked_text = label_data
-                clicked_index = i
-                break
+                # Check if click is within table bounds
+                if (table_x <= click_ax_x <= table_x + table_width and
+                        table_y - table_height <= click_ax_y <= table_y):
+                    clicked_text = label_data
+                    clicked_index = i
+                    # Store original position instead of offset
+                    self.drag_start_pos = (click_ax_x, click_ax_y)
+                    self.table_start_pos = (table_x, table_y)
+                    break
+            else:
+                # Regular text labels - check if click is near text position
+                text_x = label_data['x']
+                text_y = label_data['y']
+
+                # Create larger clickable area based on percentage of plot size
+                bbox_width = x_range * 0.03  # 3% of x-axis range
+                bbox_height = y_range * 0.03  # 5% of y-axis range
+
+                if (abs(event.xdata - text_x) < bbox_width and
+                        abs(event.ydata - text_y) < bbox_height):
+                    clicked_text = label_data
+                    clicked_index = i
+                    break
 
         if clicked_text:
             self.select_text(clicked_text, clicked_index)
@@ -287,6 +321,8 @@ class LabelWindow(wx.Frame):
             self.labels_grid.SetGridCursor(clicked_index, 0)
         else:
             self.clear_selection()
+
+
 
     def clear_selection(self):
         if self.selection_box:
@@ -383,35 +419,75 @@ class LabelWindow(wx.Frame):
         if not self.is_dragging or not self.selected_text or not event.inaxes:
             return
 
-        # Update text position
-        new_x = event.xdata - self.drag_offset[0]
-        new_y = event.ydata - self.drag_offset[1]
+        # Special handling for Table entities
+        if self.selected_text.get('text') == 'Table' and self.selected_text.get('is_table'):
+            # Convert current mouse position to axes coordinates
+            display_coords = self.parent.ax.transData.transform((event.xdata, event.ydata))
+            axes_coords = self.parent.ax.transAxes.inverted().transform(display_coords)
+            current_ax_x = axes_coords[0]
+            current_ax_y = axes_coords[1]
 
-        self.selected_text['x'] = new_x
-        self.selected_text['y'] = new_y
+            # Calculate movement from start position
+            if hasattr(self, 'drag_start_pos') and hasattr(self, 'table_start_pos'):
+                dx = current_ax_x - self.drag_start_pos[0]
+                dy = current_ax_y - self.drag_start_pos[1]
 
-        # Update triangle position
-        if self.selection_box:
-            xlim = self.parent.ax.get_xlim()
-            ylim = self.parent.ax.get_ylim()
-            x_range = abs(xlim[1] - xlim[0])
-            y_range = abs(ylim[1] - ylim[0])
+                new_x = self.table_start_pos[0] + dx
+                new_y = self.table_start_pos[1] + dy
 
-            # Triangle dimensions - smaller and more consistent
-            triangle_width = x_range * 0.03  # 0.8% of x-axis range
-            triangle_height = y_range * 0.03  # 1.5% of y-axis range
-            triangle_y = new_y - y_range * 0.005  # 0.5% below text
+                # Keep table within bounds
+                new_x = max(0, min(0.7, new_x))
+                new_y = max(0.2, min(1, new_y))
 
-            triangle_points = [
-                [new_x, triangle_y],
-                [new_x - triangle_width / 2, triangle_y - triangle_height],
-                [new_x + triangle_width / 2, triangle_y - triangle_height]
-            ]
+                self.selected_text['x'] = new_x
+                self.selected_text['y'] = new_y
 
-            self.selection_box.set_xy(triangle_points)
+                # Update the grid display directly
+                try:
+                    # Find the table row in the grid and update it
+                    for row in range(self.labels_grid.GetNumberRows()):
+                        if (self.labels_grid.GetCellValue(row, 0) == 'Table'):
+                            self.labels_grid.SetCellValue(row, 1, f"{new_x:.2f}")
+                            self.labels_grid.SetCellValue(row, 2, f"{new_y:.2f}")
+                            break
+                except Exception as e:
+                    pass
 
-        # Redraw all text
-        self.redraw_labels()
+                # Redraw survey table at new position
+                if hasattr(self.parent, 'plot_manager'):
+                    self.parent.plot_manager.draw_survey_table()
+                    # Force canvas refresh immediately
+                    self.parent.canvas.draw_idle()
+
+        else:
+            # Regular text label handling
+            new_x = event.xdata - self.drag_offset[0]
+            new_y = event.ydata - self.drag_offset[1]
+
+            self.selected_text['x'] = new_x
+            self.selected_text['y'] = new_y
+
+            # Update triangle position for regular labels
+            if self.selection_box:
+                xlim = self.parent.ax.get_xlim()
+                ylim = self.parent.ax.get_ylim()
+                x_range = abs(xlim[1] - xlim[0])
+                y_range = abs(ylim[1] - ylim[0])
+
+                triangle_width = x_range * 0.03
+                triangle_height = y_range * 0.03
+                triangle_y = new_y - y_range * 0.005
+
+                triangle_points = [
+                    [new_x, triangle_y],
+                    [new_x - triangle_width / 2, triangle_y - triangle_height],
+                    [new_x + triangle_width / 2, triangle_y - triangle_height]
+                ]
+
+                self.selection_box.set_xy(triangle_points)
+
+            # Redraw all labels
+            self.redraw_labels()
 
 
 
@@ -425,9 +501,17 @@ class LabelWindow(wx.Frame):
         for txt in self.parent.ax.texts[:]:
             txt.remove()
 
-        # Redraw all labels
+        # Redraw all labels (except Table entities)
         sheet_name = self.parent.sheet_combobox.GetValue()
+        table_exists = False
+
+        print("Labels data:", self.parent.Data['Core levels'][sheet_name].get('Labels', []))  # Debugging line
+        print("is table flag:", [label.get('is_table') for label in self.parent.Data['Core levels'][sheet_name].get('Labels', [])])  # Debugging line
         for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
+            if label_data.get('text') == 'Table' and label_data.get('is_table'):
+                table_exists = True
+                continue  # Skip drawing the "Table" text
+
             self.parent.ax.text(
                 label_data['x'],
                 label_data['y'],
@@ -438,6 +522,10 @@ class LabelWindow(wx.Frame):
                 va='bottom',
                 ha='center'
             )
+
+        # Redraw survey table if Table entity exists
+        if table_exists and hasattr(self.parent, 'plot_manager'):
+            self.parent.plot_manager.draw_survey_table()
 
         self.parent.canvas.draw_idle()
 
@@ -536,18 +624,8 @@ class LabelWindow(wx.Frame):
             for txt in self.parent.ax.texts[:]:
                 txt.remove()
 
-            # Apply properties when creating text
-            for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
-                self.parent.ax.text(
-                    label_data['x'],
-                    label_data['y'],
-                    label_data['text'],
-                    rotation=label_data.get('rotation', 90),
-                    fontsize=label_data.get('fontsize', 10),
-                    fontfamily=label_data.get('fontfamily', 'Arial'),
-                    va='bottom',
-                    ha='center'
-                )
+            # Use redraw_labels which handles Table entities properly
+            self.redraw_labels()
 
             self.parent.canvas.draw_idle()
             self.update_list()
@@ -604,18 +682,32 @@ class LabelWindow(wx.Frame):
         text_sizer.Add(text_ctrl, 1, wx.EXPAND | wx.ALL, 5)
         sizer.Add(text_sizer, 0, wx.EXPAND)
 
-        # Add x control
+        # Add x control - different ranges for Table vs regular labels
         x_sizer = wx.BoxSizer(wx.HORIZONTAL)
         x_label = wx.StaticText(dlg, label="X:")
-        x_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['x']), min=-10, max=1e4, size=(120, -1))
+        if label.get('text') == 'Table' and label.get('is_table'):
+            # Table uses axes coordinates (0-1)
+            x_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['x']), min=0, max=1, size=(120, -1))
+            x_ctrl.SetDigits(2)
+            x_ctrl.SetIncrement(0.01)
+        else:
+            # Regular labels use data coordinates
+            x_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['x']), min=-10, max=1e4, size=(120, -1))
         x_sizer.Add(x_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         x_sizer.Add(x_ctrl, 1, wx.EXPAND | wx.ALL, 5)
         sizer.Add(x_sizer, 0, wx.EXPAND)
 
-        # Add y control
+        # Add y control - different ranges for Table vs regular labels
         y_sizer = wx.BoxSizer(wx.HORIZONTAL)
         y_label = wx.StaticText(dlg, label="Y:")
-        y_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['y']), min=-10000, max=1e10, size=(120, -1))
+        if label.get('text') == 'Table' and label.get('is_table'):
+            # Table uses axes coordinates (0-1)
+            y_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['y']), min=0, max=1, size=(120, -1))
+            y_ctrl.SetDigits(2)
+            y_ctrl.SetIncrement(0.01)
+        else:
+            # Regular labels use data coordinates
+            y_ctrl = wx.SpinCtrlDouble(dlg, value=str(label['y']), min=-10000, max=1e10, size=(120, -1))
         y_sizer.Add(y_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         y_sizer.Add(y_ctrl, 1, wx.EXPAND | wx.ALL, 5)
         sizer.Add(y_sizer, 0, wx.EXPAND)
@@ -649,26 +741,14 @@ class LabelWindow(wx.Frame):
         dlg.SetSizer(sizer)
 
         if dlg.ShowModal() == wx.ID_OK:
-            # Update label data
-            label['text'] = text_ctrl.GetValue()
-            label['x'] = x_ctrl.GetValue()
-            label['y'] = y_ctrl.GetValue()
-            label['rotation'] = int(rotation_choices[rotation_ctrl.GetSelection()])
-
-            # Clear all existing text annotations
-            for txt in self.parent.ax.texts[:]:
-                txt.remove()
-
-            # Redraw all labels
-            for label_data in self.parent.Data['Core levels'][sheet_name]['Labels']:
-                self.parent.ax.text(
-                    label_data['x'],
-                    label_data['y'],
-                    label_data['text'],
-                    rotation=label_data.get('rotation', 90),
-                    va='bottom',
-                    ha='center'
-                )
+            # Special handling for Table entities
+            if label.get('text') == 'Table' and label.get('is_table'):
+                # Redraw the survey table at new position
+                if hasattr(self.parent, 'plot_manager'):
+                    self.parent.plot_manager.draw_survey_table()
+            else:
+                # Use redraw_labels which handles Table entities properly
+                self.redraw_labels()
 
             self.parent.canvas.draw_idle()
             self.update_list()
@@ -704,16 +784,8 @@ class LabelWindow(wx.Frame):
             # Clear and redraw plot
             self.parent.clear_and_replot()
 
-            # Redraw remaining labels
-            for label_data in labels:
-                self.parent.ax.text(
-                    label_data['x'],
-                    label_data['y'],
-                    label_data['text'],
-                    rotation=label_data.get('rotation', 90),
-                    va='bottom',
-                    ha='center'
-                )
+            # Use redraw_labels which handles Table entities properly
+            self.redraw_labels()
 
             # Clear selection when removing
             if self.selection_box:
