@@ -12,60 +12,6 @@ import json
 # from KherveFitting import FIRST_TIME_USE
 
 
-def check_first_time_use_OLD(frame):
-    config = frame.load_config()
-    times_opened = config.get('times_opened', 0)
-
-
-    # Check if registration is needed - use frame instead of window
-    if not hasattr(frame, 'registered') or not frame.registered:
-        from libraries.MarketResearch import check_registration_needed, MiniRegistrationForm
-        if check_registration_needed():
-            # Show mini registration form for first 4 times (0, 1, 2, 3)
-            if times_opened <= 3:
-                mini_form = MiniRegistrationForm(frame)
-                print(f"Mini registration form shown (attempt {times_opened + 1}/4)")
-                # Don't set registered = True here, let the form handle it
-                # Reload config
-                config = frame.load_config()
-                # Make sure config is also updated
-                frame.save_config()
-
-    # elif times_opened == 4:
-    #     # Show manual dialog on second run
-    #     dlg = wx.MessageDialog(frame,
-    #                           "Would you like to open the manual to the Getting Started section?",
-    #                           "Welcome to KherveFitting",
-    #                           wx.YES_NO | wx.ICON_QUESTION)
-    #
-    #     if dlg.ShowModal() == wx.ID_YES:
-    #         import os
-    #         import sys
-    #         import platform
-    #         import subprocess
-    #
-    #         if getattr(sys, 'frozen', False):
-    #             application_path = os.path.dirname(sys.executable)
-    #         else:
-    #             application_path = os.path.dirname(os.path.abspath(__file__))
-    #
-    #         manual_path = os.path.join(application_path, "Manual.pdf")
-    #
-    #         if platform.system() == 'Windows':
-    #             os.startfile(manual_path)
-    #         elif platform.system() == 'Darwin':  # macOS
-    #             subprocess.call(['open', manual_path])
-    #         else:  # Linux and other Unix-like systems
-    #             subprocess.call(['xdg-open', manual_path])
-    #
-    #     dlg.Destroy()
-
-    # Update times_opened in the frame's attribute
-    frame.times_opened = times_opened + 1
-
-    # Save config
-    frame.save_config()
-
 
 def check_first_time_use(frame):
     config = frame.load_config()

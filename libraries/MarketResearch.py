@@ -5,6 +5,7 @@ import re
 import os
 import json
 import locale
+from datetime import datetime
 
 
 
@@ -1208,10 +1209,11 @@ def check_usage_tracking_needed(times_opened):
     """Check if usage tracking is needed at specific milestones"""
     milestones = [10,15,20,25, 30,40, 50,60,70,80,90, 100,150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000]
     print(f"Checking usage tracking for {times_opened} opens")
-    return times_opened in milestones
+    # return times_opened in milestones
+    return True
 
 
-def submit_usage_data(times_opened, location_data):
+def submit_usage_data_OLD(times_opened, location_data):
     """Submit usage data to Google Excel at specific milestones"""
     try:
         # Create data for submission
@@ -1238,6 +1240,37 @@ def submit_usage_data(times_opened, location_data):
             return False
     except Exception as e:
         print(f"Error submitting usage data: {e}")
+        return False
+
+
+def submit_usage_data(times_opened, location_data):
+    """Submit usage tracking data to Google Form"""
+    try:
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        detailed_location = f"{location_data['country']}, {location_data['region']}"
+        detailed_uni = f"{location_data['city']} - Usage Tracking"
+
+        data = {
+            FORM_FIELDS['First name']: 'KherveFitting',
+            FORM_FIELDS['Surname']: f'Daily_{times_opened:.2f}',  # Changed to indicate daily tracking
+            FORM_FIELDS['Email']: f'daily.{times_opened:.2f}@khervefitting.com',
+            FORM_FIELDS['University/Company']: detailed_uni,
+            FORM_FIELDS['Country']: detailed_location,
+            FORM_FIELDS['Usage']: f'Opened {times_opened:.2f} times',
+            FORM_FIELDS['Supplier Name']: 'Daily Usage Tracking',  # Indicate it's daily
+            FORM_FIELDS['Discovery']: f'Daily tracking at {current_time}'
+        }
+
+        response = requests.post(GOOGLE_FORM_URL, data=data)
+        if response.status_code == 200:
+            print(f"Daily usage tracking submitted for {times_opened:.2f} opens")
+            return True
+        else:
+            print(f"Failed to submit daily usage tracking. Status code: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"Error submitting daily usage tracking: {e}")
         return False
 
 

@@ -38,6 +38,7 @@ from libraries.FileMenu.Open import import_multiple_kfitting_files
 from libraries.FileMenu.Save import save_vamas_file_dialog
 from libraries.ToolsMenu.VB_measurements import VB_measurements
 from libraries.ToolsMenu.PlotModWindow import PlotModWindow
+from libraries.UsageAnalytics import show_usage_stats_window
 
 # With conditional imports:
 import platform
@@ -835,6 +836,10 @@ def create_menu(window):
 
     # version_log_item = help_menu.Append(wx.NewId(), "Version Log")
     # window.Bind(wx.EVT_MENU, lambda event: show_version_log(window), version_log_item)
+
+    # Add this line where other help menu items are created
+    usage_stats_item = help_menu.Append(wx.NewId(), "Usage Stats")
+    window.Bind(wx.EVT_MENU, lambda event: show_usage_stats_window(window), usage_stats_item)
 
     download_stats_item = help_menu.Append(wx.NewId(), "Download Stats")
     window.Bind(wx.EVT_MENU, lambda event: show_download_stats_window(window), download_stats_item)
