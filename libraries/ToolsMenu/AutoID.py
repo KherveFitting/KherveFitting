@@ -1915,15 +1915,36 @@ class AutoIDWindow(wx.Frame):
             self.run_btn.SetMinSize((125, 35))
         # Try to get a play-like icon from the OS
         try:
-            # wx.ART_GO_FORWARD often looks like a play button
-            play_icon = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_BUTTON, (16, 16))
-            if play_icon.IsOk():
-                self.run_btn.SetBitmap(play_icon)
-            else:
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+
+            # Look for your specific play-3.png icon
+            possible_icon_paths = [
+                os.path.join(current_dir, "..", "Icons", "play-3.png"),
+                os.path.join(current_dir, "Icons", "play-3.png"),
+                os.path.join(current_dir, "..", "..", "Icons", "play-3.png")
+            ]
+
+            icon_loaded = False
+            for icon_path in possible_icon_paths:
+                if os.path.exists(icon_path):
+                    play_icon = wx.Bitmap(icon_path, wx.BITMAP_TYPE_PNG)
+                    if play_icon.IsOk():
+                        self.run_btn.SetBitmap(play_icon)
+                        icon_loaded = True
+                        print(f"Loaded play icon from: {icon_path}")
+                        break
+
+            if not icon_loaded:
+                print("play-3.png not found, using fallback")
                 self.run_btn.SetLabel("▶ Run AutoID")
-        except:
+
+        except Exception as e:
+            print(f"Error loading play-3.png icon: {e}")
             self.run_btn.SetLabel("▶ Run AutoID")
+
         self.run_btn.Bind(wx.EVT_BUTTON, self.on_run)
+        self.run_btn.SetToolTip("Run AutoID peak identification")
         row1_sizer.Add(self.run_btn, 0, wx.ALL, 3)
 
         self.edit_area_btn = wx.Button(panel, label="Edit Area")
@@ -1944,21 +1965,34 @@ class AutoIDWindow(wx.Frame):
             self.delete_all_btn.SetMinSize((125, 35))
         else:
             self.delete_all_btn.SetMinSize((125, 35))
-        self.delete_all_btn.SetForegroundColour(wx.Colour(139, 0, 0))  # Dark red text
-        try:
-            # Try to load delete icon
-            import os
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            icon_path = os.path.join(current_dir, "..", "Icons", "delete-25.png")
-            if os.path.exists(icon_path):
-                delete_icon = wx.Bitmap(icon_path, wx.BITMAP_TYPE_PNG)
-                if delete_icon.IsOk():
-                    self.delete_all_btn.SetBitmap(delete_icon)
-        except:
-            # If icon loading fails, just use text
-            pass
+        # Delete All button with built-in clear icon
+        self.delete_all_btn.SetBackgroundColour(wx.Colour(238, 144, 144))  # Dark red text
+
+        # Try different built-in clear/remove icons from OS
+        clear_icon_options = [
+            wx.ART_CROSS_MARK,  # X mark (clear/cancel)
+            wx.ART_UNDO,  # Undo arrow (good for "clear/revert")
+            wx.ART_NEW,  # New file (represents "clear to start fresh")
+            wx.ART_DEL_BOOKMARK,  # Minus/remove symbol
+            wx.ART_CUT  # Cut operation (clear/remove)
+        ]
+
+        icon_loaded = False
+        for art_id in clear_icon_options:
+            try:
+                clear_icon = wx.ArtProvider.GetBitmap(art_id, wx.ART_BUTTON, (16, 16))
+                if clear_icon.IsOk():
+                    self.delete_all_btn.SetBitmap(clear_icon)
+                    icon_loaded = True
+                    break
+            except:
+                continue
+
+        if not icon_loaded:
+            self.delete_all_btn.SetLabel("🧹 Clear")  # Broom emoji as fallback
+
         self.delete_all_btn.Bind(wx.EVT_BUTTON, self.on_delete_all)
-        self.delete_all_btn.SetToolTip("Delete all areas and labels")
+        self.delete_all_btn.SetToolTip("Clear all areas and labels")
         row1_sizer.Add(self.delete_all_btn, 0, wx.ALL, 3)
 
 
@@ -2151,9 +2185,9 @@ class AutoIDWindow(wx.Frame):
         self.results_list.AppendColumn("B.E. (eV)", width=100)
         # self.results_list.AppendColumn("Width", width=60)
         # self.results_list.AppendColumn("Signal", width=70)
-        self.results_list.AppendColumn("Assigned To", width=90)
+        self.results_list.AppendColumn("Assigned To", width=100)
         # self.results_list.AppendColumn("RSF", width=50)
-        self.results_list.AppendColumn("Confidence", width=80)
+        self.results_list.AppendColumn("Confidence", width=100)
 
         # Bind events
         self.results_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_result_selected)
