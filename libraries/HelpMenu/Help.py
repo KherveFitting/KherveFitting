@@ -426,6 +426,8 @@ Version 1.600-1.690
 - Improve Smart background
 - Added U2 Tougaard
 - Added Mini-Fitting Screen
+- Create Usage Statistics
+- Add Table to AutoID
 - Added center lines to Area Screen 
 - Fix import of Avantage files with missing intensity values 
 - Correct Zoom out with multiple plots
