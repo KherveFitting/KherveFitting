@@ -3626,9 +3626,16 @@ def open_vamas_file(window, file_path):
             elif y_unit != "c/s":
                 y_values = [y / num_scan for y in y_values]
 
+            # # Convert to Binding Energy if necessary
+            # if block.x_label.lower() in ["kinetic energy", "ke"]:
+            #     x_values = [window.photons - x - window.workfunction for x in x_values]
+
             # Convert to Binding Energy if necessary
             if block.x_label.lower() in ["kinetic energy", "ke"]:
-                x_values = [window.photons - x - window.workfunction for x in x_values]
+                # Use photon energy from VAMAS block, not hardcoded window.photons
+                photon_energy = block.analysis_source_characteristic_energy
+                x_values = [photon_energy - x - window.workfunction for x in x_values]
+                print(f"KE to BE conversion using photon energy: {photon_energy:.2f} eV")
                 x_label = "Binding Energy"
             else:
                 x_label = block.x_label

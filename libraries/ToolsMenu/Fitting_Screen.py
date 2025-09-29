@@ -2638,6 +2638,528 @@ class FittingWindow(wx.Frame):
                 from libraries.Sheet_Operations import on_sheet_selected
                 on_sheet_selected(self.parent, original_sheet)
 
+    def on_fit_all_MultiTHREAD(self, event):
+        """Handle fit selected button click - TRUE parallel version"""
+        from Functions import fit_peaks
+        import concurrent.futures
+        import multiprocessing
+
+        save_state(self.parent)
+
+        selected_core_levels = self.get_selected_core_levels_for_fitting()
+        if not selected_core_levels:
+            wx.MessageBox("No core levels selected", "Fit Selected Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        iterations = self.batch_iterations_spin.GetValue()
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            total_core_levels = len(selected_core_levels)
+            self.batch_progress_text.SetValue(f"Starting parallel fit of {total_core_levels} core levels...")
+            wx.Yield()
+
+            # Prepare data for all core levels
+            fit_jobs = []
+            for sheet_name in selected_core_levels:
+                # Switch to sheet and gather data
+                self.parent.sheet_combobox.SetValue(sheet_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_name)
+                wx.Yield()
+
+                if not hasattr(self.parent, 'peak_params_grid') or self.parent.peak_params_grid.GetNumberRows() == 0:
+                    print(f"No peaks to fit for {sheet_name}, skipping...")
+                    continue
+
+                # Extract data needed for fitting
+                job_data = self._prepare_fit_job(sheet_name, iterations)
+                if job_data:
+                    fit_jobs.append((sheet_name, job_data))
+
+            if not fit_jobs:
+                wx.MessageBox("No valid core levels to fit", "Fit Selected Failed", wx.OK | wx.ICON_WARNING)
+                return
+
+            # Run fits in parallel
+            max_workers = min(multiprocessing.cpu_count(), 4, len(fit_jobs))
+            self.batch_progress_text.SetValue(f"Running {len(fit_jobs)} fits in parallel ({max_workers} workers)...")
+            wx.Yield()
+
+            completed_count = 0
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all jobs
+                future_to_sheet = {
+                    executor.submit(self._fit_core_level_worker, sheet_name, job_data, iterations): sheet_name
+                    for sheet_name, job_data in fit_jobs
+                }
+
+                # Process results as they complete
+                for future in concurrent.futures.as_completed(future_to_sheet):
+                    sheet_name = future_to_sheet[future]
+                    try:
+                        result_data = future.result()
+                        completed_count += 1
+
+                        # Update progress
+                        self.batch_progress_text.SetValue(
+                            f"Completed {completed_count}/{len(fit_jobs)}: {sheet_name}")
+                        wx.Yield()
+
+                        # Apply results to GUI (must be on main thread)
+                        self._apply_fit_results(sheet_name, result_data)
+
+                    except Exception as e:
+                        print(f"Error fitting {sheet_name}: {str(e)}")
+
+            self.batch_progress_text.SetValue("Selected fittings complete")
+            self.parent.show_popup_message2("Fit Selected Complete",
+                                            f"Fitted {completed_count}/{len(fit_jobs)} core levels with {iterations} iterations each")
+
+        except Exception as e:
+            wx.MessageBox(f"Error during parallel fit: {str(e)}", "Fit Failed", wx.OK | wx.ICON_ERROR)
+        finally:
+            if original_sheet:
+                self.parent.sheet_combobox.SetValue(original_sheet)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, original_sheet)
+
+    def _prepare_fit_job(self, sheet_name, iterations):
+        """Extract all data needed for fitting from Data dict - runs on main thread"""
+        import numpy as np
+
+        try:
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+            # Check if fitting data exists
+            if 'Fitting' not in core_level_data or 'Peaks' not in core_level_data['Fitting']:
+                print(f"No fitting data for {sheet_name}")
+                return None
+
+            fitting_data = core_level_data['Fitting']
+            peaks_data = fitting_data['Peaks']
+
+            # Extract all necessary data from window.Data
+            job_data = {
+                'x_values': np.array(core_level_data['B.E.']),
+                'y_values': np.array(core_level_data['Raw Data']),
+                'background': np.array(core_level_data['Background']['Bkg Y']),
+                'bg_low': float(core_level_data['Background'].get('Bkg Low', 0)),
+                'bg_high': float(core_level_data['Background'].get('Bkg High', 0)),
+                'fitting_method': fitting_data.get('Fitting Model', 'SGL (Area)'),
+                'optimization_method': fitting_data.get('Optimization Method', 'leastsq'),
+                'max_iterations': fitting_data.get('Max Iterations', 200),
+                'peaks': []
+            }
+
+            # Extract peak parameters from Data dict, not GUI grid
+            for peak_label, peak_data in peaks_data.items():
+                peak = {
+                    'label': peak_label,
+                    # Position
+                    'center': float(peak_data.get('Position', 0)),
+                    'center_vary': peak_data.get('Position Vary', True),
+                    'center_min': float(peak_data.get('Position Min', -np.inf)),
+                    'center_max': float(peak_data.get('Position Max', np.inf)),
+                    # Height
+                    'height': float(peak_data.get('Height', 0)),
+                    'height_vary': peak_data.get('Height Vary', True),
+                    'height_min': float(peak_data.get('Height Min', 0)),
+                    'height_max': float(peak_data.get('Height Max', np.inf)),
+                    # FWHM
+                    'fwhm': float(peak_data.get('FWHM', 1.0)),
+                    'fwhm_vary': peak_data.get('FWHM Vary', True),
+                    'fwhm_min': float(peak_data.get('FWHM Min', 0.1)),
+                    'fwhm_max': float(peak_data.get('FWHM Max', 10.0)),
+                    # L/G
+                    'lg_ratio': float(peak_data.get('L/G', 20.0)),
+                    'lg_vary': peak_data.get('L/G Vary', True),
+                    'lg_min': float(peak_data.get('L/G Min', 0)),
+                    'lg_max': float(peak_data.get('L/G Max', 100)),
+                    # Area
+                    'area': float(peak_data.get('Area', 0)),
+                    'area_vary': peak_data.get('Area Vary', True),
+                    'area_min': float(peak_data.get('Area Min', 0)),
+                    'area_max': float(peak_data.get('Area Max', np.inf)),
+                    # Sigma
+                    'sigma': float(peak_data.get('Sigma', 0.5)),
+                    'sigma_vary': peak_data.get('Sigma Vary', True),
+                    'sigma_min': float(peak_data.get('Sigma Min', 0.01)),
+                    'sigma_max': float(peak_data.get('Sigma Max', 10.0)),
+                    # Gamma
+                    'gamma': float(peak_data.get('Gamma', 0.1)),
+                    'gamma_vary': peak_data.get('Gamma Vary', True),
+                    'gamma_min': float(peak_data.get('Gamma Min', 0.01)),
+                    'gamma_max': float(peak_data.get('Gamma Max', 10.0)),
+                    # Skew
+                    'skew': float(peak_data.get('Skew', 0.0)),
+                    'skew_vary': peak_data.get('Skew Vary', False),
+                    'skew_min': float(peak_data.get('Skew Min', -10.0)),
+                    'skew_max': float(peak_data.get('Skew Max', 10.0)),
+                }
+                job_data['peaks'].append(peak)
+
+            if len(job_data['peaks']) == 0:
+                print(f"No peaks found for {sheet_name}")
+                return None
+
+            print(f"Prepared {len(job_data['peaks'])} peaks for {sheet_name}, method={job_data['fitting_method']}, bg_range={job_data['bg_low']:.2f}-{job_data['bg_high']:.2f}")
+
+            return job_data
+
+        except Exception as e:
+            print(f"Error preparing job for {sheet_name}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    @staticmethod
+    def _fit_core_level_worker(sheet_name, job_data, iterations):
+        """Perform fitting in worker process - NO GUI operations here"""
+        import numpy as np
+        import lmfit
+        from libraries.Peak_Functions import PeakFunctions
+
+        # This runs the LMFIT optimization multiple times
+        best_result = None
+        best_chisqr = float('inf')
+
+        for iteration in range(iterations):
+            try:
+                # Reconstruct fitting model
+                x_values = job_data['x_values']
+                y_values = job_data['y_values']
+                background = job_data['background']
+
+                # Filter to background range - handle both increasing/decreasing BE
+                bg_min = job_data['bg_low']
+                bg_max = job_data['bg_high']
+
+                # Ensure min < max
+                if bg_min > bg_max:
+                    bg_min, bg_max = bg_max, bg_min
+
+                # Create mask
+                mask = (x_values >= bg_min) & (x_values <= bg_max)
+
+                if not np.any(mask):
+                    print(f"Warning: Background range {bg_min:.2f}-{bg_max:.2f} has no data points for {sheet_name}")
+                    continue
+
+                x_filtered = x_values[mask]
+                y_filtered = y_values[mask]
+                bg_filtered = background[mask]
+                y_subtracted = y_filtered - bg_filtered
+
+                # Build model
+                model = None
+                params = lmfit.Parameters()
+
+                fitting_method = job_data['fitting_method']
+
+                for i, peak in enumerate(job_data['peaks']):
+                    prefix = f'peak{i}_'
+
+                    # Create appropriate model based on fitting_method
+                    if fitting_method == "GL (Height)":
+                        peak_model = lmfit.Model(PeakFunctions.gauss_lorentz, prefix=prefix)
+                        params.add(f'{prefix}amplitude', value=peak['height'],
+                                   min=peak['height_min'], max=peak['height_max'], vary=peak['height_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}fwhm', value=peak['fwhm'],
+                                   min=peak['fwhm_min'], max=peak['fwhm_max'], vary=peak['fwhm_vary'])
+                        params.add(f'{prefix}fraction', value=peak['lg_ratio'],
+                                   min=peak['lg_min'], max=peak['lg_max'], vary=peak['lg_vary'])
+
+                    elif fitting_method == "SGL (Height)":
+                        peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz, prefix=prefix)
+                        params.add(f'{prefix}amplitude', value=peak['height'],
+                                   min=peak['height_min'], max=peak['height_max'], vary=peak['height_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}fwhm', value=peak['fwhm'],
+                                   min=peak['fwhm_min'], max=peak['fwhm_max'], vary=peak['fwhm_vary'])
+                        params.add(f'{prefix}fraction', value=peak['lg_ratio'],
+                                   min=peak['lg_min'], max=peak['lg_max'], vary=peak['lg_vary'])
+
+                    elif fitting_method == "GL (Area)":
+                        peak_model = lmfit.Model(PeakFunctions.gauss_lorentz_Area, prefix=prefix)
+                        params.add(f'{prefix}area', value=peak['area'],
+                                   min=peak['area_min'], max=peak['area_max'], vary=peak['area_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}fwhm', value=peak['fwhm'],
+                                   min=peak['fwhm_min'], max=peak['fwhm_max'], vary=peak['fwhm_vary'])
+                        params.add(f'{prefix}fraction', value=peak['lg_ratio'],
+                                   min=peak['lg_min'], max=peak['lg_max'], vary=peak['lg_vary'])
+
+                    elif fitting_method == "SGL (Area)":
+                        peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area, prefix=prefix)
+                        params.add(f'{prefix}area', value=peak['area'],
+                                   min=peak['area_min'], max=peak['area_max'], vary=peak['area_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}fwhm', value=peak['fwhm'],
+                                   min=peak['fwhm_min'], max=peak['fwhm_max'], vary=peak['fwhm_vary'])
+                        params.add(f'{prefix}fraction', value=peak['lg_ratio'],
+                                   min=peak['lg_min'], max=peak['lg_max'], vary=peak['lg_vary'])
+
+                    elif fitting_method == "Voigt (Area, L/G, σ)":
+                        peak_model = lmfit.models.VoigtModel(prefix=prefix)
+                        params.add(f'{prefix}amplitude', value=peak['area'],
+                                   min=peak['area_min'], max=peak['area_max'], vary=peak['area_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}sigma', value=peak['sigma'],
+                                   min=peak['sigma_min'], max=peak['sigma_max'], vary=peak['sigma_vary'])
+                        params.add(f'{prefix}gamma', value=peak['gamma'],
+                                   min=peak['gamma_min'], max=peak['gamma_max'], vary=peak['gamma_vary'])
+
+                    elif fitting_method == "Voigt (Area, σ, γ)":
+                        peak_model = lmfit.models.VoigtModel(prefix=prefix)
+                        params.add(f'{prefix}amplitude', value=peak['area'],
+                                   min=peak['area_min'], max=peak['area_max'], vary=peak['area_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}sigma', value=peak['sigma'],
+                                   min=peak['sigma_min'], max=peak['sigma_max'], vary=peak['sigma_vary'])
+                        params.add(f'{prefix}gamma', value=peak['gamma'],
+                                   min=peak['gamma_min'], max=peak['gamma_max'], vary=peak['gamma_vary'])
+
+                    elif fitting_method == "Voigt (Area, L/G, σ, S)":
+                        peak_model = lmfit.models.SkewedVoigtModel(prefix=prefix)
+                        params.add(f'{prefix}amplitude', value=peak['area'],
+                                   min=peak['area_min'], max=peak['area_max'], vary=peak['area_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}sigma', value=peak['sigma'],
+                                   min=peak['sigma_min'], max=peak['sigma_max'], vary=peak['sigma_vary'])
+                        params.add(f'{prefix}gamma', value=peak['gamma'],
+                                   min=peak['gamma_min'], max=peak['gamma_max'], vary=peak['gamma_vary'])
+                        params.add(f'{prefix}skew', value=peak['skew'],
+                                   min=peak['skew_min'], max=peak['skew_max'], vary=peak['skew_vary'])
+
+                    elif fitting_method == "LA (Area, σ, γ)":
+                        peak_model = lmfit.Model(PeakFunctions.lorentzian_asymmetric, prefix=prefix)
+                        params.add(f'{prefix}area', value=peak['area'],
+                                   min=peak['area_min'], max=peak['area_max'], vary=peak['area_vary'])
+                        params.add(f'{prefix}center', value=peak['center'],
+                                   min=peak['center_min'], max=peak['center_max'], vary=peak['center_vary'])
+                        params.add(f'{prefix}sigma', value=peak['sigma'],
+                                   min=peak['sigma_min'], max=peak['sigma_max'], vary=peak['sigma_vary'])
+                        params.add(f'{prefix}gamma', value=peak['gamma'],
+                                   min=peak['gamma_min'], max=peak['gamma_max'], vary=peak['gamma_vary'])
+
+                    else:
+                        print(f"Model {fitting_method} not implemented in worker")
+                        continue
+
+                    if model is None:
+                        model = peak_model
+                    else:
+                        model += peak_model
+
+                if model is None:
+                    continue
+
+                # Perform fit
+                opt_method = job_data['optimization_method']
+                if opt_method in ['leastsq', 'least_squares']:
+                    fit_kws = {'ftol': 1e-10, 'xtol': 1e-10}
+                else:
+                    fit_kws = None
+
+                if fit_kws:
+                    result = model.fit(y_subtracted, params, x=x_filtered,
+                                       method=opt_method,
+                                       max_nfev=job_data['max_iterations'],
+                                       fit_kws=fit_kws)
+                else:
+                    result = model.fit(y_subtracted, params, x=x_filtered,
+                                       method=opt_method,
+                                       max_nfev=job_data['max_iterations'])
+
+                # Keep best result
+                if result.chisqr < best_chisqr:
+                    best_chisqr = result.chisqr
+                    best_result = result
+
+            except Exception as e:
+                print(f"Iteration {iteration} failed for {sheet_name}: {str(e)}")
+                continue
+
+        # Return fitted parameters (same as before)
+        if best_result is not None:
+            fitted_peaks = []
+            fitting_method = job_data['fitting_method']
+
+            for i, peak in enumerate(job_data['peaks']):
+                prefix = f'peak{i}_'
+
+                fitted_peak = {'label': peak['label']}
+
+                # Extract parameters based on model type
+                if fitting_method in ["GL (Height)", "SGL (Height)"]:
+                    fitted_peak['center'] = best_result.params[f'{prefix}center'].value
+                    fitted_peak['height'] = best_result.params[f'{prefix}amplitude'].value
+                    fitted_peak['fwhm'] = best_result.params[f'{prefix}fwhm'].value
+                    fitted_peak['lg_ratio'] = best_result.params[f'{prefix}fraction'].value
+
+                elif fitting_method in ["GL (Area)", "SGL (Area)"]:
+                    fitted_peak['center'] = best_result.params[f'{prefix}center'].value
+                    fitted_peak['area'] = best_result.params[f'{prefix}area'].value
+                    fitted_peak['fwhm'] = best_result.params[f'{prefix}fwhm'].value
+                    fitted_peak['lg_ratio'] = best_result.params[f'{prefix}fraction'].value
+
+                elif fitting_method in ["Voigt (Area, L/G, σ)", "Voigt (Area, σ, γ)"]:
+                    fitted_peak['center'] = best_result.params[f'{prefix}center'].value
+                    fitted_peak['area'] = best_result.params[f'{prefix}amplitude'].value
+                    fitted_peak['sigma'] = best_result.params[f'{prefix}sigma'].value
+                    fitted_peak['gamma'] = best_result.params[f'{prefix}gamma'].value
+
+                elif fitting_method == "Voigt (Area, L/G, σ, S)":
+                    fitted_peak['center'] = best_result.params[f'{prefix}center'].value
+                    fitted_peak['area'] = best_result.params[f'{prefix}amplitude'].value
+                    fitted_peak['sigma'] = best_result.params[f'{prefix}sigma'].value
+                    fitted_peak['gamma'] = best_result.params[f'{prefix}gamma'].value
+                    fitted_peak['skew'] = best_result.params[f'{prefix}skew'].value
+
+                elif fitting_method == "LA (Area, σ, γ)":
+                    fitted_peak['center'] = best_result.params[f'{prefix}center'].value
+                    fitted_peak['area'] = best_result.params[f'{prefix}area'].value
+                    fitted_peak['sigma'] = best_result.params[f'{prefix}sigma'].value
+                    fitted_peak['gamma'] = best_result.params[f'{prefix}gamma'].value
+
+                fitted_peaks.append(fitted_peak)
+
+            return {
+                'peaks': fitted_peaks,
+                'chisqr': best_result.chisqr,
+                'success': True,
+                'fitting_method': fitting_method
+            }
+
+        return {'success': False}
+
+    def _apply_fit_results(self, sheet_name, result_data):
+        """Apply fitted results to Data dict and GUI - runs on main thread"""
+        if not result_data['success']:
+            print(f"No successful fit for {sheet_name}")
+            return
+
+        try:
+            # Update Data dict first
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+            if 'Fitting' not in core_level_data or 'Peaks' not in core_level_data['Fitting']:
+                print(f"Cannot apply results - no fitting data for {sheet_name}")
+                return
+
+            peaks_data = core_level_data['Fitting']['Peaks']
+            fitting_method = result_data['fitting_method']
+
+            # Update each peak in Data dict
+            peak_labels = list(peaks_data.keys())
+            for i, fitted_peak in enumerate(result_data['peaks']):
+                if i < len(peak_labels):
+                    peak_label = peak_labels[i]
+                    peak_dict = peaks_data[peak_label]
+
+                    # Update values based on model type
+                    peak_dict['Position'] = fitted_peak.get('center', peak_dict['Position'])
+
+                    if 'height' in fitted_peak:
+                        peak_dict['Height'] = fitted_peak['height']
+                    if 'area' in fitted_peak:
+                        peak_dict['Area'] = fitted_peak['area']
+                    if 'fwhm' in fitted_peak:
+                        peak_dict['FWHM'] = fitted_peak['fwhm']
+                    if 'lg_ratio' in fitted_peak:
+                        peak_dict['L/G'] = fitted_peak['lg_ratio']
+                    if 'sigma' in fitted_peak:
+                        peak_dict['Sigma'] = fitted_peak['sigma']
+                    if 'gamma' in fitted_peak:
+                        peak_dict['Gamma'] = fitted_peak['gamma']
+                    if 'skew' in fitted_peak:
+                        peak_dict['Skew'] = fitted_peak['skew']
+
+            # Now switch to sheet and update GUI
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+
+            # Update grid from Data dict
+            if hasattr(self.parent, 'peak_params_grid') and self.parent.peak_params_grid.GetNumberRows() > 0:
+                for i, fitted_peak in enumerate(result_data['peaks']):
+                    row = i * 2
+                    if row >= self.parent.peak_params_grid.GetNumberRows():
+                        continue
+
+                    # Update based on model type
+                    if fitting_method in ["GL (Height)", "SGL (Height)"]:
+                        self.parent.peak_params_grid.SetCellValue(row, 2, f"{fitted_peak.get('center', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 3, f"{fitted_peak.get('height', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 4, f"{fitted_peak.get('fwhm', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 5, f"{fitted_peak.get('lg_ratio', 0):.2f}")
+
+                    elif fitting_method in ["GL (Area)", "SGL (Area)"]:
+                        self.parent.peak_params_grid.SetCellValue(row, 2, f"{fitted_peak.get('center', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 6, f"{fitted_peak.get('area', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 4, f"{fitted_peak.get('fwhm', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 5, f"{fitted_peak.get('lg_ratio', 0):.2f}")
+
+                    elif fitting_method in ["Voigt (Area, L/G, σ)", "Voigt (Area, σ, γ)"]:
+                        self.parent.peak_params_grid.SetCellValue(row, 2, f"{fitted_peak.get('center', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 6, f"{fitted_peak.get('area', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 7, f"{fitted_peak.get('sigma', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 8, f"{fitted_peak.get('gamma', 0):.2f}")
+
+                    elif fitting_method == "Voigt (Area, L/G, σ, S)":
+                        self.parent.peak_params_grid.SetCellValue(row, 2, f"{fitted_peak.get('center', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 6, f"{fitted_peak.get('area', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 7, f"{fitted_peak.get('sigma', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 8, f"{fitted_peak.get('gamma', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 10, f"{fitted_peak.get('skew', 0):.2f}")
+
+                    elif fitting_method == "LA (Area, σ, γ)":
+                        self.parent.peak_params_grid.SetCellValue(row, 2, f"{fitted_peak.get('center', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 6, f"{fitted_peak.get('area', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 7, f"{fitted_peak.get('sigma', 0):.2f}")
+                        self.parent.peak_params_grid.SetCellValue(row, 8, f"{fitted_peak.get('gamma', 0):.2f}")
+
+            # Replot
+            self.parent.clear_and_replot()
+
+            print(f"Successfully applied fit results for {sheet_name}")
+
+        except Exception as e:
+            print(f"Error applying results for {sheet_name}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _switch_to_sheet(self, sheet_name):
+        """Helper to switch to a sheet - called on main thread"""
+        self.parent.sheet_combobox.SetValue(sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+    def _do_fit_iteration(self, sheet_name):
+        """Helper to perform one fit iteration - called on main thread"""
+        from Functions import fit_peaks
+
+        # Verify we're on the correct sheet
+        if self.parent.sheet_combobox.GetValue() != sheet_name:
+            return
+
+        # Check if there are peaks
+        if not hasattr(self.parent, 'peak_params_grid') or self.parent.peak_params_grid.GetNumberRows() == 0:
+            return
+
+        # Perform fit
+        result = fit_peaks(self.parent, self.parent.peak_params_grid)
+        if result:
+            self.parent.clear_and_replot()
+
     def populate_core_levels_list(self):
         """Populate the core levels checklist with current core levels"""
         self.core_levels_checklist.Clear()

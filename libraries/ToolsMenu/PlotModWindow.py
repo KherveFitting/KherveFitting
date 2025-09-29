@@ -232,7 +232,7 @@ class PlotModWindow(wx.Frame):
         be_shift_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
 
         be_shift_sizer.Add(wx.StaticText(be_shift_panel, label="Shift (eV):"), 0, wx.ALL, 5)
-        self.be_shift_value = wx.SpinCtrlDouble(be_shift_panel, value="0.0", min=-100.0, max=100.0, inc=0.1,
+        self.be_shift_value = wx.SpinCtrlDouble(be_shift_panel, value="0.0", min=-10000.0, max=10000.0, inc=0.1,
                                                 size=(80, -1))
         be_shift_sizer.Add(self.be_shift_value, 0, wx.EXPAND | wx.ALL, 5)
 
