@@ -327,6 +327,14 @@ class UsageStatsWindow(wx.Frame):
             'Ecuador': 'EC', 'EC': 'EC',
             'Australia': 'AU', 'AU': 'AU',
             'New Zealand': 'NZ', 'NZ': 'NZ',
+            'Bangladesh': 'BD', 'BD': 'BD',
+            'Brazil': 'BR', 'BR': 'BR',
+            'Hong Kong': 'HK', 'HK': 'HK',
+            'Taiwan': 'TW', 'TW': 'TW',
+            'Senegal': 'SN', 'SN': 'SN',
+            'Nepal': 'NP', 'NP': 'NP',
+            'Iran': 'IR', 'IR': 'IR',
+            'Iraq': 'IQ', 'IQ': 'IQ',
         }
 
         # Country coordinates (same as DownloadStats.py)
@@ -393,6 +401,14 @@ class UsageStatsWindow(wx.Frame):
             'Ecuador': (-78, -1), 'EC': (-78, -1),
             'Australia': (133, -27), 'AU': (133, -27),
             'New Zealand': (138, -31), 'NZ': (138, -31),
+            'Bangladesh': (90, 24), 'BD': (90, 24),
+            'Brazil': (-47, -14), 'BR': (-47, -14),
+            'Hong Kong': (114, 22), 'HK': (114, 22),
+            'Taiwan': (121, 24), 'TW': (121, 24),
+            'Senegal': (-14, -26), 'SN': (-14, -26),
+            'Nepal': (84, 28), 'NP': (84, 28),
+            'Iran': (53, 32), 'IR': (53, 32),
+            'Iraq': (44, 33), 'IQ': (44, 33),
         }
 
         # Prepare bubble data

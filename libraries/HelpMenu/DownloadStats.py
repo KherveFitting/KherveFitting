@@ -239,6 +239,7 @@ class DownloadStatsWindow(wx.Frame):
             'Senegal': 'SN', 'SN': 'SN',
             'Nepal': 'NP', 'NP': 'NP',
             'Iran': 'IR', 'IR': 'IR',
+            'Bangladesh': 'BD', 'BD': 'BD',
         }
 
         # Country coordinates (longitude, latitude)
@@ -312,6 +313,7 @@ class DownloadStatsWindow(wx.Frame):
             'Senegal': (-14, -26), 'SN': (-14, -26),
             'Nepal': (84, 28), 'NP': (84, 28),
             'Iran': (53, 32), 'IR': (53, 32),
+            'Bangladesh': (90, 24), 'BD': (90, 24),
         }
 
         # Prepare bubble data
