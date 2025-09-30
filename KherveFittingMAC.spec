@@ -21,6 +21,7 @@ a = Analysis(['KherveFitting.py'],
                  ('Manual.pdf', '.'),
                  (os.path.join('libraries', 'Images'), os.path.join('libraries', 'Images')),
                  (os.path.join('libraries', 'Icons'), os.path.join('libraries', 'Icons')),
+                 (os.path.join('libraries', 'ViewMenu','Icons'), os.path.join('libraries', 'ViewMenu','Icons')),
                  ('Icons', 'Icons'),
              ] + library_files + wxwidgets[0],  # Add wx datas
              hiddenimports=['wx', 'numpy', 'matplotlib', 'pandas', 'openpyxl', 'lmfit', 'scipy',
