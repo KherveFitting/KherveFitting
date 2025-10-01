@@ -42,7 +42,8 @@ from libraries.UsageAnalytics import show_usage_stats_window
 
 # With conditional imports:
 import platform
-IS_MAC = platform.system() == 'Darwin'
+# IS_MAC = platform.system() == 'Darwin'
+IS_MAC = platform.system() in ('Darwin', 'Linux')
 
 # Only import games if not on Mac
 if not IS_MAC:
