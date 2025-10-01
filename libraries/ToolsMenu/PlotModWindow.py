@@ -19,7 +19,7 @@ class PlotModWindow(wx.Frame):
         if 'wxMac' in wx.PlatformInfo:
             self.SetSize(430, 345)
         elif 'wxGTK' in wx.PlatformInfo:
-            self.SetSize(420, 465)
+            self.SetSize(465, 400)
         else:
             self.SetSize(450, 390)
         self.parent = parent

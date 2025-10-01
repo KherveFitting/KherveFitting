@@ -50,7 +50,7 @@ class FittingWindow(wx.Frame):
                 self.SetMinSize((262, 210))
                 self.SetMaxSize((262, 210))
             elif 'wxGTK' in wx.PlatformInfo:
-                self.SetSize((260, 230))
+                self.SetSize((260, 240))
             else:
                 self.SetSize((275, 220))
 
