@@ -1,5 +1,5 @@
 {
-  "FilePath": "/home/julian/github/KherveFitting/DATA/UKSAF/STO.xlsx",
+  "FilePath": "/home/gigi/PycharmProjects/KherveFitting/DATA/UKSAF/STO.xlsx",
   "Number of Core levels": 17,
   "Core levels": {
     "Ti2p": {
@@ -552,8 +552,8 @@
       ],
       "Background": {
         "Bkg Type": "",
-        "Bkg Low": "",
-        "Bkg High": "",
+        "Bkg Low": 449.88,
+        "Bkg High": 473.28,
         "Bkg Offset Low": "",
         "Bkg Offset High": "",
         "Bkg Y": [
