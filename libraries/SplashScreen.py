@@ -101,20 +101,10 @@ class CustomSplashScreen(wx.Frame):
         # Progress message
         self.message = "Starting..."
 
-        # Static bitmap for image display
-        self.static_bitmap = wx.StaticBitmap(self, -1, self.bitmap)
-
-        # Text overlay - black background for visibility
-        self.text = wx.StaticText(self, label=self.message, style=wx.ALIGN_CENTER)
-        self.text.SetForegroundColour(wx.WHITE)
-        self.text.SetBackgroundColour(wx.Colour(0, 0, 0, 180))  # Semi-transparent black
-        self.text.SetFont(wx.Font(10, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-
-        # Add padding to text
-        self.text.SetMinSize((w - 20, 30))
-
-        # Position text at bottom
-        self.text.SetPosition((10, h - 40))
+        # Create a panel that we'll paint on
+        self.panel = wx.Panel(self)
+        self.panel.SetSize((w, h))
+        self.panel.Bind(wx.EVT_PAINT, self.on_paint)
 
         # Force immediate display
         self.Show()
@@ -123,11 +113,31 @@ class CustomSplashScreen(wx.Frame):
         self.Refresh()
         wx.SafeYield()
 
+    def on_paint(self, event):
+        """Paint the bitmap and text"""
+        dc = wx.PaintDC(self.panel)
+
+        # Draw the splash image
+        dc.DrawBitmap(self.bitmap, 0, 0, True)
+
+        # Draw text in pure white
+        dc.SetFont(wx.Font(11, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        dc.SetTextForeground(wx.WHITE)
+
+        # Get text size and center it at bottom
+        text_w, text_h = dc.GetTextExtent(self.message)
+        w = self.bitmap.GetWidth()
+        h = self.bitmap.GetHeight()
+        x = (w - text_w) // 2
+        y = h - text_h - 15
+
+        # Draw text directly on image (no background)
+        dc.DrawText(self.message, x, y)
+
     def update_message(self, message):
         """Update progress message"""
         self.message = message
-        self.text.SetLabel(message)
-        self.text.Refresh()
+        self.panel.Refresh()
         self.Update()
         wx.SafeYield()
 
