@@ -1,75 +1,85 @@
 # KherveFitting------------------------------------------------------------------
 
 
-# LIBRARIES----------------------------------------------------------------------
-import multiprocessing
-import os
-import psutil
-from libraries.Grid_Operations import on_results_grid_cell_changed
-
-os.environ['OMP_NUM_THREADS'] = str(multiprocessing.cpu_count())
-os.environ['MKL_NUM_THREADS'] = str(multiprocessing.cpu_count())
-os.environ['OPENBLAS_NUM_THREADS'] = str(multiprocessing.cpu_count())
-os.environ['VECLIB_MAXIMUM_THREADS'] = str(multiprocessing.cpu_count())
-os.environ['NUMEXPR_NUM_THREADS'] = str(multiprocessing.cpu_count())
-
-
-import matplotlib
-from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
-
-import wx.grid
-import wx.adv
-import sys
-import platform
-
-from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
-matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
-from libraries.ToolsMenu.Fitting_Screen import *
-from libraries.ToolsMenu.AreaFit_Screen import *
-from libraries.FileMenu.Save import *
-from libraries.ToolsMenu.NoiseAnalysis import NoiseAnalysisWindow
-from libraries.ConfigFile import *
-from libraries.FileMenu.Export import export_results
-from libraries.PlotConfig import PlotConfig
-from libraries.Utilities import check_first_time_use, DraggableText
-from libraries.Plot_Operations import PlotManager
-from libraries.Peak_Functions import PeakFunctions
-from libraries.FileMenu.Open import load_library_data
-
-
+# # LIBRARIES----------------------------------------------------------------------
+# import multiprocessing
+# import os
+# import psutil
+# from libraries.Grid_Operations import on_results_grid_cell_changed
+#
+# os.environ['OMP_NUM_THREADS'] = str(multiprocessing.cpu_count())
+# os.environ['MKL_NUM_THREADS'] = str(multiprocessing.cpu_count())
+# os.environ['OPENBLAS_NUM_THREADS'] = str(multiprocessing.cpu_count())
+# os.environ['VECLIB_MAXIMUM_THREADS'] = str(multiprocessing.cpu_count())
+# os.environ['NUMEXPR_NUM_THREADS'] = str(multiprocessing.cpu_count())
+#
+#
+# import matplotlib
+# from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
+#
+# import wx.grid
+# import wx.adv
+# import sys
+# import platform
+#
+# from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
+# matplotlib.use('WXAgg')  # Use WXAgg backend for wxPython compatibility
+# from libraries.ToolsMenu.Fitting_Screen import *
+# from libraries.ToolsMenu.AreaFit_Screen import *
+# from libraries.FileMenu.Save import *
+# from libraries.ToolsMenu.NoiseAnalysis import NoiseAnalysisWindow
+# from libraries.ConfigFile import *
+# from libraries.FileMenu.Export import export_results
+# from libraries.PlotConfig import PlotConfig
+# from libraries.Utilities import check_first_time_use, DraggableText
+# from libraries.Plot_Operations import PlotManager
+# from libraries.Peak_Functions import PeakFunctions
+# from libraries.FileMenu.Open import load_library_data
+#
+#
+# # from libraries.Peak_Functions import AtomicConcentrations
+# # from libraries.Peak_Functions import gauss_lorentz, S_gauss_lorentz
+#
+# from Functions import update_sheet_names, rename_sheet, on_sheet_selected_wrapper
+# from libraries.EditMenu.PreferenceWindow import PreferenceWindow
+#
+# # from libraries.Sheet_Operations import on_sheet_selected
+#
+# from libraries.SplashScreen import show_splash
+# from libraries.FileMenu.Save import save_state, undo, redo
+#
+# # from libraries.Open import ExcelDropTarget
+# # from libraries.Utilities import copy_cell, paste_cell
+#
+# from libraries.FileMenu.Open import load_recent_files_from_config
+# from libraries.ToolsMenu.survey import PeriodicTableWindow
+# from libraries.Widgets_Toolbars import create_widgets, create_menu
+# from libraries.Widgets_Toolbars import create_statusbar
+#
+# # from libraries.Export import export_word_report
+#
 # from libraries.Peak_Functions import AtomicConcentrations
-# from libraries.Peak_Functions import gauss_lorentz, S_gauss_lorentz
+# from libraries.ToolsMenu.Dpara_Screen import DParameterWindow
+# from libraries.Update import UpdateChecker
+#
+# from libraries.PeakFittingGrid import PeakFittingGrid
+# from libraries.PeakManipulation import PeakManipulation
+# from libraries.On_Key_Defs import setup_key_handlers
+# from libraries.On_Mouse_Defs import setup_mouse_handlers
+#
+# from libraries.EditMenu.QuickSettings import QuickSettings
+#
+# from libraries.Area_Calculation import ATOMIC_MASSES
+# # GLOBAL VARIABLES----------------------------------------------------------------
 
-from Functions import update_sheet_names, rename_sheet, on_sheet_selected_wrapper
-from libraries.EditMenu.PreferenceWindow import PreferenceWindow
+# KherveFitting------------------------------------------------------------------
 
-# from libraries.Sheet_Operations import on_sheet_selected
+# MINIMAL IMPORTS FOR IMMEDIATE SPLASH
+import wx
+import sys
+import os
 
-from libraries.SplashScreen import show_splash
-from libraries.FileMenu.Save import save_state, undo, redo
-
-# from libraries.Open import ExcelDropTarget
-# from libraries.Utilities import copy_cell, paste_cell
-
-from libraries.FileMenu.Open import load_recent_files_from_config
-from libraries.ToolsMenu.survey import PeriodicTableWindow
-from libraries.Widgets_Toolbars import create_widgets, create_menu
-from libraries.Widgets_Toolbars import create_statusbar
-
-# from libraries.Export import export_word_report
-
-from libraries.Peak_Functions import AtomicConcentrations
-from libraries.ToolsMenu.Dpara_Screen import DParameterWindow
-from libraries.Update import UpdateChecker
-
-from libraries.PeakFittingGrid import PeakFittingGrid
-from libraries.PeakManipulation import PeakManipulation
-from libraries.On_Key_Defs import setup_key_handlers
-from libraries.On_Mouse_Defs import setup_mouse_handlers
-
-from libraries.EditMenu.QuickSettings import QuickSettings
-
-from libraries.Area_Calculation import ATOMIC_MASSES
+# Move all heavy imports inside if __name__ == '__main__': block
 
 
 class MyFrame(wx.Frame):
@@ -3972,53 +3982,172 @@ def set_high_priority():
             proc.nice(-20)
     except:
         pass
+#
+# if __name__ == '__main__':
+#
+#     multiprocessing.freeze_support()
+#     set_high_priority()
+#
+#     app = wx.App(False)
+#     # app = wx.App(redirect=False, clearSigInt=False)
+#
+#     # Create Splash Screen
+#     splash = show_splash(duration=2000)
+#
+#     # Detect OS
+#     os_name = platform.system()
+#
+#     if os_name == "Darwin":  # Mac OS
+#         frame = MyFrame(None, "KherveFitting-v1.65_25i30")
+#     elif os_name == "Windows":
+#         frame = MyFrame(None, "KherveFitting-v1.65_25i30")
+#     else:
+#         frame = MyFrame(None, "KherveFitting-v1.65_25i30")
+#
+#     # Apply preferences before showing the frame
+#     if hasattr(frame, 'times_opened') and frame.times_opened > 1:
+#         pref_window = PreferenceWindow(frame)
+#         pref_window.OnSave(None)  # Save settings without user interaction
+#         print("Preferences applied")
+#     splash.Destroy()
+#     frame.Show(True)
+#
+#
+#     # Open and close preference window to ensure consistent styling
+#     def apply_preferences(window):
+#         pref_window = PreferenceWindow(window)
+#         pref_window.OnSave(None)  # Save settings without user interaction
+#         print("Preferences applied")
+#
+#
+#
+#     check_first_time_use(frame)
+#
+#
+#     updater = UpdateChecker()
+#     updater.check_update_delayed(frame)
+#
+#
+#
+#     app.MainLoop()
+#     sys.exit(0)
 
 if __name__ == '__main__':
+    # Show splash FIRST before any heavy imports
+    app = wx.App(False)
+    from libraries.SplashScreen import show_splash
+
+    splash = show_splash()
+
+    # NOW import everything else with detailed progress
+    splash.update_message("Initializing multiprocessing...")
+    import multiprocessing
+    import psutil
+    from libraries.Grid_Operations import on_results_grid_cell_changed
 
     multiprocessing.freeze_support()
+
+    splash.update_message("Configuring CPU threads...")
+    os.environ['OMP_NUM_THREADS'] = str(multiprocessing.cpu_count())
+    os.environ['MKL_NUM_THREADS'] = str(multiprocessing.cpu_count())
+    os.environ['OPENBLAS_NUM_THREADS'] = str(multiprocessing.cpu_count())
+    os.environ['VECLIB_MAXIMUM_THREADS'] = str(multiprocessing.cpu_count())
+    os.environ['NUMEXPR_NUM_THREADS'] = str(multiprocessing.cpu_count())
+
+    splash.update_message("Loading matplotlib backend...")
+    import matplotlib
+    from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
+
+    splash.update_message("Loading wxPython components...")
+    import wx.grid
+    import wx.adv
+    import platform
+    from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
+
+    matplotlib.use('WXAgg')
+
+    splash.update_message("Loading peak fitting engine...")
+    from libraries.ToolsMenu.Fitting_Screen import *
+    from libraries.ToolsMenu.AreaFit_Screen import *
+
+    splash.update_message("Loading file operations...")
+    from libraries.FileMenu.Save import *
+    from libraries.FileMenu.Open import load_library_data, load_recent_files_from_config
+    from libraries.FileMenu.Export import export_results
+
+    splash.update_message("Loading analysis tools...")
+    from libraries.ToolsMenu.NoiseAnalysis import NoiseAnalysisWindow
+    from libraries.ToolsMenu.Dpara_Screen import DParameterWindow
+    from libraries.ToolsMenu.survey import PeriodicTableWindow
+
+    splash.update_message("Loading configuration...")
+    from libraries.ConfigFile import *
+    from libraries.PlotConfig import PlotConfig
+    from libraries.EditMenu.PreferenceWindow import PreferenceWindow
+    from libraries.EditMenu.QuickSettings import QuickSettings
+
+    splash.update_message("Loading utilities...")
+    from libraries.Utilities import check_first_time_use, DraggableText
+    from libraries.Plot_Operations import PlotManager
+    from libraries.Peak_Functions import PeakFunctions, AtomicConcentrations
+    from libraries.Area_Calculation import ATOMIC_MASSES
+
+    splash.update_message("Loading UI components...")
+    from Functions import update_sheet_names, rename_sheet, on_sheet_selected_wrapper
+    from libraries.Widgets_Toolbars import create_widgets, create_menu, create_statusbar
+    from libraries.PeakFittingGrid import PeakFittingGrid
+    from libraries.PeakManipulation import PeakManipulation
+
+    splash.update_message("Configuring event handlers...")
+    from libraries.On_Key_Defs import setup_key_handlers
+    from libraries.On_Mouse_Defs import setup_mouse_handlers
+    from libraries.FileMenu.Save import save_state, undo, redo
+
+    splash.update_message("Initializing update checker...")
+    from libraries.Update import UpdateChecker
+
+
+    def set_high_priority():
+        try:
+            proc = psutil.Process(os.getpid())
+            if os.name == 'nt':
+                proc.nice(psutil.HIGH_PRIORITY_CLASS)
+            else:
+                proc.nice(-20)
+        except:
+            pass
+
+
     set_high_priority()
 
-    app = wx.App(False)
-    # app = wx.App(redirect=False, clearSigInt=False)
-
-    # Create Splash Screen
-    splash = show_splash(duration=2000)
-
     # Detect OS
+    splash.update_message("Detecting operating system...")
     os_name = platform.system()
 
-    if os_name == "Darwin":  # Mac OS
+    # Create main frame
+    splash.update_message("Building main application window...")
+    if os_name == "Darwin":
         frame = MyFrame(None, "KherveFitting-v1.65_25i30")
     elif os_name == "Windows":
         frame = MyFrame(None, "KherveFitting-v1.65_25i30")
     else:
         frame = MyFrame(None, "KherveFitting-v1.65_25i30")
 
-    # Apply preferences before showing the frame
+    # Apply preferences
+    splash.update_message("Loading user preferences...")
     if hasattr(frame, 'times_opened') and frame.times_opened > 1:
         pref_window = PreferenceWindow(frame)
-        pref_window.OnSave(None)  # Save settings without user interaction
+        pref_window.OnSave(None)
         print("Preferences applied")
+
+    splash.update_message("Finalizing startup...")
     splash.Destroy()
     frame.Show(True)
 
-
-    # Open and close preference window to ensure consistent styling
-    def apply_preferences(window):
-        pref_window = PreferenceWindow(window)
-        pref_window.OnSave(None)  # Save settings without user interaction
-        print("Preferences applied")
-
-
-
     check_first_time_use(frame)
-
 
     updater = UpdateChecker()
     updater.check_update_delayed(frame)
 
-
-
     app.MainLoop()
     sys.exit(0)
-
