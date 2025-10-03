@@ -530,7 +530,7 @@ def load_library_data():
     json_file = 'KherveFitting_library.json'
 
     if os.path.exists(parquet_file):
-        print("Convert Parquet Database")
+        print("Read Parquet Database")
         import pandas as pd
         df = pd.read_parquet(parquet_file)
 

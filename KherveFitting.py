@@ -271,7 +271,9 @@ class MyFrame(wx.Frame):
         self.be_correction = 0.00
 
         self.current_instrument = 'A-ALTHERMO01'  # Default instrument
-        self.library_data = load_library_data()
+        # self.library_data = load_library_data()
+        self.library_data = {}  # Initialize empty, will load after frame shows
+
         print(f"Library data loaded successfully. Keys count: {len(self.library_data)}")
 
         self.averaging_points = 5
@@ -394,6 +396,9 @@ class MyFrame(wx.Frame):
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
+
+        # Load library data AFTER frame is shown
+        wx.CallAfter(self._load_library_data)
 
         self.mouse_handler = setup_mouse_handlers(self)
 
@@ -3969,6 +3974,15 @@ class MyFrame(wx.Frame):
 
         except Exception as e:
             print(f"Could not draw averaging indicator lines: {e}")
+
+    def _load_library_data(self):
+        """Load library data after frame is displayed"""
+        try:
+            self.library_data = load_library_data()
+            print(f"Library data loaded: {len(self.library_data)} entries")
+        except Exception as e:
+            print(f"Error loading library: {e}")
+            self.library_data = {}
 
 
 

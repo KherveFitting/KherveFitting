@@ -1959,6 +1959,7 @@ class AutoIDWindow(wx.Frame):
         self.edit_area_btn = wx.Button(panel, label="Edit Area")
         if 'wxMac' in wx.PlatformInfo:
             self.edit_area_btn.SetMinSize((125, 30))
+            self.edit_area_btn.SetSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
             self.edit_area_btn.SetMinSize((125, 35))
         else:
