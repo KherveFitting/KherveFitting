@@ -36,7 +36,7 @@ class UsageStatsWindow(wx.Frame):
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
         time_periods = [
-            ("Since Sept 2024", self.plot_sept_2024),
+            ("Since Sept 2025", self.plot_sept_2025),
             ("Last Year", self.plot_last_year),
             ("Last 6 Months", self.plot_last_6_months),
             ("Last 3 Months", self.plot_last_3_months),
@@ -48,11 +48,13 @@ class UsageStatsWindow(wx.Frame):
             ("Last 4 Days", self.plot_last_4_days),
             ("Last 3 Days", self.plot_last_3_days),
             ("Last 2 Days", self.plot_last_2_days),
+            ("4 Days Ago", self.plot_4_days_ago),
+            ("3 Days Ago", self.plot_3_days_ago),
             ("2 Days Ago", self.plot_2_days_ago),
             ("Yesterday", self.plot_yesterday),
             ("Today", self.plot_today),
-            ("All Usage Data", self.plot_all_usage),
-            ("Google Form", self.plot_google_form),
+            # ("All Usage Data", self.plot_all_usage),
+            # ("Google Form", self.plot_google_form),
         ]
 
         for label, callback in time_periods:
@@ -186,6 +188,14 @@ class UsageStatsWindow(wx.Frame):
             two_days_ago = now - timedelta(days=2)
             start_date = two_days_ago.replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = two_days_ago.replace(hour=23, minute=59, second=59, microsecond=999999)
+        elif period_type == "3_days_ago":
+            three_days_ago = now - timedelta(days=3)
+            start_date = three_days_ago.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = three_days_ago.replace(hour=23, minute=59, second=59, microsecond=999999)
+        elif period_type == "4_days_ago":
+            four_days_ago = now - timedelta(days=4)
+            start_date = four_days_ago.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = four_days_ago.replace(hour=23, minute=59, second=59, microsecond=999999)
         elif period_type == "last_2_days":
             start_date = (now - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = now
@@ -219,8 +229,8 @@ class UsageStatsWindow(wx.Frame):
         elif period_type == "last_year":
             start_date = now - timedelta(days=365)
             end_date = now
-        elif period_type == "since_sept_2024":
-            start_date = datetime(2024, 9, 1)
+        elif period_type == "since_sept_2025":
+            start_date = datetime(2025, 9, 1)
             end_date = now
         else:
             # Default: no date filtering
@@ -603,6 +613,16 @@ class UsageStatsWindow(wx.Frame):
         data = self.get_google_form_data(start_date, end_date)
         self.plot_world_map_bubbles(data)
 
+    def plot_3_days_ago(self, event):
+        start_date, end_date = self.get_date_range("3_days_ago")
+        data = self.get_google_form_data(start_date, end_date)
+        self.plot_world_map_bubbles(data)
+
+    def plot_4_days_ago(self, event):
+        start_date, end_date = self.get_date_range("4_days_ago")
+        data = self.get_google_form_data(start_date, end_date)
+        self.plot_world_map_bubbles(data)
+
     def plot_last_2_days(self, event):
         start_date, end_date = self.get_date_range("last_2_days")
         data = self.get_google_form_data(start_date, end_date)
@@ -658,18 +678,18 @@ class UsageStatsWindow(wx.Frame):
         data = self.get_google_form_data(start_date, end_date)
         self.plot_world_map_bubbles(data)
 
-    def plot_sept_2024(self, event):
-        start_date, end_date = self.get_date_range("since_sept_2024")
+    def plot_sept_2025(self, event):
+        start_date, end_date = self.get_date_range("since_sept_2025")
         data = self.get_google_form_data(start_date, end_date)
         self.plot_world_map_bubbles(data)
 
     def plot_all_usage(self, event):
         data = self.get_google_form_data()  # No date filtering
         self.plot_world_map_bubbles(data)
-
-    def plot_google_form(self, event):
-        data = self.get_google_form_data()  # No date filtering
-        self.plot_world_map_bubbles(data)
+    #
+    # def plot_google_form(self, event):
+    #     data = self.get_google_form_data()  # No date filtering
+    #     self.plot_world_map_bubbles(data)
 
 
 def show_usage_stats_window(parent):

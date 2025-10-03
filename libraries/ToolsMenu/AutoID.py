@@ -2,7 +2,7 @@ import wx
 import numpy as np
 import platform
 from scipy.signal import find_peaks
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid as trapz
 from libraries.FileMenu.Save import save_state
 from libraries.FileMenu.Open import load_library_data
 

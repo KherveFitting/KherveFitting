@@ -1660,6 +1660,133 @@ def extract_acquisition_parameters(sheet):
     return parameters
 
 
+def extract_peak_fitting_from_peak_table(wb):
+    """
+    Extract peak fitting parameters from Peak Table sheet in Avantage file.
+    Returns a dictionary mapping scan names to their peak parameters.
+    Each peak has 2 rows: values row and constraints row.
+    """
+    peak_fitting_data = {}
+
+    # Check if Peak Table sheet exists
+    if "Peak Table" not in wb.sheetnames:
+        print("No Peak Table sheet found")
+        return peak_fitting_data
+
+    sheet = wb["Peak Table"]
+    print(f"Parsing Peak Table sheet with {sheet.max_row} rows")
+
+    current_scan = None
+    header_row = None
+    ref_letter_to_index = {}
+
+    row_idx = 1
+    while row_idx <= sheet.max_row:
+        # Check for Peak Fit Table headers like "Peak Fit Table : O1s Scan"
+        cell_value = sheet.cell(row=row_idx, column=1).value
+
+        if cell_value and isinstance(cell_value, str) and "Peak Fit Table :" in cell_value:
+            # Extract scan name (e.g., "O1s")
+            parts = cell_value.split(":")
+            if len(parts) >= 2:
+                scan_part = parts[1].strip()
+                # Extract element name like O1s, Sr3d, Ti2p from "O1s Scan"
+                scan_name = scan_part.split()[0].strip()
+                current_scan = scan_name
+                peak_fitting_data[current_scan] = []
+                header_row = row_idx + 1  # Next row should be headers
+                ref_letter_to_index = {}  # Reset mapping for each scan
+                print(f"\nFound Peak Fit Table for: {current_scan}")
+                row_idx += 2  # Skip header row
+                continue
+
+        # Parse peak data rows (must have current_scan set)
+        if current_scan and header_row and row_idx > header_row:
+            # Check if this is a data row (has Ref value)
+            ref_value = sheet.cell(row=row_idx, column=1).value
+
+            # Stop if we hit another section or empty ref
+            if not ref_value:
+                row_idx += 1
+                continue
+
+            if "Peak Fit Table" in str(ref_value):
+                current_scan = None
+                header_row = None
+                continue
+
+            # This is a data row - extract values
+            name_value = sheet.cell(row=row_idx, column=2).value
+            peak_be = sheet.cell(row=row_idx, column=3).value
+            height_cps = sheet.cell(row=row_idx, column=4).value
+            area_cps_ev = sheet.cell(row=row_idx, column=6).value
+            fwhm_param = sheet.cell(row=row_idx, column=8).value
+            lg_mix = sheet.cell(row=row_idx, column=9).value
+
+            # Convert ref letter (L, M, N...) to sequential (A, B, C...)
+            ref_str = str(ref_value).strip()
+            if ref_str not in ref_letter_to_index:
+                ref_letter_to_index[ref_str] = chr(65 + len(ref_letter_to_index))  # A, B, C...
+
+            peak_letter = ref_letter_to_index[ref_str]
+
+            # Get constraints from the next row (constraint row)
+            constraint_row_idx = row_idx + 1
+            position_constraint = None
+            fwhm_constraint = None
+            lg_constraint = None
+
+            if constraint_row_idx <= sheet.max_row:
+                # Position constraint (column 3)
+                pos_const_val = sheet.cell(row=constraint_row_idx, column=3).value
+                if pos_const_val:
+                    position_constraint = str(pos_const_val).strip()
+
+                # FWHM constraint (column 8)
+                fwhm_const_val = sheet.cell(row=constraint_row_idx, column=8).value
+                if fwhm_const_val:
+                    fwhm_constraint = str(fwhm_const_val).strip()
+
+                # L/G constraint (column 9)
+                lg_const_val = sheet.cell(row=constraint_row_idx, column=9).value
+                if lg_const_val:
+                    lg_constraint = str(lg_const_val).strip()
+
+            # Validate and convert values
+            try:
+                peak_be_val = float(peak_be) if peak_be and not isinstance(peak_be, str) else 0.0
+                height_val = float(height_cps) if height_cps else 0.0
+                area_val = float(area_cps_ev) if area_cps_ev else 0.0
+                fwhm_val = float(fwhm_param) if fwhm_param and not isinstance(fwhm_param, str) else 1.5
+                lg_val = float(lg_mix) if lg_mix and not isinstance(lg_mix, str) else 20.0
+
+                peak_data = {
+                    'ref': peak_letter,
+                    'name': str(name_value).strip() if name_value else f"Peak_{peak_letter}",
+                    'position': peak_be_val,
+                    'height': height_val,
+                    'area': area_val,
+                    'fwhm': fwhm_val,
+                    'lg_ratio': lg_val,
+                    'position_constraint': position_constraint,
+                    'fwhm_constraint': fwhm_constraint,
+                    'lg_constraint': lg_constraint
+                }
+
+                peak_fitting_data[current_scan].append(peak_data)
+                print(f"  Peak {peak_letter}: {peak_data['name']} at {peak_be_val:.2f} eV (FWHM const: {fwhm_constraint})")
+
+            except (ValueError, TypeError) as e:
+                print(f"Error parsing peak data at row {row_idx}: {e}")
+
+            # Skip constraint row
+            row_idx += 2
+            continue
+
+        row_idx += 1
+
+    return peak_fitting_data
+
 def import_avantage_file_direct(window, file_path):
     import re
     import openpyxl
@@ -1688,6 +1815,10 @@ def import_avantage_file_direct(window, file_path):
 
     # Sort samples: None (no suffix) first, then alphabetically
     sorted_samples = sorted(sample_groups.keys(), key=lambda x: (x is not None, x))
+
+    # Extract peak fitting data from Peak Table sheet
+    peak_fitting_by_scan = extract_peak_fitting_from_peak_table(wb)
+    print(f"Extracted peak fitting data for {len(peak_fitting_by_scan)} scans")
 
     # Process each sample group
     sample_counter = 0
@@ -1879,31 +2010,83 @@ def import_avantage_file_direct(window, file_path):
 
     sample_counter += 1
 
-    # # Create and save SampleNames dictionary based on Title sheets
-    # sample_names_dict = {}
-    # sample_counter = 0
-    # for sample_suffix in sorted_samples:
-    #     if sample_suffix is None:
-    #         sample_names_dict[str(sample_counter)] = "Sample"
-    #     else:
-    #         sample_names_dict[str(sample_counter)] = f"Sample {sample_suffix}"
-    #     sample_counter += 1
-    #
-    # # Update window.Data with SampleNames
-    # if not hasattr(window, 'Data') or window.Data is None:
-    #     from libraries.ConfigFile import Init_Measurement_Data
-    #     window.Data = Init_Measurement_Data(window)
-    #
-    # window.Data['SampleNames'] = sample_names_dict
-    #
-    # # Save the updated JSON file with SampleNames
-    # json_file_path = os.path.splitext(new_file_path)[0] + '.json'
-    # from libraries.FileMenu.Save import convert_to_serializable_and_round
-    # json_data = convert_to_serializable_and_round(window.Data)
-    # with open(json_file_path, 'w') as json_file:
-    #     json.dump(json_data, json_file, indent=2)
-
     new_wb.save(new_file_path)
+
+    # Open the file first to let it create the proper data structure
+    open_xlsx_file(window, new_file_path)
+
+    # Now add peak fitting data to window.Data if available
+    if peak_fitting_by_scan:
+        import json
+        print(f"Adding peak fitting data for {len(peak_fitting_by_scan)} scans to window.Data")
+
+        # Add peak fitting to each matching sheet in window.Data
+        for sheet_name in window.Data['Core levels'].keys():
+            # Extract base name (e.g., "O1s" from "O1s0")
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            base_name = match.group(1) if match else sheet_name
+
+            if base_name in peak_fitting_by_scan:
+                print(f"  Adding peaks to {sheet_name}")
+
+                # Initialize Fitting structure if not exists
+                if 'Fitting' not in window.Data['Core levels'][sheet_name]:
+                    window.Data['Core levels'][sheet_name]['Fitting'] = {}
+
+                window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
+                window.Data['Core levels'][sheet_name]['Fitting']['Fitting Model'] = 'SGL (Area)'
+
+                for peak in peak_fitting_by_scan[base_name]:
+                    peak_name = peak['name']
+
+                    # Build constraints
+                    position_const = peak.get('position_constraint')
+                    if position_const:
+                        pos_constraint = position_const
+                    else:
+                        pos_constraint = f"{peak['position'] - 2:.2f}:{peak['position'] + 2:.2f}"
+
+                    fwhm_const = peak.get('fwhm_constraint')
+                    if fwhm_const:
+                        fwhm_constraint = fwhm_const
+                    else:
+                        fwhm_constraint = "0.30:3.50"
+
+                    lg_const = peak.get('lg_constraint')
+                    if lg_const:
+                        lg_constraint = lg_const
+                    else:
+                        lg_constraint = "0.00:100.00"
+
+                    window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_name] = {
+                        'Position': float(f"{peak['position']:.2f}"),
+                        'Height': float(f"{peak['height']:.2f}"),
+                        'FWHM': float(f"{peak['fwhm']:.2f}"),
+                        'L/G': float(f"{peak['lg_ratio']:.2f}"),
+                        'Area': float(f"{peak['area']:.2f}"),
+                        'Sigma': 0.00,
+                        'Gamma': 0.00,
+                        'Skew': 0.00,
+                        'Fitting Model': 'SGL (Area)',
+                        'Constraints': {
+                            'Position': pos_constraint,
+                            'Height': f"{max(0, peak['height'] * 0.5):.2f}:{peak['height'] * 1.5:.2f}",
+                            'FWHM': fwhm_constraint,
+                            'L/G': lg_constraint,
+                            'Area': f"{max(0, peak['area'] * 0.5):.2f}:{peak['area'] * 1.5:.2f}",
+                            'Sigma': "0.10:1.00",
+                            'Gamma': "0.10:1.00",
+                            'Skew': "0.01:2.00"
+                        }
+                    }
+
+        # Now save the complete JSON with both spectral data and peak fitting
+        json_file_path = os.path.splitext(new_file_path)[0] + '.json'
+        from libraries.FileMenu.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(window.Data)
+        with open(json_file_path, 'w') as f:
+            json.dump(json_data, f, indent=2)
+        print(f"Saved complete data with peak fitting to {json_file_path}")
     open_xlsx_file(window, new_file_path)
 
 
@@ -2196,6 +2379,10 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
 
         # ADDED: Extract acquisition parameters
         acquisition_params = extract_acquisition_parameters(sheet)
+
+        # Extract peak fitting data from Peak Table sheet
+        peak_fitting_by_scan = extract_peak_fitting_from_peak_table(wb)
+        print(f"Extracted peak fitting data for {len(peak_fitting_by_scan)} scans")
 
         # Extract element name
         if "Survey" in sheet_name or "survey" in sheet_name:
