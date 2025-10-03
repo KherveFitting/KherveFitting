@@ -76,8 +76,7 @@
 
 # MINIMAL IMPORTS FOR IMMEDIATE SPLASH
 import wx
-import sys
-import os
+
 
 # Move all heavy imports inside if __name__ == '__main__': block
 
@@ -4041,6 +4040,8 @@ if __name__ == '__main__':
 
     # NOW import everything else with detailed progress
     splash.update_message("Initializing multiprocessing...")
+    import sys
+    import os
     import multiprocessing
     import psutil
     from libraries.Grid_Operations import on_results_grid_cell_changed
