@@ -230,6 +230,16 @@ class PeriodicTableWindow(wx.Frame):
 
     def InitUI(self):
         panel = wx.Panel(self)
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            panel.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Info text
@@ -318,7 +328,15 @@ class PeriodicTableWindow(wx.Frame):
         """Create periodic table using actual KherveDB ElementTiles"""
         # Create frame for periodic table
         pt_panel = wx.Panel(parent, style=wx.BORDER_SUNKEN)
-        pt_panel.SetBackgroundColour(wx.Colour(230, 230, 230))
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            pt_panel.SetBackgroundColour(wx.Colour(40, 40, 40))
+        else:
+            pt_panel.SetBackgroundColour(wx.Colour(230, 230, 230))
 
         # Use grid sizer for periodic table layout
         pt_sizer = wx.GridBagSizer(1, 1)

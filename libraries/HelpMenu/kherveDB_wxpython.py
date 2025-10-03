@@ -172,7 +172,15 @@ Version: 1.1"""
         """Create the periodic table with colored buttons"""
         # Create frame for periodic table
         pt_panel = wx.Panel(self.panel, style=wx.BORDER_SUNKEN)
-        pt_panel.SetBackgroundColour(wx.Colour(230, 230, 230))
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            pt_panel.SetBackgroundColour(wx.Colour(40, 40, 40))
+        else:
+            pt_panel.SetBackgroundColour(wx.Colour(230, 230, 230))
 
         # Use grid sizer for periodic table layout
         if 'wxGTK' in wx.PlatformInfo: # Spacing Linux
@@ -461,7 +469,17 @@ Version: 1.1"""
     def create_search_area(self):
         """Create the search interface"""
         search_panel = wx.Panel(self.panel, style=wx.BORDER_SUNKEN)
-        search_panel.SetBackgroundColour(wx.Colour(224, 224, 224))
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            search_panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+            element_label_bg = wx.Colour(45, 45, 45)
+        else:
+            search_panel.SetBackgroundColour(wx.Colour(224, 224, 224))
+            element_label_bg = wx.WHITE
 
         search_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -1068,7 +1086,16 @@ class ElementPropertiesDialog(wx.Dialog):
 
         # Header
         header_panel = wx.Panel(panel)
-        header_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            header_panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            header_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
+
         header_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Element symbol

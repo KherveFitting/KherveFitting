@@ -7,6 +7,7 @@ from scipy.integrate import cumtrapz
 import json
 import lmfit.models  # Add this if not already present
 import pandas as pd
+import platform
 
 
 class PlotModWindow(wx.Frame):
@@ -39,9 +40,17 @@ class PlotModWindow(wx.Frame):
 
         grid_sizer = wx.GridBagSizer(5, 5)
 
-        # Define the two green colors
-        light_green = wx.Colour(220, 240, 220)  # Light green
-        darker_green = wx.Colour(240, 255, 240)  # Darker green
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        # Define colors based on theme
+        if is_macos_dark:
+            light_green = wx.Colour(45, 45, 45)
+            darker_green = wx.Colour(35, 35, 35)
+            light_blue = wx.Colour(40, 40, 45)
+        else:
+            light_green = wx.Colour(220, 240, 220)
+            darker_green = wx.Colour(240, 255, 240)
+            light_blue = wx.Colour(220, 240, 255)
 
         # Create a panel instead of StaticBox
         smooth_panel = wx.Panel(panel)

@@ -568,6 +568,18 @@ class FileManagerWindow(wx.Frame):
                 wx.Font(font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
                         wx.FONTWEIGHT_NORMAL, faceName=default_font))
 
+            # Fix text color for Mac dark mode
+            def detect_dark_mode():
+                if 'wxMac' in wx.PlatformInfo:
+                    return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+                return False
+
+            if detect_dark_mode():
+                # Set all text to black in dark mode for readability
+                for row in range(num_rows):
+                    for col in range(self.grid.GetNumberCols()):
+                        self.grid.SetCellTextColour(row, col, wx.BLACK)
+
             self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
             self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cursor_changed)
             self.grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_grid_right_click)

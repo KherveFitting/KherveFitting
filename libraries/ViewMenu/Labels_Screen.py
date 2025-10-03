@@ -1,5 +1,6 @@
 import wx
 import wx.grid
+import platform
 from matplotlib.patches import Rectangle, Circle
 from matplotlib.transforms import Affine2D
 import numpy as np
@@ -19,7 +20,13 @@ class LabelWindow(wx.Frame):
         self.SetPosition((x, y))
 
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(220, 230, 220))
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            panel.SetBackgroundColour(wx.Colour(220, 230, 220))
+        # panel.SetBackgroundColour(wx.Colour(220, 230, 220))
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Create grid for labels

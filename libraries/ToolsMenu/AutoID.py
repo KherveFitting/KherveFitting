@@ -1,5 +1,6 @@
 import wx
 import numpy as np
+import platform
 from scipy.signal import find_peaks
 from scipy.integrate import trapz
 from libraries.FileMenu.Save import save_state
@@ -1842,7 +1843,15 @@ class AutoIDWindow(wx.Frame):
     def init_ui(self):
         """Initialize the user interface"""
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(220, 210, 210))
+
+        # Handle macOS dark mode
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            panel.SetBackgroundColour(wx.Colour(220, 210, 210))
+
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
 

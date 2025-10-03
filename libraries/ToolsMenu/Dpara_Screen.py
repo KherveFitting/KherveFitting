@@ -1,5 +1,6 @@
 import wx
 import numpy as np
+import platform
 from libraries.Peak_Functions import OtherCalc
 
 
@@ -11,8 +12,13 @@ class DParameterWindow(wx.Frame):
         self.SetSize((300, 340))
 
         panel = wx.Panel(self)
-        # panel.SetBackgroundColour(wx.WHITE)
-        panel.SetBackgroundColour(wx.Colour(240, 210, 210))
+
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            panel.SetBackgroundColour(wx.Colour(240, 210, 210))
 
         # Parameters Box
         param_box = wx.StaticBox(panel, label="Parameters")

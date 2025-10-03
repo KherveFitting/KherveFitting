@@ -3,6 +3,7 @@ import wx.lib.agw.floatspin as FS
 import numpy as np
 from scipy.special import erf
 import lmfit
+import platform
 
 # Install and import lmfitxps for better Fermi edge fitting
 try:
@@ -228,7 +229,14 @@ class VB_measurements(wx.Frame):
 
     def InitUI(self):
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(240, 225, 225))  # Orange background
+
+        # Handle macOS dark mode
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            panel.SetBackgroundColour(wx.Colour(240, 225, 225))
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Left side - Controls
