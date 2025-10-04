@@ -10,15 +10,12 @@ class BackgroundWindow(wx.Frame):
         super(BackgroundWindow, self).__init__(parent, *args, **kw, style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
         self.parent = parent
         self.SetTitle("Measure Area")
+
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize((260, 345))  # Increased height to accommodate new elements
-            self.SetMinSize((260, 345))
-            self.SetMaxSize((260, 345))
-        # elif 'wxGTK' in wx.PlatformInfo:
-        #     self.SetSize((260, 470))  # Increased height to accommodate new elements
-        #     self.SetMinSize((260, 470))
-        #     self.SetMaxSize((260, 470))
-        elif 'wxGTK' in wx.PlatformInfo:  # This is for Linux
+            self.SetSize((260, 345))
+            # self.SetMinSize((260, 345))
+            # self.SetMaxSize((260, 345))
+        elif 'wxGTK' in wx.PlatformInfo:
             desktop = self.get_linux_desktop()
             if desktop == 'gnome':
                 self.SetSize((310, 560))
@@ -27,35 +24,94 @@ class BackgroundWindow(wx.Frame):
             elif desktop == 'xfce':
                 print('linux xfce')
                 self.SetSize((260, 460))
-            else:  # Unknown or other
+            else:
                 self.SetSize((280, 520))
             print(f'GTK environment: {desktop}')
         else:
-            self.SetSize((267, 370))
-            self.SetMinSize((267, 370))
-            self.SetMaxSize((267, 370))
+            self.SetSize((272, 370))
+            # self.SetMinSize((270, 370))
+            # self.SetMaxSize((270, 370))
 
+        # Initialize UI with tabs
+        self.init_ui()
+
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
+
+    def init_ui(self):
+        """Initialize UI with notebook tabs"""
         panel = wx.Panel(self)
 
         def detect_dark_mode():
-            if 'wxMac' in wx.PlatformInfo:  # Mac
+            if 'wxMac' in wx.PlatformInfo:
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
-            elif 'wxMSW' in wx.PlatformInfo:  # Windows
+            elif 'wxMSW' in wx.PlatformInfo:
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
-            elif 'wxGTK' in wx.PlatformInfo:  # Linux
+            elif 'wxGTK' in wx.PlatformInfo:
                 return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
             return False
 
         if not detect_dark_mode():
             panel.SetBackgroundColour(wx.Colour(250, 250, 230))
 
-        # Create controls
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        notebook = wx.Notebook(panel)
+
+        if not detect_dark_mode():
+            notebook.SetBackgroundColour(wx.Colour(250, 250, 230))
+
+        # Create tabs
+        self.init_measure_area_tab(notebook)
+        self.init_batching_tab(notebook)
+
+        main_sizer.Add(notebook, 1, wx.EXPAND, border=5)
+        panel.SetSizer(main_sizer)
+
+        # Track which tab is selected
+        self.parent.area_tab_selected = True
+        self.parent.area_batch_tab_selected = False
+
+        notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
+
+        # Initially disable all Tougaard controls
+        self.cross_section.Enable(False)
+        self.cross_section_label.Enable(False)
+        self.tougaard_fit_btn.Enable(False)
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.method_combobox.Bind(wx.EVT_COMBOBOX, self.on_bkg_method_change)
+
+        # Add key event handling for TAB functionality
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
+        self.current_peak_index = 0
+
+    def init_measure_area_tab(self, notebook):
+        """Initialize the Measure Area tab - contains all existing controls"""
+        self.measure_area_panel = wx.Panel(notebook)
+
+        def detect_dark_mode():
+            if 'wxMac' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxMSW' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxGTK' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            return False
+
+        if not detect_dark_mode():
+            self.measure_area_panel.SetBackgroundColour(wx.Colour(250, 250, 230))
+
+        # Create controls - USE PANEL NOT SELF.MEASURE_AREA_PANEL FOR NOW
+        panel = self.measure_area_panel
+
         method_label = wx.StaticText(panel, label="Method:")
         self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart", "Shirley", "Linear",
                                                            'U4-Tougaard', 'U2-Tougaard'],
                                            style=wx.CB_READONLY)
-        self.method_combobox.SetSelection(4)  # Default to Shirley
-        self.method_combobox.SetMaxSize((125,25))
+        self.method_combobox.SetSelection(4)
+        self.method_combobox.SetMaxSize((125, 25))
 
         offset_h_label = wx.StaticText(panel, label="Offset (Left):")
         self.offset_h_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
@@ -67,28 +123,15 @@ class BackgroundWindow(wx.Frame):
         self.offset_l_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
         self.offset_l_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
 
-
-
         self.min_range_label = wx.StaticText(panel, label='Range (Right):')
         self.min_range_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
-        self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
-        self.min_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
-
+        self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_enter)
+        self.min_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_min_range_enter)
 
         self.max_range_label = wx.StaticText(panel, label='Range (Left):')
         self.max_range_text = wx.TextCtrl(panel, value="0.00", style=wx.TE_PROCESS_ENTER)
-        self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_text_control_enter)
-        self.max_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_text_control_focus_lost)
-
-        # self.offset_h_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
-        # self.offset_l_text.Bind(wx.EVT_TEXT, self.on_offset_changed)
-        # self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_change)
-        # self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_change)
-        self.min_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_min_range_enter)
-        self.min_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_min_range_enter)
         self.max_range_text.Bind(wx.EVT_TEXT_ENTER, self.on_max_range_enter)
         self.max_range_text.Bind(wx.EVT_KILL_FOCUS, self.on_max_range_enter)
-
 
         # Initialize range control updating flag
         self.updating_range_controls = False
@@ -96,7 +139,6 @@ class BackgroundWindow(wx.Frame):
         # Initialize range controls from data
         self.update_range_controls_from_data()
 
-        # Add averaging points control
         averaging_points_label = wx.StaticText(panel, label="Averaging Points:")
         self.averaging_points_text = wx.TextCtrl(panel, value="5")
         self.averaging_points_text.Bind(wx.EVT_TEXT, self.on_averaging_points_change)
@@ -105,7 +147,6 @@ class BackgroundWindow(wx.Frame):
         self.cross_section_label = wx.StaticText(panel, label='Tougaard1: B,C,D,T0')
         self.cross_section = wx.TextCtrl(panel, value="2866,1643,1,0")
         self.cross_section.Bind(wx.EVT_TEXT, self.on_cross_section_change)
-
 
         # Add Tougaard model button
         self.tougaard_fit_btn = wx.Button(panel, label="Create Tougaard\nModel")
@@ -123,7 +164,6 @@ class BackgroundWindow(wx.Frame):
             remove_peak_button.SetMinSize((90, 35))
         remove_peak_button.Bind(wx.EVT_BUTTON, self.on_remove_peak)
 
-
         auto_id_button = wx.Button(panel, label="Automatic\nIdentification")
         if 'wxMac' in wx.PlatformInfo:
             auto_id_button.SetMinSize((125, 30))
@@ -138,10 +178,7 @@ class BackgroundWindow(wx.Frame):
         else:
             switch_vlines_button.SetMinSize((125, 35))
         switch_vlines_button.Bind(wx.EVT_BUTTON, self.on_switch_vlines)
-        switch_vlines_button.SetToolTip(
-            "Switch between plot range (10%-90%) and peak background ranges\nSame as pressing TAB key")
-
-
+        switch_vlines_button.SetToolTip("Switch between plot range (10%-90%) and peak background ranges\nSame as pressing TAB key")
 
         background_only_button = wx.Button(panel, label="Create\nBackground / Area")
         if 'wxMac' in wx.PlatformInfo:
@@ -150,28 +187,18 @@ class BackgroundWindow(wx.Frame):
             background_only_button.SetMinSize((125, 35))
         background_only_button.Bind(wx.EVT_BUTTON, self.on_background_only)
 
-        # area_button = wx.Button(panel, label="Calculate\nArea")
-        # if 'wxMac' in wx.PlatformInfo:
-        #     area_button.SetMinSize((90, 30))
-        # else:
-        #     area_button.SetMinSize((90, 35))
-        # area_button.Bind(wx.EVT_BUTTON, self.on_area)
-
-        # # Create pure background button (rename the existing one)
-        # background_pure_button = wx.Button(panel, label="Create\nBackground")
-        # if 'wxMac' in wx.PlatformInfo:
-        #     background_pure_button.SetMinSize((125, 30))
-        # else:
-        #     background_pure_button.SetMinSize((125, 35))
-        # background_pure_button.Bind(wx.EVT_BUTTON, self.on_background_only_pure)
-
-
         peak_label_text_label = wx.StaticText(panel, label="Area Name      ")
         self.peak_label_text = wx.TextCtrl(panel, value="")
 
+        # Core Level List button and Remove Peak button
+        core_level_button = wx.Button(panel, label="Core Level\nList")
+        if 'wxMac' in wx.PlatformInfo:
+            core_level_button.SetMinSize((90, 30))
+        else:
+            core_level_button.SetMinSize((90, 35))
+        core_level_button.Bind(wx.EVT_BUTTON, self.on_show_core_level_list)
 
-
-        # Layout with a GridBagSizer
+        # Layout with GridBagSizer
         if 'wxMac' in wx.PlatformInfo or 'wxGTK' in wx.PlatformInfo:
             sizer = wx.GridBagSizer(hgap=1, vgap=1)
         else:
@@ -207,40 +234,30 @@ class BackgroundWindow(wx.Frame):
             help_button.SetMinSize((20, 20))
             help_button.SetToolTip("Click to watch tutorial video on how to use the Area Fit function")
             help_button.Bind(wx.EVT_BUTTON, self.on_help_button)
-            sizer.Add(help_button, pos=(7, 1), flag=wx.ALL , border=0)
-
+            sizer.Add(help_button, pos=(7, 1), flag=wx.ALL, border=0)
 
             sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-
-            # Core Level List button and Remove Peak button
-            core_level_button = wx.Button(panel, label="Core Level\nList")
-            core_level_button.SetMinSize((90, 30))
-            core_level_button.Bind(wx.EVT_BUTTON, self.on_show_core_level_list)
-
-            # sizer.Add(export_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(core_level_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(auto_id_button, pos=(10, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-
 
             # Seventh row: Remove peak and Export buttons
             sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(switch_vlines_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
 
             sizer.Add(background_only_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            # sizer.Add(clear_background_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
         else:  # For Windows
             # First row: Method
-            sizer.Add(method_label, pos=(0, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(self.method_combobox, pos=(0, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(method_label, pos=(0, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.method_combobox, pos=(0, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # second Third row: Offset (H) and Offset (L)
-            sizer.Add(offset_h_label, pos=(1, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(self.offset_h_text, pos=(1, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(offset_l_label, pos=(2, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(self.offset_l_text, pos=(2, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(offset_h_label, pos=(1, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.offset_h_text, pos=(1, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(offset_l_label, pos=(2, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.offset_l_text, pos=(2, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Add new range controls
             sizer.Add(self.min_range_label, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
@@ -249,70 +266,627 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(self.max_range_text, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
             # Fourth row: Averaging Points
-            sizer.Add(averaging_points_label, pos=(5, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(self.averaging_points_text, pos=(5, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(averaging_points_label, pos=(5, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.averaging_points_text, pos=(5, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Fourth row: Tougaard parameters
-            sizer.Add(self.cross_section_label, pos=(6, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(self.cross_section, pos=(6, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.cross_section_label, pos=(6, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(self.cross_section, pos=(6, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Help button at row 7
             help_button = wx.Button(panel, label="?")
             help_button.SetMinSize((20, 20))
             help_button.SetToolTip("Click to watch tutorial video on how to use the Area Fit function")
             help_button.Bind(wx.EVT_BUTTON, self.on_help_button)
-            sizer.Add(help_button, pos=(7, 1), flag=wx.ALL , border=0)
-
-            # # Export to result button and Remove Peak button
-            # export_button = wx.Button(panel, label="Export to\nResult")
-            # export_button.SetMinSize((90, 35))
-            # export_button.Bind(wx.EVT_BUTTON, self.on_export_results)
-
-            # Core Level List button and Remove Peak button
-            core_level_button = wx.Button(panel, label="Core Level\nList")
-            core_level_button.SetMinSize((90, 35))
-            core_level_button.Bind(wx.EVT_BUTTON, self.on_show_core_level_list)
-
+            sizer.Add(help_button, pos=(7, 1), flag=wx.ALL, border=0)
 
             sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=0)
             sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-            sizer.Add(switch_vlines_button, pos=(10, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(auto_id_button, pos=(10, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-
+            sizer.Add(switch_vlines_button, pos=(9, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(auto_id_button, pos=(9, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            # sizer.Add(export_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=0)
-            sizer.Add(core_level_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=0)
+            sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(core_level_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-            # sizer.Add(background_pure_button, pos=(12, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            # sizer.Add(area_button, pos=(12, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(background_only_button, pos=(11, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(remove_peak_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-            # Sixth row: Background and Clear Background buttons
-            # sizer.Add(background_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=5)
-            sizer.Add(background_only_button, pos=(12, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            # sizer.Add(clear_background_button, pos=(12, 1), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
-            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=0)
+        self.measure_area_panel.SetSizer(sizer)
+        notebook.AddPage(self.measure_area_panel, "Measure Area")
 
+    def init_batching_tab(self, notebook):
+        """Initialize the batching tab for area measurements"""
+        self.batch_panel = wx.Panel(notebook)
 
+        # Create main sizer
+        batch_sizer = wx.GridBagSizer(0, 0)
 
-        # Initially disable all Tougaard controls
-        self.cross_section.Enable(False)
-        self.cross_section_label.Enable(False)
-        self.tougaard_fit_btn.Enable(False)
+        # Progress indicator
+        self.batch_progress_label = wx.StaticText(self.batch_panel, label="Progress:")
+        batch_sizer.Add(self.batch_progress_label, pos=(0, 0), flag=wx.ALL | wx.EXPAND, border=1)
 
-        self.Bind(wx.EVT_CLOSE, self.on_close)
-        self.method_combobox.Bind(wx.EVT_COMBOBOX, self.on_bkg_method_change)
+        self.batch_progress_text = wx.TextCtrl(self.batch_panel, style=wx.TE_READONLY)
+        batch_sizer.Add(self.batch_progress_text, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-        # Add key event handling for TAB functionality
-        self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
-        self.current_peak_index = 0  # Track current peak selection
+        # Select All and Unselect All buttons
+        select_all_button = wx.Button(self.batch_panel, label="Select All")
+        if 'wxMac' in wx.PlatformInfo:
+            select_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            select_all_button.SetMinSize((125, 35))
+        else:
+            select_all_button.SetMinSize((125, 35))
+        select_all_button.Bind(wx.EVT_BUTTON, self.on_select_all)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(select_all_button, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(select_all_button, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=0)
 
-        from libraries.ConfigFile import set_consistent_fonts
-        set_consistent_fonts(self)
+        unselect_all_button = wx.Button(self.batch_panel, label="Unselect All")
+        if 'wxMac' in wx.PlatformInfo:
+            unselect_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            unselect_all_button.SetMinSize((125, 35))
+        else:
+            unselect_all_button.SetMinSize((125, 35))
+        unselect_all_button.Bind(wx.EVT_BUTTON, self.on_unselect_all)
+        if 'wxMac' in wx.PlatformInfo:
+            batch_sizer.Add(unselect_all_button, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(unselect_all_button, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-        panel.SetSizer(sizer)
+        # Core levels checklist box
+        self.core_levels_checklist = wx.CheckListBox(self.batch_panel)
+        self.core_levels_checklist.SetMinSize((250, 160))
+        self.populate_core_levels_list()
+
+        self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
+        batch_sizer.Add(self.core_levels_checklist, pos=(2, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Propagate Area to Column button (instead of Prop. Fit to Column)
+        propagate_area_button = wx.Button(self.batch_panel, label="Prop. Area\nto Column")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_area_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_area_button.SetMinSize((125, 35))
+        else:
+            propagate_area_button.SetMinSize((125, 35))
+        propagate_area_button.Bind(wx.EVT_BUTTON, self.on_propagate_area)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(propagate_area_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(propagate_area_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Row to Selected Core Levels button
+        propagate_row_button = wx.Button(self.batch_panel, label="Prop. Row to\nSelected Core Levels")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_row_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_row_button.SetMinSize((125, 35))
+        else:
+            propagate_row_button.SetMinSize((125, 35))
+        propagate_row_button.Bind(wx.EVT_BUTTON, self.on_propagate_row)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(propagate_row_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(propagate_row_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Measure Selected Areas button (instead of Fit Selected Core Levels)
+        measure_all_button = wx.Button(self.batch_panel, label="Measure Selected\nCore Levels")
+        if 'wxMac' in wx.PlatformInfo:
+            measure_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            measure_all_button.SetMinSize((125, 35))
+        else:
+            measure_all_button.SetMinSize((125, 35))
+        measure_all_button.Bind(wx.EVT_BUTTON, self.on_measure_all)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(measure_all_button, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(measure_all_button, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=0)
+
+        self.batch_panel.SetSizer(batch_sizer)
+        notebook.AddPage(self.batch_panel, "Batching")
+
+    def populate_core_levels_list(self):
+        """Populate the core levels checklist with current core levels"""
+        self.core_levels_checklist.Clear()
+
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            core_levels = list(self.parent.Data['Core levels'].keys())
+            for core_level in core_levels:
+                self.core_levels_checklist.Append(core_level)
+
+            # Select all by default
+            for i in range(self.core_levels_checklist.GetCount()):
+                self.core_levels_checklist.Check(i, True)
+
+    def on_select_all(self, event):
+        """Select all core levels in the checklist"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, True)
+
+    def on_unselect_all(self, event):
+        """Unselect all core levels in the checklist"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, False)
+
+    def on_core_levels_context_menu(self, event):
+        """Handle right-click on core levels checklist"""
+        # Get all core level names from the checklist
+        all_core_levels = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            all_core_levels.append(self.core_levels_checklist.GetString(i))
+
+        if not all_core_levels:
+            return
+
+        # Group core levels by type
+        core_level_groups = {}
+        for core_level in all_core_levels:
+            core_type = self.extract_column_type(core_level)
+            if core_type not in core_level_groups:
+                core_level_groups[core_type] = []
+            core_level_groups[core_type].append(core_level)
+
+        # Create context menu
+        menu = wx.Menu()
+
+        # Sort core level types for consistent ordering
+        sorted_core_types = sorted(core_level_groups.keys())
+
+        for core_type in sorted_core_types:
+            core_levels_of_type = core_level_groups[core_type]
+
+            # Create select and unselect items for this core level type
+            select_item = menu.Append(wx.ID_ANY, f"Select All {core_type} ({len(core_levels_of_type)})")
+            unselect_item = menu.Append(wx.ID_ANY, f"Unselect All {core_type} ({len(core_levels_of_type)})")
+
+            # Bind events
+            self.Bind(wx.EVT_MENU, lambda evt, ct=core_type: self.select_all_core_type(ct), select_item)
+            self.Bind(wx.EVT_MENU, lambda evt, ct=core_type: self.unselect_all_core_type(ct), unselect_item)
+
+            # Add separator after each core level type (except the last one)
+            if core_type != sorted_core_types[-1]:
+                menu.AppendSeparator()
+
+        # Show the menu
+        self.core_levels_checklist.PopupMenu(menu)
+        menu.Destroy()
+
+    def select_all_core_type(self, core_type):
+        """Select all core levels of a specific type"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            core_level = self.core_levels_checklist.GetString(i)
+            if self.extract_column_type(core_level) == core_type:
+                self.core_levels_checklist.Check(i, True)
+
+    def unselect_all_core_type(self, core_type):
+        """Unselect all core levels of a specific type"""
+        for i in range(self.core_levels_checklist.GetCount()):
+            core_level = self.core_levels_checklist.GetString(i)
+            if self.extract_column_type(core_level) == core_type:
+                self.core_levels_checklist.Check(i, False)
+
+    def extract_column_type(self, sheet_name):
+        """Extract the column type (element + orbital) from sheet name"""
+        if not sheet_name:
+            return ""
+
+        # Handle common XPS naming patterns
+        import re
+
+        # Remove common suffixes/prefixes that might indicate sample info
+        cleaned_name = sheet_name.strip()
+
+        # Look for pattern: Element + orbital (e.g., C1s, O1s, Au4f, Ti2p, etc.)
+        # Pattern matches: Letters followed by numbers and optional letters, followed by optional digits
+        pattern = r'^([A-Z][a-z]?\d+[a-z]*)(?:\d+)?.*'
+        match = re.match(pattern, cleaned_name)
+
+        if match:
+            return match.group(1)
+
+        # Fallback: look for first part before underscore, space, or dash
+        separators = ['_', ' ', '-', '.']
+        for sep in separators:
+            if sep in cleaned_name:
+                first_part = cleaned_name.split(sep)[0]
+                # Check if first part looks like a core level (has both letters and numbers)
+                if re.match(r'^[A-Z][a-z]?\d+[a-z]*\d*$', first_part):
+                    # Remove trailing digits to get just the core level type
+                    core_level_match = re.match(r'^([A-Z][a-z]?\d+[a-z]*)', first_part)
+                    if core_level_match:
+                        return core_level_match.group(1)
+                break
+
+        # Final fallback: extract core level pattern from anywhere in name
+        core_level_match = re.search(r'([A-Z][a-z]?\d+[a-z]*)', cleaned_name)
+        if core_level_match:
+            return core_level_match.group(1)
+
+        # Last resort: return first 4 characters or whole name if shorter
+        return cleaned_name[:4] if len(cleaned_name) > 4 else cleaned_name
+
+    def get_selected_core_levels_for_area(self):
+        """Get list of selected core levels from the checklist"""
+        selected = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.IsChecked(i):
+                selected.append(self.core_levels_checklist.GetString(i))
+        return selected
+
+    def on_tab_change(self, event):
+        """Handle tab change events"""
+        selection = event.GetSelection()
+
+        if selection == 0:  # Measure Area tab
+            self.parent.area_tab_selected = True
+            self.parent.area_batch_tab_selected = False
+        else:  # Batching tab
+            self.parent.area_tab_selected = False
+            self.parent.area_batch_tab_selected = True
+
+        event.Skip()
+
+    def on_propagate_area(self, event):
+        """Propagate all areas from current core level to selected core levels in same column"""
+        from libraries.FileMenu.Save import save_state
+        import numpy as np
+
+        save_state(self.parent)
+
+        # Get current sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if not current_sheet or current_sheet not in self.parent.Data['Core levels']:
+            wx.MessageBox("No core level selected", "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check if current sheet has peaks
+        if not hasattr(self.parent, 'peak_params_grid') or self.parent.peak_params_grid.GetNumberRows() == 0:
+            wx.MessageBox("No areas/peaks to propagate from current core level", "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        grid = self.parent.peak_params_grid
+
+        # Extract ALL peaks and their background info from current sheet
+        peaks_to_propagate = []
+        num_peaks = grid.GetNumberRows() // 2
+
+        for peak_idx in range(num_peaks):
+            row = peak_idx * 2  # Data row (every other row)
+
+            try:
+                bkg_type = grid.GetCellValue(row, 14)  # Column 14: Bkg Type
+                bkg_low_str = grid.GetCellValue(row, 15)  # Column 15: Bkg Low
+                bkg_high_str = grid.GetCellValue(row, 16)  # Column 16: Bkg High
+                peak_name = grid.GetCellValue(row, 1)  # Column 1: Peak Name
+
+                # Skip if no background type defined
+                if not bkg_type or not bkg_low_str or not bkg_high_str:
+                    print(f"Skipping peak {peak_name} - missing background info")
+                    continue
+
+                bkg_low = float(bkg_low_str)
+                bkg_high = float(bkg_high_str)
+
+                peaks_to_propagate.append({
+                    'name': peak_name,
+                    'bkg_type': bkg_type,
+                    'bkg_low': bkg_low,
+                    'bkg_high': bkg_high
+                })
+
+            except (ValueError, IndexError) as e:
+                print(f"Error extracting background info from row {row}: {e}")
+                continue
+
+        if not peaks_to_propagate:
+            wx.MessageBox("No valid peaks with background information found in current core level",
+                          "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        print(f"Found {len(peaks_to_propagate)} peaks to propagate from {current_sheet}")
+
+        # Get selected core levels from checklist
+        selected_sheets = []
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.IsChecked(i):
+                selected_sheets.append(self.core_levels_checklist.GetString(i))
+
+        if not selected_sheets:
+            wx.MessageBox("No core levels selected for propagation", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Filter to same column only
+        current_column = self.extract_column_type(current_sheet)
+        same_column_sheets = []
+        omitted_sheets = []
+
+        for sheet in selected_sheets:
+            if sheet == current_sheet:
+                continue  # Skip self
+
+            sheet_column = self.extract_column_type(sheet)
+            if sheet_column == current_column:
+                same_column_sheets.append(sheet)
+            else:
+                omitted_sheets.append(sheet)
+
+        if not same_column_sheets:
+            wx.MessageBox(f"No core levels of the same column type ({current_column}) are selected for propagation.",
+                          "Nothing to Propagate", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        # Propagate to selected core levels
+        success_count = 0
+        failed_sheets = []
+        total_areas_created = 0
+
+        try:
+            total_sheets = len(same_column_sheets)
+
+            for i, target_sheet in enumerate(same_column_sheets):
+                try:
+                    # Update progress
+                    self.batch_progress_text.SetValue(f"Processing {target_sheet} ({i + 1}/{total_sheets})")
+                    wx.Yield()
+
+                    # Switch to target sheet
+                    self.parent.sheet_combobox.SetValue(target_sheet)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, target_sheet)
+
+                    # Create ALL areas for this sheet
+                    sheet_success = True
+                    areas_created_for_sheet = 0
+
+                    for peak_info in peaks_to_propagate:
+                        if self.create_area_for_sheet(target_sheet,
+                                                      peak_info['bkg_type'],
+                                                      peak_info['bkg_low'],
+                                                      peak_info['bkg_high'],
+                                                      peak_info['name']):
+                            areas_created_for_sheet += 1
+                            total_areas_created += 1
+                        else:
+                            sheet_success = False
+
+                    if areas_created_for_sheet > 0:
+                        success_count += 1
+                        print(f"Created {areas_created_for_sheet} areas in {target_sheet}")
+                    else:
+                        failed_sheets.append(target_sheet)
+
+                except Exception as e:
+                    print(f"Failed to propagate areas to {target_sheet}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    failed_sheets.append(target_sheet)
+
+            # Restore original sheet
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+
+            # Show completion message
+            completion_msg = f"Successfully propagated {len(peaks_to_propagate)} areas to {success_count}/{total_sheets} {current_column} core levels.\n"
+            completion_msg += f"Total areas created: {total_areas_created}"
+
+            if failed_sheets:
+                completion_msg += f"\n\nFailed to propagate to {len(failed_sheets)} core levels:\n{', '.join(failed_sheets[:5])}"
+                if len(failed_sheets) > 5:
+                    completion_msg += f" and {len(failed_sheets) - 5} more..."
+
+            if omitted_sheets:
+                completion_msg += f"\n\n{len(omitted_sheets)} core levels were omitted (different column type):\n"
+                completion_msg += ", ".join(omitted_sheets[:5])
+                if len(omitted_sheets) > 5:
+                    completion_msg += f" and {len(omitted_sheets) - 5} more..."
+
+            if success_count > 0:
+                self.batch_progress_text.SetValue(f"{total_areas_created} areas created in {success_count}/{total_sheets} core levels")
+                wx.MessageBox(completion_msg, "Success", wx.OK | wx.ICON_INFORMATION)
+            else:
+                wx.MessageBox("Failed to create areas in any core levels", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            # Restore original sheet on error
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+            wx.MessageBox(f"Error propagating areas: {str(e)}", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
+
+    def create_area_for_sheet(self, sheet_name, bkg_type, bkg_low, bkg_high, original_peak_name=None):
+        """Create area measurement for a specific sheet with given background parameters"""
+        import numpy as np
+
+        try:
+            # Check if sheet has data
+            if sheet_name not in self.parent.Data['Core levels']:
+                print(f"Sheet {sheet_name} not found in data")
+                return False
+
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+            if 'B.E.' not in core_level_data or 'Raw Data' not in core_level_data:
+                print(f"Sheet {sheet_name} missing B.E. or Raw Data")
+                return False
+
+            # Set background parameters
+            self.parent.background_method = bkg_type
+
+            # Set the offset values to 0
+            try:
+                offset_h = float(self.offset_h_text.GetValue())
+                offset_l = float(self.offset_l_text.GetValue())
+            except:
+                offset_h = 0.0
+                offset_l = 0.0
+
+            # Create background using plot_manager
+            # First, temporarily set the range in parent
+            self.parent.bg_min_energy = bkg_low
+            self.parent.bg_max_energy = bkg_high
+
+            # Initialize background structure if needed
+            if 'Background' not in core_level_data:
+                core_level_data['Background'] = {}
+
+            core_level_data['Background']['Bkg Type'] = bkg_type
+            core_level_data['Background']['Bkg Low'] = float(bkg_low)
+            core_level_data['Background']['Bkg High'] = float(bkg_high)
+            core_level_data['Background']['Bkg Offset Low'] = float(offset_l)
+            core_level_data['Background']['Bkg Offset High'] = float(offset_h)
+
+            # Create the background
+            x_values = np.array(core_level_data['B.E.'])
+            y_values = np.array(core_level_data['Raw Data'])
+
+            # Use the parent's background creation method
+            self.parent.plot_manager.plot_background(self.parent, use_smoothing=False)
+
+            # Now calculate the area
+            background = np.array(core_level_data['Background']['Bkg Y'])
+
+            # Mask for the range
+            mask = (x_values >= bkg_low) & (x_values <= bkg_high)
+            x_range = x_values[mask]
+            y_range = y_values[mask]
+            bg_range = background[mask]
+
+            if len(x_range) < 3:
+                print(f"Insufficient data points in range for {sheet_name}")
+                return False
+
+            # Calculate area
+            y_minus_bg = y_range - bg_range
+
+            # Sort for proper integration
+            sorted_indices = np.argsort(x_range)
+            x_sorted = x_range[sorted_indices]
+            y_minus_bg_sorted = y_minus_bg[sorted_indices]
+
+            area = np.trapz(y_minus_bg_sorted, x_sorted)
+
+            # Calculate peak parameters
+            peak_index = np.argmax(y_minus_bg)
+            peak_position = x_range[peak_index]
+            peak_height = y_minus_bg[peak_index]
+
+            if peak_height > 0:
+                fwhm = 2 * np.sqrt(2 * np.log(2)) * abs(area) / (peak_height * np.sqrt(2 * np.pi))
+            else:
+                fwhm = 0
+
+            # Round values to .2f
+            area = abs(round(area, 2))
+            peak_position = round(peak_position, 2)
+            peak_height = round(peak_height, 2)
+            fwhm = round(fwhm, 2)
+
+            # Add to peak params grid
+            grid = self.parent.peak_params_grid
+            num_peaks = grid.GetNumberRows() // 2
+            peak_letter = chr(65 + num_peaks)
+
+            # Use original peak name if provided, otherwise generate new one
+            if original_peak_name:
+                area_name = original_peak_name
+            else:
+                area_name = f"{sheet_name} p{num_peaks + 1}"
+
+            # Add new rows
+            grid.AppendRows(2)
+            row = num_peaks * 2
+
+            # Set values
+            grid.SetCellValue(row, 0, peak_letter)
+            grid.SetCellValue(row, 1, area_name)  # Use propagated name
+            grid.SetCellValue(row, 2, f"{peak_position:.2f}")
+            grid.SetCellValue(row, 3, f"{peak_height:.2f}")
+            grid.SetCellValue(row, 4, f"{fwhm:.2f}")
+            grid.SetCellValue(row, 5, "0.00")
+            grid.SetCellValue(row, 6, f"{area:.2f}")
+            grid.SetCellValue(row, 7, "0.00")
+            grid.SetCellValue(row, 8, "0.00")
+            grid.SetCellValue(row, 9, "0.00")
+            grid.SetCellValue(row, 13, "Unfitted")
+            grid.SetCellValue(row, 14, bkg_type)
+            grid.SetCellValue(row, 15, f"{bkg_low:.2f}")
+            grid.SetCellValue(row, 16, f"{bkg_high:.2f}")
+
+            # Set constraints row background color
+            for col in range(grid.GetNumberCols()):
+                grid.SetCellBackgroundColour(row + 1, col, wx.Colour(200, 245, 228))
+
+            # Set constraint values
+            grid.SetCellValue(row + 1, 2, "Fixed")
+            grid.SetCellValue(row + 1, 3, "Fixed")
+            grid.SetCellValue(row + 1, 4, "Fixed")
+            grid.SetCellValue(row + 1, 5, "Fixed")
+            grid.SetCellValue(row + 1, 6, "Fixed")
+            grid.SetCellValue(row + 1, 7, "Fixed")
+            grid.SetCellValue(row + 1, 8, "Fixed")
+            grid.SetCellValue(row + 1, 9, "Fixed")
+
+            # Update Data structure
+            if 'Fitting' not in core_level_data:
+                core_level_data['Fitting'] = {}
+            if 'Peaks' not in core_level_data['Fitting']:
+                core_level_data['Fitting']['Peaks'] = {}
+
+            core_level_data['Fitting']['Peaks'][area_name] = {
+                'Position': peak_position,
+                'Height': peak_height,
+                'FWHM': fwhm,
+                'L/G': 0.00,
+                'Area': area,
+                'Sigma': 0.00,
+                'Gamma': 0.00,
+                'Skew': 0.00,
+                'Fitting Model': "Unfitted",
+                'Bkg Type': bkg_type,
+                'Bkg Low': bkg_low,
+                'Bkg High': bkg_high,
+                'Constraints': {
+                    'Position': "Fixed",
+                    'Height': "Fixed",
+                    'FWHM': "Fixed",
+                    'L/G': "Fixed",
+                    'Area': "Fixed",
+                    'Sigma': "Fixed",
+                    'Gamma': "Fixed",
+                    'Skew': "Fixed"
+                }
+            }
+
+            # Update ratios
+            self.parent.update_ratios()
+
+            print(f"Successfully created area '{area_name}' for {sheet_name}: {area:.2f}")
+            return True
+
+        except Exception as e:
+            print(f"Error creating area for {sheet_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def on_propagate_row(self, event):
+        """Propagate current row to selected core levels"""
+        # TODO: Implement row propagation logic
+        wx.MessageBox("Propagate Row to Selected Core Levels - To be implemented", "Info", wx.OK | wx.ICON_INFORMATION)
+
+    def on_measure_all(self, event):
+        """Measure areas for all selected core levels"""
+        # TODO: Implement batch area measurement logic
+        wx.MessageBox("Measure Selected Core Levels - To be implemented", "Info", wx.OK | wx.ICON_INFORMATION)
 
     def on_help_button(self, event):
         """Open YouTube tutorial video for AreaFit functionality"""

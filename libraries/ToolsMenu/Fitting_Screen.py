@@ -768,6 +768,130 @@ class FittingWindow(wx.Frame):
         self.fitting_panel.SetSizer(fitting_sizer)
         notebook.AddPage(self.fitting_panel, "Peak Fitting")
 
+    def init_batch_operations_tab(self, notebook):
+        """Initialize the batch operations tab in the notebook."""
+        if not self.normal:  # Don't create controls in mini mode
+            return
+
+        self.batch_panel = wx.Panel(notebook)
+
+        # Create main sizer
+        batch_sizer = wx.GridBagSizer(0, 0)
+
+        # # Title
+        # title_label = wx.StaticText(self.batch_panel, label="Batching")
+        # title_font = title_label.GetFont()
+        # title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        # title_label.SetFont(title_font)
+        # batch_sizer.Add(title_label, pos=(0, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=5)
+
+        # N# of Iterations control (same as in fitting tab)
+        batch_sizer.Add(wx.StaticText(self.batch_panel, label="N# of Iterations:"), pos=(0, 0),
+                        flag=wx.ALL | wx.EXPAND, border=1)
+        self.batch_iterations_spin = wx.SpinCtrl(self.batch_panel, value="20", min=2, max=100)
+        batch_sizer.Add(self.batch_iterations_spin, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Progress indicator
+        self.batch_progress_label = wx.StaticText(self.batch_panel, label="Progress:")
+        self.batch_progress_text = wx.TextCtrl(self.batch_panel, style=wx.TE_READONLY)
+        batch_sizer.Add(self.batch_progress_label, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        batch_sizer.Add(self.batch_progress_text, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Core levels checklist box
+        self.core_levels_checklist = wx.CheckListBox(self.batch_panel) #, style=wx.LB_MULTIPLE)
+        self.core_levels_checklist.SetMinSize((250, 155))
+        self.populate_core_levels_list()
+
+        self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
+        batch_sizer.Add(self.core_levels_checklist, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+
+        # Select All and Unselect All buttons
+        select_all_button = wx.Button(self.batch_panel, label="Select All")
+        if 'wxMac' in wx.PlatformInfo:
+            select_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            select_all_button.SetMinSize((125, 35))
+        else:
+            select_all_button.SetMinSize((125, 35))
+        select_all_button.Bind(wx.EVT_BUTTON, self.on_select_all)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(select_all_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(select_all_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        unselect_all_button = wx.Button(self.batch_panel, label="Unselect All")
+        if 'wxMac' in wx.PlatformInfo:
+            unselect_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            unselect_all_button.SetMinSize((125, 35))
+        else:
+            unselect_all_button.SetMinSize((125, 35))
+        unselect_all_button.Bind(wx.EVT_BUTTON, self.on_unselect_all)
+        if 'wxMac' in wx.PlatformInfo:
+            batch_sizer.Add(unselect_all_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(unselect_all_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Fittings button
+        propagate_button = wx.Button(self.batch_panel, label="Propagate/Prop. Fit\nto Column")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_button.SetMinSize((125, 35))
+        else:
+            propagate_button.SetMinSize((125, 35))
+        propagate_button.Bind(wx.EVT_BUTTON, self.on_propagate_fittings)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(propagate_button, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(propagate_button, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Constraints button
+        propagate_constraints_button = wx.Button(self.batch_panel, label="Prop. Constraints\nto Column")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_constraints_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_constraints_button.SetMinSize((125, 35))
+        else:
+            propagate_constraints_button.SetMinSize((125, 35))
+        propagate_constraints_button.Bind(wx.EVT_BUTTON, self.on_propagate_constraints)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(propagate_constraints_button, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(propagate_constraints_button, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Propagate Row to Selected Core Levels button
+        propagate_row_button = wx.Button(self.batch_panel, label="Prop. Row to\nSelected Core Levels")
+        if 'wxMac' in wx.PlatformInfo:
+            propagate_row_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            propagate_row_button.SetMinSize((125, 35))
+        else:
+            propagate_row_button.SetMinSize((125, 35))
+        propagate_row_button.Bind(wx.EVT_BUTTON, self.on_propagate_row)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(propagate_row_button, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(propagate_row_button, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Fit Selected button
+        fit_all_button = wx.Button(self.batch_panel, label="Fit Selected\nCore Levels")
+        if 'wxMac' in wx.PlatformInfo:
+            fit_all_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            fit_all_button.SetMinSize((125, 35))
+        else:
+            fit_all_button.SetMinSize((125, 35))
+        fit_all_button.Bind(wx.EVT_BUTTON, self.on_fit_all)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(fit_all_button, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(fit_all_button, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=0)
+
+        self.batch_panel.SetSizer(batch_sizer)
+        if self.normal:  # Only add the page if in normal mode
+            notebook.AddPage(self.batch_panel, "Batching")
+
     def on_fit_report(self, event):
         if hasattr(self.parent, 'fit_results') and 'result' in self.parent.fit_results:
             dlg = wx.Frame(self, title="Fit Report", size=(600, 400))
@@ -2025,129 +2149,7 @@ class FittingWindow(wx.Frame):
 
         event.Skip()
 
-    def init_batch_operations_tab(self, notebook):
-        """Initialize the batch operations tab in the notebook."""
-        if not self.normal:  # Don't create controls in mini mode
-            return
 
-        self.batch_panel = wx.Panel(notebook)
-
-        # Create main sizer
-        batch_sizer = wx.GridBagSizer(0, 0)
-
-        # # Title
-        # title_label = wx.StaticText(self.batch_panel, label="Batching")
-        # title_font = title_label.GetFont()
-        # title_font.SetWeight(wx.FONTWEIGHT_BOLD)
-        # title_label.SetFont(title_font)
-        # batch_sizer.Add(title_label, pos=(0, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=5)
-
-        # N# of Iterations control (same as in fitting tab)
-        batch_sizer.Add(wx.StaticText(self.batch_panel, label="N# of Iterations:"), pos=(0, 0),
-                        flag=wx.ALL | wx.EXPAND, border=1)
-        self.batch_iterations_spin = wx.SpinCtrl(self.batch_panel, value="20", min=2, max=100)
-        batch_sizer.Add(self.batch_iterations_spin, pos=(0, 1), flag=wx.ALL | wx.EXPAND, border=1)
-
-        # Progress indicator
-        self.batch_progress_label = wx.StaticText(self.batch_panel, label="Progress:")
-        self.batch_progress_text = wx.TextCtrl(self.batch_panel, style=wx.TE_READONLY)
-        batch_sizer.Add(self.batch_progress_label, pos=(1, 0), flag=wx.ALL | wx.EXPAND, border=1)
-        batch_sizer.Add(self.batch_progress_text, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
-
-        # Core levels checklist box
-        self.core_levels_checklist = wx.CheckListBox(self.batch_panel) #, style=wx.LB_MULTIPLE)
-        self.core_levels_checklist.SetMinSize((250, 160))
-        self.populate_core_levels_list()
-
-        self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
-        batch_sizer.Add(self.core_levels_checklist, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
-
-        # Select All and Unselect All buttons
-        select_all_button = wx.Button(self.batch_panel, label="Select All")
-        if 'wxMac' in wx.PlatformInfo:
-            select_all_button.SetMinSize((125, 30))
-        elif 'wxGTK' in wx.PlatformInfo:
-            select_all_button.SetMinSize((125, 35))
-        else:
-            select_all_button.SetMinSize((125, 35))
-        select_all_button.Bind(wx.EVT_BUTTON, self.on_select_all)
-        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
-            batch_sizer.Add(select_all_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
-        else:
-            batch_sizer.Add(select_all_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=0)
-
-        unselect_all_button = wx.Button(self.batch_panel, label="Unselect All")
-        if 'wxMac' in wx.PlatformInfo:
-            unselect_all_button.SetMinSize((125, 30))
-        elif 'wxGTK' in wx.PlatformInfo:
-            unselect_all_button.SetMinSize((125, 35))
-        else:
-            unselect_all_button.SetMinSize((125, 35))
-        unselect_all_button.Bind(wx.EVT_BUTTON, self.on_unselect_all)
-        if 'wxMac' in wx.PlatformInfo:
-            batch_sizer.Add(unselect_all_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
-        else:
-            batch_sizer.Add(unselect_all_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
-
-        # Propagate Fittings button
-        propagate_button = wx.Button(self.batch_panel, label="Propagate/Prop. Fit\nto Column")
-        if 'wxMac' in wx.PlatformInfo:
-            propagate_button.SetMinSize((125, 30))
-        elif 'wxGTK' in wx.PlatformInfo:
-            propagate_button.SetMinSize((125, 35))
-        else:
-            propagate_button.SetMinSize((125, 35))
-        propagate_button.Bind(wx.EVT_BUTTON, self.on_propagate_fittings)
-        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
-            batch_sizer.Add(propagate_button, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=1)
-        else:
-            batch_sizer.Add(propagate_button, pos=(5, 0), flag=wx.ALL | wx.EXPAND, border=0)
-
-        # Propagate Constraints button
-        propagate_constraints_button = wx.Button(self.batch_panel, label="Prop. Constraints\nto Column")
-        if 'wxMac' in wx.PlatformInfo:
-            propagate_constraints_button.SetMinSize((125, 30))
-        elif 'wxGTK' in wx.PlatformInfo:
-            propagate_constraints_button.SetMinSize((125, 35))
-        else:
-            propagate_constraints_button.SetMinSize((125, 35))
-        propagate_constraints_button.Bind(wx.EVT_BUTTON, self.on_propagate_constraints)
-        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
-            batch_sizer.Add(propagate_constraints_button, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=1)
-        else:
-            batch_sizer.Add(propagate_constraints_button, pos=(5, 1), flag=wx.ALL | wx.EXPAND, border=0)
-
-        # Propagate Row to Selected Core Levels button
-        propagate_row_button = wx.Button(self.batch_panel, label="Prop. Row to\nSelected Core Levels")
-        if 'wxMac' in wx.PlatformInfo:
-            propagate_row_button.SetMinSize((125, 30))
-        elif 'wxGTK' in wx.PlatformInfo:
-            propagate_row_button.SetMinSize((125, 35))
-        else:
-            propagate_row_button.SetMinSize((125, 35))
-        propagate_row_button.Bind(wx.EVT_BUTTON, self.on_propagate_row)
-        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
-            batch_sizer.Add(propagate_row_button, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=1)
-        else:
-            batch_sizer.Add(propagate_row_button, pos=(6, 0), flag=wx.ALL | wx.EXPAND, border=0)
-
-        # Fit Selected button
-        fit_all_button = wx.Button(self.batch_panel, label="Fit Selected\nCore Levels")
-        if 'wxMac' in wx.PlatformInfo:
-            fit_all_button.SetMinSize((125, 30))
-        elif 'wxGTK' in wx.PlatformInfo:
-            fit_all_button.SetMinSize((125, 35))
-        else:
-            fit_all_button.SetMinSize((125, 35))
-        fit_all_button.Bind(wx.EVT_BUTTON, self.on_fit_all)
-        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
-            batch_sizer.Add(fit_all_button, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=1)
-        else:
-            batch_sizer.Add(fit_all_button, pos=(6, 1), flag=wx.ALL | wx.EXPAND, border=0)
-
-        self.batch_panel.SetSizer(batch_sizer)
-        if self.normal:  # Only add the page if in normal mode
-            notebook.AddPage(self.batch_panel, "Batching")
 
 
     def recreate_background_from_ranges_local(self, sheet_name, recorded_ranges, background_method):
