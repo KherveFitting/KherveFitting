@@ -518,7 +518,7 @@ class BackgroundWindow(wx.Frame):
                 selected.append(self.core_levels_checklist.GetString(i))
         return selected
 
-    def on_tab_change(self, event):
+    def on_tab_change_OLD(self, event):
         """Handle tab change events"""
         selection = event.GetSelection()
 
@@ -528,6 +528,58 @@ class BackgroundWindow(wx.Frame):
         else:  # Batching tab
             self.parent.area_tab_selected = False
             self.parent.area_batch_tab_selected = True
+
+        event.Skip()
+
+    def on_tab_change(self, event):
+        """Handle tab change events"""
+        selection = event.GetSelection()
+
+        if selection == 0:  # Measure Area tab
+            self.parent.area_tab_selected = True
+            self.parent.area_batch_tab_selected = False
+
+            # Show vlines on Measure Area tab
+            if hasattr(self.parent, 'vline1') and self.parent.vline1:
+                self.parent.vline1.set_visible(True)
+            if hasattr(self.parent, 'vline2') and self.parent.vline2:
+                self.parent.vline2.set_visible(True)
+            if hasattr(self.parent, 'vline_center') and self.parent.vline_center:
+                self.parent.vline_center.set_visible(True)
+
+            # Show vline text labels if they exist
+            if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text:
+                self.parent.vline1_text.set_visible(True)
+            if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text:
+                self.parent.vline2_text.set_visible(True)
+            if hasattr(self.parent, 'vline_center_text') and self.parent.vline_center_text:
+                self.parent.vline_center_text.set_visible(True)
+
+            # Redraw canvas to show vlines
+            self.parent.canvas.draw_idle()
+
+        else:  # Batching tab
+            self.parent.area_tab_selected = False
+            self.parent.area_batch_tab_selected = True
+
+            # Hide vlines on Batching tab
+            if hasattr(self.parent, 'vline1') and self.parent.vline1:
+                self.parent.vline1.set_visible(False)
+            if hasattr(self.parent, 'vline2') and self.parent.vline2:
+                self.parent.vline2.set_visible(False)
+            if hasattr(self.parent, 'vline_center') and self.parent.vline_center:
+                self.parent.vline_center.set_visible(False)
+
+            # Hide vline text labels if they exist
+            if hasattr(self.parent, 'vline1_text') and self.parent.vline1_text:
+                self.parent.vline1_text.set_visible(False)
+            if hasattr(self.parent, 'vline2_text') and self.parent.vline2_text:
+                self.parent.vline2_text.set_visible(False)
+            if hasattr(self.parent, 'vline_center_text') and self.parent.vline_center_text:
+                self.parent.vline_center_text.set_visible(False)
+
+            # Redraw canvas to hide vlines
+            self.parent.canvas.draw_idle()
 
         event.Skip()
 
