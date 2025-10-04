@@ -855,8 +855,8 @@ class FittingWindow(wx.Frame):
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(True)
         elif new_method == "U2-Tougaard":
-            self.cross_section.Enable(False)
-            self.cross_section_label.Enable(False)
+            self.cross_section.Enable(True)
+            self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(False)
         elif new_method == "ALS-Raman":
             self.cross_section.Enable(False)
@@ -868,6 +868,17 @@ class FittingWindow(wx.Frame):
             self.tougaard_fit_btn.Enable(False)
         self.background_panel.Layout()
 
+    def update_u2_tougaard_control(self):
+        """Update cross_section control with fitted U2-Tougaard B value"""
+        if self.method_combobox.GetValue() == "U2-Tougaard":
+            sheet_name = self.parent.sheet_combobox.GetValue()
+            if sheet_name in self.parent.Data['Core levels']:
+                bg_data = self.parent.Data['Core levels'][sheet_name].get('Background', {})
+                B = bg_data.get('Fitted_B', 2866)
+                C = bg_data.get('Tougaard_C', 1643)
+                D = bg_data.get('Tougaard_D', 0)
+                T0 = bg_data.get('Tougaard_T0', 0)
+                self.cross_section.SetValue(f"{B:.0f},{C:.0f},{D:.0f},{T0:.0f}")
 
     def on_notebook_page_changed(self, event):
         """Handle notebook page changes to initialize ranges when background tab is selected"""
@@ -3609,9 +3620,22 @@ class FittingWindow(wx.Frame):
         except ValueError:
             return [2866, 1643, 1, 0]
 
-    def on_cross_section_change(self, event):
+    def on_cross_section_change_OLD(self, event):
         self.parse_cross_section(self.cross_section.GetValue())
         # self.parent.plot_manager.plot_background(self.parent)
+
+    def on_cross_section_change(self, event):
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        values = self.cross_section.GetValue().split(',')
+        try:
+            self.parent.Data['Core levels'][sheet_name]['Background'].update({
+                'Tougaard_B': float(f"{float(values[0]):.0f}"),
+                'Tougaard_C': float(f"{float(values[1]):.0f}"),
+                'Tougaard_D': float(f"{float(values[2]):.0f}"),
+                'Tougaard_T0': float(f"{float(values[3]):.0f}")
+            })
+        except (ValueError, IndexError):
+            pass
 
     def initialize_recorded_ranges(self):
         """Initialize recorded ranges from window.Data when tab becomes active"""

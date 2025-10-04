@@ -419,10 +419,12 @@ Philosophy:
 -v1.4 Feb-25  - Towards Mac Version
 -v1.5 May-25  - Towards multi-samples 2D-Manager
 -v1.6 xxx-25  - Towards opening/saving fitted CasaXPS / Better Background management
--v1.7 xxx-25  - Automatic Survey identification
+-v1.7 xxx-25  - Automatic Survey identification / batch fitting
 -v1.8 xxx-25  - Towards Linux Version (Synchrotron)
 
 Version 1.600-1.690
+- Considerably improve the speed of startup
+- Added import of fitting input from Avantage files
 - Improve Smart background
 - Added U2 Tougaard
 - Added Mini-Fitting Screen

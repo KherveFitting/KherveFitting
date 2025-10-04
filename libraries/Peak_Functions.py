@@ -1103,7 +1103,8 @@ class BackgroundCalculations:
 
         bg_data = window.Data['Core levels'][sheet_name]['Background']
         # C_value = bg_data.get('Tougaard_C', 1643.0)  # User-defined C parameter
-        C_value = 1643
+        # C_value = 1643
+        C_value = float(bg_data.get('Tougaard_C', 1643.00))
 
         # Get averaging points (same as Smart background)
         averaging_points = getattr(window, 'averaging_points', 5)

@@ -1346,6 +1346,12 @@ class MouseEventHandler:
             # Save state after vline movement and background update
             save_state(self.window)
 
+            # Update U2-Tougaard control if Fitting Screen is open and U2 is selected
+            if (hasattr(self.window, 'fitting_window') and self.window.fitting_window is not None and
+                    hasattr(self.window.fitting_window, 'method_combobox')):
+                if self.window.fitting_window.method_combobox.GetValue() == "U2-Tougaard":
+                    wx.CallAfter(self.window.fitting_window.update_u2_tougaard_control)
+
             # Update VBM controls if VBM window is open
             self.update_vbm_controls_from_vlines()
 
