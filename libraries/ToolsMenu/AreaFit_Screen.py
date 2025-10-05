@@ -373,7 +373,7 @@ class BackgroundWindow(wx.Frame):
         else:
             batch_sizer.Add(propagate_row_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
-        # Measure Selected Areas button (instead of Fit Selected Core Levels)
+        # Measure Selected Areas button
         measure_all_button = wx.Button(self.batch_panel, label="Measure Selected\nCore Levels")
         if 'wxMac' in wx.PlatformInfo:
             measure_all_button.SetMinSize((125, 30))
@@ -383,12 +383,215 @@ class BackgroundWindow(wx.Frame):
             measure_all_button.SetMinSize((125, 35))
         measure_all_button.Bind(wx.EVT_BUTTON, self.on_measure_all)
         if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
-            batch_sizer.Add(measure_all_button, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
+            batch_sizer.Add(measure_all_button, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
         else:
-            batch_sizer.Add(measure_all_button, pos=(4, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=0)
+            batch_sizer.Add(measure_all_button, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=0)
+
+        # Create Profile At.(%) button
+        profile_button = wx.Button(self.batch_panel, label="Create Profile\nAt.(%) Peaks G")
+        if 'wxMac' in wx.PlatformInfo:
+            profile_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            profile_button.SetMinSize((125, 35))
+        else:
+            profile_button.SetMinSize((125, 35))
+        profile_button.Bind(wx.EVT_BUTTON, self.on_create_atomic_profile)
+        if 'wxMac' or 'wxGTK' in wx.PlatformInfo:
+            batch_sizer.Add(profile_button, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        else:
+            batch_sizer.Add(profile_button, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         self.batch_panel.SetSizer(batch_sizer)
         notebook.AddPage(self.batch_panel, "Batching")
+
+    def on_create_atomic_profile(self, event):
+        """Create atomic concentration profile from selected core levels"""
+        import pandas as pd
+        import openpyxl
+        import os
+        import json
+        import re
+
+        # Get selected core levels
+        selected_sheets = self.get_selected_core_levels_for_area()
+        if not selected_sheets:
+            wx.MessageBox("No core levels selected", "Create Profile Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Extract the lowest number from selected sheets
+        lowest_number = float('inf')
+        for sheet in selected_sheets:
+            num_match = re.search(r'(\d+)$', sheet)
+            if num_match:
+                number = int(num_match.group(1))
+            else:
+                number = 0  # No number suffix means it's the first one (0)
+            lowest_number = min(lowest_number, number)
+
+        # Create profile sheet name with lowest number
+        if lowest_number == 0:
+            profile_sheet_name = "zzProfile"
+        else:
+            profile_sheet_name = f"zzProfile{lowest_number}"
+
+        # Check if profile sheet already exists and ask to overwrite
+        if profile_sheet_name in self.parent.Data['Core levels']:
+            response = wx.MessageBox(
+                f"Profile sheet '{profile_sheet_name}' already exists. Overwrite?",
+                "Confirm Overwrite",
+                wx.YES_NO | wx.ICON_QUESTION
+            )
+            if response != wx.YES:
+                # Find next available name
+                profile_sheet_name = self._get_next_available_profile_name(profile_sheet_name)
+
+        # Collect atomic concentration data from all selected sheets
+        profile_data = {}
+        profile_data['Number'] = []
+        peak_names = set()
+
+        # First pass: collect all unique peak names and assign numbers
+        for idx, sheet_name in enumerate(selected_sheets):
+            # Extract number from sheet name (Survey=0, Survey1=1, etc.)
+            num_match = re.search(r'(\d+)$', sheet_name)
+            if num_match:
+                number = int(num_match.group(1))
+            else:
+                number = 0  # No number suffix means it's the first one
+
+            profile_data['Number'].append(number)
+
+            # Get peaks from this sheet
+            if (sheet_name in self.parent.Data['Core levels'] and
+                    'Fitting' in self.parent.Data['Core levels'][sheet_name] and
+                    'Peaks' in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+
+                peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                for peak_name in peaks.keys():
+                    peak_names.add(peak_name)
+
+        # Initialize columns for each peak with "At(%)" suffix
+        peak_names = sorted(list(peak_names))
+        for peak_name in peak_names:
+            column_name = f"{peak_name} At(%)"  # Add measurement type to column name
+            profile_data[column_name] = []
+
+        # Second pass: populate atomic concentration data
+        for sheet_name in selected_sheets:
+            sheet_peak_data = {}
+
+            # Switch to sheet and get atomic concentrations from peak_params_grid
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+
+            # Update ratios to ensure atomic concentrations are calculated
+            self.parent.update_ratios()
+
+            # Extract atomic concentrations from grid (column 10)
+            grid = self.parent.peak_params_grid
+            num_peaks = grid.GetNumberRows() // 2
+
+            for i in range(num_peaks):
+                row = i * 2
+                try:
+                    peak_name = grid.GetCellValue(row, 1)  # Peak name
+                    atomic_conc_str = grid.GetCellValue(row, 10)  # Atomic %
+
+                    if atomic_conc_str and atomic_conc_str.strip():
+                        atomic_conc = float(atomic_conc_str)
+                        sheet_peak_data[peak_name] = atomic_conc
+                except (ValueError, IndexError):
+                    continue
+
+            # Fill in data for this sheet
+            for peak_name in peak_names:
+                column_name = f"{peak_name} At(%)"
+                if peak_name in sheet_peak_data:
+                    profile_data[column_name].append(sheet_peak_data[peak_name])
+                else:
+                    profile_data[column_name].append(0.0)  # No data for this peak
+
+        # Create DataFrame
+        df = pd.DataFrame(profile_data)
+
+        # Ensure Number column is first
+        cols = ['Number'] + [col for col in df.columns if col != 'Number']
+        df = df[cols]
+
+        # SORT by Number column to ensure proper line plotting (0→1→2→3 not 0→3→1→2)
+        df = df.sort_values(by='Number').reset_index(drop=True)
+
+        # Save to Excel
+        file_path = self.parent.Data['FilePath']
+
+        try:
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=profile_sheet_name, index=False)
+
+            # Update Data structure with profile metadata
+            first_column = f"{peak_names[0]} At(%)" if peak_names else 'Number'
+            self.parent.Data['Core levels'][profile_sheet_name] = {
+                'Name': profile_sheet_name,
+                'B.E.': df['Number'].tolist(),
+                'Raw Data': df[first_column].tolist() if peak_names else [],
+                'Profile Data': df.to_dict('list'),
+                'Y_Axis_Label': 'Atomic Concentration (%)',  # Can be changed to 'Position (eV)' or 'Area (CTS)'
+                'X_Axis_Label': 'Number',
+                'Profile_Type': 'Atomic_Concentration',  # Can be 'Position' or 'Area'
+                'Background': {
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': '',
+                    'Bkg Y': df[first_column].tolist() if peak_names else []
+                }
+            }
+
+            # Save to JSON
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Update sheet list
+            if profile_sheet_name not in self.parent.sheet_combobox.GetStrings():
+                self.parent.sheet_combobox.Append(profile_sheet_name)
+
+            # Switch to the new profile sheet and plot it
+            self.parent.sheet_combobox.SetValue(profile_sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, profile_sheet_name)
+
+            wx.MessageBox(
+                f"Atomic concentration profile '{profile_sheet_name}' created successfully!\n"
+                f"Data from {len(selected_sheets)} sheets with {len(peak_names)} peaks.",
+                "Success",
+                wx.OK | wx.ICON_INFORMATION
+            )
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating profile: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
+
+    def _get_next_available_profile_name(self, base_name="zzProfile"):
+        """Find the next available profile name"""
+        existing_profiles = [name for name in self.parent.Data['Core levels'].keys()
+                             if name.startswith('zzProfile')]
+
+        if base_name not in existing_profiles:
+            return base_name
+
+        # Find next available number
+        counter = 1
+        while True:
+            new_name = f"{base_name}{counter}"
+            if new_name not in existing_profiles:
+                return new_name
+            counter += 1
 
     def populate_core_levels_list(self):
         """Populate the core levels checklist with current core levels"""
@@ -694,6 +897,9 @@ class BackgroundWindow(wx.Frame):
                     from libraries.Sheet_Operations import on_sheet_selected
                     on_sheet_selected(self.parent, target_sheet)
 
+                    # CLEAR ALL EXISTING PEAKS FIRST
+                    self.clear_all_peaks_from_sheet(target_sheet)
+
                     # Create ALL areas for this sheet
                     sheet_success = True
                     areas_created_for_sheet = 0
@@ -703,7 +909,7 @@ class BackgroundWindow(wx.Frame):
                                                       peak_info['bkg_type'],
                                                       peak_info['bkg_low'],
                                                       peak_info['bkg_high'],
-                                                      peak_info['name']):
+                                                      peak_info['name']):  # Pass the original peak name
                             areas_created_for_sheet += 1
                             total_areas_created += 1
                         else:
@@ -753,6 +959,35 @@ class BackgroundWindow(wx.Frame):
             wx.MessageBox(f"Error propagating areas: {str(e)}", "Propagate Failed", wx.OK | wx.ICON_ERROR)
             import traceback
             traceback.print_exc()
+
+    def clear_all_peaks_from_sheet(self, sheet_name):
+        """Clear all peaks from a sheet's peak_params_grid and Data structure"""
+        try:
+            # Clear peak_params_grid
+            grid = self.parent.peak_params_grid
+            if grid.GetNumberRows() > 0:
+                grid.DeleteRows(0, grid.GetNumberRows())
+
+            # Clear from Data structure
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+                # Clear Fitting/Peaks
+                if 'Fitting' in core_level_data:
+                    if 'Peaks' in core_level_data['Fitting']:
+                        core_level_data['Fitting']['Peaks'] = {}
+
+                # Reset peak count
+                self.parent.peak_count = 0
+
+            print(f"Cleared all peaks from {sheet_name}")
+            return True
+
+        except Exception as e:
+            print(f"Error clearing peaks from {sheet_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     def create_area_for_sheet(self, sheet_name, bkg_type, bkg_low, bkg_high, original_peak_name=None):
         """Create area measurement for a specific sheet with given background parameters"""

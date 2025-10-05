@@ -3334,273 +3334,6 @@ def import_multiple_avg_files(window):
     except Exception as e:
         wx.MessageBox(f"Error processing AVG files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-def open_xlsx_file_OLD(window, file_path=None):
-    """
-    Opens an Excel file, loads its data, and updates the application's state accordingly.
-    If a corresponding JSON file exists, it loads data from there instead.
-    """
-    print("Starting open_xlsx_file function")
-    if file_path is None:
-        with wx.FileDialog(window, "Open XLSX file", wildcard="Excel files (*.xlsx)|*.xlsx",
-                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
-            if dlg.ShowModal() == wx.ID_OK:
-                file_path = dlg.GetPath()
-            else:
-                return
-
-    # Store reference to file manager if open
-    file_manager_was_open = False
-    file_manager_position = None
-    try:
-        if hasattr(window, 'file_manager') and window.file_manager is not None and window.file_manager.IsShown():
-            file_manager_was_open = True
-            file_manager_position = window.file_manager.GetPosition()
-            window.file_manager.Close()
-            window.file_manager = None
-    except RuntimeError:
-        # The file_manager window was deleted but the reference still exists
-        window.file_manager = None
-        file_manager_was_open = False
-        file_manager_position = None
-
-    window.SetStatusText(f"Selected File: {file_path}", 0)
-
-    try:
-        # Clear undo and redo history
-        window.history = []
-        window.redo_stack = []
-        update_undo_redo_state(window)
-
-        # Clear the results grid
-        window.results_grid.ClearGrid()
-        if window.results_grid.GetNumberRows() > 0:
-            window.results_grid.DeleteRows(0, window.results_grid.GetNumberRows())
-
-        # Look for corresponding .json file
-        json_file = os.path.splitext(file_path)[0] + '.json'
-        json_data_loaded = False
-        if os.path.exists(json_file):
-            print(f"Found corresponding .json file: {json_file}")
-            with open(json_file, 'r') as f:
-                loaded_data = json.load(f)
-
-            # Convert data structure without changing types
-            window.Data = convert_from_serializable(loaded_data)
-            json_data_loaded = True
-            print("Loaded data from .json file")
-
-            # Populate the results grid
-            populate_results_grid(window)
-        else:
-            print("No corresponding .json file found. Initializing new data.")
-            # Initialize the measurement data
-            window.Data = Init_Measurement_Data(window)
-
-        # Read the Excel file
-        excel_file = pd.ExcelFile(file_path)
-        all_sheet_names = excel_file.sheet_names
-        sheet_names = [name for name in all_sheet_names if
-                       name.lower() not in ["results table", "experimental description"]]
-
-        # Check for invalid sheet names before proceeding
-        invalid_sheets = [name for name in sheet_names if name.startswith('Sheet')]
-        if invalid_sheets:
-            wx.MessageBox(
-                f"File contains invalid sheet names: {', '.join(invalid_sheets)}\n\nAll sheets must be named after "
-                f"their core level (e.g., C1s, O1s) using one word in proper format without spaces.",
-                "Invalid Sheet Names", wx.OK | wx.ICON_WARNING)
-            return
-
-        # Check first row values in each sheet
-        for sheet_name in sheet_names:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
-            col1_value = str(df.iloc[0, 0]).strip().upper()
-            col2_value = str(df.iloc[0, 1]).strip().upper()
-
-            # Check if it's XPS data
-            xps_valid = ('BE' in col1_value or 'BINDING' in col1_value) and \
-                        ('RAW DATA' in col2_value or 'CORRECTED DATA' in col2_value or 'INTENSITY' in col2_value)
-
-            # Check if it's Raman data
-            raman_valid = ('WAVENUMBER' in col1_value or 'CM-1' in col1_value) and \
-                          ('RAW DATA' in col2_value or 'INTENSITY' in col2_value)
-
-            if not (xps_valid or raman_valid):
-                wx.MessageBox(
-                    f"Sheet '{sheet_name}' has invalid column labels in row 1.\n"
-                    f"Column A should contain 'BE'/'Binding Energy' (for XPS) or 'Wavenumber'/'Wavenumber (cm-1)' (for Raman)\n"
-                    f"Column B should contain 'Raw Data', 'Corrected Data' or 'Intensity'",
-                    "Invalid Column Labels", wx.OK | wx.ICON_WARNING)
-                return
-
-        results_table_index = -1
-        for i, name in enumerate(all_sheet_names):
-            if name.lower() == "results table":
-                results_table_index = i
-                break
-
-        if results_table_index != -1:
-            sheet_names = sheet_names[:results_table_index]
-
-        print(f"Number of sheets: {len(sheet_names)}")
-
-        # Update file path
-        window.Data['FilePath'] = file_path
-
-        # Create progress dialog
-        max_progress = len(sheet_names) + 4  # +4 for initialization, processing, BE correction, final setup
-        progress_dlg = wx.ProgressDialog(
-            "Loading Excel File",
-            "Initializing...",
-            maximum=max_progress,
-            parent=window,
-            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_CAN_ABORT
-        )
-
-        try:
-            progress_count = 0
-
-            # Update for initialization
-            if not progress_dlg.Update(progress_count, "Initializing data structure..."):
-                return
-            wx.GetApp().Yield()
-            progress_count += 1
-
-            # If we didn't load from json, populate the data from Excel
-            if not json_data_loaded and ('Core levels' not in window.Data or not window.Data['Core levels']):
-                window.Data['Number of Core levels'] = 0
-                for sheet_name in sheet_names:
-                    # Check if user cancelled
-                    if not progress_dlg.Update(progress_count, f"Loading sheet: {sheet_name}"):
-                        return
-                    wx.GetApp().Yield()
-
-                    window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
-                    progress_count += 1
-            else:
-                # Skip sheet loading but update progress
-                progress_count += len(sheet_names)
-                if not progress_dlg.Update(progress_count, "Data loaded from JSON file..."):
-                    return
-                wx.GetApp().Yield()
-
-            print(f"Final number of core levels: {window.Data['Number of Core levels']}")
-
-            # Update for BE correction
-            if not progress_dlg.Update(progress_count, "Loading BE corrections..."):
-                return
-            wx.GetApp().Yield()
-            window.load_be_correction()
-            progress_count += 1
-
-            # Update for UI setup
-            if not progress_dlg.Update(progress_count, "Setting up interface..."):
-                return
-            wx.GetApp().Yield()
-
-            # Update sheet names in the combobox
-            window.sheet_combobox.Clear()
-            window.sheet_combobox.AppendItems(sheet_names)
-
-            # Set the first sheet as the selected one
-            first_sheet = sheet_names[0]
-            window.sheet_combobox.SetValue(first_sheet)
-
-            # Use on_sheet_selected to update peak parameter grid and plot
-            event = wx.CommandEvent(wx.EVT_COMBOBOX.typeId)
-            event.SetString(first_sheet)
-            window.plot_config.plot_limits.clear()
-            on_sheet_selected(window, event)
-            progress_count += 1
-
-            # Final setup
-            if not progress_dlg.Update(progress_count, "Finalizing..."):
-                return
-            wx.GetApp().Yield()
-
-            # undo and redo
-            save_state(window)
-
-            # Update recent files list
-            update_recent_files(window, file_path)
-
-            if hasattr(window, 'setup_backup_timer'):
-                window.setup_backup_timer()
-                print("Auto backup timer checked/updated after file loaded")
-
-            progress_dlg.Update(max_progress, "Complete!")
-            wx.GetApp().Yield()
-
-        finally:
-            progress_dlg.Destroy()
-
-        # Refresh any open FileManager windows
-        for top_window in wx.GetTopLevelWindows():
-            if hasattr(top_window, '__class__') and top_window.__class__.__name__ == 'FileManagerWindow':
-                # Force a complete refresh by getting new core levels
-                top_window.core_levels = top_window.get_unique_core_levels()
-                max_row_index = top_window.get_max_core_level_row_index()
-                num_rows = max(10, max_row_index + 1)
-
-                # Clear the grid completely
-                if top_window.grid.GetNumberRows() > 0:
-                    top_window.grid.DeleteRows(0, top_window.grid.GetNumberRows())
-                if top_window.grid.GetNumberCols() > 0:
-                    top_window.grid.DeleteCols(0, top_window.grid.GetNumberCols())
-
-                # Add new columns and rows
-                num_levels = len(top_window.core_levels)
-                top_window.grid.AppendCols(num_levels)
-                top_window.grid.AppendRows(num_rows)
-
-                # Set column labels
-                for i, level in enumerate(top_window.core_levels):
-                    top_window.grid.SetColLabelValue(i, level)
-
-                # Set row labels
-                for i in range(num_rows):
-                    top_window.grid.SetRowLabelValue(i, str(i))
-
-                # Set column width and row height
-                default_col_width = 50
-                default_row_height = 20
-
-                for i in range(num_levels):
-                    top_window.grid.SetColSize(i, default_col_width)
-                for i in range(num_rows):
-                    top_window.grid.SetRowSize(i, default_row_height)
-
-                # Set cell alignment
-                for row in range(num_rows):
-                    for col in range(num_levels):
-                        top_window.grid.SetCellAlignment(row, col, wx.ALIGN_CENTER, wx.ALIGN_CENTER)
-
-                # Now populate the grid with new data
-                top_window.populate_grid()
-
-        # Create backup before opening file
-        from libraries.Utilities import perform_auto_backup
-        perform_auto_backup(window)
-
-        # Refresh Sheet
-        from libraries.FileMenu.Save import refresh_sheets
-        refresh_sheets(window, on_sheet_selected)
-
-        # Reopen file manager if it was open
-        if file_manager_was_open:
-            from libraries.ViewMenu.FileManager import FileManagerWindow
-            window.file_manager = FileManagerWindow(window)
-            if file_manager_position:
-                window.file_manager.SetPosition(file_manager_position)
-            window.file_manager.Show()
-
-        print("open_xlsx_file function completed successfully")
-    except Exception as e:
-        print(f"Error in open_xlsx_file: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        wx.MessageBox(f"Error reading file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
-
 
 def open_xlsx_file(window, file_path=None):
     if file_path is None:
@@ -3681,6 +3414,10 @@ def open_xlsx_file(window, file_path=None):
             return
 
         for sheet_name in sheet_names:
+            # Skip validation for zzProfile sheets - they have different column structure
+            if sheet_name.startswith('zzProfile'):
+                continue
+
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
             col1_value = str(df.iloc[0, 0]).strip().upper()
             col2_value = str(df.iloc[0, 1]).strip().upper()
@@ -3704,7 +3441,33 @@ def open_xlsx_file(window, file_path=None):
             window.Data['Number of Core levels'] = 0
             for i, sheet_name in enumerate(sheet_names, 1):
                 update_console(f"Loading sheet {i}/{len(sheet_names)}: {sheet_name}")
-                window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
+                # window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
+                # Special handling for zzProfile sheets
+                if sheet_name.startswith('zzProfile'):
+                    # Load profile sheet data
+                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl')
+
+                    first_data_col = df.columns[1] if len(df.columns) > 1 else 'Number'
+
+                    window.Data['Core levels'][sheet_name] = {
+                        'Name': sheet_name,
+                        'B.E.': df['Number'].tolist() if 'Number' in df.columns else [],
+                        'Raw Data': df[first_data_col].tolist() if first_data_col in df.columns else [],
+                        'Profile Data': df.to_dict('list'),
+                        'Y_Axis_Label': 'Atomic Concentration (%)',
+                        'X_Axis_Label': 'Number',
+                        'Profile_Type': 'Atomic_Concentration',
+                        'Background': {
+                            'Bkg Type': '',
+                            'Bkg Low': '',
+                            'Bkg High': '',
+                            'Bkg Offset Low': '',
+                            'Bkg Offset High': '',
+                            'Bkg Y': df[first_data_col].tolist() if first_data_col in df.columns else []
+                        }
+                    }
+                else:
+                    window.Data = add_core_level_Data(window.Data, window, file_path, sheet_name)
         else:
             update_console("Data loaded from JSON file...")
             update_console("Available sheets:")

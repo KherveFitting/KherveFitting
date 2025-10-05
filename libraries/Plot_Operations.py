@@ -779,6 +779,13 @@ class PlotManager:
 
         is_d_parameter = False
         limits = window.plot_config.get_plot_limits(window, sheet_name)
+
+        # CHECK IF THIS IS A PROFILE SHEET
+        if sheet_name.startswith('zzProfile'):
+            print(f"plot_data: Detected profile sheet: {sheet_name}")
+            if self.plot_profile(window):
+                return  # Profile plotted successfully
+
         if sheet_name not in window.Data['Core levels']:
             wx.MessageBox(f"No data available for sheet: {sheet_name}", "Error", wx.OK | wx.ICON_ERROR)
             return
@@ -1001,6 +1008,99 @@ class PlotManager:
         except Exception as e:
             wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
 
+    def plot_profile(self, window):
+        """Plot profile data (zzProfile sheets) as line plot"""
+        import matplotlib.pyplot as plt
+        import pandas as pd
+
+        sheet_name = window.sheet_combobox.GetValue()
+
+        print(f"plot_profile called for: {sheet_name}")
+
+        # Check if this is a profile sheet
+        if not sheet_name.startswith('zzProfile'):
+            print(f"Not a profile sheet: {sheet_name}")
+            return False
+
+        # Get profile metadata and data from window.Data
+        if sheet_name not in window.Data['Core levels']:
+            print(f"Sheet not in Data: {sheet_name}")
+            return False
+
+        profile_info = window.Data['Core levels'][sheet_name]
+        print(f"Profile info keys: {profile_info.keys()}")
+
+        if 'Profile Data' not in profile_info:
+            print(f"No 'Profile Data' key found. Keys available: {profile_info.keys()}")
+            return False
+
+        # Extract metadata
+        y_axis_label = profile_info.get('Y_Axis_Label', 'Atomic Concentration (%)')
+        x_axis_label = profile_info.get('X_Axis_Label', 'Number')
+        profile_data = profile_info['Profile Data']
+
+        print(f"Y-axis: {y_axis_label}, X-axis: {x_axis_label}")
+        print(f"Profile data keys: {profile_data.keys()}")
+
+        # Create DataFrame from profile data
+        df = pd.DataFrame(profile_data)
+
+        # Sort by Number column to ensure correct line plotting
+        if 'Number' in df.columns:
+            df = df.sort_values(by='Number').reset_index(drop=True)
+
+        # Clear current plot
+        self.ax.clear()
+
+        # Get column names (excluding 'Number')
+        peak_columns = [col for col in df.columns if col != 'Number']
+
+        print(f"Plotting {len(peak_columns)} peaks: {peak_columns}")
+
+        # Define colors for different peaks
+        colors = plt.cm.tab10(range(len(peak_columns)))
+
+        # Plot each peak as a line
+        for idx, column in enumerate(peak_columns):
+            # Extract peak name (remove " At(%)" or other suffix)
+            peak_name = column.split(' ')[0] if ' ' in column else column
+
+            self.ax.plot(
+                df['Number'],
+                df[column],
+                marker='o',
+                linestyle='-',
+                linewidth=2,
+                markersize=6,
+                label=peak_name,
+                color=colors[idx]
+            )
+            print(f"Plotted: {peak_name}")
+
+        # Configure plot - NO TITLE, NO GRID as requested
+        self.ax.set_xlabel(x_axis_label, fontsize=12)
+        self.ax.set_ylabel(y_axis_label, fontsize=12)
+
+        # Create legend and make it explicitly visible
+        legend = self.ax.legend(loc='best', fontsize=10, frameon=True, fancybox=True, framealpha=0.9, edgecolor='gray')
+        legend.set_visible(True)  # Explicitly set visible
+
+        # Format axes
+        from matplotlib.ticker import ScalarFormatter
+        self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+
+        # Ensure legend stays visible (override any other settings)
+        if self.ax.get_legend():
+            self.ax.get_legend().set_visible(True)
+
+        print("Profile plot complete")
+
+        # Redraw canvas
+        self.canvas.draw_idle()
+
+        return True
+
 
     def clear_and_replot(self, window):
         """
@@ -1035,6 +1135,16 @@ class PlotManager:
         if sheet_name not in window.Data['Core levels']:
             wx.MessageBox(f"No data available for sheet: {sheet_name}", "Error", wx.OK | wx.ICON_ERROR)
             return
+
+        # CHECK IF THIS IS A PROFILE SHEET - if so, use profile plotting
+        if sheet_name.startswith('zzProfile'):
+            print(f"Detected profile sheet: {sheet_name}")
+            result = self.plot_profile(window)
+            print(f"Profile plotting result: {result}")
+            if result:
+                return  # Profile plotted successfully, exit early
+            else:
+                print("Profile plotting failed, falling back to normal plot")
 
         core_level_data = window.Data['Core levels'][sheet_name]
 
@@ -2208,6 +2318,11 @@ class PlotManager:
 
     def update_legend(self, window):
         sheet_name = window.sheet_combobox.GetValue()
+
+        # Skip legend update for zzProfile sheets - they handle their own legend
+        if sheet_name.startswith('zzProfile'):
+            return
+
         handles, labels = self.ax.get_legend_handles_labels()
 
         # Check if any peak has Fermi, VBM, or Cut-Off fitting model

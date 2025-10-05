@@ -1481,6 +1481,13 @@ class MouseEventHandler:
         self.window.selected_peak_index = None
         self.window.canvas.draw_idle()
 
+    def open_profile_editor(self):
+        """Open profile editor window"""
+        from libraries.ViewMenu.ProfileEditor import ProfileEditorWindow
+
+        profile_editor = ProfileEditorWindow(self.window)
+        profile_editor.Show()
+
     def on_right_click(self, event):
         if event.button == 3:
             import os
@@ -1527,7 +1534,13 @@ class MouseEventHandler:
             self.window.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self.window), paste)
             self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_peak_table)
             self.window.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self.window), paste_peak_table)
-            self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
+            # self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
+            # Check if this is a zzProfile sheet - open profile editor instead
+            sheet_name = self.window.sheet_combobox.GetValue()
+            if sheet_name.startswith('zzProfile'):
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.open_profile_editor(), info)
+            else:
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
 
             self.window.PopupMenu(menu)
             menu.Destroy()
