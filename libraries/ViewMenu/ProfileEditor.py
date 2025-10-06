@@ -474,84 +474,64 @@ class ProfileEditWindow(wx.Frame):
         # Bind notebook page change to update current profile
         self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_changed)
 
+        # self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        self.Bind(wx.EVT_CLOSE, self.on_close)
+        # Bind auto-save to all grids in the window
+        for child in self.GetChildren():
+            self._bind_grids_recursive(child)
+
+    def _bind_grids_recursive(self, widget):
+        """Recursively find and bind all wx.grid.Grid widgets"""
+        if isinstance(widget, wx.grid.Grid):
+            widget.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed_auto_save)
+            widget.Bind(wx.EVT_KEY_DOWN, self.on_grid_key_down)
+
+        # Recursively check children
+        if hasattr(widget, 'GetChildren'):
+            for child in widget.GetChildren():
+                self._bind_grids_recursive(child)
 
     def on_cell_changed_auto_save(self, event):
-        """Auto-save to window.Data whenever a cell value changes"""
+        """Auto-save using existing on_save method and update plot if active sheet"""
         try:
-            profile_name = self.current_profile
-            if not profile_name:
-                event.Skip()
-                return
+            # Get the grid and cell that was changed
+            grid = event.GetEventObject()
+            row = event.GetRow()
+            col = event.GetCol()
 
-            grid = self.get_current_grid()
-            if not grid:
-                event.Skip()
-                return
+            # Format the cell value to .2f if it's a number
+            value = grid.GetCellValue(row, col).strip()
+            if value:
+                try:
+                    num_value = float(value)
+                    formatted_value = f"{num_value:.2f}"
+                    if value != formatted_value:
+                        grid.SetCellValue(row, col, formatted_value)
+                except ValueError:
+                    pass  # Not a number, leave as-is
 
-            # Get grid dimensions
-            num_rows = grid.GetNumberRows()
-            num_cols = grid.GetNumberCols()
+            # Call the existing save method (without showing message box)
+            self.on_save(event)
 
-            # Find last row with data
-            last_data_row = 0
-            for row_idx in range(num_rows):
-                has_data = False
-                for col_idx in range(num_cols):
-                    if grid.GetCellValue(row_idx, col_idx).strip():
-                        has_data = True
-                        break
-                if has_data:
-                    last_data_row = row_idx
+            # Find the profile name
+            profile_name = None
+            if hasattr(self, 'current_profile') and self.current_profile:
+                profile_name = self.current_profile
+            elif hasattr(self, 'notebook'):
+                page_index = self.notebook.GetSelection()
+                profile_name = self.notebook.GetPageText(page_index)
 
-            # Extract data from grid
-            profile_data = {}
-            for col_idx in range(num_cols):
-                col_name = grid.GetColLabelValue(col_idx)
-
-                # Skip default column names
-                if col_name.startswith('Col'):
-                    continue
-
-                col_data = []
-                for row_idx in range(last_data_row + 1):
-                    value = grid.GetCellValue(row_idx, col_idx).strip()
-                    if value:
-                        try:
-                            col_data.append(f"{float(value):.2f}")
-                        except:
-                            col_data.append(value)
-                    else:
-                        col_data.append("0.00" if col_name != 'Number' else str(row_idx))
-
-                profile_data[col_name] = col_data
-
-            # Update window.Data
-            if profile_name not in self.parent.Data['Core levels']:
-                self.parent.Data['Core levels'][profile_name] = {}
-
-            self.parent.Data['Core levels'][profile_name].update({
-                'X_Axis_Label': self.x_labels.get(profile_name, 'Number'),
-                'Y_Axis_Label': self.y_labels.get(profile_name, 'Value'),
-                'Profile Data': profile_data
-            })
-
-            # Also update B.E. and Raw Data for compatibility
-            if 'Number' in profile_data:
-                self.parent.Data['Core levels'][profile_name]['B.E.'] = profile_data['Number']
-
-            # Set Raw Data to first data column
-            first_data_col = None
-            for col in profile_data.keys():
-                if col != 'Number':
-                    first_data_col = col
-                    break
-            if first_data_col:
-                self.parent.Data['Core levels'][profile_name]['Raw Data'] = profile_data[first_data_col]
+            # If this is the active sheet, update the plot
+            if profile_name:
+                current_sheet = self.parent.sheet_combobox.GetValue()
+                if current_sheet == profile_name:
+                    self.parent.plot_manager.plot_data(self.parent)
+                    self.parent.canvas.draw_idle()
 
         except Exception as e:
             print(f"Error in auto-save: {str(e)}")
+            import traceback
+            traceback.print_exc()
         finally:
             event.Skip()
 
@@ -956,11 +936,110 @@ class ProfileEditWindow(wx.Frame):
         if response == wx.YES:
             self.Destroy()
 
-    def on_close(self, event):
-        """Handle window close"""
-        response = wx.MessageBox("Close without saving changes?", "Confirm",
-                                 wx.YES_NO | wx.ICON_QUESTION)
-        if response == wx.YES:
-            self.Destroy()
-        else:
-            event.Veto()
+    def on_grid_key_down(self, event):
+        """Handle keyboard events for grid: Delete, Copy, Paste"""
+        keycode = event.GetKeyCode()
+
+        # Try to get the grid
+        grid = event.GetEventObject()
+        if not isinstance(grid, wx.grid.Grid):
+            focused = wx.Window.FindFocus()
+            if isinstance(focused, wx.grid.Grid):
+                grid = focused
+            else:
+                event.Skip()
+                return
+
+        # DELETE key - clear current cell
+        if keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK:
+            row = grid.GetGridCursorRow()
+            col = grid.GetGridCursorCol()
+            if row >= 0 and col >= 0:
+                grid.SetCellValue(row, col, "")
+                grid.ForceRefresh()
+
+                # Manually trigger save and plot update
+                try:
+                    self.on_save(None)
+
+                    # Update plot if active sheet
+                    profile_name = None
+                    if hasattr(self, 'current_profile') and self.current_profile:
+                        profile_name = self.current_profile
+                    elif hasattr(self, 'notebook'):
+                        page_index = self.notebook.GetSelection()
+                        profile_name = self.notebook.GetPageText(page_index)
+
+                    if profile_name:
+                        current_sheet = self.parent.sheet_combobox.GetValue()
+                        if current_sheet == profile_name:
+                            self.parent.plot_manager.plot_data(self.parent)
+                            self.parent.canvas.draw_idle()
+                except:
+                    pass
+            return
+
+        # CTRL+C - Copy
+        elif event.ControlDown() and keycode == 67:  # 'C'
+            self.copy_grid_selection(grid)
+            return
+
+        # CTRL+V - Paste
+        elif event.ControlDown() and keycode == 86:  # 'V'
+            self.paste_grid_selection(grid)
+            return
+
+        event.Skip()
+
+    def copy_grid_selection(self, grid):
+        """Copy selected cells to clipboard"""
+        # Just copy current cell for simplicity
+        row = grid.GetGridCursorRow()
+        col = grid.GetGridCursorCol()
+        value = grid.GetCellValue(row, col)
+
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(value))
+            wx.TheClipboard.Close()
+
+    def paste_grid_selection(self, grid):
+        """Paste from clipboard to grid"""
+        if not wx.TheClipboard.Open():
+            return
+
+        data = wx.TextDataObject()
+        success = wx.TheClipboard.GetData(data)
+        wx.TheClipboard.Close()
+
+        if not success:
+            return
+
+        text = data.GetText()
+        rows = text.split('\n')
+
+        # Start at current cursor position
+        start_row = grid.GetGridCursorRow()
+        start_col = grid.GetGridCursorCol()
+
+        for i, row_text in enumerate(rows):
+            if not row_text.strip():
+                continue
+            cols = row_text.split('\t')
+            for j, value in enumerate(cols):
+                target_row = start_row + i
+                target_col = start_col + j
+
+                # Check bounds
+                if target_row < grid.GetNumberRows() and target_col < grid.GetNumberCols():
+                    grid.SetCellValue(target_row, target_col, value)
+
+        grid.ForceRefresh()
+
+    # def on_close(self, event):
+    #     """Handle window close"""
+    #     response = wx.MessageBox("Close without saving changes?", "Confirm",
+    #                              wx.YES_NO | wx.ICON_QUESTION)
+    #     if response == wx.YES:
+    #         self.Destroy()
+    #     else:
+    #         event.Veto()
