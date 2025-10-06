@@ -366,12 +366,18 @@ class KeyEventHandlers:
                                                        x_min=limits['Xmin'],
                                                        x_max=limits['Xmax'])
 
-        # Update the plot
-        self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+        # Update the plot - zzProfile uses normal X-axis, others reverse
+        if sheet_name.startswith('zzProfile'):
+            self.main_frame.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal X-axis for zzProfile
+        else:
+            self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
 
         # Update subplot limits if it exists
         if hasattr(self.main_frame, 'residuals_subplot') and self.main_frame.residuals_subplot:
-            self.main_frame.residuals_subplot.set_xlim(limits['Xmax'], limits['Xmin'])
+            if sheet_name.startswith('zzProfile'):
+                self.main_frame.residuals_subplot.set_xlim(limits['Xmin'], limits['Xmax'])
+            else:
+                self.main_frame.residuals_subplot.set_xlim(limits['Xmax'], limits['Xmin'])
 
         # After zooming, update residuals
         self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
@@ -403,8 +409,11 @@ class KeyEventHandlers:
                                                        x_min=limits['Xmin'],
                                                        x_max=limits['Xmax'])
 
-        # Update the plot
-        self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+        # Update the plot - zzProfile uses normal X-axis, others reverse
+        if sheet_name.startswith('zzProfile'):
+            self.main_frame.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal X-axis for zzProfile
+        else:
+            self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
         self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
 
         self.main_frame.canvas.draw_idle()

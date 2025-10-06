@@ -58,15 +58,12 @@ class PlotConfig:
             sheet_name = window.sheet_combobox.GetValue()
             is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
 
-            # Update plot limits based on the selected range
-            self.update_plot_limits(window, sheet_name, x_min, x_max, y_min, y_max)
-
             # Set x-axis limits based on energy scale and data type
             if window.energy_scale == 'KE':
                 window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
             else:
-                if is_raman:
-                    window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
+                if is_raman or sheet_name.startswith('zzProfile'):
+                    window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman and zzProfile
                 else:
                     window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
 
@@ -84,31 +81,6 @@ class PlotConfig:
             # Redraw the canvas to show updated plot
             window.canvas.draw_idle()
 
-    def on_zoom_out_OLD(self, window):
-        # Get current sheet name
-        sheet_name = window.sheet_combobox.GetValue()
-
-        # Reset plot limits to original values
-        self.reset_plot_limits(window, sheet_name)
-
-        # Resize plot with reset limits
-        self.resize_plot(window)
-
-        # Deactivate and remove zoom rectangle if it exists
-        if window.zoom_rect:
-            window.zoom_rect.set_active(False)
-            window.zoom_rect = None
-
-        # Disable zoom mode
-        window.zoom_mode = False
-
-        # Redraw the canvas
-        window.canvas.draw_idle()
-
-        # Disable drag mode if active
-        if window.drag_mode:
-            window.disable_drag()
-            window.drag_mode = False
 
     def on_zoom_out(self, window):
         """Handle zoom out for both single and multiple plot modes"""

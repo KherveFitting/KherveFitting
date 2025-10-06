@@ -2219,7 +2219,11 @@ class MyFrame(wx.Frame):
                 self.plot_manager.plot_background(self)
 
     def on_zoom_in_tool(self, event):
+        sheet_name = self.sheet_combobox.GetValue()
+
         self.plot_config.on_zoom_in_tool(self)
+
+
         # Refresh vline text labels after zoom
         self.refresh_vline_text_labels()
 
@@ -2242,7 +2246,16 @@ class MyFrame(wx.Frame):
             self.add_averaging_indicator_lines()
 
     def on_zoom_out(self, event):
-        self.plot_config.on_zoom_out(self)
+        sheet_name = self.sheet_combobox.GetValue()
+
+        # For zzProfile, redraw using plot_profile
+        if sheet_name.startswith('zzProfile'):
+            self.plot_manager.plot_profile(self)
+            self.canvas.draw_idle()
+        else:
+            # Standard XPS behavior
+            self.plot_config.on_zoom_out(self)
+
         # Refresh vline text labels after zoom
         self.refresh_vline_text_labels()
 

@@ -1501,6 +1501,12 @@ class MouseEventHandler:
 
             # Different menu for zzProfile sheets
             if sheet_name.startswith('zzProfile'):
+                # Regular menu for normal sheets
+                zoom_in = menu.Append(-1, "Zoom In")
+                zoom_out = menu.Append(-1, "Zoom Out")
+
+                menu.AppendSeparator()
+
                 # Line style options for profiles
                 increase_linewidth = menu.Append(wx.ID_ANY, "Increase Linewidth")
                 decrease_linewidth = menu.Append(wx.ID_ANY, "Decrease Linewidth")
@@ -1523,6 +1529,8 @@ class MouseEventHandler:
                 info = menu.Append(wx.ID_ANY, "Edit Profile Data")
 
                 # Bind profile-specific events
+                self.window.Bind(wx.EVT_MENU, self.window.on_zoom_in_tool, zoom_in)
+                self.window.Bind(wx.EVT_MENU, self.window.on_zoom_out, zoom_out)
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.change_profile_linewidth(1), increase_linewidth)
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.change_profile_linewidth(-1), decrease_linewidth)
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.toggle_profile_lines(), toggle_lines)
