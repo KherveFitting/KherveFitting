@@ -1496,50 +1496,78 @@ class MouseEventHandler:
                 paste_core_level
 
             menu = wx.Menu()
-            zoom_in = menu.Append(-1, "Zoom In")
-            zoom_out = menu.Append(-1, "Zoom Out")
-            # drag = menu.Append(-1, "Drag")
 
-            menu.AppendSeparator()
-
-            copy = menu.Append(-1, "Copy Core Level")
-            paste = menu.Append(-1, "Paste Core Level")
-
-            # clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_clipboard.json')
-            clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
-            has_clipboard_data = os.path.exists(clipboard_file)
-
-            menu.AppendSeparator()
-
-            copy_peak_table = menu.Append(-1, "Copy Peak Table")
-            paste_peak_table = menu.Append(-1, "Paste Peak Table")
-
-            menu.AppendSeparator()
-
-            info = menu.Append(wx.ID_ANY, "Info")
-
-            peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
-
-            has_peak_clipboard_data = os.path.exists(peak_clipboard_file)
-            has_rows = self.window.peak_params_grid.GetNumberRows() > 0
-
-            paste.Enable(has_clipboard_data)
-            paste_peak_table.Enable(has_peak_clipboard_data)
-            copy_peak_table.Enable(has_rows)
-
-            self.window.Bind(wx.EVT_MENU, self.window.on_zoom_in_tool, zoom_in)
-            self.window.Bind(wx.EVT_MENU, self.window.on_zoom_out, zoom_out)
-            # self.window.Bind(wx.EVT_MENU, self.window.on_drag_tool, drag)
-            self.window.Bind(wx.EVT_MENU, lambda evt: copy_core_level(self.window), copy)
-            self.window.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self.window), paste)
-            self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_peak_table)
-            self.window.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self.window), paste_peak_table)
-            # self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
-            # Check if this is a zzProfile sheet - open profile editor instead
             sheet_name = self.window.sheet_combobox.GetValue()
+
+            # Different menu for zzProfile sheets
             if sheet_name.startswith('zzProfile'):
+                # Line style options for profiles
+                increase_linewidth = menu.Append(wx.ID_ANY, "Increase Linewidth")
+                decrease_linewidth = menu.Append(wx.ID_ANY, "Decrease Linewidth")
+
+                menu.AppendSeparator()
+
+                toggle_lines = menu.Append(wx.ID_ANY, "Show/Hide Lines")
+
+                menu.AppendSeparator()
+
+                # Interpolation submenu
+                interp_menu = wx.Menu()
+                linear_interp = interp_menu.Append(wx.ID_ANY, "Linear (Default)")
+                cubic_interp = interp_menu.Append(wx.ID_ANY, "Cubic Spline (Smooth)")
+                markers_only = interp_menu.Append(wx.ID_ANY, "Markers Only (No Lines)")
+                menu.AppendSubMenu(interp_menu, "Interpolation Style")
+
+                menu.AppendSeparator()
+
+                info = menu.Append(wx.ID_ANY, "Edit Profile Data")
+
+                # Bind profile-specific events
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.change_profile_linewidth(1), increase_linewidth)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.change_profile_linewidth(-1), decrease_linewidth)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.toggle_profile_lines(), toggle_lines)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_profile_interpolation('linear'), linear_interp)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_profile_interpolation('cubic'), cubic_interp)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_profile_interpolation('markers'), markers_only)
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.open_profile_editor(), info)
+
             else:
+                # Regular menu for normal sheets
+                zoom_in = menu.Append(-1, "Zoom In")
+                zoom_out = menu.Append(-1, "Zoom Out")
+
+                menu.AppendSeparator()
+
+                copy = menu.Append(-1, "Copy Core Level")
+                paste = menu.Append(-1, "Paste Core Level")
+
+                clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+                has_clipboard_data = os.path.exists(clipboard_file)
+
+                menu.AppendSeparator()
+
+                copy_peak_table = menu.Append(-1, "Copy Peak Table")
+                paste_peak_table = menu.Append(-1, "Paste Peak Table")
+
+                menu.AppendSeparator()
+
+                info = menu.Append(wx.ID_ANY, "Info")
+
+                peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+
+                has_peak_clipboard_data = os.path.exists(peak_clipboard_file)
+                has_rows = self.window.peak_params_grid.GetNumberRows() > 0
+
+                paste.Enable(has_clipboard_data)
+                paste_peak_table.Enable(has_peak_clipboard_data)
+                copy_peak_table.Enable(has_rows)
+
+                self.window.Bind(wx.EVT_MENU, self.window.on_zoom_in_tool, zoom_in)
+                self.window.Bind(wx.EVT_MENU, self.window.on_zoom_out, zoom_out)
+                self.window.Bind(wx.EVT_MENU, lambda evt: copy_core_level(self.window), copy)
+                self.window.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self.window), paste)
+                self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_peak_table)
+                self.window.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self.window), paste_peak_table)
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
 
             self.window.PopupMenu(menu)
@@ -1561,6 +1589,56 @@ class MouseEventHandler:
         # Create new window
         self.window.experimental_description_window = ExperimentalDescriptionWindow(self.window, sheet_name)
         self.window.experimental_description_window.Show()
+
+    def change_profile_linewidth(self, delta):
+        """Change linewidth of profile lines"""
+        sheet_name = self.window.sheet_combobox.GetValue()
+        if not sheet_name.startswith('zzProfile'):
+            return
+
+        # Get or initialize linewidth
+        if not hasattr(self.window, 'profile_linewidth'):
+            self.window.profile_linewidth = {}
+
+        current_width = self.window.profile_linewidth.get(sheet_name, 2.0)
+        new_width = max(0.5, min(10.0, current_width + delta * 0.5))  # Range: 0.5 to 10
+        self.window.profile_linewidth[sheet_name] = new_width
+
+        # Replot
+        self.window.plot_manager.plot_data(self.window)
+
+    def toggle_profile_lines(self):
+        """Toggle visibility of profile lines"""
+        sheet_name = self.window.sheet_combobox.GetValue()
+        if not sheet_name.startswith('zzProfile'):
+            return
+
+        # Get or initialize lines visibility
+        if not hasattr(self.window, 'profile_lines_visible'):
+            self.window.profile_lines_visible = {}
+
+        current_state = self.window.profile_lines_visible.get(sheet_name, True)
+        self.window.profile_lines_visible[sheet_name] = not current_state
+
+        # Replot
+        self.window.plot_manager.plot_data(self.window)
+
+    def set_profile_interpolation(self, interp_type):
+        """Set interpolation type for profile"""
+        sheet_name = self.window.sheet_combobox.GetValue()
+        if not sheet_name.startswith('zzProfile'):
+            return
+
+        # Store interpolation type
+        if not hasattr(self.window, 'profile_interpolation'):
+            self.window.profile_interpolation = {}
+
+        self.window.profile_interpolation[sheet_name] = interp_type
+
+        # Replot
+        self.window.plot_manager.plot_data(self.window)
+
+
 
     def on_peak_params_right_click(self, event):
         import tempfile

@@ -1603,6 +1603,11 @@ class FileManagerWindow(wx.Frame):
         # Highlight this cell
         self.highlight_current_sheet(sheet_name)
 
+        # CHECK IF THIS IS A PROFILE SHEET - use plot_profile if so
+        if sheet_name.startswith('zzProfile'):
+            if self.parent.plot_manager.plot_profile(self.parent):
+                return  # Profile plotted successfully
+
         # Store the original residuals state
         original_residuals_state = self.parent.plot_manager.residuals_state
 

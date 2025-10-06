@@ -8,7 +8,7 @@ import re
 
 class ProfileEditorWindow(wx.Frame):
     def __init__(self, parent):
-        super().__init__(parent, title="Profile Data Editor", size=(700, 500))
+        super().__init__(parent, title="Profile Data Creator / Editor", size=(630, 500))
         self.parent = parent
         self.sheet_name = parent.sheet_combobox.GetValue() if hasattr(parent, 'sheet_combobox') else None
 
@@ -17,10 +17,27 @@ class ProfileEditorWindow(wx.Frame):
         if self.sheet_name and self.sheet_name.startswith('zzProfile'):
             self.load_data()
 
+        # Bind to sheet changes
+        if hasattr(parent, 'sheet_combobox'):
+            parent.sheet_combobox.Bind(wx.EVT_COMBOBOX, self.on_parent_sheet_change)
+
         self.Centre()
 
     def init_ui(self):
         panel = wx.Panel(self)
+
+        def detect_dark_mode():
+            if 'wxMac' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxMSW' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxGTK' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            return False
+
+        if not detect_dark_mode():
+            panel.SetBackgroundColour(wx.Colour(250, 220, 240))
+
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Left panel - Core levels selection
@@ -48,7 +65,7 @@ class ProfileEditorWindow(wx.Frame):
 
         # Core levels checklist
         self.core_levels_checklist = wx.CheckListBox(left_panel)
-        self.core_levels_checklist.SetMinSize((150, 250))
+        self.core_levels_checklist.SetMinSize((110, 250))
         self.populate_core_levels_list()
         self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
         left_sizer.Add(self.core_levels_checklist, 1, wx.ALL | wx.EXPAND, 5)
@@ -160,7 +177,7 @@ class ProfileEditorWindow(wx.Frame):
         self.data_grid.CreateGrid(0, 0)
         self.data_grid.EnableEditing(True)
         self.data_grid.SetDefaultCellAlignment(wx.ALIGN_CENTER, wx.ALIGN_CENTER)
-        self.data_grid.SetRowLabelSize(35)  # Narrower row labels like other grids
+        self.data_grid.SetRowLabelSize(25)  # Narrower row labels like other grids
 
         # Bind grid events
         self.data_grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_DCLICK, self.on_header_double_click)
@@ -181,12 +198,45 @@ class ProfileEditorWindow(wx.Frame):
         cancel_btn.Bind(wx.EVT_BUTTON, self.on_cancel)
         button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
 
-        right_sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
+        right_sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 0)
 
         right_panel.SetSizer(right_sizer)
         main_sizer.Add(right_panel, 1, wx.ALL | wx.EXPAND, 5)
 
         panel.SetSizer(main_sizer)
+
+        # Bind close event
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+    def on_parent_sheet_change(self, event):
+        """Update editor when parent sheet changes"""
+        # Check if window still exists and is shown
+        if not self or not self.IsShown():
+            event.Skip()
+            return
+
+        try:
+            new_sheet = self.parent.sheet_combobox.GetValue()
+
+            # Check if it's a zzProfile sheet
+            if new_sheet.startswith('zzProfile'):
+                self.sheet_name = new_sheet
+                self.SetTitle(f"Profile Data Editor - {new_sheet}")
+                self.load_data()
+            else:
+                # Clear the grid if not a profile sheet
+                if self.data_grid and self.data_grid.GetNumberRows() > 0:
+                    self.data_grid.DeleteRows(0, self.data_grid.GetNumberRows())
+                if self.data_grid and self.data_grid.GetNumberCols() > 0:
+                    self.data_grid.DeleteCols(0, self.data_grid.GetNumberCols())
+                self.x_axis_ctrl.SetValue("")
+                self.y_axis_ctrl.SetValue("")
+                self.SetTitle("Profile Data Editor - No Profile Selected")
+        except (RuntimeError, AttributeError):
+            # Window has been destroyed
+            pass
+
+        event.Skip()
 
     def populate_core_levels_list(self):
         """Populate the core levels checklist with current core levels"""
@@ -1032,6 +1082,24 @@ class ProfileEditorWindow(wx.Frame):
                 return new_name
             counter += 1
 
+    def on_close(self, event):
+        """Handle window close event"""
+        # Unbind sheet change event
+        if hasattr(self, 'parent') and hasattr(self.parent, 'sheet_combobox'):
+            try:
+                self.parent.sheet_combobox.Unbind(wx.EVT_COMBOBOX, handler=self.on_parent_sheet_change)
+            except:
+                pass
+
+        # Destroy the window
+        self.Destroy()
+
     def on_cancel(self, event):
         """Close without saving"""
+        # Unbind sheet change event
+        if hasattr(self.parent, 'sheet_combobox'):
+            try:
+                self.parent.sheet_combobox.Unbind(wx.EVT_COMBOBOX, handler=self.on_parent_sheet_change)
+            except:
+                pass
         self.Close()

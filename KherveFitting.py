@@ -722,6 +722,14 @@ class MyFrame(wx.Frame):
         return chr(65 + n)  # 65 is the ASCII value for 'A'
 
     def on_open_background_window(self):
+        sheet_name = self.sheet_combobox.GetValue()
+
+        # Don't open for zzProfile sheets
+        if sheet_name.startswith('zzProfile'):
+            wx.MessageBox("Area measurement screen is not available for Profile sheets",
+                          "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
         # Close fitting window if it's open (using exact same pattern)
         if hasattr(self, 'fitting_window') and self.fitting_window is not None:
             self.fitting_window.Close()
@@ -845,6 +853,14 @@ class MyFrame(wx.Frame):
         self.show_hide_vlines()
 
     def on_open_fitting_window(self, normal=True):
+        sheet_name = self.sheet_combobox.GetValue()
+
+        # Don't open for zzProfile sheets
+        if sheet_name.startswith('zzProfile'):
+            wx.MessageBox("Fitting screen is not available for Profile sheets",
+                          "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
         # Close background window if it's open (using exact same pattern)
         if hasattr(self, 'background_window') and self.background_window is not None:
             self.background_window.Close()

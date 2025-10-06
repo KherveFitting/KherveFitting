@@ -1052,6 +1052,14 @@ class PlotManager:
         # Clear current plot
         self.ax.clear()
 
+        # Remove residuals subplot if it exists
+        if hasattr(self, 'residuals_subplot'):
+            if self.residuals_subplot:
+                self.figure.delaxes(self.residuals_subplot)
+                self.residuals_subplot = None
+                self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+                self.ax.get_xaxis().set_visible(True)
+
         # Get column names (excluding 'Number')
         peak_columns = [col for col in df.columns if col != 'Number']
 
@@ -1060,21 +1068,58 @@ class PlotManager:
         # Define colors for different peaks
         colors = plt.cm.tab10(range(len(peak_columns)))
 
+        # Get profile settings
+        linewidth = getattr(window, 'profile_linewidth', {}).get(sheet_name, 2.0)
+        lines_visible = getattr(window, 'profile_lines_visible', {}).get(sheet_name, True)
+        interp_type = getattr(window, 'profile_interpolation', {}).get(sheet_name, 'linear')
+
         # Plot each peak as a line
         for idx, column in enumerate(peak_columns):
             # Extract peak name (remove " At(%)" or other suffix)
             peak_name = column.split(' ')[0] if ' ' in column else column
 
+            x_data = df['Number'].values
+            y_data = df[column].values
+
+            # Determine line style based on settings
+            if interp_type == 'markers' or not lines_visible:
+                linestyle = ''
+                plot_x, plot_y = x_data, y_data
+            elif interp_type == 'cubic':
+                # Cubic spline interpolation for smooth curves
+                from scipy.interpolate import make_interp_spline
+                import numpy as np
+
+                # Create smooth curve with more points
+                x_smooth = np.linspace(x_data.min(), x_data.max(), 300)
+                try:
+                    spl = make_interp_spline(x_data, y_data, k=3)  # k=3 for cubic
+                    y_smooth = spl(x_smooth)
+                    plot_x, plot_y = x_smooth, y_smooth
+                    linestyle = '-'
+                except:
+                    # Fall back to linear if spline fails
+                    plot_x, plot_y = x_data, y_data
+                    linestyle = '-'
+            else:  # linear
+                linestyle = '-'
+                plot_x, plot_y = x_data, y_data
+
             self.ax.plot(
-                df['Number'],
-                df[column],
-                marker='o',
-                linestyle='-',
-                linewidth=2,
+                plot_x,
+                plot_y,
+                marker='o' if interp_type != 'cubic' else '',  # No markers for smooth curves
+                linestyle=linestyle,
+                linewidth=linewidth if linestyle else 0,
                 markersize=6,
                 label=peak_name,
                 color=colors[idx]
             )
+
+            # Add markers separately for cubic to show data points
+            if interp_type == 'cubic':
+                self.ax.plot(x_data, y_data, 'o', markersize=4, color=colors[idx])
+
             print(f"Plotted: {peak_name}")
 
         # Configure plot - NO TITLE, NO GRID as requested
