@@ -346,7 +346,7 @@ class BackgroundWindow(wx.Frame):
         batch_sizer.Add(self.core_levels_checklist, pos=(2, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=1)
 
         # Propagate Area to Column button (instead of Prop. Fit to Column)
-        propagate_area_button = wx.Button(self.batch_panel, label="Prop. Area\nto Column")
+        propagate_area_button = wx.Button(self.batch_panel, label="Propagate/Prop. Area\nto Column")
         if 'wxMac' in wx.PlatformInfo:
             propagate_area_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -374,7 +374,7 @@ class BackgroundWindow(wx.Frame):
             batch_sizer.Add(propagate_row_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Measure Selected Areas button
-        measure_all_button = wx.Button(self.batch_panel, label="Measure Selected\nCore Levels")
+        measure_all_button = wx.Button(self.batch_panel, label="Create Profile\nAt(%) Results")
         if 'wxMac' in wx.PlatformInfo:
             measure_all_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -388,7 +388,7 @@ class BackgroundWindow(wx.Frame):
             batch_sizer.Add(measure_all_button, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Create Profile At.(%) button
-        profile_button = wx.Button(self.batch_panel, label="Create Profile\nAt.(%) Peaks G")
+        profile_button = wx.Button(self.batch_panel, label="Create Profile\nAt(%) Peak Fitting")
         if 'wxMac' in wx.PlatformInfo:
             profile_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:

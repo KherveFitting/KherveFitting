@@ -665,6 +665,39 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
             return obj[key]
         return default
 
+    # Handle zzProfile sheets differently - just replace them completely
+    if sheet_name.startswith('zzProfile'):
+        if update_console:
+            update_console(f"Saving Profile sheet {sheet_name} (complete replacement)...")
+
+        # Get profile data from window.Data
+        if sheet_name in window.Data['Core levels']:
+            profile_info = window.Data['Core levels'][sheet_name]
+            if 'Profile Data' in profile_info:
+                profile_df = pd.DataFrame(profile_info['Profile Data'])
+
+                # Format all numeric columns to .2f
+                for col in profile_df.columns:
+                    if col != 'Number':
+                        try:
+                            profile_df[col] = profile_df[col].apply(lambda x: f"{float(x):.2f}" if pd.notna(x) else x)
+                        except:
+                            pass
+
+                # Save to Excel
+                with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                    profile_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                if update_console:
+                    update_console(f"Profile sheet {sheet_name} saved successfully")
+                return
+
+        # If we get here, something went wrong
+        if update_console:
+            update_console(f"Warning: Could not find profile data for {sheet_name}")
+        return
+
+    # Normal sheet handling (non-profile)
     if update_console:
         update_console("Reading existing Excel data...")
 
@@ -1569,9 +1602,10 @@ def save_plot_to_excel_OLD(window):
         window.show_popup_message2("Plot saved into Excel file", f"Under sheet: {sheet_name}")
 
         # Set proper axis orientation after saving
+        is_profile = sheet_name.startswith('zzProfile')
         limits = window.plot_config.get_plot_limits(window, sheet_name)
-        if is_raman:
-            window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
+        if is_raman or is_profile:
+            window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman and Profiles
         else:
             window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
         window.canvas.draw_idle()
