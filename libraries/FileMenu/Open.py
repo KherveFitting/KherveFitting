@@ -1748,6 +1748,17 @@ def extract_peak_fitting_from_peak_table(wb):
 
         return constraint_str
 
+    def clean_range_constraint(constraint_str):
+        """Remove :00 suffix from range constraints (e.g., '12:37:00' -> '12:37')"""
+        if not constraint_str or not isinstance(constraint_str, str):
+            return constraint_str
+
+        # Check if it's a range constraint with :00 at the end
+        if ':' in constraint_str and constraint_str.endswith(':00'):
+            return constraint_str[:-3]  # Remove last 3 characters (:00)
+
+        return constraint_str
+
     row_idx = 1
     while row_idx <= sheet.max_row:
         # Check for Peak Fit Table headers like "Peak Fit Table : O1s Scan"
@@ -1810,18 +1821,21 @@ def extract_peak_fitting_from_peak_table(wb):
                 if pos_const_val:
                     position_constraint = convert_constraint_references(
                         str(pos_const_val).strip(), ref_letter_to_index)
+                    position_constraint = clean_range_constraint(position_constraint)
 
                 # FWHM constraint (column 8)
                 fwhm_const_val = sheet.cell(row=constraint_row_idx, column=8).value
                 if fwhm_const_val:
                     fwhm_constraint = convert_constraint_references(
                         str(fwhm_const_val).strip(), ref_letter_to_index)
+                    fwhm_constraint = clean_range_constraint(fwhm_constraint)
 
                 # L/G constraint (column 9)
                 lg_const_val = sheet.cell(row=constraint_row_idx, column=9).value
                 if lg_const_val:
                     lg_constraint = convert_constraint_references(
                         str(lg_const_val).strip(), ref_letter_to_index)
+                    lg_constraint = clean_range_constraint(lg_constraint)
 
             # Validate and convert values
             try:

@@ -374,7 +374,7 @@ class BackgroundWindow(wx.Frame):
             batch_sizer.Add(propagate_row_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Measure Selected Areas button
-        measure_all_button = wx.Button(self.batch_panel, label="Create Profile\nAt(%) Results")
+        measure_all_button = wx.Button(self.batch_panel, label="Create Profile\nAt(%) Results Grid")
         if 'wxMac' in wx.PlatformInfo:
             measure_all_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -388,7 +388,7 @@ class BackgroundWindow(wx.Frame):
             batch_sizer.Add(measure_all_button, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=0)
 
         # Create Profile At.(%) button
-        profile_button = wx.Button(self.batch_panel, label="Create Profile\nAt(%) Peak Fitting")
+        profile_button = wx.Button(self.batch_panel, label="Create Profile\nAt(%) Fitting Grid")
         if 'wxMac' in wx.PlatformInfo:
             profile_button.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
