@@ -1055,14 +1055,38 @@ def create_horizontal_toolbar(parent, window):
                                                                                                   "Model / Simplified Version")
 
 
+
     diff_tool = toolbar.AddTool(wx.ID_ANY, 'Differentiate',
                                 wx.Bitmap(os.path.join(icon_path, "Dpara-3.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="D-parameter Calculation")
 
+    def open_profile_creator(event):
+        from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow
+        if not hasattr(window, 'profile_creator_window') or window.profile_creator_window is None or not window.profile_creator_window:
+            window.profile_creator_window = ProfileCreatorWindow(window)
+            window.profile_creator_window.Show()
+        else:
+            window.profile_creator_window.Raise()
 
+    def open_profile_editor(event):
+        from libraries.ViewMenu.ProfileEditor import ProfileEditWindow
+        if not hasattr(window, 'profile_editor_window') or window.profile_editor_window is None or not window.profile_editor_window:
+            window.profile_editor_window = ProfileEditWindow(window)
+            window.profile_editor_window.Show()
+        else:
+            window.profile_editor_window.Raise()
 
+    # Profile Creator tool
+    profile_creator_tool = toolbar.AddTool(wx.ID_ANY, 'Profile Creator',
+                                           wx.Bitmap(os.path.join(icon_path, "Profile_Create-3.png"), wx.BITMAP_TYPE_PNG),
+                                           shortHelp="Open Profile Data Creator")
+    window.Bind(wx.EVT_TOOL, open_profile_creator, profile_creator_tool)
 
-
+    # Profile Editor tool
+    profile_editor_tool = toolbar.AddTool(wx.ID_ANY, 'Profile Editor',
+                                          wx.Bitmap(os.path.join(icon_path, "Profile_Edit-3.png"), wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Open Profile Data Editor")
+    window.Bind(wx.EVT_TOOL, open_profile_editor, profile_editor_tool)
 
 
     plot_mod_tool = toolbar.AddTool(wx.ID_ANY, 'Plot Modifications',
@@ -1083,6 +1107,9 @@ def create_horizontal_toolbar(parent, window):
     vb_tool = toolbar.AddTool(wx.ID_ANY, 'VB',
                                    wx.Bitmap(os.path.join(icon_path, "VBM-3.png"), wx.BITMAP_TYPE_PNG),
                                    shortHelp='VB Measurements')
+
+    # Helper functions to open profile windows
+
 
     def open_vb_measurements(event):
         if not hasattr(window, 'vb_measurements_window') or window.vb_measurements_window is None:
@@ -1215,9 +1242,6 @@ def create_horizontal_toolbar(parent, window):
         toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
 
     return toolbar
-
-
-
 
 
 # Bind the delete toolbar tools

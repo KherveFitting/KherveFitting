@@ -214,64 +214,203 @@ class ProfileCreatorWindow(wx.Frame):
 
     def on_create_from_peak_grid(self, event):
         """Create profile from peak fitting grid"""
+        import pandas as pd
+        import os
+        import json
+        import re
+
+        # Get selected core levels
         checked_levels = []
         for i in range(self.core_levels_checklist.GetCount()):
             if self.core_levels_checklist.IsChecked(i):
                 checked_levels.append(self.core_levels_checklist.GetString(i))
 
         if not checked_levels:
-            wx.MessageBox("Please select at least one core level", "Info", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("No core levels selected", "Create Profile Failed", wx.OK | wx.ICON_WARNING)
             return
 
         profile_type = self.profile_type_combo.GetValue()
 
+        # Extract the lowest number from selected sheets
+        lowest_number = float('inf')
+        for sheet in checked_levels:
+            num_match = re.search(r'(\d+)$', sheet)
+            if num_match:
+                number = int(num_match.group(1))
+            else:
+                number = 0  # No number suffix means it's the first one (0)
+            lowest_number = min(lowest_number, number)
+
+        # Find next available profile name starting from lowest_number
+        counter = lowest_number
+        while True:
+            if counter == 0:
+                profile_sheet_name = "zzProfile"
+            else:
+                profile_sheet_name = f"zzProfile{counter}"
+
+            # If this name doesn't exist, use it
+            if profile_sheet_name not in self.parent.Data['Core levels']:
+                break
+
+            # Otherwise, try next number
+            counter += 1
+
         try:
-            # Get data from peak fitting grid
-            peak_data = {}
-            for level in checked_levels:
-                if level in self.parent.Data['Core levels']:
-                    level_data = self.parent.Data['Core levels'][level]
-                    if 'Fitting' in level_data:
-                        fitting_data = level_data['Fitting']
-                        # Extract relevant data based on profile type
+            # Collect data from all selected sheets
+            profile_data = {}
+            profile_data['Number'] = []
+            peak_names = set()
+
+            # First pass: collect all unique peak names and assign numbers
+            for idx, sheet_name in enumerate(checked_levels):
+                # Extract number from sheet name (Survey=0, Survey1=1, etc.)
+                num_match = re.search(r'(\d+)$', sheet_name)
+                if num_match:
+                    number = int(num_match.group(1))
+                else:
+                    number = 0  # No number suffix means it's the first one
+
+                profile_data['Number'].append(number)
+
+                # Get peaks from this sheet
+                if (sheet_name in self.parent.Data['Core levels'] and
+                        'Fitting' in self.parent.Data['Core levels'][sheet_name] and
+                        'Peaks' in self.parent.Data['Core levels'][sheet_name]['Fitting']):
+
+                    peaks = self.parent.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                    for peak_name in peaks.keys():
+                        peak_names.add(peak_name)
+
+            # Initialize columns for each peak based on profile type
+            peak_names = sorted(list(peak_names))
+            for peak_name in peak_names:
+                if profile_type == "Concentration":
+                    column_name = f"{peak_name} At(%)"
+                elif profile_type == "Area":
+                    column_name = f"{peak_name} Area"
+                elif profile_type == "Position":
+                    column_name = f"{peak_name} Position"
+                profile_data[column_name] = []
+
+            # Second pass: populate data based on profile type
+            for sheet_name in checked_levels:
+                sheet_peak_data = {}
+
+                # Switch to sheet and get data from peak_params_grid
+                self.parent.sheet_combobox.SetValue(sheet_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_name)
+
+                # For Concentration, update ratios to ensure atomic concentrations are calculated
+                if profile_type == "Concentration":
+                    self.parent.update_ratios()
+
+                # Extract data from grid based on profile type
+                grid = self.parent.peak_params_grid
+                num_peaks = grid.GetNumberRows() // 2
+
+                for i in range(num_peaks):
+                    row = i * 2
+                    try:
+                        peak_name = grid.GetCellValue(row, 1)  # Peak name from column 1
+
                         if profile_type == "Concentration":
-                            if 'At. Conc.' in fitting_data:
-                                peak_data[level] = [float(x) for x in fitting_data['At. Conc.']]
+                            # Atomic % from column 10
+                            value_str = grid.GetCellValue(row, 10)
                         elif profile_type == "Area":
-                            if 'Area' in fitting_data:
-                                peak_data[level] = [float(x) for x in fitting_data['Area']]
+                            # Area from column 6
+                            value_str = grid.GetCellValue(row, 6)
                         elif profile_type == "Position":
-                            if 'Position' in fitting_data:
-                                peak_data[level] = [float(x) for x in fitting_data['Position']]
+                            # Position from column 2
+                            value_str = grid.GetCellValue(row, 2)
 
-            if not peak_data:
-                wx.MessageBox("No data found in peak fitting grid for selected levels", "Error", wx.OK | wx.ICON_ERROR)
-                return
+                        if value_str and value_str.strip():
+                            value = float(value_str)
+                            sheet_peak_data[peak_name] = value
+                    except (ValueError, IndexError):
+                        continue
 
-            # Create profile name
-            profile_name = f"zzProfile_{profile_type}_{len([k for k in self.parent.Data['Core levels'].keys() if k.startswith('zzProfile')])}"
+                # Fill in data for this sheet
+                for peak_name in peak_names:
+                    if profile_type == "Concentration":
+                        column_name = f"{peak_name} At(%)"
+                    elif profile_type == "Area":
+                        column_name = f"{peak_name} Area"
+                    elif profile_type == "Position":
+                        column_name = f"{peak_name} Position"
 
-            # Create profile data structure
-            max_length = max(len(v) for v in peak_data.values())
-            profile_data = {'Number': list(range(max_length))}
+                    if peak_name in sheet_peak_data:
+                        profile_data[column_name].append(sheet_peak_data[peak_name])
+                    else:
+                        profile_data[column_name].append(0.0)  # No data for this peak
 
-            for level, data in peak_data.items():
-                # Pad data if necessary
-                padded_data = data + [0.00] * (max_length - len(data))
-                profile_data[level] = [f"{x:.2f}" for x in padded_data]
+            # Create DataFrame
+            df = pd.DataFrame(profile_data)
 
-            # Store in Data
-            self.parent.Data['Core levels'][profile_name] = {
+            # Ensure Number column is first
+            cols = ['Number'] + [col for col in df.columns if col != 'Number']
+            df = df[cols]
+
+            # SORT by Number column to ensure proper line plotting
+            df = df.sort_values(by='Number').reset_index(drop=True)
+
+            # Save to Excel
+            file_path = self.parent.Data['FilePath']
+
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=profile_sheet_name, index=False)
+
+            # Update Data structure with profile metadata
+            first_column = f"{peak_names[0]} At(%)" if profile_type == "Concentration" and peak_names else f"{peak_names[0]} {profile_type}" if peak_names else 'Number'
+
+            if profile_type == "Concentration":
+                y_axis_label = 'Atomic Concentration (%)'
+            elif profile_type == "Area":
+                y_axis_label = 'Area (CPS.eV)'
+            elif profile_type == "Position":
+                y_axis_label = 'Position (eV)'
+
+            self.parent.Data['Core levels'][profile_sheet_name] = {
+                'Name': profile_sheet_name,
+                'B.E.': df['Number'].tolist(),
+                'Raw Data': df[first_column].tolist() if peak_names else [],
+                'Profile Data': df.to_dict('list'),
+                'Y_Axis_Label': y_axis_label,
                 'X_Axis_Label': 'Number',
-                'Y_Axis_Label': f'{profile_type}',
-                'Profile Data': profile_data
+                'Profile_Type': profile_type,
+                'Background': {
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': '',
+                    'Bkg Y': df[first_column].tolist() if peak_names else []
+                }
             }
 
-            # Update sheet combobox
-            if hasattr(self.parent, 'sheet_combobox'):
-                self.parent.sheet_combobox.Append(profile_name)
+            # Save to JSON
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
 
-            wx.MessageBox(f"Profile '{profile_name}' created successfully", "Success", wx.OK | wx.ICON_INFORMATION)
+            # Update sheet list
+            if profile_sheet_name not in self.parent.sheet_combobox.GetStrings():
+                self.parent.sheet_combobox.Append(profile_sheet_name)
+
+            # Switch to the new profile sheet and plot it
+            self.parent.sheet_combobox.SetValue(profile_sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, profile_sheet_name)
+
+            wx.MessageBox(
+                f"Profile '{profile_sheet_name}' created successfully!\n"
+                f"Data from {len(checked_levels)} sheets with {len(peak_names)} peaks.",
+                "Success",
+                wx.OK | wx.ICON_INFORMATION
+            )
 
         except Exception as e:
             wx.MessageBox(f"Error creating profile: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -279,65 +418,212 @@ class ProfileCreatorWindow(wx.Frame):
             traceback.print_exc()
 
     def on_create_from_results_grid(self, event):
-        """Create profile from results grid"""
+        """Create profile from results grid - uses selected core levels to determine rows"""
+        import pandas as pd
+        import os
+        import json
+        import re
+
+        # Get selected core levels
         checked_levels = []
         for i in range(self.core_levels_checklist.GetCount()):
             if self.core_levels_checklist.IsChecked(i):
                 checked_levels.append(self.core_levels_checklist.GetString(i))
 
         if not checked_levels:
-            wx.MessageBox("Please select at least one core level", "Info", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("No core levels selected", "Create Profile Failed", wx.OK | wx.ICON_WARNING)
             return
 
         profile_type = self.profile_type_combo.GetValue()
 
+        # Extract unique row numbers from selected core levels
+        row_numbers = set()
+        for sheet in checked_levels:
+            num_match = re.search(r'(\d+)$', sheet)
+            if num_match:
+                row_numbers.add(int(num_match.group(1)))
+            else:
+                row_numbers.add(0)  # No number suffix means row 0
+
+        row_numbers = sorted(list(row_numbers))
+
+        if not row_numbers:
+            wx.MessageBox("Could not determine row numbers from selected core levels", "Create Profile Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Find next available profile name
+        counter = 0
+        while True:
+            if counter == 0:
+                profile_sheet_name = "zzProfile"
+            else:
+                profile_sheet_name = f"zzProfile{counter}"
+
+            if profile_sheet_name not in self.parent.Data['Core levels']:
+                break
+            counter += 1
+
         try:
-            # Get data from results grid
-            results_data = {}
-            for level in checked_levels:
-                if level in self.parent.Data['Core levels']:
-                    level_data = self.parent.Data['Core levels'][level]
-                    if 'Result' in level_data:
-                        result_data = level_data['Result']
-                        # Extract relevant data based on profile type
-                        if profile_type == "Concentration":
-                            if 'At. Conc.' in result_data:
-                                results_data[level] = [float(x) for x in result_data['At. Conc.']]
-                        elif profile_type == "Area":
-                            if 'Area' in result_data:
-                                results_data[level] = [float(x) for x in result_data['Area']]
-                        elif profile_type == "Position":
-                            if 'Position' in result_data:
-                                results_data[level] = [float(x) for x in result_data['Position']]
+            # Collect data from each row
+            profile_data = {}
+            profile_data['Number'] = row_numbers
+            peak_names = set()
 
-            if not results_data:
-                wx.MessageBox("No data found in results grid for selected levels", "Error", wx.OK | wx.ICON_ERROR)
-                return
+            # Determine which column to extract based on profile type
+            if profile_type == "Concentration":
+                data_column = 6  # Atomic (%)
+                column_suffix = "At(%)"
+            elif profile_type == "Area":
+                data_column = 5  # Area (CPS.eV)
+                column_suffix = "Area"
+            elif profile_type == "Position":
+                data_column = 1  # Position (eV)
+                column_suffix = "Position"
 
-            # Create profile name
-            profile_name = f"zzProfile_{profile_type}_{len([k for k in self.parent.Data['Core levels'].keys() if k.startswith('zzProfile')])}"
+            # First pass: collect all unique peak names across all rows
+            for row_num in row_numbers:
+                # Switch to the sheet for this row
+                for sheet_name in self.parent.Data['Core levels'].keys():
+                    num_match = re.search(r'(\d+)$', sheet_name)
+                    if num_match:
+                        sheet_row = int(num_match.group(1))
+                    else:
+                        sheet_row = 0
 
-            # Create profile data structure
-            max_length = max(len(v) for v in results_data.values())
-            profile_data = {'Number': list(range(max_length))}
+                    if sheet_row == row_num:
+                        # Switch to this sheet
+                        self.parent.sheet_combobox.SetValue(sheet_name)
+                        from libraries.Sheet_Operations import on_sheet_selected
+                        on_sheet_selected(self.parent, sheet_name)
 
-            for level, data in results_data.items():
-                # Pad data if necessary
-                padded_data = data + [0.00] * (max_length - len(data))
-                profile_data[level] = [f"{x:.2f}" for x in padded_data]
+                        # Get all peak names from results grid
+                        grid = self.parent.results_grid
+                        for row in range(grid.GetNumberRows()):
+                            try:
+                                peak_name = grid.GetCellValue(row, 0).strip()  # Peak Label
+                                if peak_name:
+                                    peak_names.add(peak_name)
+                            except (ValueError, IndexError):
+                                continue
+                        break
 
-            # Store in Data
-            self.parent.Data['Core levels'][profile_name] = {
+            # Initialize columns for each peak
+            peak_names = sorted(list(peak_names))
+            for peak_name in peak_names:
+                column_name = f"{peak_name} {column_suffix}"
+                profile_data[column_name] = []
+
+            # Second pass: populate data for each row
+            for row_num in row_numbers:
+                row_peak_data = {}
+
+                # Find and switch to the sheet for this row
+                for sheet_name in self.parent.Data['Core levels'].keys():
+                    num_match = re.search(r'(\d+)$', sheet_name)
+                    if num_match:
+                        sheet_row = int(num_match.group(1))
+                    else:
+                        sheet_row = 0
+
+                    if sheet_row == row_num:
+                        # Switch to this sheet
+                        self.parent.sheet_combobox.SetValue(sheet_name)
+                        from libraries.Sheet_Operations import on_sheet_selected
+                        on_sheet_selected(self.parent, sheet_name)
+
+                        # Extract data from results grid
+                        grid = self.parent.results_grid
+                        for row in range(grid.GetNumberRows()):
+                            try:
+                                peak_name = grid.GetCellValue(row, 0).strip()
+                                value_str = grid.GetCellValue(row, data_column).strip()
+
+                                if peak_name and value_str:
+                                    value = float(value_str)
+                                    row_peak_data[peak_name] = value
+                            except (ValueError, IndexError):
+                                continue
+                        break
+
+                # Fill in data for this row
+                for peak_name in peak_names:
+                    column_name = f"{peak_name} {column_suffix}"
+                    if peak_name in row_peak_data:
+                        profile_data[column_name].append(row_peak_data[peak_name])
+                    else:
+                        profile_data[column_name].append(0.0)
+
+            # Create DataFrame with .2f formatting
+            df = pd.DataFrame(profile_data)
+
+            # Format all numeric columns to .2f
+            for col in df.columns:
+                if col != 'Number':
+                    df[col] = df[col].apply(lambda x: float(f"{x:.2f}"))
+
+            # Ensure Number column is first
+            cols = ['Number'] + [col for col in df.columns if col != 'Number']
+            df = df[cols]
+
+            # SORT by Number column
+            df = df.sort_values(by='Number').reset_index(drop=True)
+
+            # Save to Excel
+            file_path = self.parent.Data['FilePath']
+
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=profile_sheet_name, index=False)
+
+            # Update Data structure with profile metadata
+            first_column = df.columns[1] if len(df.columns) > 1 else 'Number'
+
+            if profile_type == "Concentration":
+                y_axis_label = 'Atomic Concentration (%)'
+            elif profile_type == "Area":
+                y_axis_label = 'Area (CPS.eV)'
+            elif profile_type == "Position":
+                y_axis_label = 'Position (eV)'
+
+            self.parent.Data['Core levels'][profile_sheet_name] = {
+                'Name': profile_sheet_name,
+                'B.E.': df['Number'].tolist(),
+                'Raw Data': df[first_column].tolist(),
+                'Profile Data': df.to_dict('list'),
+                'Y_Axis_Label': y_axis_label,
                 'X_Axis_Label': 'Number',
-                'Y_Axis_Label': f'{profile_type}',
-                'Profile Data': profile_data
+                'Profile_Type': profile_type,
+                'Background': {
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': '',
+                    'Bkg Y': df[first_column].tolist()
+                }
             }
 
-            # Update sheet combobox
-            if hasattr(self.parent, 'sheet_combobox'):
-                self.parent.sheet_combobox.Append(profile_name)
+            # Save to JSON
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
 
-            wx.MessageBox(f"Profile '{profile_name}' created successfully", "Success", wx.OK | wx.ICON_INFORMATION)
+            # Update sheet list
+            if profile_sheet_name not in self.parent.sheet_combobox.GetStrings():
+                self.parent.sheet_combobox.Append(profile_sheet_name)
+
+            # Switch to the new profile sheet and plot it
+            self.parent.sheet_combobox.SetValue(profile_sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, profile_sheet_name)
+
+            wx.MessageBox(
+                f"Profile '{profile_sheet_name}' created successfully!\n"
+                f"Data from {len(row_numbers)} rows with {len(peak_names)} peaks.",
+                "Success",
+                wx.OK | wx.ICON_INFORMATION
+            )
 
         except Exception as e:
             wx.MessageBox(f"Error creating profile: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
