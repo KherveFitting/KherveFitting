@@ -674,6 +674,15 @@ class ProfileEditWindow(wx.Frame):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(current_dir, "Icons")
 
+        # NEW EMPTY PROFILE TOOL - ADD THIS BEFORE SAVE TOOL
+        new_profile_icon = os.path.join(icon_path, "NewSheet-3.png")
+        if os.path.exists(new_profile_icon):
+            new_profile_bmp = wx.Bitmap(new_profile_icon)
+        else:
+            new_profile_bmp = wx.ArtProvider.GetBitmap(wx.ART_NEW, wx.ART_TOOLBAR)
+        new_profile_tool = self.toolbar.AddTool(wx.ID_ANY, "New Profile", new_profile_bmp, "Create Empty Profile")
+        self.Bind(wx.EVT_TOOL, self.on_create_empty_profile, new_profile_tool)
+
         # Save tool
         save_icon = os.path.join(icon_path, "Save_Json-3.png")
         save_bmp = wx.Bitmap(save_icon)
@@ -1320,6 +1329,88 @@ class ProfileEditWindow(wx.Frame):
                     grid.SetCellValue(target_row, target_col, value)
 
         grid.ForceRefresh()
+
+    def on_create_empty_profile(self, event):
+        """Create an empty zzProfile sheet"""
+        import pandas as pd
+        import os
+        import json
+
+        try:
+            # Find next available profile name
+            counter = 0
+            while True:
+                if counter == 0:
+                    profile_sheet_name = "zzProfile"
+                else:
+                    profile_sheet_name = f"zzProfile{counter}"
+
+                if profile_sheet_name not in self.parent.Data['Core levels']:
+                    break
+                counter += 1
+
+            # Create empty profile data with just Number column (matching zzProfile template)
+            profile_data = {'Number': [0.00]}
+
+            # Create DataFrame
+            df = pd.DataFrame(profile_data)
+
+            # Save to Excel
+            file_path = self.parent.Data['FilePath']
+
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=profile_sheet_name, index=False)
+
+            # Update Data structure with empty profile metadata (using proper zzProfile template)
+            self.parent.Data['Core levels'][profile_sheet_name] = {
+                'Name': profile_sheet_name,
+                'B.E.': [0.00],
+                'Raw Data': [0.00],
+                'Profile Data': profile_data,
+                'Y_Axis_Label': 'Value',
+                'X_Axis_Label': 'Number',
+                'Profile_Type': 'Custom',
+                'Background': {
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': '',
+                    'Bkg Y': [0.00]
+                }
+            }
+
+            # Save to JSON
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Update sheet combobox
+            if profile_sheet_name not in self.parent.sheet_combobox.GetStrings():
+                self.parent.sheet_combobox.Append(profile_sheet_name)
+
+            # Add the new profile tab to the editor window
+            self.add_profile_tab(profile_sheet_name)
+
+            # Select the newly created tab
+            for i in range(self.notebook.GetPageCount()):
+                if self.notebook.GetPageText(i) == profile_sheet_name:
+                    self.notebook.SetSelection(i)
+                    self.current_profile = profile_sheet_name
+                    break
+
+            wx.MessageBox(
+                f"Empty profile '{profile_sheet_name}' created successfully!",
+                "Success",
+                wx.OK | wx.ICON_INFORMATION
+            )
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating empty profile: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
 
     # def on_close(self, event):
     #     """Handle window close"""

@@ -16,6 +16,15 @@ class FileManagerWindow(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
         self.parent = parent
 
+        def detect_dark_mode():
+            if 'wxMac' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxMSW' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxGTK' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            return False
+
         # Check for maximum row index before initializing the window
         if hasattr(parent, 'Data') and 'Core levels' in parent.Data:
             max_index = 0
@@ -56,6 +65,10 @@ class FileManagerWindow(wx.Frame):
 
         # Set up UI elements including the grid
         self.panel = wx.Panel(self)
+
+        if not detect_dark_mode():
+            self.panel.SetBackgroundColour(wx.Colour(160, 205, 188))
+
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Create right panel with content
@@ -65,6 +78,11 @@ class FileManagerWindow(wx.Frame):
         # Create toolbar
         self.toolbar = wx.ToolBar(self.right_panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_NODIVIDER)
         self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+        if not detect_dark_mode():
+            self.toolbar.SetBackgroundColour(wx.Colour(180, 225, 208))
+
+
         self.create_toolbar()
         self.toolbar.Realize()
         right_sizer.Add(self.toolbar, 0, wx.EXPAND)
@@ -73,6 +91,10 @@ class FileManagerWindow(wx.Frame):
         self.grid = wx.grid.Grid(self.right_panel)
         self.core_levels = self.get_unique_core_levels()
         self.init_grid()
+
+        if not detect_dark_mode():
+            self.grid.SetLabelBackgroundColour(wx.Colour(180, 225, 208))  # Pink for row/column headers
+
         right_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 5)
 
         self.right_panel.SetSizer(right_sizer)
@@ -197,7 +219,7 @@ class FileManagerWindow(wx.Frame):
         # Get icon path
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
 
-        add_rows_icon = os.path.join(icon_path, "add-rows-25.png")
+        add_rows_icon = os.path.join(icon_path, "Add_Row-3.png")
         if os.path.exists(add_rows_icon):
             add_rows_bmp = wx.Bitmap(add_rows_icon)
         else:
@@ -205,7 +227,7 @@ class FileManagerWindow(wx.Frame):
         add_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Add 1 Row", add_rows_bmp, "Add 1 row to the grid")
         self.Bind(wx.EVT_TOOL, lambda evt: self.add_single_row(), add_rows_tool)
 
-        del_rows_icon = os.path.join(icon_path, "delete-rows-25.png")
+        del_rows_icon = os.path.join(icon_path, "Rem_Row-3.png")
         if os.path.exists(del_rows_icon):
             del_rows_bmp = wx.Bitmap(del_rows_icon)
         else:

@@ -1387,6 +1387,10 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None):
         update_console("Updating binding energy corrections...")
         import re
         for sheet_name in sheet_names:
+            # Skip zzProfile sheets - they have different structure
+            if sheet_name.startswith('zzProfile'):
+                continue
+
             df = pd.read_excel(file_path, sheet_name=sheet_name)
             raw_be_values = df.iloc[:, 0].tolist()
 
