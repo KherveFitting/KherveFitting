@@ -645,9 +645,11 @@ class PlotManager:
 
                 # IMPORTANT: Always work with copies to avoid affecting original data
                 peak_y_masked = peak_y.copy()  # This is already a copy
+                peak_y_masked = peak_y_masked.astype(float)
                 peak_y_masked[~region_mask] = np.nan
 
                 background_masked = background.copy()  # This is already a copy
+                background_masked = background_masked.astype(float)
                 background_masked[~region_mask] = np.nan
             else:
                 # No masking - but still use copies
@@ -1008,7 +1010,7 @@ class PlotManager:
         except Exception as e:
             wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
 
-    def plot_profile(self, window):
+    def plot_profile_OLD(self, window):
         """Plot profile data (zzProfile sheets) as line plot"""
         import matplotlib.pyplot as plt
         import pandas as pd
@@ -1080,6 +1082,194 @@ class PlotManager:
 
             x_data = df['Number'].values
             y_data = df[column].values
+
+            # Determine line style based on settings
+            if interp_type == 'markers' or not lines_visible:
+                linestyle = ''
+                plot_x, plot_y = x_data, y_data
+            elif interp_type == 'cubic':
+                # Cubic spline interpolation for smooth curves
+                from scipy.interpolate import make_interp_spline
+                import numpy as np
+
+                # Create smooth curve with more points
+                x_smooth = np.linspace(x_data.min(), x_data.max(), 300)
+                try:
+                    spl = make_interp_spline(x_data, y_data, k=3)  # k=3 for cubic
+                    y_smooth = spl(x_smooth)
+                    plot_x, plot_y = x_smooth, y_smooth
+                    linestyle = '-'
+                except:
+                    # Fall back to linear if spline fails
+                    plot_x, plot_y = x_data, y_data
+                    linestyle = '-'
+            else:  # linear
+                linestyle = '-'
+                plot_x, plot_y = x_data, y_data
+
+            self.ax.plot(
+                plot_x,
+                plot_y,
+                marker='o' if interp_type != 'cubic' else '',  # No markers for smooth curves
+                linestyle=linestyle,
+                linewidth=linewidth if linestyle else 0,
+                markersize=6,
+                label=peak_name,
+                color=colors[idx]
+            )
+
+            # Add markers separately for cubic to show data points
+            if interp_type == 'cubic':
+                self.ax.plot(x_data, y_data, 'o', markersize=4, color=colors[idx])
+
+            print(f"Plotted: {peak_name}")
+
+        # Configure plot - NO TITLE, NO GRID as requested
+        self.ax.set_xlabel(x_axis_label, fontsize=12)
+        self.ax.set_ylabel(y_axis_label, fontsize=12)
+
+        # Create legend and make it explicitly visible
+        legend = self.ax.legend(loc='best', fontsize=10, frameon=True, fancybox=True, framealpha=0.9, edgecolor='gray')
+        legend.set_visible(True)  # Explicitly set visible
+
+        # Format axes
+        from matplotlib.ticker import ScalarFormatter
+        self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+
+        # Ensure legend stays visible (override any other settings)
+        if self.ax.get_legend():
+            self.ax.get_legend().set_visible(True)
+
+        print("Profile plot complete")
+
+        # Redraw canvas
+        self.canvas.draw_idle()
+
+        return True
+
+    def plot_profile(self, window):
+        """Plot profile data (zzProfile sheets) as line plot"""
+        import matplotlib.pyplot as plt
+        import pandas as pd
+        import numpy as np
+
+        sheet_name = window.sheet_combobox.GetValue()
+
+        print(f"plot_profile called for: {sheet_name}")
+
+        # Check if this is a profile sheet
+        if not sheet_name.startswith('zzProfile'):
+            print(f"Not a profile sheet: {sheet_name}")
+            return False
+
+        # Get profile metadata and data from window.Data
+        if sheet_name not in window.Data['Core levels']:
+            print(f"Sheet not in Data: {sheet_name}")
+            return False
+
+        profile_info = window.Data['Core levels'][sheet_name]
+        print(f"Profile info keys: {profile_info.keys()}")
+
+        if 'Profile Data' not in profile_info:
+            print(f"No 'Profile Data' key found. Keys available: {profile_info.keys()}")
+            return False
+
+        # Extract metadata
+        y_axis_label = profile_info.get('Y_Axis_Label', 'Atomic Concentration (%)')
+        x_axis_label = profile_info.get('X_Axis_Label', 'Number')
+        profile_data = profile_info['Profile Data']
+
+        print(f"Y-axis: {y_axis_label}, X-axis: {x_axis_label}")
+        print(f"Profile data keys: {profile_data.keys()}")
+
+        # Convert new format back to DataFrame format for compatibility
+        df_data = {}
+
+        # Check if data is in new format (with x_values/y_values) or old format
+        first_key = list(profile_data.keys())[0] if profile_data else None
+        if first_key and isinstance(profile_data[first_key], dict) and 'x_values' in profile_data[first_key]:
+            # New format: convert to DataFrame-compatible format
+            print("Converting new format to DataFrame")
+
+            # Find the maximum row number needed
+            max_row = 0
+            for col_name, col_info in profile_data.items():
+                x_values = col_info.get('x_values', [])
+                if x_values:
+                    max_row = max(max_row, max(x_values) + 1)
+
+            # Create Number column
+            df_data['Number'] = list(range(max_row))
+
+            # Fill other columns
+            for col_name, col_info in profile_data.items():
+                if col_name == 'Number':
+                    continue
+
+                x_values = col_info.get('x_values', [])
+                y_values = col_info.get('y_values', [])
+
+                # Create array filled with NaN
+                col_array = np.full(max_row, np.nan)
+
+                # Fill in the actual values at their correct positions
+                for x_pos, y_val in zip(x_values, y_values):
+                    if 0 <= x_pos < max_row:
+                        col_array[x_pos] = y_val
+
+                df_data[col_name] = col_array
+        else:
+            # Old format: use as-is
+            df_data = profile_data
+
+        # Create DataFrame from processed data
+        df = pd.DataFrame(df_data)
+
+        # Sort by Number column to ensure correct line plotting
+        if 'Number' in df.columns:
+            df = df.sort_values(by='Number').reset_index(drop=True)
+
+        # Clear current plot
+        self.ax.clear()
+
+        # Remove residuals subplot if it exists
+        if hasattr(self, 'residuals_subplot'):
+            if self.residuals_subplot:
+                self.figure.delaxes(self.residuals_subplot)
+                self.residuals_subplot = None
+                self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+                self.ax.get_xaxis().set_visible(True)
+
+        # Get column names (excluding 'Number')
+        peak_columns = [col for col in df.columns if col != 'Number']
+
+        print(f"Plotting {len(peak_columns)} peaks: {peak_columns}")
+
+        # Define colors for different peaks
+        colors = plt.cm.tab10(range(len(peak_columns)))
+
+        # Get profile settings
+        linewidth = getattr(window, 'profile_linewidth', {}).get(sheet_name, 2.0)
+        lines_visible = getattr(window, 'profile_lines_visible', {}).get(sheet_name, True)
+        interp_type = getattr(window, 'profile_interpolation', {}).get(sheet_name, 'linear')
+
+        # Plot each peak as a line
+        for idx, column in enumerate(peak_columns):
+            # Extract peak name (remove " At(%)" or other suffix)
+            peak_name = column.split(' ')[0] if ' ' in column else column
+
+            x_data = df['Number'].values
+            y_data = df[column].values
+
+            # Remove NaN values for plotting
+            mask = ~np.isnan(y_data)
+            x_data = x_data[mask]
+            y_data = y_data[mask]
+
+            # Skip if no valid data
+            if len(x_data) == 0:
+                continue
 
             # Determine line style based on settings
             if interp_type == 'markers' or not lines_visible:
@@ -1422,6 +1612,8 @@ class PlotManager:
 
                 # Instead of removing points, set non-region points to NaN
                 bg_y_masked = bg_y.copy()
+                # Ensure the array can hold NaN values by converting to float
+                bg_y_masked = bg_y_masked.astype(float)
                 bg_y_masked[~region_mask] = np.nan
 
                 if window.energy_scale == 'KE':
@@ -1915,6 +2107,7 @@ class PlotManager:
 
                 # Set non-region points to NaN instead of removing them
                 y_plot_masked = y_plot.copy()
+                y_plot_masked = y_plot_masked.astype(float)
                 y_plot_masked[~region_mask] = np.nan
 
                 if window.energy_scale == 'KE':

@@ -1483,9 +1483,9 @@ class MouseEventHandler:
 
     def open_profile_editor(self):
         """Open profile editor window"""
-        from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow
+        from libraries.ViewMenu.ProfileEditor import ProfileEditWindow
 
-        profile_editor = ProfileCreatorWindow(self.window)
+        profile_editor = ProfileEditWindow(self.window)
         profile_editor.Show()
 
     def on_right_click(self, event):

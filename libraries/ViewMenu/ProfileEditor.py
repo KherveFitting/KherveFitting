@@ -883,6 +883,15 @@ class ProfileEditWindow(wx.Frame):
         # Bind auto-save event to this grid
         grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed_auto_save)
 
+        # Bind grid events
+        grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_DCLICK, self.on_header_double_click)
+
+        # Add this new binding for right-click menu
+        grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_grid_right_click)
+
+        # Bind auto-save event to this grid
+        grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed_auto_save)
+
         sizer.Add(grid, 1, wx.ALL | wx.EXPAND, 5)
         panel.SetSizer(sizer)
 
@@ -908,43 +917,92 @@ class ProfileEditWindow(wx.Frame):
             return
 
         profile_data = profile_info['Profile Data']
-        df = pd.DataFrame(profile_data)
 
-        # Adjust grid size if needed
-        num_rows = max(len(df), 50)
-        num_cols = max(len(df.columns), 10)
+        # Check if data is in new format (with x_values/y_values) or old format (DataFrame-style)
+        if profile_data and isinstance(list(profile_data.values())[0], dict):
+            # New format: each column has x_values and y_values
+            all_columns = list(profile_data.keys())
+            max_rows = 50
 
-        current_rows = grid.GetNumberRows()
-        current_cols = grid.GetNumberCols()
+            # Determine how many columns we need
+            num_cols = max(len(all_columns), 10)
 
-        if num_rows > current_rows:
-            grid.AppendRows(num_rows - current_rows)
-        elif num_rows < current_rows:
-            grid.DeleteRows(num_rows, current_rows - num_rows)
+            # Adjust grid size
+            current_rows = grid.GetNumberRows()
+            current_cols = grid.GetNumberCols()
 
-        if num_cols > current_cols:
-            grid.AppendCols(num_cols - current_cols)
-        elif num_cols < current_cols:
-            grid.DeleteCols(num_cols, current_cols - num_cols)
+            if max_rows > current_rows:
+                grid.AppendRows(max_rows - current_rows)
+            elif max_rows < current_rows:
+                grid.DeleteRows(max_rows, current_rows - max_rows)
 
-        # Set column headers
-        for col_idx, col_name in enumerate(df.columns):
-            grid.SetColLabelValue(col_idx, col_name)
-            grid.SetColSize(col_idx, 80)
+            if num_cols > current_cols:
+                grid.AppendCols(num_cols - current_cols)
+            elif num_cols < current_cols:
+                grid.DeleteCols(num_cols, current_cols - num_cols)
 
-        # Fill data with .2f format
-        for row_idx in range(len(df)):
-            for col_idx, col_name in enumerate(df.columns):
-                value = df.iloc[row_idx, col_idx]
-                try:
-                    grid.SetCellValue(row_idx, col_idx, f"{float(value):.2f}")
-                except:
-                    grid.SetCellValue(row_idx, col_idx, str(value))
+            # Set column headers and clear all cells
+            for col_idx in range(num_cols):
+                if col_idx < len(all_columns):
+                    col_name = all_columns[col_idx]
+                    grid.SetColLabelValue(col_idx, col_name)
 
-        # Fill remaining cells with 0.00
-        for row_idx in range(len(df), num_rows):
-            for col_idx in range(len(df.columns)):
-                grid.SetCellValue(row_idx, col_idx, "")
+                    # Fill data for this column
+                    col_info = profile_data[col_name]
+                    x_values = col_info.get('x_values', [])
+                    y_values = col_info.get('y_values', [])
+
+                    # Clear all cells in this column first
+                    for row_idx in range(max_rows):
+                        grid.SetCellValue(row_idx, col_idx, "")
+
+                    # Fill only the rows that have data
+                    for i, (x_pos, y_val) in enumerate(zip(x_values, y_values)):
+                        if x_pos < max_rows:
+                            grid.SetCellValue(x_pos, col_idx, f"{float(y_val):.2f}")
+                else:
+                    grid.SetColLabelValue(col_idx, f"Col{col_idx}")
+                    # Clear this column
+                    for row_idx in range(max_rows):
+                        grid.SetCellValue(row_idx, col_idx, "")
+
+                grid.SetColSize(col_idx, 80)
+
+        else:
+            # Old format: try to convert to DataFrame (backwards compatibility)
+            try:
+                df = pd.DataFrame(profile_data)
+
+                # Handle old format - convert to new format and save
+                new_profile_data = {}
+                for col_name in df.columns:
+                    col_data = []
+                    x_data = []
+                    for row_idx, value in enumerate(df[col_name]):
+                        if pd.notna(value) and str(value).strip():
+                            try:
+                                float_val = float(value)
+                                col_data.append(float(f"{float_val:.2f}"))
+                                x_data.append(row_idx)
+                            except:
+                                pass
+
+                    if col_data:
+                        new_profile_data[col_name] = {
+                            'x_values': x_data,
+                            'y_values': col_data
+                        }
+
+                # Update to new format
+                profile_info['Profile Data'] = new_profile_data
+
+                # Recursively call this method with new format
+                self.load_profile_data(profile_name, grid)
+                return
+
+            except Exception as e:
+                print(f"Error loading profile data: {e}")
+                return
 
         grid.AutoSizeColumns()
 
@@ -1137,6 +1195,8 @@ class ProfileEditWindow(wx.Frame):
 
     def on_save(self, event):
         """Save all changes to all profiles"""
+        import numpy as np
+
         try:
             for profile_name, grid in self.grids.items():
                 # Get grid data
@@ -1170,36 +1230,32 @@ class ProfileEditWindow(wx.Frame):
                     # Include all other columns
                     columns_with_data.append(col_idx)
 
-                # Find last row with actual data (excluding Number column)
-                last_data_row = 0
-                for col_idx in columns_with_data:
-                    col_name = grid.GetColLabelValue(col_idx)
-                    if col_name == 'Number':
-                        continue
-
-                    for row_idx in range(num_rows - 1, -1, -1):
-                        value = grid.GetCellValue(row_idx, col_idx).strip()
-                        if value:
-                            last_data_row = max(last_data_row, row_idx)
-                            break
-
-                # Build profile data with consistent row count for all columns
+                # Store data as separate arrays for each column
                 profile_data = {}
+
                 for col_idx in columns_with_data:
                     col_name = grid.GetColLabelValue(col_idx)
-                    col_data = []
 
-                    for row_idx in range(last_data_row + 1):
+                    # Collect only non-empty values for this column
+                    col_data = []
+                    x_data = []  # Corresponding X values (row numbers)
+
+                    for row_idx in range(num_rows):
                         value = grid.GetCellValue(row_idx, col_idx).strip()
                         if value:
                             try:
-                                col_data.append(float(value))
+                                float_val = float(value)
+                                col_data.append(float(f"{float_val:.2f}"))
+                                x_data.append(row_idx)  # Use row index as X value
                             except:
-                                col_data.append(0.0)
-                        else:
-                            col_data.append(0.0)
+                                pass  # Skip invalid values
 
-                    profile_data[col_name] = col_data
+                    # Store both the Y values and their corresponding X positions
+                    if col_data:  # Only store if there's actual data
+                        profile_data[col_name] = {
+                            'x_values': x_data,
+                            'y_values': col_data
+                        }
 
                 # Update in Data
                 if profile_name not in self.parent.Data['Core levels']:
@@ -1210,8 +1266,6 @@ class ProfileEditWindow(wx.Frame):
                     'Y_Axis_Label': self.y_labels.get(profile_name, 'Value'),
                     'Profile Data': profile_data
                 })
-
-            # wx.MessageBox("All profiles saved successfully", "Success", wx.OK | wx.ICON_INFORMATION)
 
             # Refresh the plot if current sheet is a profile
             sheet_name = self.parent.sheet_combobox.GetValue()
@@ -1411,6 +1465,144 @@ class ProfileEditWindow(wx.Frame):
             wx.MessageBox(f"Error creating empty profile: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
             import traceback
             traceback.print_exc()
+
+    def on_grid_right_click(self, event):
+        """Handle right-click on grid to show context menu"""
+        row = event.GetRow()
+        col = event.GetCol()
+        grid = event.GetEventObject()
+
+        # Create context menu
+        menu = wx.Menu()
+
+        # Add menu items
+        insert_col_item = menu.Append(wx.ID_ANY, "Insert Column")
+        menu.AppendSeparator()
+        copy_item = menu.Append(wx.ID_ANY, "Copy")
+        paste_item = menu.Append(wx.ID_ANY, "Paste")
+
+        # Bind events
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_insert_column(evt, col), insert_col_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_copy_cell(evt, grid, row, col), copy_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_paste_cell(evt, grid, row, col), paste_item)
+
+        # Show the menu
+        grid.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_insert_column(self, event, col_idx):
+        """Insert a new column at the specified index and renumber default headers to the right"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        insert_at = col_idx + 1
+        grid.InsertCols(insert_at, 1)
+
+        import re
+        pattern = re.compile(r'^Col(\d+)$')
+        last_col = grid.GetNumberCols() - 1
+        for c in range(last_col, insert_at, -1):
+            old_label = grid.GetColLabelValue(c)
+            m = pattern.match(old_label)
+            if m:
+                grid.SetColLabelValue(c, f"Col{int(m.group(1)) + 1}")
+
+        grid.SetColLabelValue(insert_at, f"Col{insert_at}")
+        grid.SetColSize(insert_at, 40)
+
+        grid.AutoSizeColumns()  # uncomment if you prefer autosizing after insert
+
+        self.on_save(None)
+
+    def on_copy_cell(self, event, grid, row, col):
+        """Copy selected cell or cells to clipboard"""
+        # Handle copying
+        if grid.IsSelection():
+            # Get the selection
+            selected_cells = []
+            for selection_block in grid.GetSelectedBlocks():
+                top_left = (selection_block.GetTopRow(), selection_block.GetLeftCol())
+                bottom_right = (selection_block.GetBottomRow(), selection_block.GetRightCol())
+
+                rows = range(top_left[0], bottom_right[0] + 1)
+                cols = range(top_left[1], bottom_right[1] + 1)
+
+                # Format cells as tab-separated values with newlines between rows
+                data = []
+                for r in rows:
+                    row_data = []
+                    for c in cols:
+                        value = grid.GetCellValue(r, c)
+                        # Format as .2f if it's a number
+                        try:
+                            value = f"{float(value):.2f}"
+                        except ValueError:
+                            pass
+                        row_data.append(value)
+                    data.append("\t".join(row_data))
+
+                clipboard_text = "\n".join(data)
+
+                # Set clipboard data
+                if wx.TheClipboard.Open():
+                    wx.TheClipboard.SetData(wx.TextDataObject(clipboard_text))
+                    wx.TheClipboard.Close()
+        else:
+            # Copy single cell
+            value = grid.GetCellValue(row, col)
+            # Format as .2f if it's a number
+            try:
+                value = f"{float(value):.2f}"
+            except ValueError:
+                pass
+
+            if wx.TheClipboard.Open():
+                wx.TheClipboard.SetData(wx.TextDataObject(value))
+                wx.TheClipboard.Close()
+
+    def on_paste_cell(self, event, grid, row, col):
+        """Paste clipboard content to selected cell"""
+        if wx.TheClipboard.Open():
+            if wx.TheClipboard.IsSupported(wx.DataFormat(wx.DF_TEXT)):
+                data = wx.TextDataObject()
+                wx.TheClipboard.GetData(data)
+
+                text = data.GetText()
+
+                # Check if we have tab-separated data (multiple cells)
+                if "\t" in text or "\n" in text:
+                    rows = text.split("\n")
+                    for r_idx, row_text in enumerate(rows):
+                        if row + r_idx >= grid.GetNumberRows():
+                            break
+
+                        cols = row_text.split("\t")
+                        for c_idx, cell_text in enumerate(cols):
+                            if col + c_idx >= grid.GetNumberCols():
+                                break
+
+                            # Format as .2f if it's a number
+                            try:
+                                cell_text = f"{float(cell_text):.2f}"
+                            except ValueError:
+                                pass
+
+                            grid.SetCellValue(row + r_idx, col + c_idx, cell_text)
+                else:
+                    # Single cell paste
+                    # Format as .2f if it's a number
+                    try:
+                        text = f"{float(text):.2f}"
+                    except ValueError:
+                        pass
+
+                    grid.SetCellValue(row, col, text)
+
+            wx.TheClipboard.Close()
+
+        # Auto-save after paste
+        self.on_save(None)
 
     # def on_close(self, event):
     #     """Handle window close"""
