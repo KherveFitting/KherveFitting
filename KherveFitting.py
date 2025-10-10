@@ -4171,11 +4171,11 @@ if __name__ == '__main__':
     # Create main frame
     splash.update_message("Building main application window...")
     if os_name == "Darwin":
-        frame = MyFrame(None, "KherveFitting-v1.65_25i30")
+        frame = MyFrame(None, "KherveFitting-v1.65_25j10")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.65_25i30")
+        frame = MyFrame(None, "KherveFitting-v1.65_25j10")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.65_25i30")
+        frame = MyFrame(None, "KherveFitting-v1.65_25j10")
 
     # Apply preferences
     splash.update_message("Loading user preferences...")
