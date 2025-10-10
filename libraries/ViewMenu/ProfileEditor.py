@@ -1218,12 +1218,14 @@ class ProfileEditWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_edit_header, edit_header_tool)
 
         # X Label tool
-        x_label_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR)
+        x_label_icon = os.path.join(icon_path, "XYplot_X-3.png")
+        x_label_bmp = wx.Bitmap(x_label_icon)
         x_label_tool = self.toolbar.AddTool(wx.ID_ANY, "X Label", x_label_bmp, "Edit X Axis Label")
         self.Bind(wx.EVT_TOOL, self.on_edit_x_label, x_label_tool)
 
         # Y Label tool
-        y_label_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_TOOLBAR)
+        y_label_icon = os.path.join(icon_path, "XYplot_Y-3.png")
+        y_label_bmp = wx.Bitmap(y_label_icon)
         y_label_tool = self.toolbar.AddTool(wx.ID_ANY, "Y Label", y_label_bmp, "Edit Y Axis Label")
         self.Bind(wx.EVT_TOOL, self.on_edit_y_label, y_label_tool)
 
@@ -1488,7 +1490,8 @@ class ProfileEditWindow(wx.Frame):
         menu.AppendSeparator()
 
         # Math operations
-        multiply_item = menu.Append(wx.ID_ANY, "Multiply Column...")
+        multiply_item = menu.Append(wx.ID_ANY, "Multiply Column by...")
+        divide_item = menu.Append(wx.ID_ANY, f"Divide Column by Another Column...")
         menu.AppendSeparator()
 
         # Edit operations
@@ -1503,6 +1506,7 @@ class ProfileEditWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda evt: self.on_insert_column_header(evt, col), insert_col_item)
         self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_column_header(evt, col), remove_col_item)
         self.Bind(wx.EVT_MENU, lambda evt: self.on_multiply_column(evt, col), multiply_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_divide_column(evt, col), divide_item)
         self.Bind(wx.EVT_MENU, self.on_grid_undo, undo_item)
         self.Bind(wx.EVT_MENU, self.on_grid_redo, redo_item)
 
@@ -1758,6 +1762,85 @@ class ProfileEditWindow(wx.Frame):
 
             except ValueError:
                 wx.MessageBox("Invalid numeric values", "Error", wx.OK | wx.ICON_ERROR)
+
+        dlg.Destroy()
+
+    def on_divide_column(self, event, col_idx):
+        """Divide this column by another column"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        col_name = grid.GetColLabelValue(col_idx)
+
+        # Get list of other columns (excluding the current one)
+        other_columns = []
+        other_col_indices = []
+        for i in range(grid.GetNumberCols()):
+            if i != col_idx:
+                other_columns.append(grid.GetColLabelValue(i))
+                other_col_indices.append(i)
+
+        if not other_columns:
+            wx.MessageBox("No other columns available for division", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Create selection dialog
+        dlg = wx.SingleChoiceDialog(
+            self,
+            f"Select column to divide '{col_name}' by:",
+            "Divide Column",
+            other_columns
+        )
+
+        if dlg.ShowModal() == wx.ID_OK:
+            divisor_idx = other_col_indices[dlg.GetSelection()]
+            divisor_name = grid.GetColLabelValue(divisor_idx)
+
+            self.save_grid_state()  # Save state for undo
+
+            # Perform division
+            modified_count = 0
+            zero_division_count = 0
+
+            for row in range(grid.GetNumberRows()):
+                dividend_value = grid.GetCellValue(row, col_idx).strip()
+                divisor_value = grid.GetCellValue(row, divisor_idx).strip()
+
+                if dividend_value and divisor_value:
+                    try:
+                        dividend = float(dividend_value)
+                        divisor = float(divisor_value)
+
+                        if divisor == 0:
+                            zero_division_count += 1
+                            # Leave cell unchanged or you could set to empty/NaN
+                            continue
+
+                        result = dividend / divisor
+                        grid.SetCellValue(row, col_idx, f"{result:.2f}")
+                        modified_count += 1
+
+                    except ValueError:
+                        continue  # Skip non-numeric values
+
+            grid.ForceRefresh()
+
+            # Auto-save
+            self.on_save(None)
+
+            # Update plot if active sheet
+            profile_name = self.current_profile if hasattr(self, 'current_profile') else None
+            if profile_name and profile_name == self.parent.sheet_combobox.GetValue():
+                self.parent.plot_manager.plot_data(self.parent)
+                self.parent.canvas.draw_idle()
+
+            # Show result message
+            msg = f"Divided {modified_count} cells by '{divisor_name}'"
+            if zero_division_count > 0:
+                msg += f"\n(Skipped {zero_division_count} cells due to division by zero)"
+
+            wx.MessageBox(msg, "Success", wx.OK | wx.ICON_INFORMATION)
 
         dlg.Destroy()
 
@@ -2365,6 +2448,7 @@ class ProfileEditWindow(wx.Frame):
         menu.AppendSeparator()
         multiply_item = menu.Append(wx.ID_ANY, f"Multiply Column by...")
         multiply_selected_item = menu.Append(wx.ID_ANY, f"Multiply Selected by...")
+        divide_item = menu.Append(wx.ID_ANY, f"Divide Column by Another Column...")
         make_array_item = menu.Append(wx.ID_ANY, f"Create Array in Selected...")
         menu.AppendSeparator()
         copy_item = menu.Append(wx.ID_ANY, "Copy")
@@ -2384,6 +2468,7 @@ class ProfileEditWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda evt: self.on_paste_cell(evt, grid, row, col), paste_item)
         self.Bind(wx.EVT_MENU, lambda evt: self.on_multiply_selected(evt, col), multiply_selected_item)
         self.Bind(wx.EVT_MENU, lambda evt: self.on_make_array_selected(evt, col), make_array_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_divide_column(evt, col), divide_item)
         self.Bind(wx.EVT_MENU, self.on_grid_undo, undo_item)
         self.Bind(wx.EVT_MENU, self.on_grid_redo, redo_item)
 
