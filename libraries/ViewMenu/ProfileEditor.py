@@ -1231,11 +1231,6 @@ class ProfileEditWindow(wx.Frame):
 
 
 
-        # # Cancel tool
-        # cancel_bmp = wx.ArtProvider.GetBitmap(wx.ART_CLOSE, wx.ART_TOOLBAR)
-        # cancel_tool = self.toolbar.AddTool(wx.ID_ANY, "Cancel", cancel_bmp, "Cancel")
-        # self.Bind(wx.EVT_TOOL, self.on_cancel, cancel_tool)
-
         self.toolbar.Realize()
         main_sizer.Add(self.toolbar, 0, wx.EXPAND)
 
@@ -1251,6 +1246,11 @@ class ProfileEditWindow(wx.Frame):
         self.grids = {}  # Dictionary to store grids for each profile
         self.x_labels = {}  # Store X labels for each profile
         self.y_labels = {}  # Store Y labels for each profile
+
+        # Add undo/redo support for profile editor
+        self.grid_history = []  # Stack for undo operations
+        self.grid_redo_stack = []  # Stack for redo operations
+        self.max_grid_history = 50  # Maximum number of undo states
 
         self.populate_notebook()
 
@@ -1281,6 +1281,9 @@ class ProfileEditWindow(wx.Frame):
     def on_cell_changed_auto_save(self, event):
         """Auto-save using existing on_save method and update plot if active sheet"""
         try:
+            # Save grid state for undo before the change
+            self.save_grid_state()
+
             # Get the grid and cell that was changed
             grid = event.GetEventObject()
             row = event.GetRow()
@@ -1380,6 +1383,7 @@ class ProfileEditWindow(wx.Frame):
 
         # Add this new binding for right-click menu
         grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_grid_right_click)
+        grid.Bind(wx.grid.EVT_GRID_LABEL_RIGHT_CLICK, self.on_header_right_click)
 
         # Bind auto-save event to this grid
         grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed_auto_save)
@@ -1392,6 +1396,370 @@ class ProfileEditWindow(wx.Frame):
 
         # Load data for this profile
         self.load_profile_data(profile_name, grid)
+
+    def save_grid_state(self):
+        """Save current grid state for undo/redo"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        # Get all grid data
+        grid_data = []
+        for row in range(grid.GetNumberRows()):
+            row_data = []
+            for col in range(grid.GetNumberCols()):
+                row_data.append(grid.GetCellValue(row, col))
+            grid_data.append(row_data)
+
+        # Get column labels
+        col_labels = []
+        for col in range(grid.GetNumberCols()):
+            col_labels.append(grid.GetColLabelValue(col))
+
+        state = {
+            'data': grid_data,
+            'col_labels': col_labels,
+            'num_rows': grid.GetNumberRows(),
+            'num_cols': grid.GetNumberCols()
+        }
+
+        self.grid_history.append(state)
+        if len(self.grid_history) > self.max_grid_history:
+            self.grid_history.pop(0)
+        self.grid_redo_stack.clear()
+
+    def restore_grid_state(self, state):
+        """Restore grid from saved state"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        # Clear current grid
+        if grid.GetNumberRows() > 0:
+            grid.DeleteRows(0, grid.GetNumberRows())
+        if grid.GetNumberCols() > 0:
+            grid.DeleteCols(0, grid.GetNumberCols())
+
+        # Restore structure
+        grid.AppendRows(state['num_rows'])
+        grid.AppendCols(state['num_cols'])
+
+        # Restore column labels
+        for col, label in enumerate(state['col_labels']):
+            grid.SetColLabelValue(col, label)
+            grid.SetColSize(col, 80)
+
+        # Restore data
+        for row, row_data in enumerate(state['data']):
+            for col, value in enumerate(row_data):
+                grid.SetCellValue(row, col, str(value))
+
+        grid.ForceRefresh()
+
+    def on_grid_undo(self, event):
+        """Undo last grid operation"""
+        if len(self.grid_history) > 1:
+            current_state = self.grid_history.pop()
+            self.grid_redo_stack.append(current_state)
+            previous_state = self.grid_history[-1]
+            self.restore_grid_state(previous_state)
+
+    def on_grid_redo(self, event):
+        """Redo last undone grid operation"""
+        if self.grid_redo_stack:
+            next_state = self.grid_redo_stack.pop()
+            self.grid_history.append(next_state)
+            self.restore_grid_state(next_state)
+
+    def on_header_right_click(self, event):
+        """Handle right-click on column header"""
+        col = event.GetCol()
+        if col < 0:
+            return
+
+        grid = event.GetEventObject()
+
+        # Create context menu
+        menu = wx.Menu()
+
+        # Column operations
+        insert_col_item = menu.Append(wx.ID_ANY, "Insert Column")
+        remove_col_item = menu.Append(wx.ID_ANY, "Remove Column")
+        menu.AppendSeparator()
+
+        # Math operations
+        multiply_item = menu.Append(wx.ID_ANY, "Multiply Column...")
+        menu.AppendSeparator()
+
+        # Edit operations
+        undo_item = menu.Append(wx.ID_ANY, "Undo\tCtrl+Z")
+        redo_item = menu.Append(wx.ID_ANY, "Redo\tCtrl+Y")
+
+        # Enable/disable based on state
+        undo_item.Enable(len(self.grid_history) > 1)
+        redo_item.Enable(len(self.grid_redo_stack) > 0)
+
+        # Bind events
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_insert_column_header(evt, col), insert_col_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_column_header(evt, col), remove_col_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_multiply_column(evt, col), multiply_item)
+        self.Bind(wx.EVT_MENU, self.on_grid_undo, undo_item)
+        self.Bind(wx.EVT_MENU, self.on_grid_redo, redo_item)
+
+        # Show menu
+        grid.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_insert_column_header(self, event, col_idx):
+        """Insert column at specified position from header right-click"""
+        self.save_grid_state()  # Save state for undo
+
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        # Insert column
+        grid.InsertCols(col_idx, 1)
+        grid.SetColLabelValue(col_idx, f"NewCol{col_idx}")
+        grid.SetColSize(col_idx, 80)
+
+        # Fill with empty values
+        for row in range(grid.GetNumberRows()):
+            grid.SetCellValue(row, col_idx, "")
+
+        grid.ForceRefresh()
+
+    def on_remove_column_header(self, event, col_idx):
+        """Remove column from header right-click"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        if grid.GetNumberCols() <= 1:
+            wx.MessageBox("Cannot remove last column", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        col_name = grid.GetColLabelValue(col_idx)
+        response = wx.MessageBox(f"Remove column '{col_name}'?", "Confirm", wx.YES_NO | wx.ICON_QUESTION)
+        if response == wx.YES:
+            self.save_grid_state()  # Save state for undo
+            grid.DeleteCols(col_idx, 1)
+            grid.ForceRefresh()
+
+    def on_multiply_column(self, event, col_idx):
+        """Multiply all values in a column by a factor"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        col_name = grid.GetColLabelValue(col_idx)
+
+        # Get multiplier from user
+        dlg = wx.TextEntryDialog(self, f"Enter multiplier for column '{col_name}':", "Multiply Column", "1.0")
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                multiplier = float(dlg.GetValue())
+
+                self.save_grid_state()  # Save state for undo
+
+                # Multiply all numeric values in the column
+                modified_count = 0
+                for row in range(grid.GetNumberRows()):
+                    cell_value = grid.GetCellValue(row, col_idx)
+                    if cell_value and cell_value.strip():
+                        try:
+                            old_value = float(cell_value)
+                            new_value = old_value * multiplier
+                            grid.SetCellValue(row, col_idx, f"{new_value:.2f}")
+                            modified_count += 1
+                        except ValueError:
+                            continue  # Skip non-numeric values
+
+                grid.ForceRefresh()
+
+                # Auto-save using the existing on_save method
+                self.on_save(None)
+
+                # If this is the active sheet, update the plot
+                profile_name = None
+                if hasattr(self, 'current_profile') and self.current_profile:
+                    profile_name = self.current_profile
+                elif hasattr(self, 'notebook'):
+                    page_index = self.notebook.GetSelection()
+                    profile_name = self.notebook.GetPageText(page_index)
+
+                if profile_name:
+                    current_sheet = self.parent.sheet_combobox.GetValue()
+                    if current_sheet == profile_name:
+                        self.parent.plot_manager.plot_data(self.parent)
+                        self.parent.canvas.draw_idle()
+
+                wx.MessageBox(f"Multiplied {modified_count} values by {multiplier}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+            except ValueError:
+                wx.MessageBox("Invalid multiplier value", "Error", wx.OK | wx.ICON_ERROR)
+
+        dlg.Destroy()
+
+    def on_multiply_selected(self, event, col_idx):
+        """Multiply only selected values in a column by a factor"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        col_name = grid.GetColLabelValue(col_idx)
+
+        # Get selected rows
+        selected_rows = []
+        if grid.GetSelectedRows():
+            selected_rows = list(grid.GetSelectedRows())
+        else:
+            # Check if individual cells are selected in this column
+            for row in range(grid.GetNumberRows()):
+                if grid.IsInSelection(row, col_idx):
+                    selected_rows.append(row)
+
+        if not selected_rows:
+            wx.MessageBox("No cells selected in this column", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Get multiplier from user
+        dlg = wx.TextEntryDialog(self, f"Enter multiplier for selected cells in column '{col_name}':", "Multiply Selected", "1.0")
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                multiplier = float(dlg.GetValue())
+
+                self.save_grid_state()  # Save state for undo
+
+                # Multiply selected numeric values in the column
+                modified_count = 0
+                for row in selected_rows:
+                    cell_value = grid.GetCellValue(row, col_idx)
+                    if cell_value and cell_value.strip():
+                        try:
+                            old_value = float(cell_value)
+                            new_value = old_value * multiplier
+                            grid.SetCellValue(row, col_idx, f"{new_value:.2f}")
+                            modified_count += 1
+                        except ValueError:
+                            continue  # Skip non-numeric values
+
+                grid.ForceRefresh()
+
+                # Auto-save
+                self.on_save(None)
+
+                # Update plot if active sheet
+                profile_name = self.current_profile if hasattr(self, 'current_profile') else None
+                if profile_name and profile_name == self.parent.sheet_combobox.GetValue():
+                    self.parent.plot_manager.plot_data(self.parent)
+                    self.parent.canvas.draw_idle()
+
+                wx.MessageBox(f"Multiplied {modified_count} selected values by {multiplier}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+            except ValueError:
+                wx.MessageBox("Invalid multiplier value", "Error", wx.OK | wx.ICON_ERROR)
+
+        dlg.Destroy()
+
+    def on_make_array_selected(self, event, col_idx):
+        """Create an evenly spaced array in selected cells"""
+        grid = self.get_current_grid()
+        if not grid:
+            return
+
+        col_name = grid.GetColLabelValue(col_idx)
+
+        # Get selected rows
+        selected_rows = []
+        if grid.GetSelectedRows():
+            selected_rows = sorted(list(grid.GetSelectedRows()))
+        else:
+            # Check if individual cells are selected in this column
+            for row in range(grid.GetNumberRows()):
+                if grid.IsInSelection(row, col_idx):
+                    selected_rows.append(row)
+            selected_rows.sort()
+
+        if len(selected_rows) < 2:
+            wx.MessageBox("Please select at least 2 cells to create an array", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Create dialog to get min and max values
+        dlg = wx.Dialog(self, title=f"Create Array in Column '{col_name}'", size=(300, 180))
+
+        panel = wx.Panel(dlg)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Min value
+        min_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        min_label = wx.StaticText(panel, label="Minimum value:")
+        min_sizer.Add(min_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        min_ctrl = wx.TextCtrl(panel, value="0.00")
+        min_sizer.Add(min_ctrl, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(min_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Max value
+        max_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        max_label = wx.StaticText(panel, label="Maximum value:")
+        max_sizer.Add(max_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        max_ctrl = wx.TextCtrl(panel, value="100.00")
+        max_sizer.Add(max_ctrl, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(max_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Info text
+        info_text = wx.StaticText(panel, label=f"Creating array for {len(selected_rows)} selected cells")
+        sizer.Add(info_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        # Buttons
+        btn_sizer = wx.StdDialogButtonSizer()
+        ok_btn = wx.Button(panel, wx.ID_OK)
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        btn_sizer.AddButton(ok_btn)
+        btn_sizer.AddButton(cancel_btn)
+        btn_sizer.Realize()
+        sizer.Add(btn_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        panel.SetSizer(sizer)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                min_val = float(min_ctrl.GetValue())
+                max_val = float(max_ctrl.GetValue())
+
+                if min_val >= max_val:
+                    wx.MessageBox("Maximum value must be greater than minimum value", "Error", wx.OK | wx.ICON_ERROR)
+                    dlg.Destroy()
+                    return
+
+                self.save_grid_state()  # Save state for undo
+
+                # Create array
+                import numpy as np
+                array_values = np.linspace(min_val, max_val, len(selected_rows))
+
+                # Fill selected cells with array values
+                for i, row in enumerate(selected_rows):
+                    grid.SetCellValue(row, col_idx, f"{array_values[i]:.2f}")
+
+                grid.ForceRefresh()
+
+                # Auto-save
+                self.on_save(None)
+
+                # Update plot if active sheet
+                profile_name = self.current_profile if hasattr(self, 'current_profile') else None
+                if profile_name and profile_name == self.parent.sheet_combobox.GetValue():
+                    self.parent.plot_manager.plot_data(self.parent)
+                    self.parent.canvas.draw_idle()
+
+                wx.MessageBox(f"Created array from {min_val:.2f} to {max_val:.2f} in {len(selected_rows)} cells",
+                              "Success", wx.OK | wx.ICON_INFORMATION)
+
+            except ValueError:
+                wx.MessageBox("Invalid numeric values", "Error", wx.OK | wx.ICON_ERROR)
+
+        dlg.Destroy()
 
     def load_profile_data(self, profile_name, grid):
         """Load profile data into grid"""
@@ -1629,7 +1997,11 @@ class ProfileEditWindow(wx.Frame):
                     if new_name != old_name and new_name in col_names:
                         wx.MessageBox("Column name already exists", "Error", wx.OK | wx.ICON_ERROR)
                     else:
+                        # Save grid state before change
+                        self.save_grid_state()
                         grid.SetColLabelValue(col_idx, new_name)
+                        # Trigger auto-save after header change
+                        self.on_save(None)
             name_dlg.Destroy()
 
         dlg.Destroy()
@@ -1639,6 +2011,7 @@ class ProfileEditWindow(wx.Frame):
         if event.GetRow() == -1 and event.GetCol() >= 0:
             grid = self.get_current_grid()
             if not grid:
+                event.Skip()
                 return
 
             col_idx = event.GetCol()
@@ -1653,8 +2026,15 @@ class ProfileEditWindow(wx.Frame):
                     if new_name != old_name and new_name in existing_cols:
                         wx.MessageBox("Column name already exists", "Error", wx.OK | wx.ICON_ERROR)
                     else:
+                        # Save grid state before change
+                        self.save_grid_state()
                         grid.SetColLabelValue(col_idx, new_name)
+                        # Trigger auto-save after header change
+                        self.on_save(None)
             dlg.Destroy()
+            # Don't call event.Skip() to prevent further processing
+            return
+
         event.Skip()
 
     def on_edit_x_label(self, event):
@@ -1790,6 +2170,16 @@ class ProfileEditWindow(wx.Frame):
             else:
                 event.Skip()
                 return
+
+        # Check for Ctrl+Z (Undo)
+        if keycode == ord('Z') and event.ControlDown():
+            self.on_grid_undo(event)
+            return
+
+        # Check for Ctrl+Y (Redo)
+        if keycode == ord('Y') and event.ControlDown():
+            self.on_grid_redo(event)
+            return
 
         # DELETE key - clear current cell
         if keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK:
@@ -1964,19 +2354,38 @@ class ProfileEditWindow(wx.Frame):
         col = event.GetCol()
         grid = event.GetEventObject()
 
+        # Get column name
+        col_name = grid.GetColLabelValue(col)
+
         # Create context menu
         menu = wx.Menu()
 
         # Add menu items
         insert_col_item = menu.Append(wx.ID_ANY, "Insert Column")
         menu.AppendSeparator()
+        multiply_item = menu.Append(wx.ID_ANY, f"Multiply Column by...")
+        multiply_selected_item = menu.Append(wx.ID_ANY, f"Multiply Selected by...")
+        make_array_item = menu.Append(wx.ID_ANY, f"Create Array in Selected...")
+        menu.AppendSeparator()
         copy_item = menu.Append(wx.ID_ANY, "Copy")
         paste_item = menu.Append(wx.ID_ANY, "Paste")
+        menu.AppendSeparator()
+        undo_item = menu.Append(wx.ID_ANY, "Undo\tCtrl+Z")
+        redo_item = menu.Append(wx.ID_ANY, "Redo\tCtrl+Y")
+
+        # Enable/disable based on state
+        undo_item.Enable(len(self.grid_history) > 1)
+        redo_item.Enable(len(self.grid_redo_stack) > 0)
 
         # Bind events
         self.Bind(wx.EVT_MENU, lambda evt: self.on_insert_column(evt, col), insert_col_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_multiply_column(evt, col), multiply_item)
         self.Bind(wx.EVT_MENU, lambda evt: self.on_copy_cell(evt, grid, row, col), copy_item)
         self.Bind(wx.EVT_MENU, lambda evt: self.on_paste_cell(evt, grid, row, col), paste_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_multiply_selected(evt, col), multiply_selected_item)
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_make_array_selected(evt, col), make_array_item)
+        self.Bind(wx.EVT_MENU, self.on_grid_undo, undo_item)
+        self.Bind(wx.EVT_MENU, self.on_grid_redo, redo_item)
 
         # Show the menu
         grid.PopupMenu(menu)

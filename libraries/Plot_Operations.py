@@ -1061,8 +1061,21 @@ class PlotManager:
                 if x_values:
                     max_row = max(max_row, max(x_values) + 1)
 
-            # Create Number column
-            df_data['Number'] = list(range(max_row))
+            # Create Number column using actual y_values from Number data
+            if 'Number' in profile_data and isinstance(profile_data['Number'], dict):
+                number_info = profile_data['Number']
+                number_x_values = number_info.get('x_values', [])
+                number_y_values = number_info.get('y_values', [])
+
+                # Create array for Number column
+                number_array = np.full(max_row, np.nan)
+                for x_pos, y_val in zip(number_x_values, number_y_values):
+                    if 0 <= x_pos < max_row:
+                        number_array[x_pos] = y_val
+                df_data['Number'] = number_array
+            else:
+                # Fallback to sequential numbers
+                df_data['Number'] = list(range(max_row))
 
             # Fill other columns
             for col_name, col_info in profile_data.items():

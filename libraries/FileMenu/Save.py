@@ -665,6 +665,38 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
             return obj[key]
         return default
 
+    # # Handle zzProfile sheets differently - just replace them completely
+    # if sheet_name.startswith('zzProfile'):
+    #     if update_console:
+    #         update_console(f"Saving Profile sheet {sheet_name} (complete replacement)...")
+    #
+    #     # Get profile data from window.Data
+    #     if sheet_name in window.Data['Core levels']:
+    #         profile_info = window.Data['Core levels'][sheet_name]
+    #         if 'Profile Data' in profile_info:
+    #             profile_df = pd.DataFrame(profile_info['Profile Data'])
+    #
+    #             # # Format all numeric columns to .2f
+    #             # for col in profile_df.columns:
+    #             #     if col != 'Number':
+    #             #         try:
+    #             #             profile_df[col] = profile_df[col].apply(lambda x: f"{float(x):.2f}" if pd.notna(x) else x)
+    #             #         except:
+    #             #             pass
+    #
+    #             # Save to Excel
+    #             with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    #                 profile_df.to_excel(writer, sheet_name=sheet_name, index=False)
+    #
+    #             if update_console:
+    #                 update_console(f"Profile sheet {sheet_name} saved successfully")
+    #             return
+    #
+    #     # If we get here, something went wrong
+    #     if update_console:
+    #         update_console(f"Warning: Could not find profile data for {sheet_name}")
+    #     return
+
     # Handle zzProfile sheets differently - just replace them completely
     if sheet_name.startswith('zzProfile'):
         if update_console:
@@ -674,16 +706,45 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
         if sheet_name in window.Data['Core levels']:
             profile_info = window.Data['Core levels'][sheet_name]
             if 'Profile Data' in profile_info:
-                profile_df = pd.DataFrame(profile_info['Profile Data'])
+                profile_data = profile_info['Profile Data']
 
-                # Format all numeric columns to .2f
-                for col in profile_df.columns:
-                    if col != 'Number':
-                        try:
-                            profile_df[col] = profile_df[col].apply(lambda x: f"{float(x):.2f}" if pd.notna(x) else x)
-                        except:
-                            pass
+                # Check if data is in new format (with x_values/y_values) or old format
+                if profile_data and isinstance(list(profile_data.values())[0], dict):
+                    # New format: each column has x_values and y_values
+                    formatted_data = {}
+                    max_rows = 0
 
+                    # First pass: find maximum number of data points
+                    for col_name, col_info in profile_data.items():
+                        if isinstance(col_info, dict) and 'y_values' in col_info:
+                            max_rows = max(max_rows, len(col_info['y_values']))
+
+                    # Second pass: create table format by extracting y_values
+                    for col_name, col_info in profile_data.items():
+                        if isinstance(col_info, dict) and 'y_values' in col_info:
+                            y_values = col_info['y_values']
+                            x_values = col_info.get('x_values', list(range(len(y_values))))
+
+                            # Create a full array with None values
+                            full_column = [None] * max_rows
+
+                            # Fill in the actual data at the correct positions
+                            for x_pos, y_val in zip(x_values, y_values):
+                                if 0 <= x_pos < max_rows:
+                                    full_column[x_pos] = y_val
+
+                            formatted_data[col_name] = full_column
+                        else:
+                            # Handle any non-dict data
+                            formatted_data[col_name] = [col_info] + [None] * (max_rows - 1)
+
+                else:
+                    # Old format: already in list format
+                    formatted_data = profile_data
+
+                profile_df = pd.DataFrame(formatted_data)
+
+                # Keep data as-is without any formatting
                 # Save to Excel
                 with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
                     profile_df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -691,6 +752,11 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                 if update_console:
                     update_console(f"Profile sheet {sheet_name} saved successfully")
                 return
+
+        # If we get here, something went wrong
+        if update_console:
+            update_console(f"Warning: Could not find profile data for {sheet_name}")
+        return
 
         # If we get here, something went wrong
         if update_console:
@@ -1577,6 +1643,18 @@ def save_plot_to_excel_OLD(window):
         if is_raman:
             # Set proper axis orientation after saving
             limits = window.plot_config.get_plot_limits(window, sheet_name)
+
+            # Check for identical limits and adjust if necessary
+            if limits['Xmin'] == limits['Xmax']:
+                # Expand the limits slightly to avoid matplotlib warning
+                if limits['Xmin'] == 0:
+                    limits['Xmin'] = -1.0
+                    limits['Xmax'] = 1.0
+                else:
+                    range_val = abs(limits['Xmin']) * 0.1 or 1.0
+                    limits['Xmin'] -= range_val
+                    limits['Xmax'] += range_val
+
             window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
 
         # Save figure to buffer
@@ -1608,6 +1686,18 @@ def save_plot_to_excel_OLD(window):
         # Set proper axis orientation after saving
         is_profile = sheet_name.startswith('zzProfile')
         limits = window.plot_config.get_plot_limits(window, sheet_name)
+
+        # Check for identical limits and adjust if necessary
+        if limits['Xmin'] == limits['Xmax']:
+            # Expand the limits slightly to avoid matplotlib warning
+            if limits['Xmin'] == 0:
+                limits['Xmin'] = -1.0
+                limits['Xmax'] = 1.0
+            else:
+                range_val = abs(limits['Xmin']) * 0.1 or 1.0
+                limits['Xmin'] -= range_val
+                limits['Xmax'] += range_val
+
         if is_raman or is_profile:
             window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman and Profiles
         else:
@@ -1642,7 +1732,8 @@ def save_plot_to_excel(window, update_console=None):
         height = window.survey_excel_height if is_survey else window.excel_height
         dpi = window.survey_excel_dpi if is_survey else window.excel_dpi
 
-        if is_raman:
+        is_profile = sheet_name.startswith('zzProfile')
+        if is_raman or is_profile:
             # Set proper axis orientation after saving
             limits = window.plot_config.get_plot_limits(window, sheet_name)
             window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
@@ -1677,9 +1768,11 @@ def save_plot_to_excel(window, update_console=None):
         else:
             window.show_popup_message2("Plot saved into Excel file", f"Under sheet: {sheet_name}")
 
+
         # Set proper axis orientation after saving
+        is_profile = sheet_name.startswith('zzProfile')
         limits = window.plot_config.get_plot_limits(window, sheet_name)
-        if is_raman:
+        if is_raman or is_profile:
             window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
         else:
             window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
