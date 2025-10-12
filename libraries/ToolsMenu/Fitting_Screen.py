@@ -40,9 +40,9 @@ class FittingWindow(wx.Frame):
                 print(f'GTK environment: {desktop}')
                 print('GTK environment')
             else:
-                self.SetSize((275, 400))  # Increased height to accommodate new elements
-                self.SetMinSize((275, 400))
-                self.SetMaxSize((275, 400))
+                self.SetSize((276, 400))  # Increased height to accommodate new elements
+                self.SetMinSize((276, 400))
+                self.SetMaxSize((276, 400))
         else:
             # Mini mode - smaller window
             if 'wxMac' in wx.PlatformInfo:

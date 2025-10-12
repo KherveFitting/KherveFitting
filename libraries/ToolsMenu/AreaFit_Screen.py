@@ -28,7 +28,7 @@ class BackgroundWindow(wx.Frame):
                 self.SetSize((280, 520))
             print(f'GTK environment: {desktop}')
         else:
-            self.SetSize((272, 370))
+            self.SetSize((276, 370))
             # self.SetMinSize((270, 370))
             # self.SetMaxSize((270, 370))
 
@@ -1171,9 +1171,35 @@ class BackgroundWindow(wx.Frame):
         wx.MessageBox("Propagate Row to Selected Core Levels - To be implemented", "Info", wx.OK | wx.ICON_INFORMATION)
 
     def on_measure_all(self, event):
-        """Measure areas for all selected core levels"""
-        # TODO: Implement batch area measurement logic
-        wx.MessageBox("Measure Selected Core Levels - To be implemented", "Info", wx.OK | wx.ICON_INFORMATION)
+        """Create profile from results grid using ProfileCreatorWindow's method"""
+        # Import the ProfileCreatorWindow class
+        from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow
+
+        # Get selected core levels
+        selected_sheets = self.get_selected_core_levels_for_area()
+        if not selected_sheets:
+            wx.MessageBox("No core levels selected", "Create Profile Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create a ProfileCreatorWindow instance
+        profile_creator = ProfileCreatorWindow(self.parent)
+
+        # Pre-select the core levels in the checklist
+        for i in range(profile_creator.core_levels_checklist.GetCount()):
+            sheet_name = profile_creator.core_levels_checklist.GetString(i)
+            if sheet_name in selected_sheets:
+                profile_creator.core_levels_checklist.Check(i, True)
+            else:
+                profile_creator.core_levels_checklist.Check(i, False)
+
+        # Set default profile type to "Concentration"
+        profile_creator.profile_type_combo.SetValue("Concentration")
+
+        # Call the on_create_from_results_grid method
+        profile_creator.on_create_from_results_grid(event)
+
+        # Close the profile creator window
+        profile_creator.Destroy()
 
     def on_help_button(self, event):
         """Open YouTube tutorial video for AreaFit functionality"""
