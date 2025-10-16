@@ -1915,7 +1915,7 @@ class MouseEventHandler:
                 return letter
 
         # Replace all peak letter references
-        pattern = r'([A-P])(?=[+\-*/]|$)'
+        pattern = r'([A-Z])(?=[+\-*/]|$)'
         updated = re.sub(pattern, replace_letter, constraint)
 
         # Handle cases where constraint becomes invalid
@@ -2181,7 +2181,7 @@ class MouseEventHandler:
                 return letter
 
         # Replace all peak letter references
-        pattern = r'([A-P])(?=[+\-*/]|$|#)'
+        pattern = r'([A-Z])(?=[+\-*/]|$|#)'
         updated = re.sub(pattern, replace_letter, constraint)
 
         return updated

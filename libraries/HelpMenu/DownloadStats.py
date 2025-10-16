@@ -648,8 +648,51 @@ class DownloadStatsWindow(wx.Frame):
             df = pd.DataFrame({'date': dates, 'downloads': download_counts})
             df = df.sort_values('date')
 
-            self.ax.plot(df['date'], df['downloads'], marker='o')
-            # self.ax.set_title('Weekly Downloads Since Sept 2024')
+            # self.ax.plot(df['date'], df['downloads'], marker='o')
+
+            # Separate last entry (most recent week) from historical data
+            if len(df) > 1:
+                historical_df = df.iloc[:-1]
+                current_df = df.iloc[-1:]
+
+                # Plot historical data with line
+                self.ax.plot(historical_df['date'], historical_df['downloads'], marker='o', linestyle='-')
+
+                # Plot current week as point only
+                self.ax.plot(current_df['date'], current_df['downloads'], marker='o', linestyle='', markersize=5, color='red')
+                # Add text label above the point
+                current_value = current_df['downloads'].values[0]
+                current_date = current_df['date'].values[0]
+                self.ax.annotate(f'{int(current_value)}',
+                                 xy=(current_date, current_value),
+                                 xytext=(0, 8), textcoords='offset points',
+                                 ha='center', va='bottom', fontsize=9, color='black', fontweight='bold',
+                                 bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.8))
+            else:
+                # Plot current week as point only
+                self.ax.plot(current_df['date'], current_df['downloads'], marker='o', linestyle='', markersize=5, color='red')
+                # Add text label above the point
+                current_value = current_df['downloads'].values[0]
+                current_date = current_df['date'].values[0]
+                self.ax.annotate(f'{int(current_value)}',
+                                 xy=(current_date, current_value),
+                                 xytext=(0, 8), textcoords='offset points',
+                                 ha='center', va='bottom', fontsize=9, color='black', fontweight='bold',
+                                 bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.8))
+
+            # Add trendline starting from 2025-01, excluding current week
+            if len(df) > 1:
+                import numpy as np
+                from datetime import datetime as dt
+                # Filter data from 2025-01 onwards, excluding the last (current) entry
+                df_2025 = df[df['date'] >= dt(2025, 1, 1)]
+                if len(df_2025) > 2:  # Need at least 2 points after excluding current
+                    df_2025_historical = df_2025.iloc[:-1]
+                    x_numeric = np.arange(len(df_2025_historical))
+                    z = np.polyfit(x_numeric, df_2025_historical['downloads'].values, 1)
+                    p = np.poly1d(z)
+                    self.ax.plot(df_2025_historical['date'], p(x_numeric), "g--", alpha=0.5, linewidth=1.5)
+
             self.ax.set_xlabel('Date')
             self.ax.set_ylabel('Downloads')
             self.ax.grid(True)
@@ -716,8 +759,31 @@ class DownloadStatsWindow(wx.Frame):
             df = pd.DataFrame({'date': dates, 'downloads': download_counts})
             df = df.sort_values('date')
 
-            self.ax.plot(df['date'], df['downloads'], marker='o')
-            # self.ax.set_title('Daily Downloads - Last 3 Months')
+            # self.ax.plot(df['date'], df['downloads'], marker='o')
+
+            # Separate current day from historical data
+            current_date = datetime.now().date()
+            df['is_current'] = df['date'].dt.date == current_date
+
+            historical_df = df[~df['is_current']]
+            current_df = df[df['is_current']]
+
+            # Plot historical data with line
+            if not historical_df.empty:
+                self.ax.plot(historical_df['date'], historical_df['downloads'], marker='o', linestyle='-')
+
+            # Plot current day as point only
+            if not current_df.empty:
+                self.ax.plot(current_df['date'], current_df['downloads'], marker='o', linestyle='', markersize=5, color='red')
+                # Add text label above the point
+                current_value = current_df['downloads'].values[0]
+                current_date = current_df['date'].values[0]
+                self.ax.annotate(f'{int(current_value)}',
+                                 xy=(current_date, current_value),
+                                 xytext=(0, 8), textcoords='offset points',
+                                 ha='center', va='bottom', fontsize=9, color='black', fontweight='bold',
+                                 bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.8))
+
             self.ax.set_xlabel('Date')
             self.ax.set_ylabel('Downloads')
             self.ax.grid(True)
@@ -782,8 +848,47 @@ class DownloadStatsWindow(wx.Frame):
             df = pd.DataFrame({'date': dates, 'downloads': download_counts})
             df = df.sort_values('date')
 
-            self.ax.plot(df['date'], df['downloads'], marker='o')
+            # self.ax.plot(df['date'], df['downloads'], marker='o')
+
+            # Separate current month from historical data
+            current_month = datetime.now().month
+            current_year = datetime.now().year
+            df['is_current'] = (df['date'].dt.month == current_month) & (df['date'].dt.year == current_year)
+
+            historical_df = df[~df['is_current']]
+            current_df = df[df['is_current']]
+
+            # Plot historical data with line
+            if not historical_df.empty:
+                self.ax.plot(historical_df['date'], historical_df['downloads'], marker='o', linestyle='-')
+
+            # Plot current month as point only
+            if not current_df.empty:
+                self.ax.plot(current_df['date'], current_df['downloads'], marker='o', linestyle='', markersize=5, color='red')
+                # Add text label above the point
+                current_value = current_df['downloads'].values[0]
+                current_date = current_df['date'].values[0]
+                self.ax.annotate(f'{int(current_value)}',
+                                 xy=(current_date, current_value),
+                                 xytext=(0, 8), textcoords='offset points',
+                                 ha='center', va='bottom', fontsize=9, color='black', fontweight='bold',
+                                 bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.8))
+
             # self.ax.set_title('Monthly Downloads Since Sept 2024')
+
+            # Add trendline starting from 2025-01, excluding current month
+            if len(df) > 1:
+                import numpy as np
+                from datetime import datetime as dt
+                # Filter data from 2025-01 onwards, excluding the last (current) entry
+                df_2025 = df[df['date'] >= dt(2025, 1, 1)]
+                if len(df_2025) > 2:  # Need at least 2 points after excluding current
+                    df_2025_historical = df_2025.iloc[:-1]
+                    x_numeric = np.arange(len(df_2025_historical))
+                    z = np.polyfit(x_numeric, df_2025_historical['downloads'].values, 1)
+                    p = np.poly1d(z)
+                    self.ax.plot(df_2025_historical['date'], p(x_numeric), "g--", alpha=0.5, linewidth=1.5)
+
             self.ax.set_xlabel('Date')
             self.ax.set_ylabel('Downloads')
             self.ax.grid(True)

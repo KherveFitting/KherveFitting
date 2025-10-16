@@ -303,7 +303,7 @@ class VB_measurements(wx.Frame):
         bg_points_sizer = wx.BoxSizer(wx.HORIZONTAL)
         bg_points_sizer.Add(wx.StaticText(left_panel, label="BG Points:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.vbm_bg_points_ctrl = wx.SpinCtrl(left_panel)
-        self.vbm_bg_points_ctrl.SetRange(3, 100)
+        self.vbm_bg_points_ctrl.SetRange(3, 100000)
         self.vbm_bg_points_ctrl.SetValue(10)
         self.vbm_bg_points_ctrl.Enable(False)
         bg_points_sizer.Add(self.vbm_bg_points_ctrl, 1, wx.ALL, 5)

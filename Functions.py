@@ -1325,15 +1325,15 @@ def parse_constraints(constraint_str, current_value, peak_params_grid, peak_inde
     small_error = 0.05
 
     # Pattern to match A+1.5#0.5 format
-    pattern = r'^([A-P])([+\-*/])(\d+\.?\d*)#([\d\.]+)$'
+    pattern = r'^([A-Z])([+\-*/])(\d+\.?\d*)#([\d\.]+)$'
     match = re.match(pattern, constraint_str)
 
     # Pattern for A+2 or A*2 or A/2 or A-2 format
-    pattern_simple = r'^([A-P])([+\-*/])(\d+\.?\d*)$'
+    pattern_simple = r'^([A-Z])([+\-*/])(\d+\.?\d*)$'
     match_simple = re.match(pattern_simple, constraint_str)
 
     # NEW CODE - Pattern for cross-core-level constraints: C1s_A*1.5#0.1
-    pattern_cross_core = r'^([^_]+_[A-P])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
+    pattern_cross_core = r'^([^_]+_[A-Z])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
     match_cross_core = re.match(pattern_cross_core, constraint_str)
 
     if constraint_str in ['Fixed']:
@@ -1494,7 +1494,7 @@ def resolve_cross_core_constraint(window, constraint_str, param_name):
         return constraint_str
 
     import re
-    pattern = r'^([^_]+_[A-P])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
+    pattern = r'^([^_]+_[A-Z])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
     match = re.match(pattern, constraint_str)
 
     if not match:

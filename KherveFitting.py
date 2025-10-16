@@ -1221,7 +1221,7 @@ class MyFrame(wx.Frame):
         """Evaluate constraints that reference other core levels"""
         import re
 
-        pattern = r'^([^_]+_[A-P])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
+        pattern = r'^([^_]+_[A-Z])([+\-*/])([0-9]*\.?[0-9]+)(?:#([0-9]*\.?[0-9]+))?$'
         match = re.match(pattern, constraint_str)
 
         if not match:
@@ -4077,10 +4077,10 @@ if __name__ == '__main__':
     splash.update_message("Loading Peak Manipulation...")
     from libraries.PeakManipulation import PeakManipulation
 
-    splash.update_message("Loading On_Key_Defs...")
+    splash.update_message("Loading On Key Defs...")
     from libraries.On_Key_Defs import setup_key_handlers
 
-    splash.update_message("Loading On_Mouse_Defs...")
+    splash.update_message("Loading On Mouse Defs...")
     from libraries.On_Mouse_Defs import setup_mouse_handlers
 
     splash.update_message("Loading Save handlers...")
@@ -4111,7 +4111,7 @@ if __name__ == '__main__':
     if os_name == "Darwin":
         frame = MyFrame(None, "KherveFitting-v1.66_25j30")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.65_25j10")
+        frame = MyFrame(None, "KherveFitting-v1.66_25j30")
     else:
         frame = MyFrame(None, "KherveFitting-v1.66_25j30")
 

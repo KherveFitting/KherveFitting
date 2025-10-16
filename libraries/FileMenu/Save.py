@@ -2407,9 +2407,9 @@ def load_peaks_library(window):
                 return match.group(0).replace(peak_letter, new_letter)
 
             # Update references in expressions like "A*1.5", "B+2.3", etc.
-            updated = re.sub(r'\b([A-P])(?=[*+\-/])', replace_peak_ref, constraint_str)
+            updated = re.sub(r'\b([A-Z])(?=[*+\-/])', replace_peak_ref, constraint_str)
             # Update standalone references like "A", "B"
-            updated = re.sub(r'^([A-P])$', replace_peak_ref, updated)
+            updated = re.sub(r'^([A-Z])$', replace_peak_ref, updated)
 
             return updated
 
@@ -3258,7 +3258,7 @@ def convert_constraint_to_casa(constraint_str, value, param_name):
     elif any(letter in constraint_str for letter in "ABCDEFGHIJKLMNOP"):
         # Linked constraint like "A+1.5" or "B*2.0"
         import re
-        match = re.match(r'([A-P])([+\-*/])([\d.]+)', constraint_str)
+        match = re.match(r'([A-Z])([+\-*/])([\d.]+)', constraint_str)
         if match:
             peak_letter, operator, const_value = match.groups()
             peak_index = ord(peak_letter) - ord('A')  # A=0, B=1, etc.

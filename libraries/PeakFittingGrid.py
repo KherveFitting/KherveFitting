@@ -749,7 +749,7 @@ class PeakFittingGrid:
                     return
 
             # Pattern to match all possible formats
-            pattern = r'^([A-P])([+\-*/])(\d+\.?\d*)(?:#(\d+\.?\d*))?$'
+            pattern = r'^([A-Z])([+\-*/])(\d+\.?\d*)(?:#(\d+\.?\d*))?$'
             match = re.match(pattern, new_value)
             print(f'Checking if it is an empty string: {new_value}')
             if not new_value:  # If empty string
@@ -901,7 +901,7 @@ class PeakFittingGrid:
         # NEW CODE - Handle cross-core-level constraint auto-expansion with error checking
         elif row % 2 == 1 and col in [2, 3, 4, 5, 6, 7, 8, 9]:
             # Check if it matches cross-core-level pattern like "C1s_A", "sr3d_a", "Sr3d_A"
-            cross_core_pattern = r'^([^_]+)_([A-Pa-p])$'
+            cross_core_pattern = r'^([^_]+)_([A-Za-z])$'
             match = re.match(cross_core_pattern, new_value, re.IGNORECASE)
 
             if match:
@@ -1381,7 +1381,7 @@ class PeakFittingGrid:
                 'Area': float(self.window.peak_params_grid.GetCellValue(row_data, 6)),
                 'Sigma': self.safe_float_convert(sigma_str),  # No self.
                 'Gamma': self.safe_float_convert(gamma_str),  # No self.
-                    'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
+                'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
                 'Fitting Model': self.window.peak_params_grid.GetCellValue(row_data, 13)
             }
             # Update constraints
