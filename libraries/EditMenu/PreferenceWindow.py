@@ -391,7 +391,7 @@ class PreferenceWindow(wx.Frame):
         # Add ECF method selection
         self.library_type_label = wx.StaticText(self.instrument_tab, label="ECF Method:")
         self.library_type_combo = wx.ComboBox(self.instrument_tab,
-                                              choices=["Scofield", "Wagner", "TPP-2M","EAL", "None"],
+                                              choices=["Scofield", "Wagner", "TPP-2M","EAL", "NPL method (ECF + Transmission)","None"],
                                               style=wx.CB_READONLY)
         current_type = self.parent.library_type
         selection_index = self.library_type_combo.FindString(current_type)
@@ -424,7 +424,11 @@ class PreferenceWindow(wx.Frame):
         lib_info_btn.Bind(wx.EVT_BUTTON, self.on_view_library)
         sizer.Add(lib_info_btn, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-
+        npl_trans_btn = wx.Button(self.instrument_tab, label="NPL Transmission")
+        npl_trans_btn.SetToolTip("Configure NPL intensity calibration transmission function")
+        npl_trans_btn.SetMinSize((110, 30))
+        npl_trans_btn.Bind(wx.EVT_BUTTON, self.on_npl_transmission)
+        sizer.Add(npl_trans_btn, pos=(3, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
 
         # Add angular correction controls
@@ -496,6 +500,12 @@ class PreferenceWindow(wx.Frame):
     def on_instrument_change(self, event):
         selected_instrument = self.instrument_combo.GetValue()
         self.parent.update_instrument(selected_instrument)
+
+    def on_npl_transmission(self, event):
+        """Open NPL Transmission configuration window"""
+        from libraries.EditMenu.NPLTransmissionWindow import NPLTransmissionWindow
+        npl_window = NPLTransmissionWindow(self.parent)
+        npl_window.Show()
 
     def InitUI(self):
         # panel = wx.Panel(self)

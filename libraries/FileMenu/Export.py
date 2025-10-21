@@ -239,6 +239,8 @@ def _calculate_peak_areas(window, peak_params, row):
 
         eal = (0.65 + 0.007 * kinetic_energy**0.93) / (z_avg**0.38)
         ecf = eal
+    elif window.library_type == "NPL method (ECF + Transmission)":
+        ecf = 1.0  # NPL method: correction done in Excel
     elif window.library_type == "None":
         ecf = 1.0
     else:
@@ -304,6 +306,8 @@ def _update_results_grid(window, row, peak_params, area, rel_area, fitting_model
         window.results_grid.SetCellValue(row, 10, "TPP-2M")
     elif window.library_type == "EAL":
         window.results_grid.SetCellValue(row, 10, "EAL")
+    elif window.library_type == "NPL method (ECF + Transmission)":
+        window.results_grid.SetCellValue(row, 10, "NPL")
     else:
         window.results_grid.SetCellValue(row, 10, "1.0")
 

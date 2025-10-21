@@ -778,13 +778,6 @@ class FittingWindow(wx.Frame):
         # Create main sizer
         batch_sizer = wx.GridBagSizer(0, 0)
 
-        # # Title
-        # title_label = wx.StaticText(self.batch_panel, label="Batching")
-        # title_font = title_label.GetFont()
-        # title_font.SetWeight(wx.FONTWEIGHT_BOLD)
-        # title_label.SetFont(title_font)
-        # batch_sizer.Add(title_label, pos=(0, 0), span=(1, 2), flag=wx.ALL | wx.EXPAND, border=5)
-
         # N# of Iterations control (same as in fitting tab)
         batch_sizer.Add(wx.StaticText(self.batch_panel, label="N# of Iterations:"), pos=(0, 0),
                         flag=wx.ALL | wx.EXPAND, border=1)
