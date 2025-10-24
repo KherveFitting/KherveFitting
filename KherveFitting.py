@@ -179,6 +179,11 @@ class MyFrame(wx.Frame):
         self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
+        # NPL Transmission function parameters (3 slots)
+        self.npl_transmission_1 = None
+        self.npl_transmission_2 = None
+        self.npl_transmission_3 = None
+
         # Apply text settings
         plt.rcParams['font.family'] = self.plot_font
         plt.rcParams['figure.dpi'] = 100
@@ -3139,6 +3144,10 @@ class MyFrame(wx.Frame):
                 self.ref_peak_name = config.get('ref_peak_name', 'C1s C-C')
                 self.ref_peak_be = config.get('ref_peak_be', 284.8)
                 self.photons = config.get('photons', 1486.67)
+                # Load NPL transmission parameters
+                self.npl_transmission_1 = config.get('npl_transmission_1', None)
+                self.npl_transmission_2 = config.get('npl_transmission_2', None)
+                self.npl_transmission_3 = config.get('npl_transmission_3', None)
                 # Load NPL Transmission parameters
                 self.npl_transmission = config.get('npl_transmission', {
                     'a0': None,
@@ -3236,6 +3245,11 @@ class MyFrame(wx.Frame):
             'photons': self.photons,
 
             # NPL Transmission parameters
+            'npl_transmission_1': getattr(self, 'npl_transmission_1', None),
+            'npl_transmission_2': getattr(self, 'npl_transmission_2', None),
+            'npl_transmission_3': getattr(self, 'npl_transmission_3', None),
+
+            # NPL Transmission parameters
             'npl_transmission': getattr(self, 'npl_transmission', {
                 'a0': None,
                 'a1': None,
@@ -3249,7 +3263,6 @@ class MyFrame(wx.Frame):
                 'min_ke': None,
                 'max_ke': None
             }),
-
 
             # Excel file settings
             'excel_width': self.excel_width,

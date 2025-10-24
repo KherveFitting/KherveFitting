@@ -14,6 +14,9 @@ class NPLTransmissionWindow(wx.Frame):
         super().__init__(parent, title="NPL Transmission Function", size=(800, 600), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
         self.parent = parent
 
+        # Current slot (1, 2, or 3)
+        self.current_slot = 1
+
         # Initialize transmission parameters
         self.a0 = None
         self.a1 = None
@@ -40,6 +43,25 @@ class NPLTransmissionWindow(wx.Frame):
         left_panel = wx.Panel(panel)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # Slot selection
+        slot_label = wx.StaticText(left_panel, label="Parameter Slot:")
+        left_sizer.Add(slot_label, 0, wx.ALL, 5)
+
+        slot_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.slot_radio_1 = wx.RadioButton(left_panel, label="1", style=wx.RB_GROUP)
+        self.slot_radio_2 = wx.RadioButton(left_panel, label="2")
+        self.slot_radio_3 = wx.RadioButton(left_panel, label="3")
+
+        self.slot_radio_1.SetValue(True)
+        self.slot_radio_1.Bind(wx.EVT_RADIOBUTTON, lambda e: self.on_slot_change(1))
+        self.slot_radio_2.Bind(wx.EVT_RADIOBUTTON, lambda e: self.on_slot_change(2))
+        self.slot_radio_3.Bind(wx.EVT_RADIOBUTTON, lambda e: self.on_slot_change(3))
+
+        slot_sizer.Add(self.slot_radio_1, 0, wx.ALL, 2)
+        slot_sizer.Add(self.slot_radio_2, 0, wx.ALL, 2)
+        slot_sizer.Add(self.slot_radio_3, 0, wx.ALL, 2)
+        left_sizer.Add(slot_sizer, 0, wx.ALL, 5)
+
         # VMS file drop zone
         drop_label = wx.StaticText(left_panel, label="Drop VMS File Here:")
         left_sizer.Add(drop_label, 0, wx.ALL, 5)
@@ -65,7 +87,7 @@ class NPLTransmissionWindow(wx.Frame):
         self.param_grid.EnableEditing(False)
 
         # Make header row smaller
-        self.param_grid.SetColLabelSize(25)  # Reduce header height (default is ~25)
+        self.param_grid.SetColLabelSize(25)
         self.param_grid.SetRowLabelSize(25)
 
         # Set parameter names
@@ -89,8 +111,8 @@ class NPLTransmissionWindow(wx.Frame):
         left_sizer.Add(apply_btn, 0, wx.ALL | wx.EXPAND, 5)
 
         left_panel.SetSizer(left_sizer)
-        left_panel.SetMinSize((210, -1))  # Set minimum width for left panel
-        main_sizer.Add(left_panel, 0, wx.ALL, 5)  # Remove wx.EXPAND flag
+        left_panel.SetMinSize((210, -1))
+        main_sizer.Add(left_panel, 0, wx.ALL, 5)
 
         # Right panel for plot
         right_panel = wx.Panel(panel)
@@ -107,6 +129,21 @@ class NPLTransmissionWindow(wx.Frame):
 
         # Update sheet checklist
         self.update_sheet_list()
+
+    def on_slot_change(self, slot_number):
+        """Handle slot selection change"""
+        self.current_slot = slot_number
+        self.load_parameters_from_config()
+        self.update_parameter_display()
+        self.plot_transmission_function()
+
+    def update_sheet_list(self):
+        """Update the checklist with available sheets"""
+        self.sheet_checklist.Clear()
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            sheets = list(self.parent.Data['Core levels'].keys())
+            if sheets:
+                self.sheet_checklist.AppendItems(sheets)
 
     def on_browse_vms(self, event):
         wildcard = "VMS files (*.vms)|*.vms"
@@ -173,7 +210,7 @@ class NPLTransmissionWindow(wx.Frame):
             self.save_parameters_to_config()
             self.plot_transmission_function()
 
-            wx.MessageBox("VMS file loaded and saved to config.json!", "Success", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox(f"VMS file loaded and saved to slot {self.current_slot}!", "Success", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Error loading VMS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -186,6 +223,8 @@ class NPLTransmissionWindow(wx.Frame):
         for i, val in enumerate(values):
             if val is not None:
                 self.param_grid.SetCellValue(i, 1, f"{val:.6f}")
+            else:
+                self.param_grid.SetCellValue(i, 1, "")
 
     def calculate_transmission(self, kinetic_energy):
         """
@@ -254,7 +293,39 @@ class NPLTransmissionWindow(wx.Frame):
             wx.MessageBox("No Excel file is open", "Error", wx.OK | wx.ICON_ERROR)
             return
 
+        # Show warning dialog
+        dlg = wx.MessageDialog(self,
+                               f"Warning: This will remove all background regions and peaks from the selected {len(checked_sheets)} sheet(s) before applying transmission correction.\n\n"
+                               f"Selected sheets:\n" + "\n".join(checked_sheets) + "\n\n"
+                                                                                   "Do you want to continue?",
+                               "Confirm Remove Regions and Peaks",
+                               wx.YES_NO | wx.ICON_WARNING)
+
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+        if result != wx.ID_YES:
+            return
+
         try:
+            # Remove background and peaks from all selected sheets first
+            for sheet_name in checked_sheets:
+                if sheet_name in self.parent.Data['Core levels']:
+                    # Clear background recorded ranges
+                    if 'Background' in self.parent.Data['Core levels'][sheet_name]:
+                        self.parent.Data['Core levels'][sheet_name]['Background']['Recorded_Ranges'] = []
+                        self.parent.Data['Core levels'][sheet_name]['Background'].update({
+                            'Bkg Type': '',
+                            'Bkg Low': '',
+                            'Bkg High': '',
+                            'Bkg Offset Low': '',
+                            'Bkg Offset High': ''
+                        })
+
+                    # Clear fitting data
+                    if 'Fitting' in self.parent.Data['Core levels'][sheet_name]:
+                        self.parent.Data['Core levels'][sheet_name]['Fitting'] = {}
+
             # Get photon energy from parent
             photon_energy = self.parent.photons
 
@@ -301,24 +372,33 @@ class NPLTransmissionWindow(wx.Frame):
 
                 sheets_processed.append(sheet_name)
 
-                # Save Excel workbook
-                wb.save(self.parent.Data['FilePath'])
-                wb.close()
+            # Save Excel workbook AFTER all sheets are processed
+            wb.save(self.parent.Data['FilePath'])
+            wb.close()
 
-                # Update JSON file
-                self.update_json_file(sheets_processed)
+            # Store the file path
+            file_path = self.parent.Data['FilePath']
 
-                # Store the file path
-                file_path = self.parent.Data['FilePath']
+            # First reopen - load the data fresh from Excel
+            from libraries.FileMenu.Open import open_xlsx_file
+            open_xlsx_file(self.parent, file_path)
 
-                # Reopen the Excel file to refresh everything
-                from libraries.FileMenu.Open import open_xlsx_file
-                wx.CallAfter(open_xlsx_file, self.parent, file_path)
+            # Calculate min/max intensity for processed sheets
+            for sheet_name in sheets_processed:
+                if sheet_name in self.parent.Data['Core levels']:
+                    intensity_data = self.parent.Data['Core levels'][sheet_name].get('Intensity', [])
+                    if intensity_data:
+                        self.parent.Data['Core levels'][sheet_name]['Min Intensity'] = float(f"{min(intensity_data):.2f}")
+                        self.parent.Data['Core levels'][sheet_name]['Max Intensity'] = float(f"{max(intensity_data):.2f}")
 
-                wx.MessageBox(f"Transmission applied to {len(sheets_processed)} sheet(s):\n" +
-                              "\n".join(sheets_processed) +
-                              "\n\nColumn B: Corrected data\nColumn C: Raw data\nColumn D: Transmission values\n\nFile reloaded successfully.",
-                              "Success", wx.OK | wx.ICON_INFORMATION)
+            # Save to JSON with updated min/max
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            with open(json_path, 'w') as f:
+                json.dump(self.parent.Data, f, indent=2, default=str)
+
+            # Second reopen - reload everything with updated min/max
+            open_xlsx_file(self.parent, file_path)
+
 
         except Exception as e:
             wx.MessageBox(f"Error applying transmission: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -377,8 +457,8 @@ class NPLTransmissionWindow(wx.Frame):
     def save_parameters_to_config(self):
         """Save transmission parameters to parent and config.json"""
         try:
-            # Update parent's npl_transmission attribute
-            self.parent.npl_transmission = {
+            # Create parameter dictionary
+            params = {
                 'a0': self.a0,
                 'a1': self.a1,
                 'a2': self.a2,
@@ -392,6 +472,14 @@ class NPLTransmissionWindow(wx.Frame):
                 'max_ke': self.max_ke
             }
 
+            # Update parent's npl_transmission attribute for selected slot
+            if self.current_slot == 1:
+                self.parent.npl_transmission_1 = params
+            elif self.current_slot == 2:
+                self.parent.npl_transmission_2 = params
+            elif self.current_slot == 3:
+                self.parent.npl_transmission_3 = params
+
             # Save using parent's save_config method
             if hasattr(self.parent, 'save_config'):
                 self.parent.save_config()
@@ -400,11 +488,18 @@ class NPLTransmissionWindow(wx.Frame):
             print(f"Error saving config: {e}")
 
     def load_parameters_from_config(self):
-        """Load transmission parameters from parent"""
+        """Load transmission parameters from parent for current slot"""
         try:
-            # Load from parent's npl_transmission attribute
-            if hasattr(self.parent, 'npl_transmission'):
-                params = self.parent.npl_transmission
+            # Load from parent's npl_transmission attribute for selected slot
+            params = None
+            if self.current_slot == 1 and hasattr(self.parent, 'npl_transmission_1'):
+                params = self.parent.npl_transmission_1
+            elif self.current_slot == 2 and hasattr(self.parent, 'npl_transmission_2'):
+                params = self.parent.npl_transmission_2
+            elif self.current_slot == 3 and hasattr(self.parent, 'npl_transmission_3'):
+                params = self.parent.npl_transmission_3
+
+            if params:
                 self.a0 = params.get('a0')
                 self.a1 = params.get('a1')
                 self.a2 = params.get('a2')
@@ -416,10 +511,15 @@ class NPLTransmissionWindow(wx.Frame):
                 self.b4 = params.get('b4')
                 self.min_ke = params.get('min_ke')
                 self.max_ke = params.get('max_ke')
+            else:
+                # Clear parameters if slot is empty
+                self.a0 = self.a1 = self.a2 = self.a3 = self.a4 = None
+                self.b1 = self.b2 = self.b3 = self.b4 = None
+                self.min_ke = self.max_ke = None
 
-                # Update display and plot
-                wx.CallAfter(self.update_parameter_display)
-                wx.CallAfter(self.plot_transmission_function)
+            # Update display and plot
+            wx.CallAfter(self.update_parameter_display)
+            wx.CallAfter(self.plot_transmission_function)
 
         except Exception as e:
             print(f"Error loading config: {e}")
