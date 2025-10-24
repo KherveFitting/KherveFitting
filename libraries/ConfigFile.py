@@ -22,61 +22,6 @@ def Init_Measurement_Data(window):
     return Data
 
 
-def add_core_level_Data_OLD(data, window, file_path, sheet_name):
-    """
-    Extracts X and Y data from the given Excel file and adds it to the core level in the data dictionary.
-    The sheet_name corresponds to the core level label.
-    Uses the window.skip_rows_spinbox value to determine how many rows to skip.
-    """
-
-    if sheet_name.startswith('Sheet'):
-        wx.MessageBox(f"Sheet names must be core level names (e.g., C1s, O1s).\nInvalid sheet name: '{sheet_name}'",
-                      "Invalid Sheet Name", wx.OK | wx.ICON_WARNING)
-        return data
-
-    skip_rows = 0
-
-    # Check headers in first row
-    headers_df = pd.read_excel(file_path, sheet_name=sheet_name, nrows=1)
-
-    # Rest of the function remains the same
-    df = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=skip_rows)
-
-    if df.empty or df.shape[1] < 2:
-        # wx.MessageBox(
-        #     f"All sheets must be filled with data and named after their core level (e.g., C1s, O1s).\nSheet '{sheet_name}' is empty or has insufficient columns.",
-        #     "Invalid Sheet", wx.OK | wx.ICON_WARNING)
-        self.parent.show_popup_message2("Invalid Sheet", f"All sheets must be filled with data and named after their "
-                            f"core level (e.g., C1s, O1s).\nSheet '{sheet_name}' is empty or has insufficient columns.")
-            
-        return data
-
-    x_values = df.iloc[:, 0].tolist()
-    y_values = df.iloc[:, 1].tolist()
-
-    core_level = {
-        'Name': sheet_name,
-        'B.E.': df.iloc[:, 0].tolist(),
-        'Raw Data': df.iloc[:, 1].tolist(),
-        'Background': {
-            'Bkg Type': '',
-            'Bkg Low': '',
-            'Bkg High': '',
-            'Bkg Offset Low': '',
-            'Bkg Offset High': '',
-            'Bkg X': df.iloc[:, 0].tolist(),
-            'Bkg Y': df.iloc[:, 1].tolist()
-        },
-        'Fitting': {}
-    }
-
-    data['Core levels'][sheet_name] = core_level
-    data['Number of Core levels'] += 1
-
-    print(f"Added core level: {sheet_name}. Total core levels: {data['Number of Core levels']}")
-    print(f"Skipped {skip_rows} rows. Data starts from row {skip_rows + 1}")
-
-    return data
 
 
 def add_core_level_Data(Data, window, file_path, sheet_name):

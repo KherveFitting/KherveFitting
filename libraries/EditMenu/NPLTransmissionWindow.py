@@ -6,11 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 import openpyxl
+import pandas as pd
 
 
 class NPLTransmissionWindow(wx.Frame):
     def __init__(self, parent):
-        super().__init__(parent, title="NPL Transmission Function", size=(1000, 600))
+        super().__init__(parent, title="NPL Transmission Function", size=(800, 600), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
         self.parent = parent
 
         # Initialize transmission parameters
@@ -43,7 +44,7 @@ class NPLTransmissionWindow(wx.Frame):
         drop_label = wx.StaticText(left_panel, label="Drop VMS File Here:")
         left_sizer.Add(drop_label, 0, wx.ALL, 5)
 
-        self.vms_path_text = wx.TextCtrl(left_panel, style=wx.TE_READONLY, size=(300, 25))
+        self.vms_path_text = wx.TextCtrl(left_panel, style=wx.TE_READONLY, size=(200, 25))
         self.vms_path_text.SetDropTarget(VMSFileDropTarget(self))
         left_sizer.Add(self.vms_path_text, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -53,31 +54,34 @@ class NPLTransmissionWindow(wx.Frame):
 
         # Parameters display
         param_label = wx.StaticText(left_panel, label="Transmission Parameters:")
-        left_sizer.Add(param_label, 0, wx.ALL | wx.TOP, 10)
+        left_sizer.Add(param_label, 0, wx.ALL | wx.TOP, 5)
 
         self.param_grid = wx.grid.Grid(left_panel)
         self.param_grid.CreateGrid(11, 2)
-        self.param_grid.SetColLabelValue(0, "Parameter")
+        self.param_grid.SetColLabelValue(0, "ID")
         self.param_grid.SetColLabelValue(1, "Value")
-        self.param_grid.SetColSize(0, 100)
-        self.param_grid.SetColSize(1, 180)
+        self.param_grid.SetColSize(0, 70)
+        self.param_grid.SetColSize(1, 100)
         self.param_grid.EnableEditing(False)
 
+        # Make header row smaller
+        self.param_grid.SetColLabelSize(25)  # Reduce header height (default is ~25)
+        self.param_grid.SetRowLabelSize(25)
+
         # Set parameter names
-        param_names = ["a0", "a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4", "Min KE (eV)", "Max KE (eV)"]
+        param_names = ["a0", "a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4", "Min KE/eV", "Max KE/eV"]
         for i, name in enumerate(param_names):
             self.param_grid.SetCellValue(i, 0, name)
             self.param_grid.SetCellValue(i, 1, "")
 
         left_sizer.Add(self.param_grid, 1, wx.ALL | wx.EXPAND, 5)
 
-        # Sheet selection
-        sheet_label = wx.StaticText(left_panel, label="Select Sheet:")
+        # Sheet selection - CheckListBox instead of ComboBox
+        sheet_label = wx.StaticText(left_panel, label="Select Sheets:")
         left_sizer.Add(sheet_label, 0, wx.ALL | wx.TOP, 10)
 
-        self.sheet_combo = wx.ComboBox(left_panel, style=wx.CB_READONLY)
-        self.sheet_combo.Bind(wx.EVT_COMBOBOX, self.on_sheet_select)
-        left_sizer.Add(self.sheet_combo, 0, wx.ALL | wx.EXPAND, 5)
+        self.sheet_checklist = wx.CheckListBox(left_panel, choices=[])
+        left_sizer.Add(self.sheet_checklist, 0, wx.ALL | wx.EXPAND, 5)
 
         # Apply button
         apply_btn = wx.Button(left_panel, label="Write Transmission to Excel")
@@ -85,7 +89,8 @@ class NPLTransmissionWindow(wx.Frame):
         left_sizer.Add(apply_btn, 0, wx.ALL | wx.EXPAND, 5)
 
         left_panel.SetSizer(left_sizer)
-        main_sizer.Add(left_panel, 0, wx.ALL | wx.EXPAND, 5)
+        left_panel.SetMinSize((210, -1))  # Set minimum width for left panel
+        main_sizer.Add(left_panel, 0, wx.ALL, 5)  # Remove wx.EXPAND flag
 
         # Right panel for plot
         right_panel = wx.Panel(panel)
@@ -100,7 +105,7 @@ class NPLTransmissionWindow(wx.Frame):
 
         panel.SetSizer(main_sizer)
 
-        # Update sheet combobox
+        # Update sheet checklist
         self.update_sheet_list()
 
     def on_browse_vms(self, event):
@@ -168,7 +173,7 @@ class NPLTransmissionWindow(wx.Frame):
             self.save_parameters_to_config()
             self.plot_transmission_function()
 
-            wx.MessageBox("VMS file loaded successfully!", "Success", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("VMS file loaded and saved to config.json!", "Success", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Error loading VMS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
@@ -217,32 +222,32 @@ class NPLTransmissionWindow(wx.Frame):
         self.canvas.draw()
 
     def update_sheet_list(self):
-        """Update sheet combobox with available sheets"""
+        """Update sheet checklist with available sheets"""
         if 'FilePath' in self.parent.Data and self.parent.Data['FilePath']:
             try:
                 wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
                 sheets = [s for s in wb.sheetnames if s not in ['Experimental description', 'Sheet']]
-                self.sheet_combo.Clear()
-                self.sheet_combo.AppendItems(sheets)
-                if sheets:
-                    self.sheet_combo.SetSelection(0)
+                self.sheet_checklist.Clear()
+                self.sheet_checklist.AppendItems(sheets)
+                # Check all sheets by default
+                for i in range(len(sheets)):
+                    self.sheet_checklist.Check(i)
                 wb.close()
             except:
                 pass
 
-    def on_sheet_select(self, event):
-        """Handle sheet selection"""
-        pass
-
     def on_apply_transmission(self, event):
-        """Apply transmission correction to selected sheet in Excel"""
+        """Apply transmission correction to selected sheets in Excel and JSON"""
         if None in [self.a0, self.a1, self.a2, self.a3, self.a4, self.b1, self.b2, self.b3, self.b4]:
             wx.MessageBox("Please load a VMS file first", "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        sheet_name = self.sheet_combo.GetValue()
-        if not sheet_name:
-            wx.MessageBox("Please select a sheet", "Error", wx.OK | wx.ICON_ERROR)
+        # Get checked sheets
+        checked_sheets = [self.sheet_checklist.GetString(i) for i in range(self.sheet_checklist.GetCount())
+                          if self.sheet_checklist.IsChecked(i)]
+
+        if not checked_sheets:
+            wx.MessageBox("Please select at least one sheet", "Error", wx.OK | wx.ICON_ERROR)
             return
 
         if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
@@ -256,63 +261,124 @@ class NPLTransmissionWindow(wx.Frame):
             # Load workbook
             wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
 
-            if sheet_name not in wb.sheetnames:
-                wx.MessageBox(f"Sheet '{sheet_name}' not found", "Error", wx.OK | wx.ICON_ERROR)
+            sheets_processed = []
+
+            for sheet_name in checked_sheets:
+                if sheet_name not in wb.sheetnames:
+                    continue
+
+                ws = wb[sheet_name]
+
+                # Process each row
+                row = 2
+                while ws.cell(row=row, column=1).value is not None:
+                    be_value = ws.cell(row=row, column=1).value
+
+                    if be_value is not None:
+                        # Check if raw data exists in column C, if not copy from column B
+                        raw_data = ws.cell(row=row, column=3).value
+                        if raw_data is None:
+                            # Copy data from column B to column C (save original as raw)
+                            raw_data = ws.cell(row=row, column=2).value
+                            if raw_data is not None:
+                                ws.cell(row=row, column=3, value=float(f"{float(raw_data):.2f}"))
+
+                        if raw_data is not None:
+                            # Convert BE to KE
+                            ke = photon_energy - float(be_value)
+
+                            # Calculate transmission
+                            transmission = self.calculate_transmission(ke)
+
+                            # Write transmission to column D
+                            ws.cell(row=row, column=4, value=float(f"{transmission:.2f}"))
+
+                            # Calculate corrected data: raw_data / transmission
+                            corrected = float(raw_data) / transmission
+                            ws.cell(row=row, column=2, value=float(f"{corrected:.2f}"))
+
+                    row += 1
+
+                sheets_processed.append(sheet_name)
+
+                # Save Excel workbook
+                wb.save(self.parent.Data['FilePath'])
                 wb.close()
-                return
 
-            ws = wb[sheet_name]
+                # Update JSON file
+                self.update_json_file(sheets_processed)
 
-            # Read binding energies from column A and raw data from column C
-            row = 2
-            while ws.cell(row=row, column=1).value is not None:
-                be_value = ws.cell(row=row, column=1).value
-                raw_data = ws.cell(row=row, column=3).value
+                # Store the file path
+                file_path = self.parent.Data['FilePath']
 
-                if be_value is not None and raw_data is not None:
-                    # Convert BE to KE
-                    ke = photon_energy - float(be_value)
+                # Reopen the Excel file to refresh everything
+                from libraries.FileMenu.Open import open_xlsx_file
+                wx.CallAfter(open_xlsx_file, self.parent, file_path)
 
-                    # Calculate transmission
-                    transmission = self.calculate_transmission(ke)
-
-                    # Write transmission to column D
-                    ws.cell(row=row, column=4, value=float(f"{transmission:.2f}"))
-
-                    # Calculate corrected data: raw_data / transmission
-                    corrected = float(raw_data) / transmission
-                    ws.cell(row=row, column=2, value=float(f"{corrected:.2f}"))
-
-                row += 1
-
-            # Save workbook
-            wb.save(self.parent.Data['FilePath'])
-            wb.close()
-
-            wx.MessageBox(f"Transmission applied to {sheet_name}\nColumn B: Corrected data\nColumn D: Transmission values",
-                          "Success", wx.OK | wx.ICON_INFORMATION)
-
-            # Reload the data in parent
-            if hasattr(self.parent, 'clear_and_replot'):
-                self.parent.clear_and_replot()
+                wx.MessageBox(f"Transmission applied to {len(sheets_processed)} sheet(s):\n" +
+                              "\n".join(sheets_processed) +
+                              "\n\nColumn B: Corrected data\nColumn C: Raw data\nColumn D: Transmission values\n\nFile reloaded successfully.",
+                              "Success", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:
             wx.MessageBox(f"Error applying transmission: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
-    def save_parameters_to_config(self):
-        """Save transmission parameters to config.json"""
-        config_path = 'config.json'
+    def update_json_file(self, sheet_names):
+        """Update the JSON file with transmission-corrected data"""
+        json_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
 
         try:
-            # Load existing config
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            # Load Excel data
+            wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
 
-            # Add NPL parameters
-            config['npl_transmission'] = {
+            for sheet_name in sheet_names:
+                if sheet_name not in wb.sheetnames:
+                    continue
+
+                ws = wb[sheet_name]
+
+                # Read data from Excel
+                be_data = []
+                corrected_data = []
+                raw_data = []
+                transmission_data = []
+
+                row = 2
+                while ws.cell(row=row, column=1).value is not None:
+                    be_val = ws.cell(row=row, column=1).value
+                    corr_val = ws.cell(row=row, column=2).value
+                    raw_val = ws.cell(row=row, column=3).value
+                    trans_val = ws.cell(row=row, column=4).value
+
+                    if be_val is not None:
+                        be_data.append(float(be_val))
+                        corrected_data.append(float(corr_val) if corr_val is not None else 0.0)
+                        raw_data.append(float(raw_val) if raw_val is not None else 0.0)
+                        transmission_data.append(float(trans_val) if trans_val is not None else 1.0)
+
+                    row += 1
+
+                # Update parent Data structure
+                if 'Core levels' in self.parent.Data and sheet_name in self.parent.Data['Core levels']:
+                    self.parent.Data['Core levels'][sheet_name]['BE'] = be_data
+                    self.parent.Data['Core levels'][sheet_name]['Intensity'] = corrected_data
+                    self.parent.Data['Core levels'][sheet_name]['Raw Data'] = raw_data
+                    self.parent.Data['Core levels'][sheet_name]['Transmission'] = transmission_data
+
+            wb.close()
+
+            # Save JSON file
+            with open(json_path, 'w') as f:
+                json.dump(self.parent.Data, f, indent=2, default=str)
+
+        except Exception as e:
+            print(f"Error updating JSON: {e}")
+
+    def save_parameters_to_config(self):
+        """Save transmission parameters to parent and config.json"""
+        try:
+            # Update parent's npl_transmission attribute
+            self.parent.npl_transmission = {
                 'a0': self.a0,
                 'a1': self.a1,
                 'a2': self.a2,
@@ -326,38 +392,34 @@ class NPLTransmissionWindow(wx.Frame):
                 'max_ke': self.max_ke
             }
 
-            # Save config
-            with open(config_path, 'w') as f:
-                json.dump(config, f, indent=2)
+            # Save using parent's save_config method
+            if hasattr(self.parent, 'save_config'):
+                self.parent.save_config()
 
         except Exception as e:
             print(f"Error saving config: {e}")
 
     def load_parameters_from_config(self):
-        """Load transmission parameters from config.json"""
-        config_path = 'config.json'
-
+        """Load transmission parameters from parent"""
         try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
+            # Load from parent's npl_transmission attribute
+            if hasattr(self.parent, 'npl_transmission'):
+                params = self.parent.npl_transmission
+                self.a0 = params.get('a0')
+                self.a1 = params.get('a1')
+                self.a2 = params.get('a2')
+                self.a3 = params.get('a3')
+                self.a4 = params.get('a4')
+                self.b1 = params.get('b1')
+                self.b2 = params.get('b2')
+                self.b3 = params.get('b3')
+                self.b4 = params.get('b4')
+                self.min_ke = params.get('min_ke')
+                self.max_ke = params.get('max_ke')
 
-                if 'npl_transmission' in config:
-                    params = config['npl_transmission']
-                    self.a0 = params.get('a0')
-                    self.a1 = params.get('a1')
-                    self.a2 = params.get('a2')
-                    self.a3 = params.get('a3')
-                    self.a4 = params.get('a4')
-                    self.b1 = params.get('b1')
-                    self.b2 = params.get('b2')
-                    self.b3 = params.get('b3')
-                    self.b4 = params.get('b4')
-                    self.min_ke = params.get('min_ke')
-                    self.max_ke = params.get('max_ke')
-
-                    self.update_parameter_display()
-                    self.plot_transmission_function()
+                # Update display and plot
+                wx.CallAfter(self.update_parameter_display)
+                wx.CallAfter(self.plot_transmission_function)
 
         except Exception as e:
             print(f"Error loading config: {e}")

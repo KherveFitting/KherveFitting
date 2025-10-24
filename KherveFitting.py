@@ -3139,6 +3139,20 @@ class MyFrame(wx.Frame):
                 self.ref_peak_name = config.get('ref_peak_name', 'C1s C-C')
                 self.ref_peak_be = config.get('ref_peak_be', 284.8)
                 self.photons = config.get('photons', 1486.67)
+                # Load NPL Transmission parameters
+                self.npl_transmission = config.get('npl_transmission', {
+                    'a0': None,
+                    'a1': None,
+                    'a2': None,
+                    'a3': None,
+                    'a4': None,
+                    'b1': None,
+                    'b2': None,
+                    'b3': None,
+                    'b4': None,
+                    'min_ke': None,
+                    'max_ke': None
+                })
                 self.times_opened = config.get('times_opened', 0)
                 self.enable_auto_backup = config.get('enable_auto_backup', False)
                 self.backup_interval = config.get('backup_interval', 30)
@@ -3220,6 +3234,21 @@ class MyFrame(wx.Frame):
             'ref_peak_name': self.ref_peak_name,
             'ref_peak_be': self.ref_peak_be,
             'photons': self.photons,
+
+            # NPL Transmission parameters
+            'npl_transmission': getattr(self, 'npl_transmission', {
+                'a0': None,
+                'a1': None,
+                'a2': None,
+                'a3': None,
+                'a4': None,
+                'b1': None,
+                'b2': None,
+                'b3': None,
+                'b4': None,
+                'min_ke': None,
+                'max_ke': None
+            }),
 
 
             # Excel file settings
