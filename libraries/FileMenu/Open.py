@@ -25,59 +25,6 @@ class ExcelDropTarget(wx.FileDropTarget):
         wx.FileDropTarget.__init__(self)
         self.window = window
 
-    def OnDropFiles_OLD(self, x, y, filenames):
-        from libraries.FileMenu.Open import open_xlsx_file, open_vamas_file
-        for file in filenames:
-            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe',
-                                                              '.mrs', '.1']):
-                wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
-                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech) and .spe (Phi) files can be "
-                              f"dropped.",
-                              "Invalid File "
-                                                                                                     "Type",
-                              wx.OK | wx.ICON_ERROR)
-                return False
-            if file.lower().endswith('.xlsx'):
-                try:
-                    wb = openpyxl.load_workbook(file)
-                    if "Titles" in wb.sheetnames:
-                        wx.CallAfter(import_avantage_file_direct, self.window, file)
-                    else:
-                        wx.CallAfter(open_xlsx_file, self.window, file)
-                    return True
-                except Exception:
-                    return False
-            elif file.lower().endswith('.xls'):
-                try:
-                    wb = xlrd.open_workbook(file)
-                    if "Titles" in wb.sheet_names():
-                        wx.CallAfter(import_avantage_file_direct_xls, self.window, file)
-                    else:
-                        wx.CallAfter(open_xlsx_file, self.window, file)
-                    return True
-                except Exception:
-                    print("Error opening Excel file:", sys.exc_info())
-                    return False
-            elif file.lower().endswith('.vms'):
-                wx.CallAfter(open_vamas_file, self.window, file)
-                return True
-            elif file.lower().endswith('.kal'):
-                wx.CallAfter(open_kal_file, self.window, file)
-                return True
-            elif file.lower().endswith('.avg'):
-                wx.CallAfter(open_avg_file_direct, self.window, file)
-                return True
-            elif file.lower().endswith('.spe'):
-                wx.CallAfter(open_spe_file, self.window, file)
-                return True
-            elif file.lower().endswith('.mrs'):
-                wx.CallAfter(open_mrs_file, self.window, file)
-                return True
-            elif file.lower().endswith('.1'):
-                wx.CallAfter(open_vg_microtech_file, self.window, file)
-                return True
-        return False
-
     def OnDropFiles(self, x, y, filenames):
 
         # Check all files are valid first
@@ -99,7 +46,7 @@ class ExcelDropTarget(wx.FileDropTarget):
         # Multiple files - group by type and process
         return self._process_multiple_dropped_files(filenames)
 
-    def _process_single_dropped_file(self, file):
+    def _process_single_dropped_file_OLD(self, file):
         """Process single dropped file using original logic"""
         from libraries.FileMenu.Open import open_xlsx_file, open_vamas_file, open_kal_file, open_avg_file_direct, open_spe_file, \
             open_mrs_file, open_vg_microtech_file
@@ -148,7 +95,125 @@ class ExcelDropTarget(wx.FileDropTarget):
             return True
         return False
 
-    def _process_multiple_dropped_files(self, filenames):
+    def _process_single_dropped_file(self, file):
+        """Process single dropped file using original logic"""
+        from libraries.FileMenu.Open import (open_xlsx_file, open_vamas_file, open_kal_file,
+                                             open_avg_file_direct, open_spe_file, open_mrs_file,
+                                             open_vg_microtech_file, import_avantage_file_direct,
+                                             import_avantage_file_direct_xls, import_generic_excel_file)
+
+        if file.lower().endswith('.xlsx'):
+            try:
+                wb = openpyxl.load_workbook(file)
+
+                # Check for Avantage format
+                if "Titles" in wb.sheetnames:
+                    wx.CallAfter(import_avantage_file_direct, self.window, file)
+                    wb.close()
+                    return True
+
+                # Check if it's standard kFitting format (numeric data in first two columns)
+                is_kfitting = False
+                for sheet_name in wb.sheetnames:
+                    if sheet_name.lower() in ["results table", "experimental description"]:
+                        continue
+
+                    sheet = wb[sheet_name]
+                    if sheet.max_row > 0:
+                        cell1 = sheet.cell(row=1, column=1).value
+                        cell2 = sheet.cell(row=1, column=2).value
+
+                        # Check if both cells contain numeric data
+                        if self._is_numeric(cell1) and self._is_numeric(cell2):
+                            is_kfitting = True
+                            break
+
+                wb.close()
+
+                if is_kfitting:
+                    wx.CallAfter(open_xlsx_file, self.window, file)
+                else:
+                    # Unknown format - use interactive import
+                    wx.CallAfter(import_generic_excel_file, self.window, file)
+
+                return True
+
+            except Exception as e:
+                print(f"Error processing Excel file: {e}")
+                return False
+
+        elif file.lower().endswith('.xls'):
+            try:
+                wb = xlrd.open_workbook(file)
+
+                # Check for Avantage format
+                if "Titles" in wb.sheet_names():
+                    wx.CallAfter(import_avantage_file_direct_xls, self.window, file)
+                    wb.release_resources()
+                    return True
+
+                # Check if kFitting format
+                is_kfitting = False
+                for sheet_idx in range(wb.nsheets):
+                    sheet = wb.sheet_by_index(sheet_idx)
+                    if sheet.name.lower() in ["results table", "experimental description"]:
+                        continue
+
+                    if sheet.nrows > 0 and sheet.ncols >= 2:
+                        cell1 = sheet.cell(0, 0).value
+                        cell2 = sheet.cell(0, 1).value
+
+                        if self._is_numeric(cell1) and self._is_numeric(cell2):
+                            is_kfitting = True
+                            break
+
+                wb.release_resources()
+
+                if is_kfitting:
+                    wx.CallAfter(open_xlsx_file, self.window, file)
+                else:
+                    # Unknown format - use interactive import
+                    wx.CallAfter(import_generic_excel_file, self.window, file)
+
+                return True
+
+            except Exception:
+                print("Error opening Excel file:", sys.exc_info())
+                return False
+
+        elif file.lower().endswith('.vms'):
+            wx.CallAfter(open_vamas_file, self.window, file)
+            return True
+        elif file.lower().endswith('.kal'):
+            wx.CallAfter(open_kal_file, self.window, file)
+            return True
+        elif file.lower().endswith('.avg'):
+            wx.CallAfter(open_avg_file_direct, self.window, file)
+            return True
+        elif file.lower().endswith('.spe'):
+            wx.CallAfter(open_spe_file, self.window, file)
+            return True
+        elif file.lower().endswith('.mrs'):
+            wx.CallAfter(open_mrs_file, self.window, file)
+            return True
+        elif file.lower().endswith('.1'):
+            wx.CallAfter(open_vg_microtech_file, self.window, file)
+            return True
+        return False
+
+    def _is_numeric(self, value):
+        """Check if value is numeric."""
+        if value is None or value == '':
+            return False
+        try:
+            float(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+
+
+    def _process_multiple_dropped_files_OLD(self, filenames):
         """Process multiple dropped files by grouping them by type"""
         # Group files by type
         file_groups = {
@@ -219,6 +284,148 @@ class ExcelDropTarget(wx.FileDropTarget):
             wx.CallAfter(self._import_multiple_avantage_direct, all_avantage)
         elif len(all_avantage) == 1:
             success &= self._process_single_dropped_file(all_avantage[0])
+
+        # Process MRS files
+        if len(file_groups['mrs']) > 1:
+            wx.CallAfter(self._import_multiple_mrs_direct, file_groups['mrs'])
+        elif len(file_groups['mrs']) == 1:
+            success &= self._process_single_dropped_file(file_groups['mrs'][0])
+
+        # Process AVG files
+        if len(file_groups['avg']) > 1:
+            wx.CallAfter(self._import_multiple_avg_direct, file_groups['avg'])
+        elif len(file_groups['avg']) == 1:
+            success &= self._process_single_dropped_file(file_groups['avg'][0])
+
+        # Process VG-Microtech files
+        if len(file_groups['vg']) > 1:
+            wx.CallAfter(self._import_multiple_vg_direct, file_groups['vg'])
+        elif len(file_groups['vg']) == 1:
+            success &= self._process_single_dropped_file(file_groups['vg'][0])
+
+        # Process other file types individually (no batch import available)
+        for file_type in ['vms', 'kal', 'spe']:
+            for file in file_groups[file_type]:
+                success &= self._process_single_dropped_file(file)
+
+        return success
+
+    def _process_multiple_dropped_files(self, filenames):
+        """Process multiple dropped files by grouping them by type"""
+        # Group files by type
+        file_groups = {
+            'khervefitting_xlsx': [],
+            'khervefitting_xls': [],
+            'avantage_xlsx': [],
+            'avantage_xls': [],
+            'generic_xlsx': [],
+            'generic_xls': [],
+            'vms': [],
+            'kal': [],
+            'avg': [],
+            'spe': [],
+            'mrs': [],
+            'vg': []
+        }
+
+        # Categorize files
+        for file in filenames:
+            file_lower = file.lower()
+
+            if file_lower.endswith('.xlsx'):
+                try:
+                    wb = openpyxl.load_workbook(file)
+
+                    # Check for Avantage
+                    if "Titles" in wb.sheetnames:
+                        file_groups['avantage_xlsx'].append(file)
+                    else:
+                        # Check if kFitting format
+                        is_kfitting = False
+                        for sheet_name in wb.sheetnames:
+                            if sheet_name.lower() in ["results table", "experimental description"]:
+                                continue
+                            sheet = wb[sheet_name]
+                            if sheet.max_row > 0:
+                                cell1 = sheet.cell(row=1, column=1).value
+                                cell2 = sheet.cell(row=1, column=2).value
+                                if self._is_numeric(cell1) and self._is_numeric(cell2):
+                                    is_kfitting = True
+                                    break
+
+                        if is_kfitting:
+                            file_groups['khervefitting_xlsx'].append(file)
+                        else:
+                            file_groups['generic_xlsx'].append(file)
+
+                    wb.close()
+                except Exception:
+                    file_groups['khervefitting_xlsx'].append(file)
+
+            elif file_lower.endswith('.xls'):
+                try:
+                    wb = xlrd.open_workbook(file)
+
+                    # Check for Avantage
+                    if "Titles" in wb.sheet_names():
+                        file_groups['avantage_xls'].append(file)
+                    else:
+                        # Check if kFitting format
+                        is_kfitting = False
+                        for sheet_idx in range(wb.nsheets):
+                            sheet = wb.sheet_by_index(sheet_idx)
+                            if sheet.name.lower() in ["results table", "experimental description"]:
+                                continue
+                            if sheet.nrows > 0 and sheet.ncols >= 2:
+                                cell1 = sheet.cell(0, 0).value
+                                cell2 = sheet.cell(0, 1).value
+                                if self._is_numeric(cell1) and self._is_numeric(cell2):
+                                    is_kfitting = True
+                                    break
+
+                        if is_kfitting:
+                            file_groups['khervefitting_xls'].append(file)
+                        else:
+                            file_groups['generic_xls'].append(file)
+
+                    wb.release_resources()
+                except Exception:
+                    file_groups['khervefitting_xls'].append(file)
+
+            elif file_lower.endswith('.vms'):
+                file_groups['vms'].append(file)
+            elif file_lower.endswith('.kal'):
+                file_groups['kal'].append(file)
+            elif file_lower.endswith('.avg'):
+                file_groups['avg'].append(file)
+            elif file_lower.endswith('.spe'):
+                file_groups['spe'].append(file)
+            elif file_lower.endswith('.mrs'):
+                file_groups['mrs'].append(file)
+            elif file_lower.endswith('.1'):
+                file_groups['vg'].append(file)
+
+        # Process each group
+        success = True
+
+        # Process KherveFitting files
+        all_khervefitting = file_groups['khervefitting_xlsx'] + file_groups['khervefitting_xls']
+        if len(all_khervefitting) > 1:
+            wx.CallAfter(self._import_multiple_khervefitting_direct, all_khervefitting)
+        elif len(all_khervefitting) == 1:
+            success &= self._process_single_dropped_file(all_khervefitting[0])
+
+        # Process Avantage files
+        all_avantage = file_groups['avantage_xlsx'] + file_groups['avantage_xls']
+        if len(all_avantage) > 1:
+            wx.CallAfter(self._import_multiple_avantage_direct, all_avantage)
+        elif len(all_avantage) == 1:
+            success &= self._process_single_dropped_file(all_avantage[0])
+
+        # Process generic Excel files individually (they need user interaction)
+        all_generic = file_groups['generic_xlsx'] + file_groups['generic_xls']
+        for file in all_generic:
+            success &= self._process_single_dropped_file(file)
 
         # Process MRS files
         if len(file_groups['mrs']) > 1:
@@ -5880,3 +6087,428 @@ def normalize_core_level_name(sheet_name):
         return 'Wide'
 
     return name
+
+
+def is_numeric(value):
+    """Check if value is numeric - .2f compatible."""
+    if value is None or value == '':
+        return False
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def import_generic_excel_file(window, file_path=None):
+    """
+    Interactive import for non-standard Excel files.
+    Asks user to identify data type and reformats to kFitting format.
+    """
+    if not file_path:
+        with wx.FileDialog(window, "Open Generic Excel File",
+                           wildcard="Excel files (*.xlsx;*.xls)|*.xlsx;*.xls",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            file_path = fileDialog.GetPath()
+
+    try:
+        # Load workbook
+        if file_path.lower().endswith('.xlsx'):
+            wb = openpyxl.load_workbook(file_path)
+        else:
+            # Convert .xls to .xlsx
+            from openpyxl import Workbook
+            old_wb = xlrd.open_workbook(file_path)
+            new_wb = Workbook()
+            new_wb.remove(new_wb.active)
+
+            for sheet_idx in range(old_wb.nsheets):
+                old_sheet = old_wb.sheet_by_index(sheet_idx)
+                new_sheet = new_wb.create_sheet(old_sheet.name)
+
+                for row_idx in range(old_sheet.nrows):
+                    for col_idx in range(old_sheet.ncols):
+                        cell = old_sheet.cell(row_idx, col_idx)
+                        new_sheet.cell(row=row_idx + 1, column=col_idx + 1, value=cell.value)
+
+            temp_path = file_path.replace('.xls', '_temp.xlsx')
+            new_wb.save(temp_path)
+            old_wb.release_resources()
+            wb = openpyxl.load_workbook(temp_path)
+            file_path = temp_path
+
+        # Analyze sheets
+        sheet_info = analyze_excel_sheets(wb)
+
+        # Show configuration dialog
+        converted_wb = show_sheet_config_dialog(window, wb, sheet_info, file_path)
+
+        if converted_wb:
+            # Save converted file
+            output_path = file_path.rsplit('.', 1)[0] + '_kFitting.xlsx'
+            converted_wb.save(output_path)
+            converted_wb.close()
+
+            # Open the converted file
+            open_xlsx_file(window, output_path)
+            wx.MessageBox(f"File converted and opened successfully!\nSaved as: {output_path}",
+                          "Success", wx.OK | wx.ICON_INFORMATION)
+
+        wb.close()
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        wx.MessageBox(f"Error importing file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def analyze_excel_sheets(wb):
+    """Analyze sheets to detect data structure with .2f precision."""
+    sheet_info = {}
+
+    for sheet_name in wb.sheetnames:
+        sheet = wb[sheet_name]
+        info = {
+            'name': sheet_name,
+            'data_start_row': 1,
+            'has_headers': False,
+            'num_cols': 0,
+            'sample_data': []
+        }
+
+        # Check if first row has headers or numeric data
+        cell1_row1 = sheet.cell(row=1, column=1).value
+        cell2_row1 = sheet.cell(row=1, column=2).value
+
+        # If first row is numeric, data starts at row 1 (no headers)
+        if is_numeric(cell1_row1) and is_numeric(cell2_row1):
+            info['data_start_row'] = 1
+            info['has_headers'] = False
+        else:
+            # Check if row 1 has text headers
+            if cell1_row1 and cell2_row1 and not is_numeric(cell1_row1):
+                info['has_headers'] = True
+                info['data_start_row'] = 2
+            else:
+                # Find first row with numeric data
+                for row_idx in range(1, min(50, sheet.max_row + 1)):
+                    cell1 = sheet.cell(row=row_idx, column=1).value
+                    cell2 = sheet.cell(row=row_idx, column=2).value
+
+                    if is_numeric(cell1) and is_numeric(cell2):
+                        info['data_start_row'] = row_idx
+                        info['has_headers'] = row_idx > 1
+                        break
+
+        # Count columns with data
+        if info['data_start_row'] <= sheet.max_row:
+            row = info['data_start_row']
+            for col_idx in range(1, min(20, sheet.max_column + 1)):
+                val = sheet.cell(row=row, column=col_idx).value
+                if val is not None:
+                    info['num_cols'] += 1
+
+        # Get sample data (show from data start row)
+        for row_idx in range(info['data_start_row'], min(info['data_start_row'] + 5, sheet.max_row + 1)):
+            row_data = []
+            for col_idx in range(1, min(info['num_cols'] + 1, 5)):
+                val = sheet.cell(row=row_idx, column=col_idx).value
+                if is_numeric(val):
+                    row_data.append(f"{float(val):.2f}")
+                else:
+                    row_data.append(str(val) if val else "")
+            info['sample_data'].append(row_data)
+
+        sheet_info[sheet_name] = info
+
+    return sheet_info
+
+
+class SheetConfigDialog(wx.Dialog):
+    """Dialog for configuring sheet import settings."""
+
+    def __init__(self, parent, wb, sheet_info):
+        super().__init__(parent, title="Configure Excel Import",
+                         size=(800, 600),
+                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+
+        self.wb = wb
+        self.sheet_info = sheet_info
+        self.sheet_configs = {}
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Instructions with more details
+        instr_text = wx.StaticText(
+            self,
+            label="Configure each sheet below. Specify the data type and starting row.\n"
+                  "Data will be reformatted to kFitting standard (2 columns with .2f precision).\n\n"
+                  "IMPORTANT FOR XPS CORE LEVEL:\n"
+                  "- Sheet Name must be the core level name in ONE WORD (e.g., C1s, O1s, N1s, Fe2p, Au4f)\n"
+                  "- Generic names like 'Sheet1' will prompt you to enter the correct core level name\n"
+                  "- Headers 'Binding Energy' and 'Raw Data' will be added automatically if missing"
+        )
+        instr_text.Wrap(780)
+        main_sizer.Add(instr_text, 0, wx.ALL | wx.EXPAND, 10)
+
+        # Notebook for sheets
+        notebook = wx.Notebook(self)
+        main_sizer.Add(notebook, 1, wx.ALL | wx.EXPAND, 5)
+
+        # Create page for each sheet
+        for sheet_name, info in sheet_info.items():
+            panel = self.create_sheet_config_panel(notebook, sheet_name, info)
+            notebook.AddPage(panel, sheet_name)
+
+        # Buttons
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(self, wx.ID_OK, "Convert and Import")
+        cancel_btn = wx.Button(self, wx.ID_CANCEL, "Cancel")
+        btn_sizer.Add(ok_btn, 0, wx.ALL, 5)
+        btn_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+        main_sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 10)
+
+        self.SetSizer(main_sizer)
+        self.Centre()
+
+    def create_sheet_config_panel(self, parent, sheet_name, info):
+        """Create configuration panel for a single sheet."""
+        panel = wx.Panel(parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Data type
+        type_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        type_label = wx.StaticText(panel, label="Data Type:")
+        type_choice = wx.Choice(panel, choices=[
+            "XPS Core Level",
+            "Raman Spectrum",
+            "zzProfile",
+            "Skip This Sheet"
+        ])
+        type_choice.SetSelection(0)
+        type_sizer.Add(type_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        type_sizer.Add(type_choice, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(type_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Sheet name
+        name_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        name_label = wx.StaticText(panel, label="Sheet Name:")
+        name_text = wx.TextCtrl(panel, value=sheet_name)
+        name_sizer.Add(name_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        name_sizer.Add(name_text, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(name_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Data starting row
+        row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        row_label = wx.StaticText(panel, label="Data Starts at Row:")
+        row_spin = wx.SpinCtrl(panel, value=str(info['data_start_row']),
+                               min=1, max=1000, initial=info['data_start_row'])
+        row_sizer.Add(row_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        row_sizer.Add(row_spin, 0, wx.ALL, 5)
+        sizer.Add(row_sizer, 0, wx.ALL, 5)
+
+        # Column selection
+        col_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        x_label = wx.StaticText(panel, label="X-Axis Column (BE/Wavelength):")
+        x_spin = wx.SpinCtrl(panel, value="1", min=1, max=50, initial=1)
+        col_sizer.Add(x_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        col_sizer.Add(x_spin, 0, wx.ALL, 5)
+
+        y_label = wx.StaticText(panel, label="Y-Axis Column (Intensity):")
+        y_spin = wx.SpinCtrl(panel, value="2", min=1, max=50, initial=2)
+        col_sizer.Add(y_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        col_sizer.Add(y_spin, 0, wx.ALL, 5)
+        sizer.Add(col_sizer, 0, wx.ALL, 5)
+
+        # Preview
+        preview_label = wx.StaticText(panel, label="Data Preview:")
+        sizer.Add(preview_label, 0, wx.ALL, 5)
+
+        preview_grid = wx.grid.Grid(panel)
+        preview_grid.CreateGrid(min(len(info['sample_data']), 5),
+                                min(info['num_cols'], 4))
+        preview_grid.EnableEditing(False)
+
+        for row_idx, row_data in enumerate(info['sample_data'][:5]):
+            for col_idx, val in enumerate(row_data[:4]):
+                preview_grid.SetCellValue(row_idx, col_idx, val)
+
+        preview_grid.AutoSize()
+        sizer.Add(preview_grid, 1, wx.ALL | wx.EXPAND, 5)
+
+        # Store controls
+        self.sheet_configs[sheet_name] = {
+            'type_choice': type_choice,
+            'name_text': name_text,
+            'row_spin': row_spin,
+            'x_spin': x_spin,
+            'y_spin': y_spin,
+            'preview_grid': preview_grid
+        }
+
+        panel.SetSizer(sizer)
+        return panel
+
+
+def show_sheet_config_dialog(window, wb, sheet_info, file_path):
+    """Show dialog and process sheets based on user configuration."""
+    from openpyxl import Workbook
+
+    dialog = SheetConfigDialog(window, wb, sheet_info)
+
+    if dialog.ShowModal() == wx.ID_OK:
+        new_wb = Workbook()
+        new_wb.remove(new_wb.active)
+
+        # Track used sheet names
+        used_sheet_names = []
+
+        # Process each sheet
+        for sheet_name in wb.sheetnames:
+            config = dialog.sheet_configs.get(sheet_name)
+            if not config:
+                continue
+
+            data_type = config['type_choice'].GetStringSelection()
+
+            if data_type == "Skip This Sheet":
+                continue
+
+            new_sheet_name = config['name_text'].GetValue().strip()
+            data_start_row = config['row_spin'].GetValue()
+            x_col = config['x_spin'].GetValue()
+            y_col = config['y_spin'].GetValue()
+
+            # Validate and fix sheet name based on data type
+            if data_type == "XPS Core Level":
+                # Check if sheet name is generic or contains spaces
+                if re.match(r'^Sheet\d+$', new_sheet_name, re.IGNORECASE) or ' ' in new_sheet_name:
+                    # Prompt user for core level name
+                    dlg = wx.TextEntryDialog(
+                        window,
+                        f"Sheet '{sheet_name}' needs a proper core level name.\n\n"
+                        "Enter core level name as ONE WORD (no spaces):\n\n"
+                        "Examples:\n"
+                        "  C1s, O1s, N1s, Si2p, Fe2p, Au4f, Cu2p3, etc.\n\n"
+                        "Format: ElementOrbital (e.g., C1s = Carbon 1s)",
+                        "Core Level Name Required",
+                        ""
+                    )
+
+                    while True:
+                        if dlg.ShowModal() == wx.ID_OK:
+                            new_sheet_name = dlg.GetValue().strip()
+
+                            # Validate: no spaces, not empty
+                            if not new_sheet_name:
+                                wx.MessageBox("Core level name cannot be empty!",
+                                              "Invalid Name", wx.OK | wx.ICON_WARNING)
+                                continue
+                            elif ' ' in new_sheet_name:
+                                wx.MessageBox("Core level name must be ONE WORD (no spaces)!\n"
+                                              "Examples: C1s, O1s, Fe2p",
+                                              "Invalid Name", wx.OK | wx.ICON_WARNING)
+                                continue
+                            else:
+                                break
+                        else:
+                            # User cancelled
+                            dlg.Destroy()
+                            new_sheet_name = None
+                            break
+
+                    dlg.Destroy()
+
+                    if not new_sheet_name:
+                        continue
+
+            elif data_type == "Raman Spectrum":
+                # Auto-name as Raman
+                new_sheet_name = "Raman"
+                # If already used, add number suffix
+                if new_sheet_name in used_sheet_names:
+                    counter = 1
+                    while f"{new_sheet_name}{counter}" in used_sheet_names:
+                        counter += 1
+                    new_sheet_name = f"{new_sheet_name}{counter}"
+
+            elif data_type == "zzProfile":
+                # Auto-name as zzProfile
+                new_sheet_name = "zzProfile"
+                # If already used, add number suffix
+                if new_sheet_name in used_sheet_names:
+                    counter = 1
+                    while f"{new_sheet_name}{counter}" in used_sheet_names:
+                        counter += 1
+                    new_sheet_name = f"{new_sheet_name}{counter}"
+
+            # Check if name already used in this conversion
+            if new_sheet_name in used_sheet_names:
+                wx.MessageBox(f"Sheet name '{new_sheet_name}' already used. Skipping duplicate.",
+                              "Duplicate Name", wx.OK | wx.ICON_WARNING)
+                continue
+
+            # Convert sheet
+            converted_data = convert_sheet_to_kfitting(
+                wb[sheet_name],
+                new_sheet_name,
+                data_start_row,
+                x_col,
+                y_col,
+                data_type
+            )
+
+            if converted_data:
+                new_wb.create_sheet(new_sheet_name)
+                target_sheet = new_wb[new_sheet_name]
+                used_sheet_names.append(new_sheet_name)
+
+                # Add headers in first row based on data type (always add headers)
+                if data_type == "XPS Core Level":
+                    target_sheet.cell(row=1, column=1, value="Binding Energy")
+                    target_sheet.cell(row=1, column=2, value="Raw Data")
+                elif data_type == "Raman Spectrum":
+                    target_sheet.cell(row=1, column=1, value="Raman Shift")
+                    target_sheet.cell(row=1, column=2, value="Intensity")
+                elif data_type == "zzProfile":
+                    target_sheet.cell(row=1, column=1, value="Depth")
+                    target_sheet.cell(row=1, column=2, value="Intensity")
+
+                # Copy data with .2f formatting starting from row 2
+                for row_idx, (x_val, y_val) in enumerate(converted_data, start=2):
+                    target_sheet.cell(row=row_idx, column=1, value=f"{x_val:.2f}")
+                    target_sheet.cell(row=row_idx, column=2, value=f"{y_val:.2f}")
+
+                # Clear columns 3-24 for all rows including header
+                for row_idx in range(1, len(converted_data) + 2):
+                    for col_idx in range(3, 25):
+                        target_sheet.cell(row=row_idx, column=col_idx, value=None)
+
+        dialog.Destroy()
+        return new_wb
+
+    dialog.Destroy()
+    return None
+
+
+def convert_sheet_to_kfitting(sheet, new_name, start_row, x_col, y_col, data_type):
+    """Convert sheet data to kFitting format with .2f precision."""
+    data = []
+
+    for row_idx in range(start_row, sheet.max_row + 1):
+        x_val = sheet.cell(row=row_idx, column=x_col).value
+        y_val = sheet.cell(row=row_idx, column=y_col).value
+
+        if not is_numeric(x_val) or not is_numeric(y_val):
+            continue
+
+        try:
+            x = float(x_val)
+            y = float(y_val)
+            data.append((x, y))
+        except (ValueError, TypeError):
+            continue
+
+    return data
