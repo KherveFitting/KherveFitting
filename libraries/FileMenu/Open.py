@@ -112,28 +112,45 @@ class ExcelDropTarget(wx.FileDropTarget):
                     wb.close()
                     return True
 
-                # Check if it's standard kFitting format (numeric data in first two columns)
+                # Check if it's standard kFitting format
+                # Must have: proper headers AND proper sheet names
                 is_kfitting = False
+                has_generic_sheet_names = False
+
                 for sheet_name in wb.sheetnames:
                     if sheet_name.lower() in ["results table", "experimental description"]:
                         continue
 
+                    # Check if sheet name is generic (Sheet1, Sheet2, etc.)
+                    if re.match(r'^Sheet\d+$', sheet_name, re.IGNORECASE):
+                        has_generic_sheet_names = True
+                        break
+
                     sheet = wb[sheet_name]
                     if sheet.max_row > 0:
-                        cell1 = sheet.cell(row=1, column=1).value
-                        cell2 = sheet.cell(row=1, column=2).value
+                        # Check first row for proper kFitting headers
+                        header_a = sheet.cell(row=1, column=1).value
+                        header_b = sheet.cell(row=1, column=2).value
 
-                        # Check if both cells contain numeric data
-                        if self._is_numeric(cell1) and self._is_numeric(cell2):
-                            is_kfitting = True
-                            break
+                        if header_a and header_b:
+                            header_a_lower = str(header_a).lower().strip()
+                            header_b_lower = str(header_b).lower().strip()
+
+                            # Valid kFitting headers
+                            valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                            valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
+
+                            if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
+                                is_kfitting = True
+                                break
 
                 wb.close()
 
-                if is_kfitting:
+                # Only treat as kFitting if it has proper headers AND no generic sheet names
+                if is_kfitting and not has_generic_sheet_names:
                     wx.CallAfter(open_xlsx_file, self.window, file)
                 else:
-                    # Unknown format - use interactive import
+                    # Has generic sheet names or no proper headers - use interactive import
                     wx.CallAfter(import_generic_excel_file, self.window, file)
 
                 return True
@@ -152,27 +169,43 @@ class ExcelDropTarget(wx.FileDropTarget):
                     wb.release_resources()
                     return True
 
-                # Check if kFitting format
+                # Check if kFitting format with proper headers AND proper sheet names
                 is_kfitting = False
+                has_generic_sheet_names = False
+
                 for sheet_idx in range(wb.nsheets):
                     sheet = wb.sheet_by_index(sheet_idx)
+
                     if sheet.name.lower() in ["results table", "experimental description"]:
                         continue
 
-                    if sheet.nrows > 0 and sheet.ncols >= 2:
-                        cell1 = sheet.cell(0, 0).value
-                        cell2 = sheet.cell(0, 1).value
+                    # Check if sheet name is generic
+                    if re.match(r'^Sheet\d+$', sheet.name, re.IGNORECASE):
+                        has_generic_sheet_names = True
+                        break
 
-                        if self._is_numeric(cell1) and self._is_numeric(cell2):
-                            is_kfitting = True
-                            break
+                    if sheet.nrows > 0 and sheet.ncols >= 2:
+                        header_a = sheet.cell(0, 0).value
+                        header_b = sheet.cell(0, 1).value
+
+                        if header_a and header_b:
+                            header_a_lower = str(header_a).lower().strip()
+                            header_b_lower = str(header_b).lower().strip()
+
+                            valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                            valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
+
+                            if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
+                                is_kfitting = True
+                                break
 
                 wb.release_resources()
 
-                if is_kfitting:
+                # Only treat as kFitting if it has proper headers AND no generic sheet names
+                if is_kfitting and not has_generic_sheet_names:
                     wx.CallAfter(open_xlsx_file, self.window, file)
                 else:
-                    # Unknown format - use interactive import
+                    # Has generic sheet names or no proper headers - use interactive import
                     wx.CallAfter(import_generic_excel_file, self.window, file)
 
                 return True
@@ -340,20 +373,36 @@ class ExcelDropTarget(wx.FileDropTarget):
                     if "Titles" in wb.sheetnames:
                         file_groups['avantage_xlsx'].append(file)
                     else:
-                        # Check if kFitting format
+                        # Check if kFitting format with proper headers AND sheet names
                         is_kfitting = False
+                        has_generic_sheet_names = False
+
                         for sheet_name in wb.sheetnames:
                             if sheet_name.lower() in ["results table", "experimental description"]:
                                 continue
+
+                            # Check for generic sheet names
+                            if re.match(r'^Sheet\d+$', sheet_name, re.IGNORECASE):
+                                has_generic_sheet_names = True
+                                break
+
                             sheet = wb[sheet_name]
                             if sheet.max_row > 0:
-                                cell1 = sheet.cell(row=1, column=1).value
-                                cell2 = sheet.cell(row=1, column=2).value
-                                if self._is_numeric(cell1) and self._is_numeric(cell2):
-                                    is_kfitting = True
-                                    break
+                                header_a = sheet.cell(row=1, column=1).value
+                                header_b = sheet.cell(row=1, column=2).value
 
-                        if is_kfitting:
+                                if header_a and header_b:
+                                    header_a_lower = str(header_a).lower().strip()
+                                    header_b_lower = str(header_b).lower().strip()
+
+                                    valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                                    valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
+
+                                    if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
+                                        is_kfitting = True
+                                        break
+
+                        if is_kfitting and not has_generic_sheet_names:
                             file_groups['khervefitting_xlsx'].append(file)
                         else:
                             file_groups['generic_xlsx'].append(file)
@@ -372,18 +421,34 @@ class ExcelDropTarget(wx.FileDropTarget):
                     else:
                         # Check if kFitting format
                         is_kfitting = False
+                        has_generic_sheet_names = False
+
                         for sheet_idx in range(wb.nsheets):
                             sheet = wb.sheet_by_index(sheet_idx)
+
                             if sheet.name.lower() in ["results table", "experimental description"]:
                                 continue
-                            if sheet.nrows > 0 and sheet.ncols >= 2:
-                                cell1 = sheet.cell(0, 0).value
-                                cell2 = sheet.cell(0, 1).value
-                                if self._is_numeric(cell1) and self._is_numeric(cell2):
-                                    is_kfitting = True
-                                    break
 
-                        if is_kfitting:
+                            if re.match(r'^Sheet\d+$', sheet.name, re.IGNORECASE):
+                                has_generic_sheet_names = True
+                                break
+
+                            if sheet.nrows > 0 and sheet.ncols >= 2:
+                                header_a = sheet.cell(0, 0).value
+                                header_b = sheet.cell(0, 1).value
+
+                                if header_a and header_b:
+                                    header_a_lower = str(header_a).lower().strip()
+                                    header_b_lower = str(header_b).lower().strip()
+
+                                    valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                                    valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
+
+                                    if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
+                                        is_kfitting = True
+                                        break
+
+                        if is_kfitting and not has_generic_sheet_names:
                             file_groups['khervefitting_xls'].append(file)
                         else:
                             file_groups['generic_xls'].append(file)
@@ -6231,7 +6296,7 @@ class SheetConfigDialog(wx.Dialog):
 
     def __init__(self, parent, wb, sheet_info):
         super().__init__(parent, title="Configure Excel Import",
-                         size=(800, 600),
+                         size=(400, 550),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
 
         self.wb = wb
@@ -6244,11 +6309,8 @@ class SheetConfigDialog(wx.Dialog):
         instr_text = wx.StaticText(
             self,
             label="Configure each sheet below. Specify the data type and starting row.\n"
-                  "Data will be reformatted to kFitting standard (2 columns with .2f precision).\n\n"
-                  "IMPORTANT FOR XPS CORE LEVEL:\n"
-                  "- Sheet Name must be the core level name in ONE WORD (e.g., C1s, O1s, N1s, Fe2p, Au4f)\n"
-                  "- Generic names like 'Sheet1' will prompt you to enter the correct core level name\n"
-                  "- Headers 'Binding Energy' and 'Raw Data' will be added automatically if missing"
+                  "Note that for XPS:\n"
+                  "- Sheet Name must be in a single word  e.g., C1s, O1s, N1s, Fe2p, Au4f)\n"
         )
         instr_text.Wrap(780)
         main_sizer.Add(instr_text, 0, wx.ALL | wx.EXPAND, 10)
@@ -6276,67 +6338,93 @@ class SheetConfigDialog(wx.Dialog):
     def create_sheet_config_panel(self, parent, sheet_name, info):
         """Create configuration panel for a single sheet."""
         panel = wx.Panel(parent)
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Data type
-        type_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Create grid sizer for controls (2 columns: label, control)
+        grid = wx.FlexGridSizer(rows=5, cols=2, hgap=10, vgap=5)
+
+        # Row 1: Data Type
         type_label = wx.StaticText(panel, label="Data Type:")
         type_choice = wx.Choice(panel, choices=[
             "XPS Core Level",
             "Raman Spectrum",
             "zzProfile",
             "Skip This Sheet"
-        ])
+        ], size=(150, -1))
         type_choice.SetSelection(0)
-        type_sizer.Add(type_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        type_sizer.Add(type_choice, 1, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(type_sizer, 0, wx.ALL | wx.EXPAND, 5)
 
-        # Sheet name
-        name_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        name_label = wx.StaticText(panel, label="Sheet Name:")
-        name_text = wx.TextCtrl(panel, value=sheet_name)
-        name_sizer.Add(name_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        name_sizer.Add(name_text, 1, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(name_sizer, 0, wx.ALL | wx.EXPAND, 5)
+        grid.Add(type_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        grid.Add(type_choice, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        # Data starting row
-        row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Row 2: Sheet Name
+        name_label = wx.StaticText(panel, label="Core level (e.g. C1s):")
+        name_text = wx.TextCtrl(panel, value=sheet_name, size=(150, -1))
+
+        grid.Add(name_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        grid.Add(name_text, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        # Row 3: Data Starts at Row
         row_label = wx.StaticText(panel, label="Data Starts at Row:")
         row_spin = wx.SpinCtrl(panel, value=str(info['data_start_row']),
-                               min=1, max=1000, initial=info['data_start_row'])
-        row_sizer.Add(row_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        row_sizer.Add(row_spin, 0, wx.ALL, 5)
-        sizer.Add(row_sizer, 0, wx.ALL, 5)
+                               min=1, max=1000, initial=info['data_start_row'],
+                               size=(80, -1))
 
-        # Column selection
-        col_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        x_label = wx.StaticText(panel, label="X-Axis Column (BE/Wavelength):")
-        x_spin = wx.SpinCtrl(panel, value="1", min=1, max=50, initial=1)
-        col_sizer.Add(x_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        col_sizer.Add(x_spin, 0, wx.ALL, 5)
+        grid.Add(row_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        grid.Add(row_spin, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        y_label = wx.StaticText(panel, label="Y-Axis Column (Intensity):")
-        y_spin = wx.SpinCtrl(panel, value="2", min=1, max=50, initial=2)
-        col_sizer.Add(y_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        col_sizer.Add(y_spin, 0, wx.ALL, 5)
-        sizer.Add(col_sizer, 0, wx.ALL, 5)
+        # Row 4: X-Axis Column
+        x_label = wx.StaticText(panel, label="X-Axis Column:")
+        x_spin = wx.SpinCtrl(panel, value="1", min=1, max=50, initial=1,
+                             size=(80, -1))
 
-        # Preview
+        grid.Add(x_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        grid.Add(x_spin, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        # Row 5: Y-Axis Column
+        y_label = wx.StaticText(panel, label="Y-Axis Column:")
+        y_spin = wx.SpinCtrl(panel, value="2", min=1, max=50, initial=2,
+                             size=(80, -1))
+
+        grid.Add(y_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        grid.Add(y_spin, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        main_sizer.Add(grid, 0, wx.ALL, 10)
+
+        # Preview section
         preview_label = wx.StaticText(panel, label="Data Preview:")
-        sizer.Add(preview_label, 0, wx.ALL, 5)
+        main_sizer.Add(preview_label, 0, wx.ALL, 5)
+
+        # Always show 6 columns and up to 20 rows
+        max_col_to_show = 6
+        max_rows_to_show = 20
 
         preview_grid = wx.grid.Grid(panel)
-        preview_grid.CreateGrid(min(len(info['sample_data']), 5),
-                                min(info['num_cols'], 4))
+        preview_grid.CreateGrid(max_rows_to_show, max_col_to_show)
         preview_grid.EnableEditing(False)
+        preview_grid.SetColLabelSize(25)
+        preview_grid.SetRowLabelSize(25)
 
-        for row_idx, row_data in enumerate(info['sample_data'][:5]):
-            for col_idx, val in enumerate(row_data[:4]):
-                preview_grid.SetCellValue(row_idx, col_idx, val)
+        # Set size for all columns
+        for col_idx in range(max_col_to_show):
+            preview_grid.SetColSize(col_idx, 80)
 
-        preview_grid.AutoSize()
-        sizer.Add(preview_grid, 1, wx.ALL | wx.EXPAND, 5)
+        # Populate grid - read first 20 rows from source data
+        sheet = self.wb[sheet_name]
+        for row_idx in range(max_rows_to_show):
+            actual_row = info['data_start_row'] + row_idx
+            if actual_row > sheet.max_row:
+                break
+            for col_idx in range(max_col_to_show):
+                val = sheet.cell(row=actual_row, column=col_idx + 1).value
+                if val is not None:
+                    if is_numeric(val):
+                        preview_grid.SetCellValue(row_idx, col_idx, f"{float(val):.2f}")
+                    else:
+                        preview_grid.SetCellValue(row_idx, col_idx, str(val))
+                else:
+                    preview_grid.SetCellValue(row_idx, col_idx, "")
+
+        main_sizer.Add(preview_grid, 1, wx.ALL | wx.EXPAND, 5)
 
         # Store controls
         self.sheet_configs[sheet_name] = {
@@ -6348,7 +6436,7 @@ class SheetConfigDialog(wx.Dialog):
             'preview_grid': preview_grid
         }
 
-        panel.SetSizer(sizer)
+        panel.SetSizer(main_sizer)  # Fixed: was 'sizer', now 'main_sizer'
         return panel
 
 
@@ -6465,7 +6553,7 @@ def show_sheet_config_dialog(window, wb, sheet_info, file_path):
                 target_sheet = new_wb[new_sheet_name]
                 used_sheet_names.append(new_sheet_name)
 
-                # Add headers in first row based on data type (always add headers)
+                # Add headers in first row based on data type
                 if data_type == "XPS Core Level":
                     target_sheet.cell(row=1, column=1, value="Binding Energy")
                     target_sheet.cell(row=1, column=2, value="Raw Data")
