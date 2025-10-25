@@ -45,11 +45,15 @@ class NPLTransmissionWindow(wx.Frame):
         left_panel.SetBackgroundColour(wx.Colour(255, 255, 255))
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # TOP SIZER: Slot selection, VMS file, and parameters (with border)
+        top_static_box = wx.StaticBox(left_panel, label="")
+        top_sizer = wx.StaticBoxSizer(top_static_box, wx.VERTICAL)
+
         # Slot selection
         slot_label = wx.StaticText(left_panel, label="Saved NPL Transmission:")
-        left_sizer.Add(slot_label, 0, wx.ALL, 5)
+        top_sizer.Add(slot_label, 0, wx.ALL, 5)
 
-        slot_sizer = wx.BoxSizer(wx.VERTICAL)
+        slot_radio_sizer = wx.BoxSizer(wx.VERTICAL)
         self.slot_radio_1 = wx.RadioButton(left_panel, label="NPL Wide", style=wx.RB_GROUP)
         self.slot_radio_2 = wx.RadioButton(left_panel, label="NPL Narrow 1")
         self.slot_radio_3 = wx.RadioButton(left_panel, label="NPL Narrow 2")
@@ -59,26 +63,26 @@ class NPLTransmissionWindow(wx.Frame):
         self.slot_radio_2.Bind(wx.EVT_RADIOBUTTON, lambda e: self.on_slot_change(2))
         self.slot_radio_3.Bind(wx.EVT_RADIOBUTTON, lambda e: self.on_slot_change(3))
 
-        slot_sizer.Add(self.slot_radio_1, 0, wx.ALL, 2)
-        slot_sizer.Add(self.slot_radio_2, 0, wx.ALL, 2)
-        slot_sizer.Add(self.slot_radio_3, 0, wx.ALL, 2)
-        left_sizer.Add(slot_sizer, 0, wx.ALL, 5)
+        slot_radio_sizer.Add(self.slot_radio_1, 0, wx.ALL, 2)
+        slot_radio_sizer.Add(self.slot_radio_2, 0, wx.ALL, 2)
+        slot_radio_sizer.Add(self.slot_radio_3, 0, wx.ALL, 2)
+        top_sizer.Add(slot_radio_sizer, 0, wx.ALL, 5)
 
         # VMS file drop zone
         drop_label = wx.StaticText(left_panel, label="Drop NPL Vamas File Here:")
-        left_sizer.Add(drop_label, 0, wx.ALL, 5)
+        top_sizer.Add(drop_label, 0, wx.ALL, 5)
 
         self.vms_path_text = wx.TextCtrl(left_panel, style=wx.TE_READONLY, size=(200, 25))
         self.vms_path_text.SetDropTarget(VMSFileDropTarget(self))
-        left_sizer.Add(self.vms_path_text, 0, wx.ALL | wx.EXPAND, 5)
+        top_sizer.Add(self.vms_path_text, 0, wx.ALL | wx.EXPAND, 5)
 
         browse_btn = wx.Button(left_panel, label="Browse NPL Vamas File")
         browse_btn.Bind(wx.EVT_BUTTON, self.on_browse_vms)
-        left_sizer.Add(browse_btn, 0, wx.ALL | wx.EXPAND, 5)
+        top_sizer.Add(browse_btn, 0, wx.ALL | wx.EXPAND, 5)
 
         # Parameters display
         param_label = wx.StaticText(left_panel, label="Saved Transmission Parameters:")
-        left_sizer.Add(param_label, 0, wx.ALL | wx.TOP, 5)
+        top_sizer.Add(param_label, 0, wx.ALL | wx.TOP, 5)
 
         self.param_grid = wx.grid.Grid(left_panel)
         self.param_grid.CreateGrid(11, 2)
@@ -99,34 +103,42 @@ class NPLTransmissionWindow(wx.Frame):
             self.param_grid.SetCellValue(i, 0, name)
             self.param_grid.SetCellValue(i, 1, "")
 
-        left_sizer.Add(self.param_grid, 1, wx.ALL | wx.EXPAND, 5)
+        top_sizer.Add(self.param_grid, 1, wx.ALL | wx.EXPAND, 5)
 
-        # Sheet selection - CheckListBox instead of ComboBox
+        # BOTTOM SIZER: Sheet selection and apply button (with border)
+        bottom_static_box = wx.StaticBox(left_panel, label="")
+        bottom_sizer = wx.StaticBoxSizer(bottom_static_box, wx.VERTICAL)
+
+        # Sheet selection - CheckListBox
         sheet_label = wx.StaticText(left_panel, label="Select Core Levels:")
-        left_sizer.Add(sheet_label, 0, wx.ALL | wx.TOP, 10)
+        bottom_sizer.Add(sheet_label, 0, wx.ALL | wx.TOP, 5)
 
         self.sheet_checklist = wx.CheckListBox(left_panel, choices=[])
-        left_sizer.Add(self.sheet_checklist, 0, wx.ALL | wx.EXPAND, 5)
+        self.sheet_checklist.SetSize((200, 150))
+        self.sheet_checklist.SetMaxSize((200, 150))
+        bottom_sizer.Add(self.sheet_checklist, 0, wx.ALL | wx.EXPAND, 5)
 
         # Apply button
         apply_btn = wx.Button(left_panel, label="Write Transmission to\nSelected Core Levels")
         apply_btn.SetBackgroundColour(wx.Colour(200, 230, 201))
         apply_btn.SetForegroundColour(wx.Colour(0, 0, 0))
-        apply_btn.Set
         apply_btn.SetMinSize((125, 35))
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply_transmission)
-        left_sizer.Add(apply_btn, 0, wx.ALL | wx.EXPAND, 5)
+        bottom_sizer.Add(apply_btn, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Add both sizers to left_sizer
+        left_sizer.Add(top_sizer, 1, wx.ALL | wx.EXPAND, 0)
+        left_sizer.Add(bottom_sizer, 0, wx.ALL | wx.EXPAND, 0)
 
         left_panel.SetSizer(left_sizer)
         left_panel.SetMinSize((220, -1))
-        main_sizer.Add(left_panel, 0, wx.ALL, 5)
+        main_sizer.Add(left_panel, 0, wx.ALL, 1)
 
         # Right panel for plot
         right_panel = wx.Panel(panel)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.figure, self.ax = plt.subplots(figsize=(6, 4))
-        # self.figure, self.ax = plt.subplots()
         self.canvas = FigureCanvas(right_panel, -1, self.figure)
         right_sizer.Add(self.canvas, 1, wx.ALL | wx.EXPAND, 0)
 
