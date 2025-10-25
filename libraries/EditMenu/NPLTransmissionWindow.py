@@ -5,7 +5,9 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+# matplotlib.use('WXAgg')  # Ensure we're using the wx backend
 import openpyxl
+import re
 import pandas as pd
 
 
@@ -30,6 +32,13 @@ class NPLTransmissionWindow(wx.Frame):
         self.min_ke = None
         self.max_ke = None
         self.photon_energy = 1486.69  # Default Al Ka
+
+        # Initialize hover elements
+        self.hover_point = None
+        self.annotation = None
+        self.ax2 = None
+        self.hover_cid = None
+        self.test_cid = None
 
         self.init_ui()
         self.load_parameters_from_config()
@@ -116,6 +125,7 @@ class NPLTransmissionWindow(wx.Frame):
         self.sheet_checklist = wx.CheckListBox(left_panel, choices=[])
         self.sheet_checklist.SetSize((200, 150))
         self.sheet_checklist.SetMaxSize((200, 150))
+        self.sheet_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_sheet_context_menu)
         bottom_sizer.Add(self.sheet_checklist, 0, wx.ALL | wx.EXPAND, 5)
 
         # Apply button
@@ -138,8 +148,10 @@ class NPLTransmissionWindow(wx.Frame):
         right_panel = wx.Panel(panel)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.figure, self.ax = plt.subplots(figsize=(6, 4))
+        self.figure = plt.figure(figsize=(6, 4))
+        self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(right_panel, -1, self.figure)
+
         right_sizer.Add(self.canvas, 1, wx.ALL | wx.EXPAND, 0)
 
         right_panel.SetSizer(right_sizer)
@@ -264,21 +276,260 @@ class NPLTransmissionWindow(wx.Frame):
         return numerator / denominator
 
     def plot_transmission_function(self):
-        """Plot the transmission function"""
+        """Plot the transmission function with hover interaction"""
         if None in [self.a0, self.min_ke, self.max_ke]:
+            # Clear plot if no data
+            self.ax.clear()
+            self.ax.set_xlabel('Kinetic Energy (eV)', fontsize=12)
+            self.ax.set_ylabel('Q(E) Transmission', fontsize=12)
+            self.ax.set_title('NPL Transmission Function', fontsize=14)
+            self.canvas.draw()
             return
 
         # Create kinetic energy range
         ke_range = np.linspace(self.min_ke, self.max_ke, 500)
         transmission = [self.calculate_transmission(ke) for ke in ke_range]
 
+        # Store data for hover
+        self.ke_data = ke_range
+        self.trans_data = np.array(transmission)
+
+        # Clear and redraw
         self.ax.clear()
-        self.ax.plot(ke_range, transmission, 'b-', linewidth=2)
+
+        # Remove old top axis if it exists
+        if self.ax2 is not None:
+            try:
+                self.ax2.remove()
+            except:
+                pass
+            self.ax2 = None
+
+        # Plot the transmission line
+        self.line, = self.ax.plot(ke_range, transmission, 'b-', linewidth=2)
         self.ax.set_xlabel('Kinetic Energy (eV)', fontsize=12)
         self.ax.set_ylabel('Q(E) Transmission', fontsize=12)
         self.ax.set_title('NPL Transmission Function', fontsize=14)
         self.ax.grid(True, alpha=0.3)
+
+        # Add top axis for binding energy
+        self.ax2 = self.ax.twiny()
+        self.ax2.set_xlabel('Binding Energy (eV)', fontsize=12)
+
+        # Calculate BE limits from KE limits
+        be_max = self.photon_energy - self.min_ke
+        be_min = self.photon_energy - self.max_ke
+        self.ax2.set_xlim(be_max, be_min)
+
+        # Create hover marker on the main axis (initially invisible)
+        self.hover_point, = self.ax.plot([], [], 'ro', markersize=10, visible=False, zorder=10)
+
+        # Create annotation for displaying values
+        if self.annotation is not None:
+            try:
+                self.annotation.remove()
+            except:
+                pass
+
+        self.annotation = self.ax.annotate('', xy=(0, 0), xytext=(15, 15),
+                                           textcoords='offset points',
+                                           bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.9, edgecolor='black'),
+                                           fontsize=10,
+                                           visible=False,
+                                           zorder=11)
+
+        # Draw first
         self.canvas.draw()
+
+        # NOW connect the motion event AFTER everything is drawn
+        if hasattr(self, 'hover_cid') and self.hover_cid is not None:
+            self.canvas.mpl_disconnect(self.hover_cid)
+
+        print("Connecting hover event...")
+        self.hover_cid = self.canvas.mpl_connect('motion_notify_event', self.on_hover)
+        print(f"Hover event connected with ID: {self.hover_cid}")
+
+    def on_hover(self, event):
+        """Handle mouse hover events on the plot"""
+        try:
+            # Check if mouse is over any axis in the figure
+            if event.inaxes is None:
+                if self.hover_point is not None and self.hover_point.get_visible():
+                    self.hover_point.set_visible(False)
+                    if self.annotation is not None:
+                        self.annotation.set_visible(False)
+                    self.canvas.draw_idle()
+                return
+
+            # Check if we're on the main axis (not the top twin axis)
+            # The main axis is the one with the blue line
+            if event.inaxes != self.ax and event.inaxes != self.ax2:
+                return
+
+            # Check if we have valid data
+            if not hasattr(self, 'ke_data') or not hasattr(self, 'trans_data'):
+                return
+
+            if self.ke_data is None or self.trans_data is None:
+                return
+
+            if len(self.ke_data) == 0:
+                return
+
+            # Get mouse position - use the x coordinate from the event
+            x_mouse = event.xdata
+            y_mouse = event.ydata
+
+            if x_mouse is None or y_mouse is None:
+                return
+
+            # If on the top axis (BE), convert to KE
+            if event.inaxes == self.ax2:
+                # Convert BE to KE
+                x_mouse = self.photon_energy - x_mouse
+
+            # Find index of closest KE value
+            idx = np.argmin(np.abs(self.ke_data - x_mouse))
+            ke_closest = self.ke_data[idx]
+            trans_closest = self.trans_data[idx]
+
+            # Calculate binding energy
+            be_closest = self.photon_energy - ke_closest
+
+            # Update hover point position
+            if self.hover_point is not None:
+                self.hover_point.set_data([ke_closest], [trans_closest])
+                self.hover_point.set_visible(True)
+
+            # Update annotation
+            if self.annotation is not None:
+                self.annotation.xy = (ke_closest, trans_closest)
+                self.annotation.set_text(f'KE: {ke_closest:.2f} eV\nBE: {be_closest:.2f} eV\nQ(E): {trans_closest:.2f}')
+                self.annotation.set_visible(True)
+
+            # Redraw
+            self.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Hover error: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def on_sheet_context_menu(self, event):
+        """Handle right-click on sheet checklist"""
+        # Get all sheet names from the checklist
+        all_sheets = []
+        for i in range(self.sheet_checklist.GetCount()):
+            all_sheets.append(self.sheet_checklist.GetString(i))
+
+        if not all_sheets:
+            return
+
+        # Group sheets by core level type
+        sheet_groups = {}
+        for sheet in all_sheets:
+            core_type = self.extract_core_type(sheet)
+            if core_type not in sheet_groups:
+                sheet_groups[core_type] = []
+            sheet_groups[core_type].append(sheet)
+
+        # Create context menu
+        menu = wx.Menu()
+
+        # Add Select All and Unselect All at the top
+        select_all_item = menu.Append(wx.ID_ANY, "Select All")
+        unselect_all_item = menu.Append(wx.ID_ANY, "Unselect All")
+
+        self.Bind(wx.EVT_MENU, self.on_select_all_sheets, select_all_item)
+        self.Bind(wx.EVT_MENU, self.on_unselect_all_sheets, unselect_all_item)
+
+        # Add separator
+        if len(sheet_groups) > 0:
+            menu.AppendSeparator()
+
+        # Sort core level types for consistent ordering
+        sorted_core_types = sorted(sheet_groups.keys())
+
+        for core_type in sorted_core_types:
+            sheets_of_type = sheet_groups[core_type]
+
+            # Create select and unselect items for this core level type
+            select_item = menu.Append(wx.ID_ANY, f"Select All {core_type} ({len(sheets_of_type)})")
+            unselect_item = menu.Append(wx.ID_ANY, f"Unselect All {core_type} ({len(sheets_of_type)})")
+
+            # Bind events
+            self.Bind(wx.EVT_MENU, lambda evt, ct=core_type: self.select_all_core_type(ct), select_item)
+            self.Bind(wx.EVT_MENU, lambda evt, ct=core_type: self.unselect_all_core_type(ct), unselect_item)
+
+            # Add separator after each core level type (except the last one)
+            if core_type != sorted_core_types[-1]:
+                menu.AppendSeparator()
+
+        # Show the menu
+        self.sheet_checklist.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_select_all_sheets(self, event):
+        """Select all sheets in the checklist"""
+        for i in range(self.sheet_checklist.GetCount()):
+            self.sheet_checklist.Check(i, True)
+
+    def on_unselect_all_sheets(self, event):
+        """Unselect all sheets in the checklist"""
+        for i in range(self.sheet_checklist.GetCount()):
+            self.sheet_checklist.Check(i, False)
+
+    def select_all_core_type(self, core_type):
+        """Select all sheets of a specific core level type"""
+        for i in range(self.sheet_checklist.GetCount()):
+            sheet = self.sheet_checklist.GetString(i)
+            if self.extract_core_type(sheet) == core_type:
+                self.sheet_checklist.Check(i, True)
+
+    def unselect_all_core_type(self, core_type):
+        """Unselect all sheets of a specific core level type"""
+        for i in range(self.sheet_checklist.GetCount()):
+            sheet = self.sheet_checklist.GetString(i)
+            if self.extract_core_type(sheet) == core_type:
+                self.sheet_checklist.Check(i, False)
+
+    def extract_core_type(self, sheet_name):
+        """Extract the core level type (element + orbital) from sheet name"""
+        if not sheet_name:
+            return ""
+
+        import re
+
+        # Remove common suffixes/prefixes that might indicate sample info
+        cleaned_name = sheet_name.strip()
+
+        # Look for pattern: Element + orbital (e.g., C1s, O1s, Au4f, Ti2p, etc.)
+        pattern = r'^([A-Z][a-z]?\d+[a-z]*)(?:\d+)?.*'
+        match = re.match(pattern, cleaned_name)
+
+        if match:
+            return match.group(1)
+
+        # Fallback: look for first part before underscore, space, or dash
+        separators = ['_', ' ', '-', '.']
+        for sep in separators:
+            if sep in cleaned_name:
+                first_part = cleaned_name.split(sep)[0]
+                # Check if first part looks like a core level (has both letters and numbers)
+                if re.match(r'^[A-Z][a-z]?\d+[a-z]*\d*$', first_part):
+                    # Remove trailing digits to get just the core level type
+                    core_level_match = re.match(r'^([A-Z][a-z]?\d+[a-z]*)', first_part)
+                    if core_level_match:
+                        return core_level_match.group(1)
+                break
+
+        # Final fallback: extract core level pattern from anywhere in name
+        core_level_match = re.search(r'([A-Z][a-z]?\d+[a-z]*)', cleaned_name)
+        if core_level_match:
+            return core_level_match.group(1)
+
+        # Last resort: return first 4 characters or whole name if shorter
+        return cleaned_name[:4] if len(cleaned_name) > 4 else cleaned_name
 
     def update_sheet_list(self):
         """Update sheet checklist with available sheets"""
