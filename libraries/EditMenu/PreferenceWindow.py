@@ -391,7 +391,7 @@ class PreferenceWindow(wx.Frame):
         # Add ECF method selection
         self.library_type_label = wx.StaticText(self.instrument_tab, label="ECF Method:")
         self.library_type_combo = wx.ComboBox(self.instrument_tab,
-                                              choices=["Scofield", "Wagner", "TPP-2M","EAL", "NPL method","None"],
+                                              choices=["Scofield", "Wagner", "TPP-2M","EAL", "NPL-method","None"],
                                               style=wx.CB_READONLY)
         current_type = self.parent.library_type
         selection_index = self.library_type_combo.FindString(current_type)

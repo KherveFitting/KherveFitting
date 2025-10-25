@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 # matplotlib.use('WXAgg')  # Ensure we're using the wx backend
 import openpyxl
+from openpyxl.styles import Font
 import re
 import pandas as pd
 
@@ -603,6 +604,9 @@ class NPLTransmissionWindow(wx.Frame):
             # Load workbook
             wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
 
+            # Create bold font for headers
+            bold_font = Font(bold=True)
+
             sheets_processed = []
 
             for sheet_name in checked_sheets:
@@ -610,6 +614,13 @@ class NPLTransmissionWindow(wx.Frame):
                     continue
 
                 ws = wb[sheet_name]
+
+                # Write headers in row 1 with bold formatting
+                headers = ["Binding Energy", "Corrected Data", "Raw Data", "Transmission"]
+                for col_idx, header in enumerate(headers, start=1):
+                    cell = ws.cell(row=1, column=col_idx)
+                    cell.value = header
+                    cell.font = bold_font
 
                 # Process each row
                 row = 2
