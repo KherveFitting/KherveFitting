@@ -424,7 +424,7 @@ class PreferenceWindow(wx.Frame):
         lib_info_btn.Bind(wx.EVT_BUTTON, self.on_view_library)
         sizer.Add(lib_info_btn, pos=(3, 0), flag= wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
-        npl_trans_btn = wx.Button(self.instrument_tab, label="NPL Transmission")
+        npl_trans_btn = wx.Button(self.instrument_tab, label="Write NPL Transmission")
         npl_trans_btn.SetToolTip("Configure NPL intensity calibration transmission function")
         npl_trans_btn.SetMinSize((110, 30))
         npl_trans_btn.Bind(wx.EVT_BUTTON, self.on_npl_transmission)
