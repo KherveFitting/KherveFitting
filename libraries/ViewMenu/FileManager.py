@@ -1830,12 +1830,15 @@ class FileManagerWindow(wx.Frame):
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
 
+                # Get legend label (use experiment name if available)
+                legend_label = self.get_legend_label_for_sheet(sheet_name)
+
                 # Plot the data
                 if self.parent.energy_scale == 'KE':
-                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=sheet_name, color=color,
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=legend_label, color=color,
                                         linewidth=self.parent.line_width)
                 else:
-                    self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color,
+                    self.parent.ax.plot(x_values, y_values, label=legend_label, color=color,
                                         linewidth=self.parent.line_width)
 
         # Set labels and formatting
@@ -3562,12 +3565,15 @@ class FileManagerWindow(wx.Frame):
                 # Use a different color for each plot
                 color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
 
+                # Get legend label (use experiment name if available)
+                legend_label = self.get_legend_label_for_sheet(sheet_name)
+
                 # Plot the data
                 if self.parent.energy_scale == 'KE':
-                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=sheet_name, color=color,
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=legend_label, color=color,
                                         linewidth=self.parent.line_width)
                 else:
-                    self.parent.ax.plot(x_values, y_values, label=sheet_name, color=color,
+                    self.parent.ax.plot(x_values, y_values, label=legend_label, color=color,
                                         linewidth=self.parent.line_width)
 
         # Set labels and formatting
@@ -3928,6 +3934,24 @@ class FileManagerWindow(wx.Frame):
 
         except Exception as e:
             print(f"Error getting display text: {e}")
+            return sheet_name
+
+    def get_legend_label_for_sheet(self, sheet_name):
+        """Get the legend label for a sheet - uses experiment name from column 0 if available"""
+        try:
+            # Find which row this sheet corresponds to
+            for row in range(self.grid.GetNumberRows()):
+                for col in range(1, len(self.core_levels) + 1):
+                    if self.grid.GetCellValue(row, col) == sheet_name:
+                        # Found the sheet, now check if there's an experiment name in column 0
+                        experiment_name = self.grid.GetCellValue(row, 0)
+                        if experiment_name and str(experiment_name).strip():
+                            return str(experiment_name).strip()
+                        break
+
+            # Fallback to sheet name if no experiment name found
+            return sheet_name
+        except:
             return sheet_name
 
     def plot_fitted_data_for_sheet(self, sheet_name, x_values, offset, base_color, sheet_index, norm_params=None):
