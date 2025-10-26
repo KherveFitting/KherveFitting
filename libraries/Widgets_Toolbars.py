@@ -39,6 +39,7 @@ from libraries.FileMenu.Save import save_vamas_file_dialog
 from libraries.ToolsMenu.VB_measurements import VB_measurements
 from libraries.ToolsMenu.PlotModWindow import PlotModWindow
 from libraries.UsageAnalytics import show_usage_stats_window
+from libraries.FileMenu.Open import import_generic_excel_file  # Add this line
 
 # With conditional imports:
 import platform
@@ -1364,7 +1365,8 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
                         # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, toggle_peak_fill_tool, plot_tool,
                         ):
     window.Bind(wx.EVT_TOOL, lambda event: open_xlsx_file(window), open_file_tool)
-    window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper), refresh_folder_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper), refresh_folder_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper, reopen_file=True), refresh_folder_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_background_window(), bkg_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(normal=True), fitting_tool)
     window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(normal=False), mini_fitting_tool)

@@ -1299,7 +1299,7 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
             window.canvas.draw_idle()
 
 
-def refresh_sheets(window, on_sheet_selected_func, update_console=None):
+def refresh_sheets(window, on_sheet_selected_func, update_console=None, reopen_file=False):
     if 'FilePath' not in window.Data or not window.Data['FilePath']:
         wx.MessageBox("No file currently open. Please open a file first.", "Error", wx.OK | wx.ICON_ERROR)
         return
@@ -1554,9 +1554,10 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None):
         if hasattr(window, 'plot_config'):
             window.plot_config.update_plot_limits(window, current_sheet)
 
-        # Refresh the plot
-        window.plot_manager.plot_data(window)
-        window.clear_and_replot()
+        # Refresh the plot only if not reopening file
+        if not reopen_file:
+            window.plot_manager.plot_data(window)
+            window.clear_and_replot()
 
         # Show completion message in console
         if name_changes:
@@ -1568,9 +1569,21 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None):
 
         update_console("Refresh completed successfully!")
 
-        # Close console if we created it
-        if console_frame:
-            wx.CallLater(500, console_frame.Close)
+        # Re-open the file if explicitly requested
+        if reopen_file:
+            update_console("Re-opening file...")
+
+            # Close console before re-opening
+            if console_frame:
+                console_frame.Close()
+
+            # Re-open the file
+            from libraries.FileMenu.Open import open_xlsx_file
+            open_xlsx_file(window, file_path)
+        else:
+            # Close console if we created it
+            if console_frame:
+                wx.CallLater(500, console_frame.Close)
 
     except Exception as e:
         import traceback
