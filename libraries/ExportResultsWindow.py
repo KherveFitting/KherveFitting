@@ -10,7 +10,7 @@ class ExportResultsWindow(wx.Frame):
         )
         self.parent = parent
         self.SetTitle("Export to Results Grid")
-        self.SetSize((276, 370))
+        self.SetSize((273, 340))
 
         # Light red background color
         panel = wx.Panel(self)
@@ -51,12 +51,33 @@ class ExportResultsWindow(wx.Frame):
         unselect_all_button.Bind(wx.EVT_BUTTON, self.on_unselect_all)
         main_sizer.Add(unselect_all_button, pos=(1, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
+        # Select this core level and Select this row buttons
+        select_core_level_button = wx.Button(panel, label="Select This Core Level")
+        if 'wxMac' in wx.PlatformInfo:
+            select_core_level_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            select_core_level_button.SetMinSize((125, 35))
+        else:
+            select_core_level_button.SetMinSize((125, 35))
+        select_core_level_button.Bind(wx.EVT_BUTTON, self.on_select_this_core_level)
+        main_sizer.Add(select_core_level_button, pos=(2, 0), flag=wx.ALL | wx.EXPAND, border=1)
+
+        select_row_button = wx.Button(panel, label="Select This Row")
+        if 'wxMac' in wx.PlatformInfo:
+            select_row_button.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            select_row_button.SetMinSize((125, 35))
+        else:
+            select_row_button.SetMinSize((125, 35))
+        select_row_button.Bind(wx.EVT_BUTTON, self.on_select_this_row)
+        main_sizer.Add(select_row_button, pos=(2, 1), flag=wx.ALL | wx.EXPAND, border=1)
+
         # Core levels checklist box
         self.core_levels_checklist = wx.CheckListBox(panel)
-        self.core_levels_checklist.SetMinSize((250, 200))
+        self.core_levels_checklist.SetMinSize((250, 150))
         self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
-        main_sizer.Add(self.core_levels_checklist, pos=(2, 0), span=(1, 2),
-                       flag=wx.ALL | wx.EXPAND, border=5)
+        main_sizer.Add(self.core_levels_checklist, pos=(3, 0), span=(1, 2),
+                       flag=wx.ALL | wx.EXPAND, border=3)
 
         # Export Selected button
         export_selected_button = wx.Button(panel, label="Export\nto Results Grid")
@@ -67,7 +88,7 @@ class ExportResultsWindow(wx.Frame):
         else:
             export_selected_button.SetMinSize((125, 35))
         export_selected_button.Bind(wx.EVT_BUTTON, self.on_export_selected)
-        main_sizer.Add(export_selected_button, pos=(3, 0), flag=wx.ALL | wx.EXPAND, border=1)
+        main_sizer.Add(export_selected_button, pos=(4, 0), flag=wx.ALL | wx.EXPAND, border=1)
 
         # Clean and Export button
         clean_export_button = wx.Button(panel, label="Clean and Export\nto Results Grid")
@@ -78,7 +99,7 @@ class ExportResultsWindow(wx.Frame):
         else:
             clean_export_button.SetMinSize((125, 35))
         clean_export_button.Bind(wx.EVT_BUTTON, self.on_clean_and_export)
-        main_sizer.Add(clean_export_button, pos=(3, 1), flag=wx.ALL | wx.EXPAND, border=1)
+        main_sizer.Add(clean_export_button, pos=(4, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
         panel.SetSizer(main_sizer)
         self.Bind(wx.EVT_CLOSE, self.on_close)
@@ -100,6 +121,31 @@ class ExportResultsWindow(wx.Frame):
         """Unselect all core levels"""
         for i in range(self.core_levels_checklist.GetCount()):
             self.core_levels_checklist.Check(i, False)
+
+    def on_select_this_core_level(self, event):
+        """Select all core levels matching the currently selected row's core level type"""
+        selection = self.core_levels_checklist.GetSelection()
+        if selection == wx.NOT_FOUND:
+            wx.MessageBox("Please select a row first", "No Selection", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        selected_core_level = self.core_levels_checklist.GetString(selection)
+        core_type = self.extract_column_type(selected_core_level)
+
+        # Select all core levels of this type
+        for i in range(self.core_levels_checklist.GetCount()):
+            core_level = self.core_levels_checklist.GetString(i)
+            if self.extract_column_type(core_level) == core_type:
+                self.core_levels_checklist.Check(i, True)
+
+    def on_select_this_row(self, event):
+        """Select only the currently selected row"""
+        selection = self.core_levels_checklist.GetSelection()
+        if selection == wx.NOT_FOUND:
+            wx.MessageBox("Please select a row first", "No Selection", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        self.core_levels_checklist.Check(selection, True)
 
     def on_core_levels_context_menu(self, event):
         """Handle right-click on core levels checklist"""
@@ -253,4 +299,7 @@ class ExportResultsWindow(wx.Frame):
 
     def on_close(self, event):
         """Handle window close"""
+        self.Destroy()
+
+    def OnClose(self, event):
         self.Destroy()

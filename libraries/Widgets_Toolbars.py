@@ -168,7 +168,8 @@ def create_widgets(window):
     file_drop_target = ExcelDropTarget(window)
     window.canvas.SetDropTarget(file_drop_target)
 
-    plt.tight_layout()
+    # plt.tight_layout(pad=0.8)
+    plt.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1)
     right_frame_sizer.Add(window.canvas, 1, wx.EXPAND | wx.ALL, 0)
 
     # Initialize plot_manager

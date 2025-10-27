@@ -113,11 +113,13 @@ class ExcelDropTarget(wx.FileDropTarget):
                     return True
 
                 # Check if it's standard kFitting format
-                # Must have: proper headers AND proper sheet names
+                # Must have: proper headers OR proper sheet names (non-generic, non-special)
                 is_kfitting = False
                 has_generic_sheet_names = False
+                has_proper_sheet_names = False
 
                 for sheet_name in wb.sheetnames:
+                    # Skip special sheets
                     if sheet_name.lower() in ["results table", "experimental description"]:
                         continue
 
@@ -125,6 +127,9 @@ class ExcelDropTarget(wx.FileDropTarget):
                     if re.match(r'^Sheet\d+$', sheet_name, re.IGNORECASE):
                         has_generic_sheet_names = True
                         break
+                    else:
+                        # If it's not generic and not a special sheet, it's a proper name
+                        has_proper_sheet_names = True
 
                     sheet = wb[sheet_name]
                     if sheet.max_row > 0:
@@ -146,11 +151,11 @@ class ExcelDropTarget(wx.FileDropTarget):
 
                 wb.close()
 
-                # Only treat as kFitting if it has proper headers AND no generic sheet names
-                if is_kfitting and not has_generic_sheet_names:
+                # Treat as kFitting if it has proper headers OR proper sheet names (and no generic names)
+                if (is_kfitting or has_proper_sheet_names) and not has_generic_sheet_names:
                     wx.CallAfter(open_xlsx_file, self.window, file)
                 else:
-                    # Has generic sheet names or no proper headers - use interactive import
+                    # Has generic sheet names or no proper headers/names - use interactive import
                     wx.CallAfter(import_generic_excel_file, self.window, file)
 
                 return True
@@ -3641,6 +3646,51 @@ def open_xlsx_file(window, file_path=None):
             window.file_manager = None
     except RuntimeError:
         window.file_manager = None
+
+    # Close fitting and export windows to refresh with new core levels
+    try:
+        if hasattr(window, 'fitting_screen') and window.fitting_screen is not None:
+            try:
+                window.fitting_screen.GetSize()
+                window.fitting_screen.Close()
+            except RuntimeError:
+                pass
+            window.fitting_screen = None
+    except:
+        pass
+
+    try:
+        if hasattr(window, 'areafit_screen') and window.areafit_screen is not None:
+            try:
+                window.areafit_screen.GetSize()
+                window.areafit_screen.Close()
+            except RuntimeError:
+                pass
+            window.areafit_screen = None
+    except:
+        pass
+
+    try:
+        if hasattr(window, 'profile_creator_window') and window.profile_creator_window is not None:
+            try:
+                window.profile_creator_window.GetSize()
+                window.profile_creator_window.Close()
+            except RuntimeError:
+                pass
+            window.profile_creator_window = None
+    except:
+        pass
+
+    try:
+        if hasattr(window, 'export_results_window') and window.export_results_window is not None:
+            try:
+                window.export_results_window.GetSize()
+                window.export_results_window.Close()
+            except RuntimeError:
+                pass
+            window.export_results_window = None
+    except:
+        pass
 
     try:
         # Create console window centered on parent

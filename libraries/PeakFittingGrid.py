@@ -177,7 +177,7 @@ class PeakFittingGrid:
         self.window.peak_params_grid.SetCellValue(row, 16,
                                            f"{self.window.bg_max_energy:.2f}" if self.window.bg_max_energy is not None else "")  # Bkg High
         self.window.peak_params_grid.SetCellValue(row, 17, f"{float(self.window.offset_l):.2f}")  # Bkg Offset Low
-        self.window.peak_params_grid.SetCellValue(row, 18, f"{self.window.offset_h:.2f}")  # Bkg Offset High
+        self.window.peak_params_grid.SetCellValue(row, 18, f"{float(self.window.offset_h):.2f}")  # Bkg Offset High
 
         # Set position constraint to background range
         position_constraint = f"{self.window.bg_min_energy:.2f},{self.window.bg_max_energy:.2f}"

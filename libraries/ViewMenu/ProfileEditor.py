@@ -49,7 +49,7 @@ class ProfileCreatorWindow(wx.Frame):
         self.core_levels_checklist.SetMinSize((250, 200))
         self.populate_core_levels_list()
         self.core_levels_checklist.Bind(wx.EVT_CONTEXT_MENU, self.on_core_levels_context_menu)
-        main_sizer.Add(self.core_levels_checklist, 1, wx.ALL | wx.EXPAND, 1)
+        main_sizer.Add(self.core_levels_checklist, 1, wx.ALL | wx.EXPAND, 3)
 
         # Profile type dropdown
         type_sizer = wx.BoxSizer(wx.HORIZONTAL)

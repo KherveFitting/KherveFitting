@@ -800,8 +800,12 @@ class PlotManager:
                     self.figure.delaxes(self.residuals_subplot)
                     self.residuals_subplot = None
                     # self.ax.set_position([0.1, 0.1, 0.8, 0.8])
-                    self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+                    # self.ax.set_position([0.1, 0.125, 0.85, 0.85])
                     self.ax.get_xaxis().set_visible(True)
+
+            # Always set position for consistent layout (including survey/wide plots)
+            # self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.ax.set_position([0.1, 0.1, 0.85, 0.85])
 
             x_values = window.Data['Core levels'][sheet_name]['B.E.']
             # if hasattr(window, 'be_correction'):
@@ -1113,7 +1117,8 @@ class PlotManager:
             if self.residuals_subplot:
                 self.figure.delaxes(self.residuals_subplot)
                 self.residuals_subplot = None
-                self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+                # self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+                self.ax.set_position([0.1, 0.1, 0.85, 0.85])
                 self.ax.get_xaxis().set_visible(True)
 
         # Get column names (excluding 'Number')
@@ -1289,8 +1294,10 @@ class PlotManager:
             if self.residuals_subplot:
                 self.residuals_subplot.clear()
                 # self.ax.set_position([0.1, 0.1, 0.8, 0.8])
-                self.ax.set_position([0.1, 0.125, 0.85, 0.85])
-                gs = self.figure.add_gridspec(20, 1, hspace=0.0)
+                # self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+                self.ax.set_position([0.1, 0.1, 0.85, 0.85])
+                # gs = self.figure.add_gridspec(20, 1, hspace=0.0)
+                gs = self.figure.add_gridspec(20, 1, hspace=0.0, top=0.95, bottom=0.1, left=0.1, right=0.95)
                 self.ax.set_position(gs[0:18, 0].get_position(self.figure))  # Main plot takes 6/8
                 self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))  # Residuals takes 2/8
                 self.residuals_subplot.sharex(self.ax)
@@ -1300,7 +1307,8 @@ class PlotManager:
 
         else:
             # self.ax.set_position([0.1, 0.1, 0.8, 0.8])
-            self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            # self.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.ax.set_position([0.1, 0.1, 0.85, 0.85])
             self.ax.get_xaxis().set_visible(True)
 
         # Set appropriate axis labels based on data type
@@ -1604,6 +1612,16 @@ class PlotManager:
                 self.survey_table_state == 1 and
                 self.is_survey_plot()):
             self.draw_survey_table()
+
+        # Force position before drawing to prevent matplotlib auto-layout
+        if hasattr(self, 'residuals_state') and self.residuals_state == 2 and self.residuals_subplot:
+            # When residuals subplot exists, use GridSpec layout
+            gs = self.figure.add_gridspec(20, 1, hspace=0.0, top=0.95, bottom=0.1, left=0.1, right=0.95)
+            self.ax.set_position(gs[0:18, 0].get_position(self.figure))
+            self.residuals_subplot.set_position(gs[18:, 0].get_position(self.figure))
+        else:
+            # No residuals - use fixed position
+            self.ax.set_position([0.1, 0.1, 0.85, 0.85])
 
 
         # Draw the canvas
@@ -2159,7 +2177,8 @@ class PlotManager:
 
     def setup_residual_subplot(self, window, x_values, masked_residuals, residual_thickness=1, scaling_factor=1):
         # Create gridspec at start
-        gs = self.figure.add_gridspec(20, 1, hspace=0.0)
+        # gs = self.figure.add_gridspec(20, 1, hspace=0.0)
+        gs = self.figure.add_gridspec(20, 1, hspace=0.0, top=0.95, bottom=0.1, left=0.1, right=0.95)
 
         if not self.residuals_subplot:
             self.ax.set_position(gs[0:18, 0].get_position(self.figure))

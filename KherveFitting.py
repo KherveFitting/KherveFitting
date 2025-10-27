@@ -174,6 +174,7 @@ class MyFrame(wx.Frame):
         self.right_frame = None
         self.figure = plt.figure()
         self.ax = self.figure.add_subplot(111)  # Create the Matplotlib axes
+        self.figure.set_constrained_layout(False)  # Disable automatic layout
         self.ax.set_xlabel("Binding Energy (eV)")  # Set x-axis label
         self.ax.set_ylabel("Intensity (CPS)")  # Set y-axis label
         self.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
@@ -3628,9 +3629,16 @@ class MyFrame(wx.Frame):
         """Open the export to results grid window"""
         from libraries.ExportResultsWindow import ExportResultsWindow
 
-        # Create window if it doesn't exist
+        # Create window if it doesn't exist or was deleted
         if not hasattr(self, 'export_results_window') or self.export_results_window is None:
             self.export_results_window = ExportResultsWindow(self)
+        else:
+            try:
+                # Test if window still exists
+                self.export_results_window.GetSize()
+            except RuntimeError:
+                # Window was deleted, create new one
+                self.export_results_window = ExportResultsWindow(self)
 
         # Position window
         main_pos = self.GetPosition()
