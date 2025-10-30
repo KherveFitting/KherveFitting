@@ -1468,13 +1468,26 @@ class BackgroundWindow(wx.Frame):
             # Clear background between previous range using the same logic as Fitting_Screen
             self.clear_background_between_range(prev_bg_low, prev_bg_high)
 
+        # Get stored vline positions for later use
+        vline1_x = self.parent.vline1.get_xdata()[0]
+        vline2_x = self.parent.vline2.get_xdata()[0]
+
+        # DEBUG: Print current zoom state
+        current_xlim = self.parent.ax.get_xlim()
+        current_ylim = self.parent.ax.get_ylim()
+        print(f"\n=== BACKGROUND CREATION START ===")
+        print(f"Initial zoom: X={current_xlim}, Y={current_ylim}")
+
         # **SPECIAL HANDLING FOR TOUGAARD BACKGROUNDS**
         if "Tougaard" in selected_method:
             # For Tougaard: calculate background for ENTIRE data range, apply only between vLines
             self.handle_tougaard_background_special(sheet_name, selected_method, vline1_x, vline2_x)
         else:
             # For other methods: use normal background creation
+            print(f"Before plot_background: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
             self.parent.plot_manager.plot_background(self.parent)
+            print(f"After plot_background: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
+
 
         # Get data after background calculation
         x_values = np.array(self.parent.Data['Core levels'][sheet_name]['B.E.'])
@@ -1630,15 +1643,27 @@ class BackgroundWindow(wx.Frame):
         # Apply choice editors to the fitting model column
         self.parent.set_model_choice_editors(self.parent)
 
+        print(f"Before plot_data: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
         self.parent.plot_manager.plot_data(self.parent)  # Always plot raw data first
-        if self.parent.show_fit and self.parent.peak_params_grid.GetNumberRows() > 0:
-            self.parent.clear_and_replot()  # Add fit and residuals if show_fit is True
+        print(f"After plot_data: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
 
+        if self.parent.show_fit and self.parent.peak_params_grid.GetNumberRows() > 0:
+            print(f"Before clear_and_replot: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
+            self.parent.clear_and_replot()  # Add fit and residuals if show_fit is True
+            print(f"After clear_and_replot: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
+
+        print(f"Before update_plot_limits: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
         self.parent.plot_config.update_plot_limits(self.parent, sheet_name)
+        print(f"After update_plot_limits: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
+        print(f"=== BACKGROUND CREATION END ===\n")
+
+        print(f"Before update_legend: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
         self.parent.plot_manager.update_legend(self.parent)
+        print(f"After update_legend: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
 
         # Restore vlines at their original positions (they were destroyed by clear_and_replot)
         if hasattr(self.parent, 'vline1') and hasattr(self.parent, 'vline2'):
+            print(f"Before recreating vlines: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
             # Recreate vlines at stored positions (vline1_x and vline2_x were stored earlier)
             self.parent.vline1 = self.parent.ax.axvline(vline1_x, color='r', linestyle='--', alpha=0.7)
             self.parent.vline2 = self.parent.ax.axvline(vline2_x, color='r', linestyle='--', alpha=0.7)
@@ -1647,12 +1672,16 @@ class BackgroundWindow(wx.Frame):
             center_pos = (vline1_x + vline2_x) / 2
             self.parent.vline_center = self.parent.ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.4, linewidth=1.0)
 
+            print(f"After axvline calls: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
+
             # Add text labels back
             self.add_vline_text_labels()
+            print(f"After add_vline_text_labels: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
 
             # Add averaging indicator lines
             if hasattr(self.parent, 'add_averaging_indicator_lines'):
                 self.parent.add_averaging_indicator_lines()
+                print(f"After add_averaging_indicator_lines: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
 
             # Update area tab selection state so vlines stay visible
             self.parent.area_tab_selected = True
@@ -1676,6 +1705,8 @@ class BackgroundWindow(wx.Frame):
             # Draw the survey table (this will also hide the legend)
             self.parent.plot_manager.draw_survey_table()
             print(f"Survey table enabled for {sheet_name}")
+
+        print(f"After draw_survey_table: X={self.parent.ax.get_xlim()}, Y={self.parent.ax.get_ylim()}")
 
 
     def handle_tougaard_background_special(self, sheet_name, selected_method, vline1_x, vline2_x):

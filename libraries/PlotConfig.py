@@ -253,6 +253,11 @@ class PlotConfig:
             window.canvas.draw_idle()
 
     def update_plot_limits(self, window, sheet_name, x_min=None, x_max=None, y_min=None, y_max=None):
+        # Check if sheet exists in Core levels data
+        if sheet_name not in window.Data.get('Core levels', {}):
+            print(f"Warning: Sheet '{sheet_name}' not found in Core levels data")
+            return
+
         if sheet_name not in self.plot_limits:
             self.plot_limits[sheet_name] = {}
             self.original_limits[sheet_name] = {}
@@ -262,11 +267,23 @@ class PlotConfig:
 
         # Store original limits if not already stored
         if not original:
-            x_values = window.Data['Core levels'][sheet_name]['B.E.']
-            y_values = window.Data['Core levels'][sheet_name]['Raw Data']
+            # Check if B.E. and Raw Data exist
+            core_level_data = window.Data['Core levels'][sheet_name]
+            if 'B.E.' not in core_level_data or 'Raw Data' not in core_level_data:
+                print(f"Warning: Sheet '{sheet_name}' missing B.E. or Raw Data")
+                return
+
+            x_values = core_level_data['B.E.']
+            y_values = core_level_data['Raw Data']
+
+            # Ensure we have valid data
+            if not x_values or not y_values:
+                print(f"Warning: Sheet '{sheet_name}' has empty B.E. or Raw Data")
+                return
+
             original['Xmin'] = min(x_values)
             original['Xmax'] = max(x_values)
-            original['Ymin'] = min(y_values) - 0.015* max(y_values)
+            original['Ymin'] = min(y_values) - 0.015 * max(y_values)
             original['Ymax'] = max(y_values) * 1.2  # Add 20% padding to the top
 
         # Update current limits
@@ -351,12 +368,27 @@ class PlotConfig:
         window.ax.set_ylim(limits['Ymin'], limits['Ymax'])
         window.canvas.draw_idle()
 
-    def get_plot_limits(self, window, sheet_name=None):
+    def get_plot_limits_OLD(self, window, sheet_name=None):
         if sheet_name is None:
             sheet_name = window.sheet_combobox.GetValue()
 
         if sheet_name not in self.plot_limits:
             self.update_plot_limits(window, sheet_name)
+
+        return self.plot_limits[sheet_name]
+
+    def get_plot_limits(self, window, sheet_name):
+        # Check if sheet exists in Core levels data
+        if sheet_name not in window.Data.get('Core levels', {}):
+            print(f"Warning: Sheet '{sheet_name}' not found in Core levels data")
+            return None
+
+        if sheet_name not in self.plot_limits:
+            self.update_plot_limits(window, sheet_name)
+
+        # Return None if update_plot_limits failed
+        if sheet_name not in self.plot_limits:
+            return None
 
         return self.plot_limits[sheet_name]
 

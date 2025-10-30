@@ -757,7 +757,7 @@
       },
       "Fitting": {
         "Peaks": {
-          "C1s p1": {
+          "C1s C-C": {
             "Position": 284.77,
             "Height": 4925.92,
             "FWHM": 1.1,
@@ -779,7 +779,7 @@
             },
             "fwhm_g": 0.64
           },
-          "C1s p2": {
+          "C1s C-O": {
             "Position": 285.74,
             "Height": 596.93,
             "FWHM": 1.1,
@@ -801,7 +801,7 @@
             },
             "fwhm_g": 0.64
           },
-          "C1s p3": {
+          "C1s O-C=O": {
             "Position": 288.36,
             "Height": 408.26,
             "FWHM": 1.1,
@@ -823,7 +823,7 @@
             },
             "fwhm_g": 0.64
           },
-          "C1s p4": {
+          "C1s C=O": {
             "Position": 286.67,
             "Height": 268.38,
             "FWHM": 1.1,

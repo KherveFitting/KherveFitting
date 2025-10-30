@@ -80,6 +80,13 @@ class PeriodicTableXPS(wx.Frame):
 
     def on_close(self, event):
         """Handle window close event"""
+        # Save property dialog position if it exists
+        if self.property_dialog and self.property_dialog.IsShown():
+            self.property_dialog_position = self.property_dialog.GetPosition()
+            try:
+                self.property_dialog_tab_index = self.property_dialog.notebook.GetSelection()
+            except:
+                pass
         self.Destroy()
 
     def detect_mac_os(self):
@@ -522,7 +529,7 @@ Version: 1.1"""
         right_sizer.Add(self.name_search, pos=(1, 1), flag=wx.EXPAND)
 
         # Buttons
-        self.properties_btn = wx.Button(search_panel, label="Properties")
+        self.properties_btn = wx.Button(search_panel, label="Databases && Properties")
         self.properties_btn.Bind(wx.EVT_BUTTON, self.show_element_properties)
         right_sizer.Add(self.properties_btn, pos=(0, 2))
 
@@ -568,9 +575,9 @@ Version: 1.1"""
         # Platform-specific column widths
         import platform
         if platform.system() == 'Darwin':  # macOS
-            col_widths = [25, 50, 60, 100, 200, 225]
+            col_widths = [25, 50, 60, 100, 200, 228]
         else:  # Windows and other systems
-            col_widths = [25, 50, 60, 110, 190, 225]  # Slightly wider for Windows
+            col_widths = [25, 50, 60, 110, 190, 228]  # Slightly wider for Windows
 
         for i, (label, width) in enumerate(zip(col_labels, col_widths)):
             self.results_grid.SetColLabelValue(i, label)
@@ -588,17 +595,17 @@ Version: 1.1"""
         self.status_text = wx.StaticText(results_panel, label="Ready")
 
         # Add to sizer
-        results_sizer.Add(self.results_grid, 1, wx.ALL | wx.EXPAND, 5)
-        results_sizer.Add(self.status_text, 0, wx.ALL | wx.EXPAND, 5)
+        results_sizer.Add(self.results_grid, 1, wx.ALL | wx.EXPAND, 2)
+        results_sizer.Add(self.status_text, 0, wx.ALL | wx.EXPAND, 2)
 
         results_panel.SetSizer(results_sizer)
-        self.main_sizer.Add(results_panel, 1, wx.ALL | wx.EXPAND, 1)
+        self.main_sizer.Add(results_panel, 1, wx.ALL | wx.EXPAND, 0)
 
         # Sort tracking
         self.sort_column = None
         self.sort_ascending = True
 
-    def select_element(self, element):
+    def select_element_OLD(self, element):
         """Handle element selection"""
         # Close existing property dialog if open and remember position and tab
         if self.property_dialog:
@@ -627,12 +634,32 @@ Version: 1.1"""
         if self.property_dialog_position:  # Only if a dialog was previously open
             self.show_element_properties(None)
 
+    def select_element(self, element):
+        """Handle element selection"""
+        self.selected_element = element
+        self.element_label.SetLabel(element)
+
+        # Update line dropdown
+        element_lines = ['All Lines'] + sorted(
+            self.df[self.df['Element'] == element]['Line'].unique().tolist()
+        )
+        self.line_combo.Set(element_lines)
+        self.line_combo.SetSelection(0)
+
+        self.update_results()
+
+        # Update existing property dialog if it's open
+        if self.property_dialog and self.property_dialog.IsShown():
+            self.property_dialog.update_element(element)
+            self.property_dialog.Raise()
+
     def on_element_double_click(self, element):
         """Handle double-click on element"""
         if element in self.elements:
             self.select_element(element)
-            # Always show properties on double-click, even if no previous dialog
-            self.show_element_properties(None)
+            # Show properties on double-click
+            if not self.property_dialog or not self.property_dialog.IsShown():
+                self.show_element_properties(None)
 
     def on_line_selected(self, event):
         """Handle line selection"""
@@ -924,7 +951,7 @@ Version: 1.1"""
                                self.line_combo.GetStringSelection())
         plot_frame.Show()
 
-    def show_element_properties(self, event):
+    def show_element_properties_OLD(self, event):
         """Show element properties dialog"""
         if not self.selected_element:
             wx.MessageBox("Please select an element from the periodic table first.",
@@ -959,6 +986,50 @@ Version: 1.1"""
 
         # Show as non-modal dialog
         self.property_dialog.Show()
+
+    def show_element_properties(self, event):
+        """Show element properties dialog"""
+        if not self.selected_element:
+            wx.MessageBox("Please select an element from the periodic table first.",
+                          "No Element Selected", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # If dialog already exists, update it with new element
+        if self.property_dialog and self.property_dialog.IsShown():
+            self.property_dialog.update_element(self.selected_element)
+            self.property_dialog.Raise()  # Bring window to front
+            return
+
+        # Create new properties dialog
+        self.property_dialog = ElementPropertiesDialog(self, self.selected_element, self.df)
+
+        # Set position if we have a saved one
+        if self.property_dialog_position:
+            self.property_dialog.SetPosition(self.property_dialog_position)
+        else:
+            self.property_dialog.CenterOnParent()
+
+        # Set the remembered tab selection
+        try:
+            wx.CallAfter(self.property_dialog.notebook.SetSelection, self.property_dialog_tab_index)
+        except:
+            pass
+
+        # Bind close event to save position/size
+        self.property_dialog.Bind(wx.EVT_CLOSE, self.on_property_dialog_close)
+
+        # Show as non-modal dialog
+        self.property_dialog.Show()
+
+    def on_property_dialog_close(self, event):
+        """Handle property dialog close to save position and size"""
+        if self.property_dialog:
+            self.property_dialog_position = self.property_dialog.GetPosition()
+            try:
+                self.property_dialog_tab_index = self.property_dialog.notebook.GetSelection()
+            except:
+                pass
+        event.Skip()
 
 
 class PlotFrame(wx.Frame):
@@ -1072,7 +1143,7 @@ class ElementPropertiesDialog(wx.Dialog):
 
     def __init__(self, parent, element, df):
         super().__init__(parent, title=f"Properties for {element}",
-                         size=(800, 800), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+                         size=(1000, 900), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX)
 
         self.element = element
         self.df = df
@@ -1087,6 +1158,7 @@ class ElementPropertiesDialog(wx.Dialog):
         # Header
         header_panel = wx.Panel(panel)
 
+
         # Handle macOS dark mode
         import platform
         is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
@@ -1094,15 +1166,15 @@ class ElementPropertiesDialog(wx.Dialog):
         if is_macos_dark:
             header_panel.SetBackgroundColour(wx.Colour(45, 45, 45))
         else:
-            header_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
-
+            # header_panel.SetBackgroundColour(wx.Colour(252, 252, 252))
+            header_panel.SetBackgroundColour(wx.WHITE)
         header_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Element symbol
         symbol_text = wx.StaticText(header_panel, label=element)
         symbol_font = wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         symbol_text.SetFont(symbol_font)
-        header_sizer.Add(symbol_text, 0, wx.ALL, 20)
+        header_sizer.Add(symbol_text, 0, wx.ALL, 5)
 
         # Element name and info
         info_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -1116,20 +1188,23 @@ class ElementPropertiesDialog(wx.Dialog):
                                     label=f"Atomic Number: {self.properties.get('Atomic Number', 'N/A')}")
         info_sizer.Add(atomic_text, 0, wx.ALL, 5)
 
-        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 20)
+        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 5)
         header_panel.SetSizer(header_sizer)
+
 
         # Properties notebook
         notebook = wx.Notebook(panel)
 
         # Properties notebook
         self.notebook = wx.Notebook(panel)  # Make sure this is self.notebook
+        self.notebook.SetBackgroundColour(wx.WHITE)
 
         # Create tabs
-        self.create_properties_tab(self.notebook)
-        self.create_xps_tab(self.notebook)
         self.create_xps_fitting_tab(self.notebook)
         self.create_thermo_tab(self.notebook)
+        self.create_harwell_tab(self.notebook)
+        self.create_properties_tab(self.notebook)
+        self.create_xps_tab(self.notebook)
 
         # Bind notebook page change event to track selections
         self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_changed)
@@ -1153,6 +1228,214 @@ class ElementPropertiesDialog(wx.Dialog):
         except:
             pass
         event.Skip()  # Allow the event to continue processing
+
+    def update_element(self, new_element):
+        """Update the dialog to show a different element without recreating tabs"""
+        self.element = new_element
+        self.properties = self.get_element_properties(new_element)
+
+        # Update title
+        self.SetTitle(f"Properties for {new_element}")
+
+        # Get the main panel
+        panel = self.GetChildren()[0]
+        main_sizer = panel.GetSizer()
+
+        # Remove existing header
+        old_header = main_sizer.GetItem(0).GetWindow()
+        main_sizer.Detach(old_header)
+        old_header.Destroy()
+
+        # Create new header
+        header_panel = wx.Panel(panel)
+
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            header_panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            # header_panel.SetBackgroundColour(wx.Colour(240, 240, 240))
+            header_panel.SetBackgroundColour(wx.WHITE)
+
+        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Element symbol
+        symbol_text = wx.StaticText(header_panel, label=new_element)
+        symbol_font = wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        symbol_text.SetFont(symbol_font)
+        header_sizer.Add(symbol_text, 0, wx.ALL, 20)
+
+        # Element name and info
+        info_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        name_text = wx.StaticText(header_panel, label=self.properties.get("Name", new_element))
+        name_font = wx.Font(20, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        name_text.SetFont(name_font)
+        info_sizer.Add(name_text, 0, wx.ALL, 5)
+
+        atomic_text = wx.StaticText(header_panel,
+                                    label=f"Atomic Number: {self.properties.get('Atomic Number', 'N/A')}")
+        info_sizer.Add(atomic_text, 0, wx.ALL, 5)
+
+        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 20)
+        header_panel.SetSizer(header_sizer)
+
+        # Insert new header at the beginning
+        main_sizer.Insert(0, header_panel, 0, wx.ALL | wx.EXPAND, 0)
+
+        # Update each tab content without destroying/recreating them
+        self.update_properties_tab()
+        self.update_xps_tab()
+
+        # Update web views URLs for XPS Fitting and Thermo tabs
+        if hasattr(self, 'xps_web_view'):
+            try:
+                new_xps_url = self.get_xps_fitting_url(new_element)
+                self.xps_url = new_xps_url
+                self.xps_web_view.LoadURL(new_xps_url)
+                if hasattr(self, 'xps_loading_text'):
+                    self.xps_loading_text.SetLabel(f"Loading XPS Fitting database page for {new_element}...")
+                    self.xps_loading_text.Show()
+            except:
+                pass
+
+        if hasattr(self, 'web_view'):
+            try:
+                new_thermo_url = self.get_thermo_url(new_element)
+                self.thermo_url = new_thermo_url
+                self.web_view.LoadURL(new_thermo_url)
+                if hasattr(self, 'loading_text'):
+                    self.loading_text.SetLabel(f"Loading Thermo Fisher knowledge page for {new_element}...")
+                    self.loading_text.Show()
+            except:
+                pass
+
+        if hasattr(self, 'harwell_web_view'):
+            try:
+                new_harwell_url = self.get_harwell_url(new_element)
+                self.harwell_url = new_harwell_url
+                self.harwell_web_view.LoadURL(new_harwell_url)
+                if hasattr(self, 'harwell_loading_text'):
+                    self.harwell_loading_text.SetLabel(f"Loading Harwell XPS Guru page for {new_element}...")
+                    self.harwell_loading_text.Show()
+            except:
+                pass
+
+        # Update layout
+        panel.Layout()
+        self.Refresh()
+
+    def update_properties_tab(self):
+        """Update the properties tab content"""
+        # Get the properties tab (should be page 0)
+        try:
+            properties_page = self.notebook.GetPage(0)
+            panel = properties_page.GetChildren()[0]  # Get the scrolled window
+
+            # Clear existing content
+            old_sizer = panel.GetSizer()
+            if old_sizer:
+                old_sizer.Clear(True)
+
+            # Create new grid sizer
+            grid_sizer = wx.FlexGridSizer(cols=2, hgap=10, vgap=5)
+
+            # Property groups
+            property_groups = {
+                "Physical Properties": ["Atomic Mass", "Density", "Melting Point", "Boiling Point", "State at 20°C"],
+                "Atomic Properties": ["Electron Configuration", "Electronegativity", "Atomic Radius", "Ionization Energy"],
+                "General Information": ["Group", "Period", "Category", "Discovered By", "Year of Discovery"],
+                "Online Resources": ["XPS Fitting URL", "Thermo Fisher URL"]
+            }
+
+            for group_name, properties in property_groups.items():
+                # Group header
+                header = wx.StaticText(panel, label=group_name)
+                header_font = wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+                header.SetFont(header_font)
+                grid_sizer.Add(header, 0, wx.ALL | wx.EXPAND, 5)
+                grid_sizer.Add(wx.StaticText(panel, label=""), 0)
+
+                # Properties
+                for prop in properties:
+                    label = wx.StaticText(panel, label=f"{prop}:")
+
+                    if prop.endswith("URL"):
+                        url = str(self.properties.get(prop, "N/A"))
+                        if url != "N/A":
+                            link_label = "XPS Fitting" if "xpsfitting" in url else "Thermo Fisher"
+                            value = wx.adv.HyperlinkCtrl(panel, label=link_label, url=url)
+                        else:
+                            value = wx.StaticText(panel, label="N/A")
+                    else:
+                        value = wx.StaticText(panel, label=str(self.properties.get(prop, "N/A")))
+
+                    grid_sizer.Add(label, 0, wx.ALL | wx.ALIGN_RIGHT, 3)
+                    grid_sizer.Add(value, 0, wx.ALL, 3)
+
+            panel.SetSizer(grid_sizer)
+            panel.Layout()
+            panel.FitInside()
+        except:
+            pass
+
+    def update_xps_tab(self):
+        """Update the XPS data tab content"""
+        try:
+            xps_page = self.notebook.GetPage(1)
+
+            # Clear existing content
+            old_sizer = xps_page.GetSizer()
+            if old_sizer:
+                old_sizer.Clear(True)
+
+            sizer = wx.BoxSizer(wx.VERTICAL)
+
+            # Get XPS data for new element
+            element_data = self.df[self.df['Element'] == self.element]
+
+            if not element_data.empty:
+                # Create grid
+                grid = wx.grid.Grid(xps_page)
+                grid.HideRowLabels()
+
+                # Group by line
+                lines_summary = element_data.groupby('Line')['BE (eV)'].agg(
+                    ['mean', 'count', 'min', 'max']).reset_index()
+
+                grid.CreateGrid(len(lines_summary), 5)
+                grid.SetColLabelValue(0, "Line")
+                grid.SetColLabelValue(1, "Avg BE (eV)")
+                grid.SetColLabelValue(2, "Min BE (eV)")
+                grid.SetColLabelValue(3, "Max BE (eV)")
+                grid.SetColLabelValue(4, "N# of References")
+
+                grid.SetColSize(0, 80)
+                grid.SetColSize(1, 100)
+                grid.SetColSize(2, 100)
+                grid.SetColSize(3, 100)
+                grid.SetColSize(4, 80)
+
+                for i, (_, row) in enumerate(lines_summary.iterrows()):
+                    grid.SetCellValue(i, 0, str(row['Line']))
+                    grid.SetCellValue(i, 1, f"{row['mean']:.2f}")
+                    grid.SetCellValue(i, 2, f"{row['min']:.2f}")
+                    grid.SetCellValue(i, 3, f"{row['max']:.2f}")
+                    grid.SetCellValue(i, 4, str(int(row['count'])))
+
+                grid.EnableEditing(False)
+                sizer.Add(grid, 1, wx.ALL | wx.EXPAND, 5)
+            else:
+                label = wx.StaticText(xps_page, label=f"No XPS data available for {self.element}")
+                sizer.Add(label, 0, wx.ALL | wx.CENTER, 20)
+
+            xps_page.SetSizer(sizer)
+            xps_page.Layout()
+        except:
+            pass
+
+
 
     def create_properties_tab(self, notebook):
         """Create general properties tab"""
@@ -1283,7 +1566,7 @@ class ElementPropertiesDialog(wx.Dialog):
             toolbar_sizer.Add(url_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
             toolbar_sizer.Add(zoom_out_btn, 0, wx.ALL, 2)
             toolbar_sizer.Add(zoom_in_btn, 0, wx.ALL, 2)
-            toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 5)
+            toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 2)
             toolbar_panel.SetSizer(toolbar_sizer)
 
             # Create web view control
@@ -1303,9 +1586,9 @@ class ElementPropertiesDialog(wx.Dialog):
             self.web_view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.on_page_loaded)
             self.web_view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.on_page_error)
 
-            sizer.Add(toolbar_panel, 0, wx.ALL | wx.EXPAND, 2)
-            sizer.Add(loading_text, 0, wx.ALL | wx.EXPAND, 5)
-            sizer.Add(self.web_view, 1, wx.ALL | wx.EXPAND, 5)
+            sizer.Add(toolbar_panel, 0, wx.ALL | wx.EXPAND, 0)
+            # sizer.Add(loading_text, 0, wx.ALL | wx.EXPAND, 5)
+            sizer.Add(self.web_view, 1, wx.ALL | wx.EXPAND, 0)
 
             # Store reference to loading text for removal later
             self.loading_text = loading_text
@@ -1319,6 +1602,124 @@ class ElementPropertiesDialog(wx.Dialog):
 
         panel.SetSizer(sizer)
         notebook.AddPage(panel, "Thermo Knowledge")
+
+    def create_harwell_tab(self, notebook):
+        """Create Harwell XPS Guru tab with embedded web browser"""
+        panel = wx.Panel(notebook)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        try:
+            # Create toolbar with refresh and zoom buttons
+            toolbar_panel = wx.Panel(panel)
+            toolbar_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+            refresh_btn = wx.Button(toolbar_panel, label="Refresh")
+            refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh_harwell)
+
+            zoom_in_btn = wx.Button(toolbar_panel, label="+", size=(30, -1))
+            zoom_in_btn.Bind(wx.EVT_BUTTON, self.on_harwell_zoom_in)
+
+            zoom_out_btn = wx.Button(toolbar_panel, label="-", size=(30, -1))
+            zoom_out_btn.Bind(wx.EVT_BUTTON, self.on_harwell_zoom_out)
+
+            url_label = wx.StaticText(toolbar_panel, label="Harwell XPS Guru")
+            font = url_label.GetFont()
+            font.SetWeight(wx.FONTWEIGHT_BOLD)
+            url_label.SetFont(font)
+
+            toolbar_sizer.Add(url_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+            toolbar_sizer.Add(zoom_out_btn, 0, wx.ALL, 2)
+            toolbar_sizer.Add(zoom_in_btn, 0, wx.ALL, 2)
+            toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 2)
+            toolbar_panel.SetSizer(toolbar_sizer)
+
+            # Create web view control
+            self.harwell_web_view = wx.html2.WebView.New(panel)
+
+            # Get the Harwell XPS URL for this element
+            self.harwell_url = self.get_harwell_url(self.element)
+
+            # Load the webpage
+            self.harwell_web_view.LoadURL(self.harwell_url)
+
+            # Add loading indicator
+            harwell_loading_text = wx.StaticText(panel, label="Loading Harwell XPS Guru page...")
+            harwell_loading_text.SetForegroundColour(wx.Colour(100, 100, 100))
+
+            # Bind events to handle loading
+            self.harwell_web_view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.on_harwell_page_loaded)
+            self.harwell_web_view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.on_harwell_page_error)
+
+            sizer.Add(toolbar_panel, 0, wx.ALL | wx.EXPAND, 1)
+            # sizer.Add(harwell_loading_text, 0, wx.ALL | wx.EXPAND, 1)
+            sizer.Add(self.harwell_web_view, 1, wx.ALL | wx.EXPAND, 0)
+
+            # Store reference to loading text for removal later
+            self.harwell_loading_text = harwell_loading_text
+
+        except Exception as e:
+            # Fallback if WebView is not available
+            error_text = wx.StaticText(panel,
+                                       label=f"Web browser not available.\n\nPlease visit:\n{self.get_harwell_url(self.element)}")
+            error_text.Wrap(400)
+            sizer.Add(error_text, 1, wx.ALL | wx.EXPAND, 20)
+
+        panel.SetSizer(sizer)
+        notebook.AddPage(panel, "Harwell XPS Guru")
+
+    def on_refresh_harwell(self, event):
+        """Refresh the Harwell XPS page"""
+        try:
+            self.harwell_loading_text.SetLabel("Refreshing page...")
+            self.harwell_loading_text.Show()
+            self.harwell_web_view.Reload()
+            self.Layout()
+        except:
+            pass
+
+    def on_harwell_zoom_in(self, event):
+        """Zoom in the Harwell web view using JavaScript"""
+        try:
+            script = """
+            document.body.style.zoom = (parseFloat(document.body.style.zoom || 1) * 1.1).toString();
+            """
+            self.harwell_web_view.RunScript(script)
+        except:
+            pass
+
+    def on_harwell_zoom_out(self, event):
+        """Zoom out the Harwell web view using JavaScript"""
+        try:
+            script = """
+            var currentZoom = parseFloat(document.body.style.zoom || 1);
+            if (currentZoom > 0.5) {
+                document.body.style.zoom = (currentZoom / 1.1).toString();
+            }
+            """
+            self.harwell_web_view.RunScript(script)
+        except:
+            pass
+
+    def on_harwell_page_loaded(self, event):
+        """Handle successful Harwell page loading"""
+        try:
+            self.harwell_loading_text.Hide()
+            # Set initial zoom to 0.8 (80%)
+            script = """
+            document.body.style.zoom = '0.7';
+            """
+            self.harwell_web_view.RunScript(script)
+            self.Layout()
+        except:
+            pass
+
+    def on_harwell_page_error(self, event):
+        """Handle Harwell page loading errors"""
+        try:
+            self.harwell_loading_text.SetLabel("Failed to load webpage. Please check your internet connection.")
+            self.harwell_loading_text.SetForegroundColour(wx.Colour(200, 0, 0))
+        except:
+            pass
 
     def on_refresh_thermo(self, event):
         """Refresh the Thermo Fisher page"""
@@ -1357,7 +1758,7 @@ class ElementPropertiesDialog(wx.Dialog):
             toolbar_sizer.Add(url_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
             toolbar_sizer.Add(zoom_out_btn, 0, wx.ALL, 2)
             toolbar_sizer.Add(zoom_in_btn, 0, wx.ALL, 2)
-            toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 5)
+            toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 2)
             toolbar_panel.SetSizer(toolbar_sizer)
             # Create web view control
             self.xps_web_view = wx.html2.WebView.New(panel)
@@ -1376,9 +1777,9 @@ class ElementPropertiesDialog(wx.Dialog):
             self.xps_web_view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.on_xps_page_loaded)
             self.xps_web_view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.on_xps_page_error)
 
-            sizer.Add(toolbar_panel, 0, wx.ALL | wx.EXPAND, 2)
-            sizer.Add(xps_loading_text, 0, wx.ALL | wx.EXPAND, 5)
-            sizer.Add(self.xps_web_view, 1, wx.ALL | wx.EXPAND, 5)
+            sizer.Add(toolbar_panel, 0, wx.ALL | wx.EXPAND, 0)
+            # sizer.Add(xps_loading_text, 0, wx.ALL | wx.EXPAND, 1)
+            sizer.Add(self.xps_web_view, 1, wx.ALL | wx.EXPAND, 0)
 
             # Store reference to loading text for removal later
             self.xps_loading_text = xps_loading_text
@@ -1565,6 +1966,36 @@ class ElementPropertiesDialog(wx.Dialog):
 
         category_path = element_categories.get(element_symbol, f'unknown/{element_symbol.lower()}')
         return f"https://www.thermofisher.com/uk/en/home/materials-science/learning-center/periodic-table/{category_path}.html"
+
+    def get_harwell_url(self, element_symbol):
+        """Generate Harwell XPS Guru URL for element"""
+        # Map element symbols to full element names in lowercase
+        element_names = {
+            'H': 'hydrogen', 'He': 'helium', 'Li': 'lithium', 'Be': 'beryllium', 'B': 'boron',
+            'C': 'carbon', 'N': 'nitrogen', 'O': 'oxygen', 'F': 'fluorine', 'Ne': 'neon',
+            'Na': 'sodium', 'Mg': 'magnesium', 'Al': 'aluminium', 'Si': 'silicon', 'P': 'phosphorus',
+            'S': 'sulfur', 'Cl': 'chlorine', 'Ar': 'argon', 'K': 'potassium', 'Ca': 'calcium',
+            'Sc': 'scandium', 'Ti': 'titanium', 'V': 'vanadium', 'Cr': 'chromium', 'Mn': 'manganese',
+            'Fe': 'iron', 'Co': 'cobalt', 'Ni': 'nickel', 'Cu': 'copper', 'Zn': 'zinc',
+            'Ga': 'gallium', 'Ge': 'germanium', 'As': 'arsenic', 'Se': 'selenium', 'Br': 'bromine',
+            'Kr': 'krypton', 'Rb': 'rubidium', 'Sr': 'strontium', 'Y': 'yttrium', 'Zr': 'zirconium',
+            'Nb': 'niobium', 'Mo': 'molybdenum', 'Tc': 'technetium', 'Ru': 'ruthenium', 'Rh': 'rhodium',
+            'Pd': 'palladium', 'Ag': 'silver', 'Cd': 'cadmium', 'In': 'indium', 'Sn': 'tin',
+            'Sb': 'antimony', 'Te': 'tellurium', 'I': 'iodine', 'Xe': 'xenon', 'Cs': 'caesium',
+            'Ba': 'barium', 'La': 'lanthanum', 'Ce': 'cerium', 'Pr': 'praseodymium', 'Nd': 'neodymium',
+            'Pm': 'promethium', 'Sm': 'samarium', 'Eu': 'europium', 'Gd': 'gadolinium', 'Tb': 'terbium',
+            'Dy': 'dysprosium', 'Ho': 'holmium', 'Er': 'erbium', 'Tm': 'thulium', 'Yb': 'ytterbium',
+            'Lu': 'lutetium', 'Hf': 'hafnium', 'Ta': 'tantalum', 'W': 'tungsten', 'Re': 'rhenium',
+            'Os': 'osmium', 'Ir': 'iridium', 'Pt': 'platinum', 'Au': 'gold', 'Hg': 'mercury',
+            'Tl': 'thallium', 'Pb': 'lead', 'Bi': 'bismuth', 'Po': 'polonium', 'At': 'astatine',
+            'Rn': 'radon', 'Fr': 'francium', 'Ra': 'radium', 'Ac': 'actinium', 'Th': 'thorium',
+            'Pa': 'protactinium', 'U': 'uranium', 'Np': 'neptunium', 'Pu': 'plutonium', 'Am': 'americium',
+            'Cm': 'curium', 'Bk': 'berkelium', 'Cf': 'californium', 'Es': 'einsteinium', 'Fm': 'fermium',
+            'Md': 'mendelevium', 'No': 'nobelium', 'Lr': 'lawrencium'
+        }
+
+        element_name = element_names.get(element_symbol, element_symbol.lower())
+        return f"https://www.harwellxps.guru/xpskb/{element_name}/"
 
     def get_element_properties(self, element_symbol):
         """Get properties for a specific element"""
