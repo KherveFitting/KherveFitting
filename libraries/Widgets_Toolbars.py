@@ -138,11 +138,16 @@ def create_widgets(window):
 
     # Create horizontal toolbar first so it stays on top
     toolbar_panel = wx.Panel(window.panel)
+    toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_RAISED)
+    # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_NONE)
+    # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_SIMPLE)
+    # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_SUNKEN)
+    # toolbar_panel = wx.Panel(window.panel, style=wx.TB_FLAT)
     toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
     window.toolbar = create_horizontal_toolbar(toolbar_panel, window)  # Pass panel instead of window
-    toolbar_sizer.Add(window.toolbar, 0, wx.EXPAND)
+    toolbar_sizer.Add(window.toolbar, 0, wx.EXPAND,0)
     toolbar_panel.SetSizer(toolbar_sizer)
-    main_sizer.Add(toolbar_panel, 0, wx.EXPAND)
+    main_sizer.Add(toolbar_panel, 0, wx.EXPAND,0)
 
     # Content sizer for the rest (vertical toolbar and plot area)
     content_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -150,14 +155,11 @@ def create_widgets(window):
     # Create the vertical toolbar as a child of the panel
     window.v_toolbar = create_vertical_toolbar(window.panel, window)
 
-    # # Content sizer (everything except vertical toolbar)  IT WAS USED JUST BEFORE
-    # content_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
     # Create a splitter window
     window.splitter = wx.SplitterWindow(window.panel, style=wx.SP_LIVE_UPDATE)
 
     # Right frame for the plot
-    window.right_frame = wx.Panel(window.splitter)
+    window.right_frame = wx.Panel(window.splitter, style=wx.BORDER_RAISED)
     # window.right_frame.SetBackgroundColour(wx.Colour(255, 255, 255)) # To change
     right_frame_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -210,10 +212,10 @@ def create_widgets(window):
 
     # Add splitter to content sizer
     content_sizer.Add(window.v_toolbar, 0, wx.EXPAND)
-    content_sizer.Add(window.splitter, 1, wx.EXPAND | wx.ALL, 5)
+    content_sizer.Add(window.splitter, 1, wx.EXPAND | wx.ALL, 0)
 
     # Add content sizer to main sizer
-    main_sizer.Add(content_sizer, 1, wx.EXPAND)
+    main_sizer.Add(content_sizer, 1, wx.EXPAND, 0)
 
     window.panel.SetSizer(main_sizer)
 
@@ -229,6 +231,7 @@ def create_widgets(window):
 
 def create_grids_panel(window):
     grids_panel = wx.Panel(window.splitter)
+    # grids_panel = wx.Panel(window.splitter,style=wx.BORDER_SUNKEN)
 
     # Create splitter window
     inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
@@ -237,12 +240,16 @@ def create_grids_panel(window):
     window.inner_splitter = inner_splitter
 
     # Create peak params panel and grid
-    peak_params_panel = wx.Panel(inner_splitter)
+    # peak_params_panel = wx.Panel(inner_splitter)
+    # peak_params_panel = wx.Panel(inner_splitter, style=wx.BORDER_SUNKEN)
+    peak_params_panel = wx.Panel(inner_splitter, style=wx.BORDER_RAISED)
     peak_params_sizer = create_peak_params_grid(window, peak_params_panel)
     peak_params_panel.SetSizer(peak_params_sizer)
 
     # Create results panel and grid
-    results_panel = wx.Panel(inner_splitter)
+    # results_panel = wx.Panel(inner_splitter)
+    # results_panel = wx.Panel(inner_splitter, style=wx.BORDER_SUNKEN)
+    results_panel = wx.Panel(inner_splitter, style=wx.BORDER_RAISED)
     results_sizer = create_results_grid(window, results_panel)
     results_panel.SetSizer(results_sizer)
 
@@ -273,6 +280,7 @@ def create_peak_params_grid(window, parent):
     peak_params_sizer = wx.StaticBoxSizer(peak_params_frame_box, wx.VERTICAL)
 
     window.peak_params_frame = wx.Panel(peak_params_frame_box)
+    # window.peak_params_frame = wx.Panel(peak_params_frame_box, style = wx.BORDER_RAISED)
     # window.peak_params_frame.SetBackgroundColour(wx.Colour(255, 255, 255)) # To change back
     peak_params_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
@@ -354,9 +362,9 @@ def create_peak_params_grid(window, parent):
 
 
 
-    peak_params_sizer_inner.Add(window.peak_params_grid, 1, wx.EXPAND | wx.ALL, 5)
+    peak_params_sizer_inner.Add(window.peak_params_grid, 1, wx.EXPAND | wx.ALL, 0)
     window.peak_params_frame.SetSizer(peak_params_sizer_inner)
-    peak_params_sizer.Add(window.peak_params_frame, 1, wx.EXPAND | wx.ALL, 5)
+    peak_params_sizer.Add(window.peak_params_frame, 1, wx.EXPAND | wx.ALL, 0)
 
     return peak_params_sizer
 
@@ -377,6 +385,7 @@ def create_results_grid(window, parent):
     window.results_frame_box = results_frame_box
 
     window.results_frame = wx.Panel(results_frame_box)
+    # window.results_frame = wx.Panel(results_frame_box, style = wx.BORDER_RAISED)
     results_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
     window.results_grid = wx.grid.Grid(window.results_frame)
@@ -412,9 +421,9 @@ def create_results_grid(window, parent):
     for row in range(window.results_grid.GetNumberRows()):
         window.results_grid.SetCellRenderer(row, 7, checkbox_renderer)
 
-    results_sizer_inner.Add(window.results_grid, 1, wx.EXPAND | wx.ALL, 5)
+    results_sizer_inner.Add(window.results_grid, 1, wx.EXPAND | wx.ALL, 0)
     window.results_frame.SetSizer(results_sizer_inner)
-    results_sizer.Add(window.results_frame, 1, wx.EXPAND | wx.ALL, 5)
+    results_sizer.Add(window.results_frame, 1, wx.EXPAND | wx.ALL, 0)
 
     return results_sizer
 
@@ -943,7 +952,11 @@ def create_horizontal_toolbar(parent, window):
 
     # Create toolbar as a panel instead of using window.CreateToolBar()
     # toolbar_panel = wx.Panel(window.panel)
-    toolbar = wx.ToolBar(parent, style=wx.TB_FLAT)
+    # toolbar = wx.ToolBar(parent, style=wx.TB_FLAT)
+    # toolbar = wx.ToolBar(parent, style=wx.BORDER_SUNKEN)
+    # toolbar = wx.ToolBar(parent, style=wx.BORDER_RAISED)
+    # toolbar = wx.ToolBar(parent, style=wx.BORDER_SIMPLE)
+    toolbar = wx.ToolBar(parent, style=wx.BORDER_NONE)
     toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1389,6 +1402,8 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
 def create_vertical_toolbar(parent, frame):
     # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_DEFAULT_STYLE)
     v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT )
+    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.BORDER_RAISED)
+    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.BORDER_SIMPLE)
     v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
     # Check if running on macOS
@@ -1402,6 +1417,7 @@ def create_vertical_toolbar(parent, frame):
 
         # Add custom grey border on the right side
         border_panel = wx.Panel(v_toolbar)
+        # border_panel = wx.Panel(v_toolbar, style=wx.BORDER_SUNKEN)
         border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
 
         def on_toolbar_size(event):

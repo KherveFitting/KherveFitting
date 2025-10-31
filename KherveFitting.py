@@ -7,7 +7,7 @@ import wx
 
 class MyFrame(wx.Frame):
     def __init__(self, parent, title):
-        super().__init__(parent, title=title, size=(1470, 680))
+        super().__init__(parent, title=title, size=(1480, 680))
 
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +27,11 @@ class MyFrame(wx.Frame):
 
 
         self.SetMinSize((800, 600))
-        self.panel = wx.Panel(self)
+        # self.panel = wx.Panel(self)
+        self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
+        # self.panel = wx.Panel(self, style=wx.BORDER_NONE)
+        # self.panel = wx.Panel(self, style=wx.BORDER_SIMPLE)
+        # self.panel = wx.Panel(self, style=wx.BORDER_RAISED)
 
         # Will hold reference to FileManagerWindow when opened
         self.file_manager = None
@@ -3624,6 +3628,7 @@ class MyFrame(wx.Frame):
         from libraries.HelpMenu.kherveDB_wxpython import PeriodicTableXPS
         kherve_frame = PeriodicTableXPS()
         kherve_frame.Show()
+        kherve_frame.position_on_left()
 
     def open_export_results_window(self):
         """Open the export to results grid window"""
