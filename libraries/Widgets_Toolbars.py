@@ -137,7 +137,7 @@ def create_widgets(window):
     main_sizer = wx.BoxSizer(wx.VERTICAL)
 
     # Create horizontal toolbar first so it stays on top
-    toolbar_panel = wx.Panel(window.panel)
+    # toolbar_panel = wx.Panel(window.panel)
     toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_RAISED)
     # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_NONE)
     # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_SIMPLE)
@@ -753,17 +753,28 @@ def create_menu(window):
     paper_menu = wx.Menu()
 
 
-    multiplet_item = paper_menu.Append(wx.NewId(), "Multiplet splitting")
+    multiplet_item = paper_menu.Append(wx.NewId(), "Explanation of the Multiplet splitting")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7383"),
                 multiplet_item)
 
-    d_parameter_item = paper_menu.Append(wx.NewId(), "Carbon sp2")
+    coster_kronig_item = paper_menu.Append(wx.NewId(), "Explanation of the Coster-Kronig effect")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7410"),
+                coster_kronig_item)
+
+    peak_shape_item = paper_menu.Append(wx.NewId(), "Strategies for Obtaining Peak Shapes")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.70014"),
+                peak_shape_item)
+
+
+    d_parameter_item = paper_menu.Append(wx.NewId(), "Measuring the D-parameter")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://www.mdpi.com/2311-5629/7/3/51"),
                 d_parameter_item)
 
-    Carbonpeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Carbon")
+    Carbonpeaktable_item = paper_menu.Append(wx.NewId(), "Fitting of the C1s Peak")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://drive.google.com/file/d/1fyXNfX46cN7q2sYRqwBM-jaj7C2cNSPA/view"),
                 Carbonpeaktable_item)
@@ -786,37 +797,48 @@ def create_menu(window):
 
 
     # Add items to the Knowledge submenu
-    thermo_item = knowledge_menu.Append(wx.NewId(), "Thermo Knowledge")
-    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
-        "https://www.thermofisher.com/uk/en/home/materials-science/learning-center/periodic-table.html"),
-                thermo_item)
-
-    # Add Guide to XPS link
-    guide_xps_item = knowledge_menu.Append(wx.NewId(), "Guide to XPS")
-    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
-        "https://pubs.aip.org/jva/collection/1440/Special-Topic-Collection-Reproducibility"),
-                guide_xps_item)
+    dream_nist_item = knowledge_menu.Append(wx.NewId(), "KherveDB")
+    window.Bind(wx.EVT_MENU, lambda event: window.open_kherve_db(), dream_nist_item)
 
     biesinger_item = knowledge_menu.Append(wx.NewId(), "XPSfitting by M. Biesinger")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://www.xpsfitting.com/"),
                 biesinger_item)
 
-    yt_videos_item2 = knowledge_menu.Append(wx.NewId(), "M. Biesinger Videos")
-    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@markbiesinger/videos"),
-                yt_videos_item2)
+    harwell_item = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.harwellxps.guru/"),
+                harwell_item)
+
+    thermo_item = knowledge_menu.Append(wx.NewId(), "Thermo Knowledge")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.thermofisher.com/uk/en/home/materials-science/learning-center/periodic-table.html"),
+                thermo_item)
 
     nist_item = knowledge_menu.Append(wx.NewId(), "NIST XPS")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
         "https://srdata.nist.gov/xps"), nist_item)
 
-    dream_nist_item = knowledge_menu.Append(wx.NewId(), "KherveDB")
-    window.Bind(wx.EVT_MENU, lambda event: window.open_kherve_db(), dream_nist_item)
-
-    harwell_item = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru")
+    xpsoasis_item = knowledge_menu.Append(wx.NewId(), "XPSOasis")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
-        "https://www.harwellxps.guru/"),
-                harwell_item)
+        "https://xpsoasis.org/"), xpsoasis_item)
+
+    guide_xps_item = knowledge_menu.Append(wx.NewId(), "Guide to XPS")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://pubs.aip.org/jva/collection/1440/Special-Topic-Collection-Reproducibility"),
+                guide_xps_item)
+
+    Label3_header = knowledge_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    Label3_header.Enable(False)  # Make it non-clickable
+
+    yt_videos_item = knowledge_menu.Append(wx.NewId(), "KherveFitting Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
+                yt_videos_item)
+
+    yt_videos_item2 = knowledge_menu.Append(wx.NewId(), "M. Biesinger Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@markbiesinger/videos"),
+                yt_videos_item2)
+
 
     yt_videos_item3 = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru Videos")
     window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@HarwellXPS"),

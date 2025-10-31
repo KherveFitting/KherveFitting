@@ -582,7 +582,7 @@ Version: 1.1"""
         right_sizer.Add(self.name_search, pos=(1, 1), flag=wx.EXPAND)
 
         # Buttons
-        self.properties_btn = wx.Button(search_panel, label="Databases && Properties")
+        self.properties_btn = wx.Button(search_panel, label="Other Databases && Properties")
         self.properties_btn.Bind(wx.EVT_BUTTON, self.show_element_properties)
         right_sizer.Add(self.properties_btn, pos=(0, 2))
 
@@ -1218,7 +1218,7 @@ class ElementPropertiesDialog(wx.Dialog):
     """Dialog for showing element properties"""
 
     def __init__(self, parent, element, df):
-        super().__init__(parent, title=f"Properties for {element}",
+        super().__init__(parent, title=f"Other Databases & Properties for {element}",
                          size=(1000, 900), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX)
 
         self.element = element
@@ -1228,7 +1228,7 @@ class ElementPropertiesDialog(wx.Dialog):
         self.properties = self.get_element_properties(self.element)
 
         # Create UI
-        panel = wx.Panel(self)
+        panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Header
@@ -1264,23 +1264,24 @@ class ElementPropertiesDialog(wx.Dialog):
                                     label=f"Atomic Number: {self.properties.get('Atomic Number', 'N/A')}")
         info_sizer.Add(atomic_text, 0, wx.ALL, 5)
 
-        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 5)
+        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 0)
         header_panel.SetSizer(header_sizer)
 
 
-        # Properties notebook
-        notebook = wx.Notebook(panel)
+        # # Properties notebook
+        # notebook = wx.Notebook(panel)
 
         # Properties notebook
-        self.notebook = wx.Notebook(panel)  # Make sure this is self.notebook
+        self.notebook = wx.Notebook(panel, style=wx.NB_DEFAULT | wx.BORDER_RAISED)
         self.notebook.SetBackgroundColour(wx.WHITE)
 
         # Create tabs
         self.create_xps_fitting_tab(self.notebook)
-        self.create_thermo_tab(self.notebook)
         self.create_harwell_tab(self.notebook)
+        self.create_thermo_tab(self.notebook)
         self.create_sss_scholar_tab(self.notebook)
         self.create_estr_scholar_tab(self.notebook)
+        self.create_useful_pdf_tab(self.notebook)
         self.create_properties_tab(self.notebook)
         # self.create_xps_tab(self.notebook)
 
@@ -1313,7 +1314,7 @@ class ElementPropertiesDialog(wx.Dialog):
         self.properties = self.get_element_properties(new_element)
 
         # Update title
-        self.SetTitle(f"Properties for {new_element}")
+        self.SetTitle(f"Other Databases & Properties for {new_element}")
 
         # Get the main panel
         panel = self.GetChildren()[0]
@@ -1334,7 +1335,7 @@ class ElementPropertiesDialog(wx.Dialog):
         symbol_text = wx.StaticText(header_panel, label=new_element)
         symbol_font = wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         symbol_text.SetFont(symbol_font)
-        header_sizer.Add(symbol_text, 0, wx.ALL, 20)
+        header_sizer.Add(symbol_text, 0, wx.ALL, 5)
 
         # Element name and info
         info_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -1348,7 +1349,7 @@ class ElementPropertiesDialog(wx.Dialog):
                                     label=f"Atomic Number: {self.properties.get('Atomic Number', 'N/A')}")
         info_sizer.Add(atomic_text, 0, wx.ALL, 5)
 
-        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 20)
+        header_sizer.Add(info_sizer, 1, wx.ALL | wx.EXPAND, 5)
         header_panel.SetSizer(header_sizer)
 
         # Insert new header at the beginning
@@ -1395,8 +1396,6 @@ class ElementPropertiesDialog(wx.Dialog):
 
             if page_title == "General Properties":
                 self.update_properties_tab_content(self.notebook.GetPage(i))
-            elif page_title == "XPS Data":
-                self.update_xps_tab_content(self.notebook.GetPage(i))
 
         # Update layout
         panel.Layout()
@@ -1555,7 +1554,7 @@ class ElementPropertiesDialog(wx.Dialog):
                 grid_sizer.Add(value, 0, wx.ALL, 3)
 
         scrolled.SetSizer(grid_sizer)
-        sizer.Add(scrolled, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(scrolled, 1, wx.ALL | wx.EXPAND, 0)
         panel.SetSizer(sizer)
 
         notebook.AddPage(panel, "General Properties")
@@ -4459,6 +4458,186 @@ class ElementPropertiesDialog(wx.Dialog):
             # For non-download links, load in current view
             event.Veto()
             self.estr_web_view.LoadURL(url)
+
+    def create_useful_pdf_tab(self, notebook):
+        """Create Useful PDF tab with 6 sub-tabs for PDF links with embedded browsers"""
+        panel = wx.Panel(notebook)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Create sub-notebook for PDF links
+        pdf_notebook = wx.Notebook(panel, style=wx.NB_DEFAULT)
+
+        # Define PDF links
+        pdf_links = [
+            {
+                'title': 'Multiplet Splitting',
+                'description': 'Explanation of the Multiplet splitting',
+                'url': 'https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7383',
+                'attr': 'multiplet_web_view'
+            },
+            {
+                'title': 'Coster-Kronig Effect',
+                'description': 'Explanation of the Coster-Kronig effect',
+                'url': 'https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7410',
+                'attr': 'coster_web_view'
+            },
+            {
+                'title': 'D-Parameter',
+                'description': 'Measuring the D-parameter',
+                'url': 'https://www.mdpi.com/2311-5629/7/3/51',
+                'attr': 'd_param_web_view'
+            },
+            {
+                'title': 'C1s Peak Fitting',
+                'description': 'Fitting of the C1s Peak',
+                'url': 'https://drive.google.com/file/d/1fyXNfX46cN7q2sYRqwBM-jaj7C2cNSPA/view',
+                'attr': 'c1s_web_view'
+            },
+            {
+                'title': 'Cr/Mn/Fe/Co/Ni',
+                'description': 'Fitting Transition Metal Cr/Mn/Fe/Co/Ni',
+                'url': 'https://drive.google.com/file/d/1Kxx_j2kCpj8Hrd3XwbmEcJ16qHpgDmuN/view',
+                'attr': 'crmnfe_web_view'
+            },
+            {
+                'title': 'Cu/Ti/V/Sc/Zn',
+                'description': 'Fitting Transition Metal Cu/Ti/V/Sc/Zn',
+                'url': 'https://drive.google.com/file/d/1YYw7O1JVW4Ni_3GJv72uTE9KVE4Cg1S9/view',
+                'attr': 'cutiv_web_view'
+            }
+        ]
+
+        # Create a sub-tab for each PDF link
+        for pdf_info in pdf_links:
+            sub_panel = wx.Panel(pdf_notebook)
+            sub_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            try:
+                # Create toolbar with refresh and zoom buttons
+                toolbar_panel = wx.Panel(sub_panel)
+                toolbar_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+                refresh_btn = wx.Button(toolbar_panel, label="Refresh")
+                refresh_btn.Bind(wx.EVT_BUTTON, lambda evt, attr=pdf_info['attr']: self.on_pdf_refresh(evt, attr))
+
+                zoom_in_btn = wx.Button(toolbar_panel, label="+", size=(30, -1))
+                zoom_in_btn.Bind(wx.EVT_BUTTON, lambda evt, attr=pdf_info['attr']: self.on_pdf_zoom_in(evt, attr))
+
+                zoom_out_btn = wx.Button(toolbar_panel, label="-", size=(30, -1))
+                zoom_out_btn.Bind(wx.EVT_BUTTON, lambda evt, attr=pdf_info['attr']: self.on_pdf_zoom_out(evt, attr))
+
+                url_label = wx.StaticText(toolbar_panel, label=pdf_info['description'])
+                font = url_label.GetFont()
+                font.SetWeight(wx.FONTWEIGHT_BOLD)
+                url_label.SetFont(font)
+
+                toolbar_sizer.Add(url_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+                toolbar_sizer.Add(zoom_out_btn, 0, wx.ALL, 2)
+                toolbar_sizer.Add(zoom_in_btn, 0, wx.ALL, 2)
+                toolbar_sizer.Add(refresh_btn, 0, wx.ALL, 2)
+                toolbar_panel.SetSizer(toolbar_sizer)
+
+                # Create web view control
+                web_view = wx.html2.WebView.New(sub_panel)
+                setattr(self, pdf_info['attr'], web_view)
+
+                # Load the webpage
+                web_view.LoadURL(pdf_info['url'])
+
+                # Add loading indicator
+                loading_text = wx.StaticText(sub_panel, label=f"Loading {pdf_info['title']}...")
+                loading_text.SetForegroundColour(wx.Colour(100, 100, 100))
+                loading_attr = pdf_info['attr'].replace('_web_view', '_loading_text')
+                setattr(self, loading_attr, loading_text)
+
+                # Bind events to handle loading
+                web_view.Bind(wx.html2.EVT_WEBVIEW_LOADED, lambda evt, attr=loading_attr: self.on_pdf_page_loaded(evt, attr))
+                web_view.Bind(wx.html2.EVT_WEBVIEW_ERROR, lambda evt, attr=loading_attr: self.on_pdf_page_error(evt, attr))
+
+                sub_sizer.Add(toolbar_panel, 0, wx.ALL | wx.EXPAND, 0)
+                sub_sizer.Add(web_view, 1, wx.ALL | wx.EXPAND, 0)
+
+            except Exception as e:
+                # Fallback if WebView is not available
+                error_text = wx.StaticText(sub_panel,
+                                           label=f"Web browser not available.\n\nPlease visit:\n{pdf_info['url']}")
+                error_text.Wrap(400)
+                sub_sizer.Add(error_text, 1, wx.ALL | wx.EXPAND, 20)
+
+            sub_panel.SetSizer(sub_sizer)
+            pdf_notebook.AddPage(sub_panel, pdf_info['title'])
+
+        main_sizer.Add(pdf_notebook, 1, wx.ALL | wx.EXPAND, 5)
+        panel.SetSizer(main_sizer)
+        notebook.AddPage(panel, "Useful PDF")
+
+    def on_pdf_refresh(self, event, web_view_attr):
+        """Refresh a PDF web view"""
+        try:
+            web_view = getattr(self, web_view_attr)
+            loading_attr = web_view_attr.replace('_web_view', '_loading_text')
+            loading_text = getattr(self, loading_attr)
+            loading_text.SetLabel("Refreshing page...")
+            loading_text.Show()
+            web_view.Reload()
+        except:
+            pass
+
+    def on_pdf_zoom_in(self, event, web_view_attr):
+        """Zoom in a PDF web view using JavaScript"""
+        try:
+            web_view = getattr(self, web_view_attr)
+            script = """
+            (function() {
+                try {
+                    if (document && document.body && document.body.style) {
+                        var currentZoom = parseFloat(document.body.style.zoom || '1');
+                        document.body.style.zoom = (currentZoom * 1.1).toString();
+                    }
+                } catch(e) {}
+            })();
+            """
+            web_view.RunScript(script)
+        except:
+            pass
+
+    def on_pdf_zoom_out(self, event, web_view_attr):
+        """Zoom out a PDF web view using JavaScript"""
+        try:
+            web_view = getattr(self, web_view_attr)
+            script = """
+            (function() {
+                try {
+                    if (document && document.body && document.body.style) {
+                        var currentZoom = parseFloat(document.body.style.zoom || '1');
+                        if (currentZoom > 0.5) {
+                            document.body.style.zoom = (currentZoom / 1.1).toString();
+                        }
+                    }
+                } catch(e) {}
+            })();
+            """
+            web_view.RunScript(script)
+        except:
+            pass
+
+    def on_pdf_page_loaded(self, event, loading_text_attr):
+        """Handle successful PDF page loading"""
+        try:
+            loading_text = getattr(self, loading_text_attr)
+            loading_text.Hide()
+            self.Layout()
+        except:
+            pass
+
+    def on_pdf_page_error(self, event, loading_text_attr):
+        """Handle PDF page loading errors"""
+        try:
+            loading_text = getattr(self, loading_text_attr)
+            loading_text.SetLabel("Failed to load webpage. Please check your internet connection.")
+            loading_text.SetForegroundColour(wx.Colour(200, 0, 0))
+        except:
+            pass
 
 class ElementTile(wx.Panel):
     """Custom widget for periodic table element tiles"""

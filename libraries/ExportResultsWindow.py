@@ -123,30 +123,69 @@ class ExportResultsWindow(wx.Frame):
             self.core_levels_checklist.Check(i, False)
 
     def on_select_this_core_level(self, event):
-        """Select all core levels matching the currently selected row's core level type"""
-        selection = self.core_levels_checklist.GetSelection()
-        if selection == wx.NOT_FOUND:
-            wx.MessageBox("Please select a row first", "No Selection", wx.OK | wx.ICON_INFORMATION)
+        """Select only the current active/plotted core level"""
+        current_core_level = self.parent.sheet_combobox.GetValue()
+
+        if not current_core_level or current_core_level not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level currently selected", "No Selection", wx.OK | wx.ICON_INFORMATION)
             return
 
-        selected_core_level = self.core_levels_checklist.GetString(selection)
-        core_type = self.extract_column_type(selected_core_level)
+        # Uncheck all first
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, False)
 
-        # Select all core levels of this type
+        # Check only the current core level
+        for i in range(self.core_levels_checklist.GetCount()):
+            if self.core_levels_checklist.GetString(i) == current_core_level:
+                self.core_levels_checklist.Check(i, True)
+                break
+
+    def on_select_this_row_OLD(self, event):
+        """Select all core levels on the same row as the current core level"""
+        current_core_level = self.parent.sheet_combobox.GetValue()
+
+        if not current_core_level or current_core_level not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level currently selected", "No Selection", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Uncheck all first
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, False)
+
+        # Extract row number from current core level
+        current_row = self.extract_row_number(current_core_level)
+
+        # Select all core levels with the same row number
         for i in range(self.core_levels_checklist.GetCount()):
             core_level = self.core_levels_checklist.GetString(i)
-            if self.extract_column_type(core_level) == core_type:
+            if self.extract_row_number(core_level) == current_row:
                 self.core_levels_checklist.Check(i, True)
 
     def on_select_this_row(self, event):
-        """Select only the currently selected row"""
-        selection = self.core_levels_checklist.GetSelection()
-        if selection == wx.NOT_FOUND:
-            wx.MessageBox("Please select a row first", "No Selection", wx.OK | wx.ICON_INFORMATION)
+        """Select all core levels on the same row as the current core level (excluding zzProfiles)"""
+        current_core_level = self.parent.sheet_combobox.GetValue()
+
+        if not current_core_level or current_core_level not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level currently selected", "No Selection", wx.OK | wx.ICON_INFORMATION)
             return
 
-        self.core_levels_checklist.Check(selection, True)
+        # Uncheck all first
+        for i in range(self.core_levels_checklist.GetCount()):
+            self.core_levels_checklist.Check(i, False)
 
+        # Extract row number from current core level
+        current_row = self.extract_row_number(current_core_level)
+
+        # Select all core levels with the same row number (excluding zzProfiles)
+        for i in range(self.core_levels_checklist.GetCount()):
+            core_level = self.core_levels_checklist.GetString(i)
+
+            # Skip zzProfile entries
+            if core_level.startswith('zzProfile'):
+                continue
+
+            if self.extract_row_number(core_level) == current_row:
+                self.core_levels_checklist.Check(i, True)
     def on_core_levels_context_menu(self, event):
         """Handle right-click on core levels checklist"""
         # Get all core level names from the checklist
@@ -188,6 +227,18 @@ class ExportResultsWindow(wx.Frame):
         self.core_levels_checklist.PopupMenu(menu)
         menu.Destroy()
 
+    def extract_row_number(self, core_level_name):
+        """Extract row number from core level name (e.g., Sr3d1 -> 1, Survey19 -> 19, Sr3d -> 0)"""
+        cleaned_name = core_level_name.strip()
+
+        # Extract trailing digits from the end of the name
+        match = re.search(r'(\d+)$', cleaned_name)
+
+        if match:
+            return int(match.group(1))
+
+        # No trailing digits means row 0
+        return 0
     def extract_column_type(self, core_level_name):
         """Extract the core level type from the name (e.g., C1s from C1s_1)"""
         # Remove leading/trailing whitespace

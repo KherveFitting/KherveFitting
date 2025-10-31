@@ -7,7 +7,7 @@ import wx
 
 class MyFrame(wx.Frame):
     def __init__(self, parent, title):
-        super().__init__(parent, title=title, size=(1480, 680))
+        super().__init__(parent, title=title, size=(1470, 680))
 
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -407,19 +407,35 @@ class MyFrame(wx.Frame):
             if hasattr(self, 'sheet_combobox') and self.sheet_combobox:
                 old_sheet_value = self.sheet_combobox.GetValue()
 
+            # # Restore the original toolbar
+            # toolbar_panel = self.panel.GetChildren()[0]  # First child is toolbar panel
+            # toolbar_sizer = toolbar_panel.GetSizer()
+            #
+            # # Remove current toolbar
+            # if self.toolbar:
+            #     toolbar_sizer.Detach(self.toolbar)
+            #     self.toolbar.Destroy()
+            #
+            # # Import here to avoid circular imports
+            # from libraries.Widgets_Toolbars import create_horizontal_toolbar
+            # self.toolbar = create_horizontal_toolbar(toolbar_panel, self)
+            # toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
+
             # Restore the original toolbar
             toolbar_panel = self.panel.GetChildren()[0]  # First child is toolbar panel
             toolbar_sizer = toolbar_panel.GetSizer()
 
             # Remove current toolbar
             if self.toolbar:
-                toolbar_sizer.Detach(self.toolbar)
+                if toolbar_sizer:
+                    toolbar_sizer.Detach(self.toolbar)
                 self.toolbar.Destroy()
 
             # Import here to avoid circular imports
             from libraries.Widgets_Toolbars import create_horizontal_toolbar
             self.toolbar = create_horizontal_toolbar(toolbar_panel, self)
-            toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
+            if toolbar_sizer:
+                toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
 
             # Repopulate sheet combobox and restore selection
             if 'Core levels' in self.Data:
@@ -449,6 +465,22 @@ class MyFrame(wx.Frame):
             self.SetMinSize((fixed_width, fixed_height))
             self.SetMaxSize((fixed_width, fixed_height))  # Fix both dimensions
 
+            # # Create minimal toolbar
+            # toolbar_panel = self.panel.GetChildren()[0]
+            # toolbar_sizer = toolbar_panel.GetSizer()
+            #
+            # # Current toolbar value to save sheet selection
+            # old_sheet_value = ""
+            # old_sheets = []
+            # if self.sheet_combobox:
+            #     old_sheet_value = self.sheet_combobox.GetValue()
+            #     old_sheets = [self.sheet_combobox.GetString(i) for i in range(self.sheet_combobox.GetCount())]
+            #
+            # # Remove current toolbar
+            # if self.toolbar:
+            #     toolbar_sizer.Detach(self.toolbar)
+            #     self.toolbar.Destroy()
+
             # Create minimal toolbar
             toolbar_panel = self.panel.GetChildren()[0]
             toolbar_sizer = toolbar_panel.GetSizer()
@@ -462,7 +494,8 @@ class MyFrame(wx.Frame):
 
             # Remove current toolbar
             if self.toolbar:
-                toolbar_sizer.Detach(self.toolbar)
+                if toolbar_sizer:
+                    toolbar_sizer.Detach(self.toolbar)
                 self.toolbar.Destroy()
 
             # Create new minimal toolbar
@@ -587,7 +620,8 @@ class MyFrame(wx.Frame):
                                                                 shortHelp="Toggle Right Panel")
 
             self.toolbar.Realize()
-            toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
+            if toolbar_sizer:
+                toolbar_sizer.Add(self.toolbar, 0, wx.EXPAND)
             toolbar_panel.Layout()
 
             # Rebind events
