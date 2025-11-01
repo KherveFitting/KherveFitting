@@ -29,7 +29,7 @@ from libraries.FileMenu.Save import save_all_sheets_with_plots, create_plot_scri
 from libraries.HelpMenu.Help import show_shortcuts, show_mini_game, on_about
 from libraries.Utilities import add_draggable_text
 from Functions import on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1
-
+import wx.lib.agw.flatnotebook as fnb
 from libraries.FileMenu.Save import on_backup_main
 from libraries.FileMenu.Save import save_json_only
 from libraries.Utilities import sort_excel_sheets
@@ -137,12 +137,10 @@ def create_widgets(window):
     main_sizer = wx.BoxSizer(wx.VERTICAL)
 
     # Create horizontal toolbar first so it stays on top
-    # toolbar_panel = wx.Panel(window.panel)
-    toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_RAISED)
-    # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_NONE)
-    # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_SIMPLE)
-    # toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_SUNKEN)
-    # toolbar_panel = wx.Panel(window.panel, style=wx.TB_FLAT)
+    if window.panel_theme == 'None':
+        toolbar_panel = wx.Panel(window.panel)
+    else:
+        toolbar_panel = wx.Panel(window.panel, style=window.get_panel_style())
     toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
     window.toolbar = create_horizontal_toolbar(toolbar_panel, window)  # Pass panel instead of window
     toolbar_sizer.Add(window.toolbar, 0, wx.EXPAND,0)
@@ -159,7 +157,10 @@ def create_widgets(window):
     window.splitter = wx.SplitterWindow(window.panel, style=wx.SP_LIVE_UPDATE)
 
     # Right frame for the plot
-    window.right_frame = wx.Panel(window.splitter, style=wx.BORDER_RAISED)
+    if window.panel_theme == 'None':
+        window.right_frame = wx.Panel(window.splitter)
+    else:
+        window.right_frame = wx.Panel(window.splitter, style=window.get_panel_style())
     # window.right_frame.SetBackgroundColour(wx.Colour(255, 255, 255)) # To change
     right_frame_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -229,7 +230,7 @@ def create_widgets(window):
     bind_events_widgets(window)
 
 
-def create_grids_panel(window):
+def create_grids_panel_OLD(window):
     grids_panel = wx.Panel(window.splitter)
     # grids_panel = wx.Panel(window.splitter,style=wx.BORDER_SUNKEN)
 
@@ -240,16 +241,18 @@ def create_grids_panel(window):
     window.inner_splitter = inner_splitter
 
     # Create peak params panel and grid
-    # peak_params_panel = wx.Panel(inner_splitter)
-    # peak_params_panel = wx.Panel(inner_splitter, style=wx.BORDER_SUNKEN)
-    peak_params_panel = wx.Panel(inner_splitter, style=wx.BORDER_RAISED)
+    if window.panel_theme == 'None':
+        peak_params_panel = wx.Panel(inner_splitter)
+    else:
+        peak_params_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
     peak_params_sizer = create_peak_params_grid(window, peak_params_panel)
     peak_params_panel.SetSizer(peak_params_sizer)
 
     # Create results panel and grid
-    # results_panel = wx.Panel(inner_splitter)
-    # results_panel = wx.Panel(inner_splitter, style=wx.BORDER_SUNKEN)
-    results_panel = wx.Panel(inner_splitter, style=wx.BORDER_RAISED)
+    if window.panel_theme == 'None':
+        results_panel = wx.Panel(inner_splitter)
+    else:
+        results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
     results_sizer = create_results_grid(window, results_panel)
     results_panel.SetSizer(results_sizer)
 
@@ -275,13 +278,98 @@ def create_grids_panel(window):
 
     return grids_panel
 
-def create_peak_params_grid(window, parent):
-    peak_params_frame_box = wx.StaticBox(parent, label="Peak Fitting Parameters")
-    peak_params_sizer = wx.StaticBoxSizer(peak_params_frame_box, wx.VERTICAL)
 
-    window.peak_params_frame = wx.Panel(peak_params_frame_box)
-    # window.peak_params_frame = wx.Panel(peak_params_frame_box, style = wx.BORDER_RAISED)
-    # window.peak_params_frame.SetBackgroundColour(wx.Colour(255, 255, 255)) # To change back
+def create_grids_panel(window):
+    grids_panel = wx.Panel(window.splitter)
+
+    # Check layout type
+    if window.grid_layout == 'tabbed':
+        # Create FlatNotebook for tabbed layout
+        notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_VC8) # | nb.FNB_BOTTOM )
+        notebook.SetActiveTabColour(wx.Colour(200,245,228))
+        # Create peak params panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(notebook)
+        else:
+            peak_params_panel = wx.Panel(notebook, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=False)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Create results panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(notebook)
+        else:
+            results_panel = wx.Panel(notebook, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=False)
+        results_panel.SetSizer(results_sizer)
+
+        # Add panels to notebook
+        notebook.AddPage(peak_params_panel, "Peak Parameters")
+        notebook.AddPage(results_panel, "Results")
+
+        # Add notebook to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(notebook, 1, wx.EXPAND)
+        grids_panel.SetSizer(sizer)
+
+        # Store reference for later access
+        window.inner_splitter = None
+        window.grid_notebook = notebook
+
+    else:
+        # Original split layout (WITH STATIC BOX)
+        inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
+
+        # Store reference to inner_splitter for later access
+        window.inner_splitter = inner_splitter
+
+        # Create peak params panel and grid
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(inner_splitter)
+        else:
+            peak_params_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=True)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Create results panel and grid
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(inner_splitter)
+        else:
+            results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=True)
+        results_panel.SetSizer(results_sizer)
+
+        # Add splitter to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(inner_splitter, 1, wx.EXPAND)
+        grids_panel.SetSizer(sizer)
+
+        # Split horizontally
+        window_height = grids_panel.GetSize().GetHeight()
+        split_position = window_height // 2
+        inner_splitter.SplitHorizontally(peak_params_panel, results_panel, split_position)
+        inner_splitter.SetMinimumPaneSize(100)
+
+        # Bind size event to maintain 60-40 split
+        def on_size(event):
+            size = inner_splitter.GetSize()
+            inner_splitter.SetSashPosition(int(size.GetHeight() * 0.6))
+            event.Skip()
+
+        inner_splitter.Bind(wx.EVT_SIZE, on_size)
+
+    return grids_panel
+
+
+def create_peak_params_grid(window, parent, use_static_box=True):
+    if use_static_box:
+        peak_params_frame_box = wx.StaticBox(parent, label="Peak Fitting Parameters")
+        peak_params_sizer = wx.StaticBoxSizer(peak_params_frame_box, wx.VERTICAL)
+        window.peak_params_frame = wx.Panel(peak_params_frame_box)
+    else:
+        peak_params_sizer = wx.BoxSizer(wx.VERTICAL)
+        window.peak_params_frame = wx.Panel(parent)
+
     peak_params_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
     window.peak_params_grid = wx.grid.Grid(window.peak_params_frame)
@@ -295,22 +383,17 @@ def create_peak_params_grid(window, parent):
     for i, label in enumerate(column_labels):
         window.peak_params_grid.SetColLabelValue(i, label)
 
-
     # Set grid properties
     default_row_size = 25
     window.peak_params_grid.SetDefaultRowSize(default_row_size)
     window.peak_params_grid.SetColLabelSize(35)
     window.peak_params_grid.SetDefaultColSize(60)
-    # window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(230, 250, 230))  # Green background for column labels
-    # -------------------------------------------------------To change below to white
-    # window.peak_params_grid.SetDefaultCellBackgroundColour(wx.WHITE)  # White background for all cells
     window.peak_params_grid.SetRowLabelSize(25)
 
     # Ensure all cells have white background
     for row in range(window.peak_params_grid.GetNumberRows()):
         for col in range(window.peak_params_grid.GetNumberCols()):
             window.peak_params_grid.SetCellBackgroundColour(row, col, wx.WHITE)
-
 
     # Adjust individual column sizes
     col_sizes = [20, 90, 80, 60, 60, 50, 70, 45, 45, 50, 40, 40, 40, 130, 130, 80, 80, 100, 100]
@@ -335,32 +418,23 @@ def create_peak_params_grid(window, parent):
 
     # For initial setup, create a new editor for each cell
     for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
-        # Create a fresh editor instance for each cell
         fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
         window.peak_params_grid.SetCellEditor(row, 13, fresh_editor)
 
-    # Define the helper function with the same approach
     def set_model_choice_editors(window):
         """Apply choice editors to the fitting model column (13) for all parameter rows."""
         for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
-            # Create a new editor instance for each cell
             fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
             window.peak_params_grid.SetCellEditor(row, 13, fresh_editor)
 
-    # Save the function as an attribute of the window
     window.set_model_choice_editors = set_model_choice_editors
 
-    # Similar approach for the new row handler
     def add_choice_editor_to_new_row(grid, row_num):
-        if row_num % 2 == 0:  # Only for parameter rows
-            # Create a new editor instance
+        if row_num % 2 == 0:
             fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
             grid.SetCellEditor(row_num, 13, fresh_editor)
 
-    # Store this function in the window object
     window.add_choice_editor_to_new_row = add_choice_editor_to_new_row
-
-
 
     peak_params_sizer_inner.Add(window.peak_params_grid, 1, wx.EXPAND | wx.ALL, 0)
     window.peak_params_frame.SetSizer(peak_params_sizer_inner)
@@ -369,7 +443,7 @@ def create_peak_params_grid(window, parent):
     return peak_params_sizer
 
 
-def create_results_grid(window, parent):
+def create_results_grid(window, parent, use_static_box=True):
     # Get current row number for dynamic label
     current_sheet = getattr(window, 'current_sheet', 'Sheet0')
     row_number = 0
@@ -378,14 +452,16 @@ def create_results_grid(window, parent):
     if match:
         row_number = int(match.group(1))
 
-    results_frame_box = wx.StaticBox(parent, label=f"Results [Row {row_number}]")
-    results_sizer = wx.StaticBoxSizer(results_frame_box, wx.VERTICAL)
+    if use_static_box:
+        results_frame_box = wx.StaticBox(parent, label=f"Results [Row {row_number}]")
+        results_sizer = wx.StaticBoxSizer(results_frame_box, wx.VERTICAL)
+        window.results_frame_box = results_frame_box
+        window.results_frame = wx.Panel(results_frame_box)
+    else:
+        results_sizer = wx.BoxSizer(wx.VERTICAL)
+        window.results_frame_box = None
+        window.results_frame = wx.Panel(parent)
 
-    # Store reference to the frame box for updating the label
-    window.results_frame_box = results_frame_box
-
-    window.results_frame = wx.Panel(results_frame_box)
-    # window.results_frame = wx.Panel(results_frame_box, style = wx.BORDER_RAISED)
     results_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
     window.results_grid = wx.grid.Grid(window.results_frame)
@@ -393,12 +469,12 @@ def create_results_grid(window, parent):
 
     # Set column labels and properties for results grid
     column_labels = ["Peak\nLabel", "Position\n(eV)", "Height\n(CPS)", "FWHM\n(eV)", "L/G \n\u03c3/\u03b3 (%)",
-                     "Area\n(CPS.eV)", "Atomic\n(%)", " ", "RSF", "TXFN", "ECF", "Instr.","Fitting Model",
+                     "Area\n(CPS.eV)", "Atomic\n(%)", " ", "RSF", "TXFN", "ECF", "Instr.", "Fitting Model",
                      "Corr. Area\n(a.u.)",
                      "\u03c3 or \u03B1\nW_g", "\u03b3 or \u03B2\nW_l", "Bkg Type", "Bkg Low\n(eV)", "Bkg High\n(eV)", "Bkg Offset Low\n(CPS)",
                      "Bkg Offset High\n(CPS)", "Sheetname", "Position\nConstraint", "Height\nConstraint",
                      "FWHM\nConstraint", "L/G\nConstraint", "Area\nConstraint", "\u03c3\nConstraint",
-                     "\u03b3\nConstraint", "Weight\n(%)","Mass\n(amu)"]
+                     "\u03b3\nConstraint", "Weight\n(%)", "Mass\n(amu)"]
     for i, label in enumerate(column_labels):
         window.results_grid.SetColLabelValue(i, label)
 
@@ -406,13 +482,10 @@ def create_results_grid(window, parent):
     window.results_grid.SetDefaultColSize(60)
     window.results_grid.SetRowLabelSize(25)
     window.results_grid.SetColLabelSize(35)
-    # window.results_grid.SetLabelBackgroundColour(wx.Colour(255, 255, 255))
-    # ------------------------------------------> To change below for white
-    # window.results_grid.SetDefaultCellBackgroundColour(wx.WHITE)
 
     # Adjust specific column sizes
-    col_sizes = [100, 55, 55, 50, 50, 80, 50, 20, 30, 30, 50, 80,120, 60, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
-                 120,70,70,70,50,45,40]
+    col_sizes = [100, 55, 55, 50, 50, 80, 50, 20, 30, 30, 50, 80, 120, 60, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
+                 120, 70, 70, 70, 50, 45, 40]
     for i, size in enumerate(col_sizes):
         window.results_grid.SetColSize(i, size)
 
@@ -643,6 +716,73 @@ def create_menu(window):
     pref_header.Enable(False)  # Make it non-clickable
     preferences_item = edit_menu.Append(wx.ID_PREFERENCES, "Preferences")
     window.Bind(wx.EVT_MENU, window.on_preferences, preferences_item)
+
+    # Theme/Style submenu
+    theme_style_menu = wx.Menu()
+
+    # Panel Theme submenu
+    panel_theme_menu = wx.Menu()
+
+    # Create all theme IDs FIRST
+    window.theme_none_id = wx.NewId()
+    window.theme_simple_id = wx.NewId()
+    window.theme_raised_id = wx.NewId()
+    window.theme_raised2_id = wx.NewId()
+
+    # Theme items
+    theme_none_item = panel_theme_menu.AppendRadioItem(window.theme_none_id, "None")
+    theme_simple_item = panel_theme_menu.AppendRadioItem(window.theme_simple_id, "Simple")
+    theme_raised_item = panel_theme_menu.AppendRadioItem(window.theme_raised_id, "Raised")
+    theme_raised2_item = panel_theme_menu.AppendRadioItem(window.theme_raised2_id, "Sunken")
+
+    # Bind theme events
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_none_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simple_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised2_item)
+
+    # Check the current theme
+    if hasattr(window, 'panel_theme'):
+        if window.panel_theme == 'None':
+            theme_none_item.Check(True)
+        elif window.panel_theme == 'Simple':
+            theme_simple_item.Check(True)
+        elif window.panel_theme == 'Raised':
+            theme_raised_item.Check(True)
+        elif window.panel_theme == 'Sunken':
+            theme_raised2_item.Check(True)
+    else:
+        theme_raised_item.Check(True)
+
+    # Grid Layout submenu
+    grid_layout_menu = wx.Menu()
+
+    # Create layout IDs
+    window.layout_split_id = wx.NewId()
+    window.layout_tabbed_id = wx.NewId()
+
+    # Layout items
+    layout_split_item = grid_layout_menu.AppendRadioItem(window.layout_split_id, "Side by Side")
+    layout_tabbed_item = grid_layout_menu.AppendRadioItem(window.layout_tabbed_id, "Tabbed")
+
+    # Bind layout events
+    window.Bind(wx.EVT_MENU, window.on_grid_layout_change, layout_split_item)
+    window.Bind(wx.EVT_MENU, window.on_grid_layout_change, layout_tabbed_item)
+
+    # Check the current layout
+    if hasattr(window, 'grid_layout'):
+        if window.grid_layout == 'split':
+            layout_split_item.Check(True)
+        elif window.grid_layout == 'tabbed':
+            layout_tabbed_item.Check(True)
+    else:
+        layout_split_item.Check(True)
+
+    # Add submenus to Theme/Style menu
+    theme_style_menu.AppendSubMenu(panel_theme_menu, "Panel Theme")
+    theme_style_menu.AppendSubMenu(grid_layout_menu, "Grid Layout")
+
+    edit_menu.AppendSubMenu(theme_style_menu, "Theme / Style")
 
     # View menu items
     sample_manager_item = view_menu.Append(wx.NewId(), "Sample Manager")

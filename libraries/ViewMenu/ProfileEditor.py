@@ -1158,7 +1158,7 @@ class ProfileEditWindow(wx.Frame):
         self.toolbar = wx.ToolBar(panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_NODIVIDER)
         self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-        # ADD THIS LINE (darker pink):
+        # darker pink:
         if not detect_dark_mode():
             self.toolbar.SetBackgroundColour(wx.Colour(230, 200, 220))  # Darker pink
 

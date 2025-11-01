@@ -21,17 +21,21 @@ class MyFrame(wx.Frame):
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
 
+        # Load theme before creating any panels
+        self.load_theme_from_config()
+
         # Initialise Peak Fitting Grid
         self.peak_fitting_grid = PeakFittingGrid(self)
         self.peak_manipulation = PeakManipulation(self)
 
 
         self.SetMinSize((800, 600))
-        # self.panel = wx.Panel(self)
-        self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
-        # self.panel = wx.Panel(self, style=wx.BORDER_NONE)
-        # self.panel = wx.Panel(self, style=wx.BORDER_SIMPLE)
-        # self.panel = wx.Panel(self, style=wx.BORDER_RAISED)
+
+        # Main panel - no style for None theme, SUNKEN for all others
+        if self.panel_theme == 'None':
+            self.panel = wx.Panel(self)
+        else:
+            self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
 
         # Will hold reference to FileManagerWindow when opened
         self.file_manager = None
@@ -354,8 +358,70 @@ class MyFrame(wx.Frame):
         self.plot_manager.legend_visible = self.legend_visible
         self.plot_manager.y_axis_state = self.y_axis_state
 
+    def load_theme_from_config(self):
+        """Load only the theme setting from config before creating widgets"""
+        import json
+        if os.path.exists('config.json'):
+            try:
+                with open('config.json', 'r') as f:
+                    config = json.load(f)
+                    self.panel_theme = config.get('panel_theme', 'Raised')
+                    self.grid_layout = config.get('grid_layout', 'split')
+            except:
+                self.panel_theme = 'Raised'
+                self.grid_layout = 'split'
+        else:
+            self.panel_theme = 'Raised'
+            self.grid_layout = 'split'
 
+    def get_panel_style(self):
+        """Return the appropriate panel style based on theme setting"""
+        if self.panel_theme == 'None':
+            return 0
+        elif self.panel_theme == 'Simple':
+            return wx.BORDER_SIMPLE
+        elif self.panel_theme == 'Raised':
+            return wx.BORDER_RAISED
+        elif self.panel_theme == 'Sunken':
+            return wx.BORDER_SUNKEN
+        return wx.BORDER_RAISED  # Default
 
+    def on_theme_change(self, event):
+        """Handle theme menu selection"""
+        menu_id = event.GetId()
+        if menu_id == self.theme_none_id:
+            self.panel_theme = 'None'
+        elif menu_id == self.theme_simple_id:
+            self.panel_theme = 'Simple'
+        elif menu_id == self.theme_raised_id:
+            self.panel_theme = 'Raised'
+        elif menu_id == self.theme_raised2_id:
+            self.panel_theme = 'Sunken'
+
+        self.save_config()
+
+        wx.MessageBox(
+            "Theme changed to: {}.\n\nPlease restart the application for changes to take effect.".format(self.panel_theme),
+            "Theme Changed - Restart Required",
+            wx.OK | wx.ICON_INFORMATION
+        )
+
+    def on_grid_layout_change(self, event):
+        """Handle grid layout menu selection"""
+        menu_id = event.GetId()
+
+        if menu_id == self.layout_split_id:
+            self.grid_layout = 'split'
+        elif menu_id == self.layout_tabbed_id:
+            self.grid_layout = 'tabbed'
+
+        self.save_config()
+
+        wx.MessageBox(
+            "Grid layout changed to: {}.\n\nPlease restart the application for changes to take effect.".format(self.grid_layout),
+            "Layout Changed - Restart Required",
+            wx.OK | wx.ICON_INFORMATION
+        )
 
     def on_peak_params_context_menu(self, event):
         # Alternative event handler for context menu
@@ -3214,6 +3280,9 @@ class MyFrame(wx.Frame):
                 self.enable_quick_settings = config.get('enable_quick_settings', False)
                 self.survey_table_state = config.get('survey_table_state', 0)
 
+                self.panel_theme = config.get('panel_theme', 'Raised')
+                self.grid_layout = config.get('grid_layout', 'split')
+
                 # Set registered flag
                 self.registered = config.get('registered', False)
 
@@ -3334,6 +3403,9 @@ class MyFrame(wx.Frame):
             # Auto backup settings
             'enable_auto_backup': self.enable_auto_backup,
             'backup_interval': self.backup_interval,
+
+            'panel_theme': self.panel_theme,
+            'grid_layout': self.grid_layout,
 
             #Tines opened
             'times_opened': getattr(self, 'times_opened', 0),
@@ -3730,7 +3802,7 @@ class MyFrame(wx.Frame):
 
     def update_results_grid_label(self):
         """Update the Results grid label based on current row"""
-        if hasattr(self, 'results_frame_box'):
+        if hasattr(self, 'results_frame_box') and self.results_frame_box is not None:
             sheet_name = self.sheet_combobox.GetValue() if hasattr(self, 'sheet_combobox') else 'Sheet0'
             row_number = 0
             import re
