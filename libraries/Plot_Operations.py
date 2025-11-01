@@ -209,6 +209,35 @@ class PlotManager:
         # Draw the canvas
         self.canvas.draw()
 
+    def restore_green_vline_if_active(self, window):
+        """Restore green vertical line if it was active before plot clearing"""
+        if not (hasattr(window, 'green_vline_active') and window.green_vline_active):
+            return
+
+        # Remove any existing green line objects first
+        if hasattr(window, 'green_vline') and window.green_vline is not None:
+            try:
+                window.green_vline.remove()
+            except:
+                pass
+
+        if hasattr(window, 'green_vline_text') and window.green_vline_text is not None:
+            try:
+                window.green_vline_text.remove()
+            except:
+                pass
+
+        # Always place at center of current plot
+        xlim = window.ax.get_xlim()
+        green_x = (xlim[0] + xlim[1]) / 2
+
+        # Create fresh line on current axes
+        window.green_vline = window.ax.axvline(green_x, color='green', linestyle='-',
+                                               linewidth=1, alpha=0.7)
+
+        # Create text label
+        from libraries.Widgets_Toolbars import add_green_vline_text_label
+        add_green_vline_text_label(window)
     def apply_text_settings(self, window):
         # Apply font settings
         plt.rcParams['font.family'] = window.plot_font
@@ -766,6 +795,9 @@ class PlotManager:
             else:
                 self.ax.plot(x_values, peak_y, color=color, alpha=line_alpha, label=peak_label)
 
+        # Restore green line if active
+        self.restore_green_vline_if_active(window)
+
         self.canvas.draw_idle()
 
         return peak_y
@@ -1008,6 +1040,9 @@ class PlotManager:
                     'Bkg Offset High': "",
                     'Bkg Y': window.y_values.tolist()
                 }
+
+            # Restore green line if active
+            self.restore_green_vline_if_active(window)
 
             self.canvas.draw()  # Update the plot
 

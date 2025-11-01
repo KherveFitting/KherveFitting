@@ -405,6 +405,60 @@ class FileManagerWindow(wx.Frame):
         self.expanded_height = 300  # Default expanded height
         self.collapsed_height = 70  # Collapsed height
 
+    def restore_green_vline_if_active_OLD(self):
+        """Restore green vertical line if it was active before plot clearing"""
+        if (hasattr(self.parent, 'green_vline_active') and self.parent.green_vline_active and
+                hasattr(self.parent, 'green_vline') and self.parent.green_vline is not None):
+            # Get the position before it was cleared
+            try:
+                green_x = self.parent.green_vline.get_xdata()[0]
+                was_visible = self.parent.green_vline.get_visible()
+            except:
+                # If we can't get position, place at center
+                xlim = self.parent.ax.get_xlim()
+                green_x = (xlim[0] + xlim[1]) / 2
+                was_visible = True
+
+            # Recreate the green line
+            self.parent.green_vline = self.parent.ax.axvline(green_x, color='green', linestyle='-',
+                                                             linewidth=1, alpha=0.7)
+            self.parent.green_vline.set_visible(was_visible)
+
+            # Recreate text label if it was visible
+            if was_visible:
+                from libraries.Widgets_Toolbars import add_green_vline_text_label
+                add_green_vline_text_label(self.parent)
+
+    def restore_green_vline_if_active(self):
+        """Restore green vertical line if it was active before plot clearing"""
+        if not (hasattr(self.parent, 'green_vline_active') and self.parent.green_vline_active):
+            return
+
+        # Remove any existing green line objects first
+        if hasattr(self.parent, 'green_vline') and self.parent.green_vline is not None:
+            try:
+                self.parent.green_vline.remove()
+            except:
+                pass
+
+        if hasattr(self.parent, 'green_vline_text') and self.parent.green_vline_text is not None:
+            try:
+                self.parent.green_vline_text.remove()
+            except:
+                pass
+
+        # Always place at center of current plot
+        xlim = self.parent.ax.get_xlim()
+        green_x = (xlim[0] + xlim[1]) / 2
+
+        # Create fresh line on current axes
+        self.parent.green_vline = self.parent.ax.axvline(green_x, color='green', linestyle='-',
+                                                         linewidth=1, alpha=0.7)
+
+        # Create text label
+        from libraries.Widgets_Toolbars import add_green_vline_text_label
+        add_green_vline_text_label(self.parent)
+
     def on_add_files(self, event):
         """Handle Add Files button click"""
         # Check if we have a current file open
@@ -1747,6 +1801,9 @@ class FileManagerWindow(wx.Frame):
 
         # Clear the plot
         self.parent.ax.clear()
+
+        # Restore green line if active
+        self.restore_green_vline_if_active()
 
         # Plot each selected sheet
         for i, sheet_name in enumerate(sheet_names):
@@ -3449,6 +3506,9 @@ class FileManagerWindow(wx.Frame):
         # Clear the plot
         self.parent.ax.clear()
 
+        # Restore green line if active
+        self.restore_green_vline_if_active()
+
         # Remove any residual subplot temporarily
         if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
             self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
@@ -3714,6 +3774,9 @@ class FileManagerWindow(wx.Frame):
 
         # Clear the plot
         self.parent.ax.clear()
+
+        # Restore green line if active
+        self.restore_green_vline_if_active()
 
         # Remove any residual subplot temporarily
         if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:

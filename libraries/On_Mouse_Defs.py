@@ -352,7 +352,36 @@ class MouseEventHandler:
                                                                                 self.window.peak_manipulation.on_cross_drag)
                         self.window.release_cid = self.window.canvas.mpl_connect('button_release_event',
                                                                                  self.window.peak_manipulation.on_cross_release)
-                        # Check if either fitting screen background tab OR area screen is active for vline interaction
+
+                # Check for green vline if active (works on all tabs)
+                if (hasattr(self.window, 'green_vline_active') and self.window.green_vline_active and
+                        hasattr(self.window, 'green_vline') and self.window.green_vline is not None and
+                        self.window.green_vline.get_visible()):
+                    green_vline_x = self.window.green_vline.get_xdata()[0]
+                    dist_green = abs(x_click - green_vline_x)
+
+                    # Calculate adaptive threshold
+                    x_range = abs(max(self.window.x_values) - min(self.window.x_values))
+                    adaptive_threshold = max(self.window.some_threshold, x_range * 0.02)
+
+                    # Check if click is near green vline
+                    if dist_green <= adaptive_threshold:
+                        # Clean up any existing handlers first
+                        if hasattr(self.window, 'motion_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                            delattr(self.window, 'motion_cid')
+                        if hasattr(self.window, 'release_cid'):
+                            self.window.canvas.mpl_disconnect(self.window.release_cid)
+                            delattr(self.window, 'release_cid')
+
+                        self.window.moving_vline = self.window.green_vline
+                        self.window.moving_vline_type = 'green'
+                        self.window.motion_cid = self.window.canvas.mpl_connect('motion_notify_event', self.on_motion)
+                        self.window.release_cid = self.window.canvas.mpl_connect('button_release_event', self.on_release)
+                        return
+
+
+                # Check if either fitting screen background tab OR area screen is active for vline interaction
                 if (self.window.background_tab_selected or
                         (hasattr(self.window, 'area_tab_selected') and self.window.area_tab_selected)):
                     # Clean up any existing handlers first
@@ -862,6 +891,19 @@ class MouseEventHandler:
                 if current_vline1_pos is not None and current_vline2_pos is not None:
                     wx.CallAfter(self.restore_vlines_after_plot, current_vline1_pos, current_vline2_pos)
 
+        # Handle green vline movement
+        elif (event.inaxes and hasattr(self.window, 'moving_vline_type') and
+              self.window.moving_vline_type == 'green' and
+              hasattr(self.window, 'moving_vline') and self.window.moving_vline is not None):
+            x_click = event.xdata
+            self.window.moving_vline.set_xdata([x_click])
+
+            # Update text label
+            from libraries.Widgets_Toolbars import update_green_vline_text_label
+            update_green_vline_text_label(self.window)
+
+            self.window.canvas.draw_idle()
+            return
         elif event.inaxes and self.window.moving_vline is not None:
             x_click = event.xdata
             self.window.moving_vline.set_xdata([x_click])
@@ -1337,6 +1379,23 @@ class MouseEventHandler:
 
 
             return  # CRITICAL: Exit here to prevent normal release handling
+
+            # Handle green vline release
+        elif (hasattr(self.window, 'moving_vline_type') and
+              self.window.moving_vline_type == 'green'):
+            # Reset green vline movement state
+            self.window.moving_vline_type = None
+            self.window.moving_vline = None
+
+            # Clean up handlers
+            if hasattr(self.window, 'motion_cid'):
+                self.window.canvas.mpl_disconnect(self.window.motion_cid)
+                delattr(self.window, 'motion_cid')
+            if hasattr(self.window, 'release_cid'):
+                self.window.canvas.mpl_disconnect(self.window.release_cid)
+                delattr(self.window, 'release_cid')
+
+            return
 
         elif self.window.moving_vline is not None:
             print("1. Single vline drag ended, updating background vLine positions...")

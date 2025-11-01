@@ -7,7 +7,7 @@ import wx
 
 class MyFrame(wx.Frame):
     def __init__(self, parent, title):
-        super().__init__(parent, title=title, size=(1470, 680))
+        super().__init__(parent, title=title, size=(1470, 700))
 
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -110,6 +110,10 @@ class MyFrame(wx.Frame):
         self.vline2_text = None
         self.active_vline = None
         self.vline_drag_threshold = 5  # pixels
+
+        self.green_vline = None
+        self.green_vline_text = None
+        self.green_vline_active = False
 
 
         self.vline3 = None  # For noise range

@@ -1562,11 +1562,22 @@ def create_vertical_toolbar(parent, frame):
     # Add to the binding section
     frame.Bind(wx.EVT_TOOL, lambda evt: add_draggable_text(frame), text_tool)
 
+
+
     labels_tool = v_toolbar.AddTool(wx.ID_ANY, 'Labels Manager',
                                     wx.Bitmap(os.path.join(icon_path, "ListText2-25.png"), wx.BITMAP_TYPE_PNG),
                                     # wx.Bitmap(os.path.join(icon_path, "AddText-25.png"), wx.BITMAP_TYPE_PNG),
                                     shortHelp="Open Labels Manager")
     frame.Bind(wx.EVT_TOOL, frame.open_labels_window, labels_tool)
+
+    # Add green vertical line tool
+    frame.green_line_tool = v_toolbar.AddCheckTool(wx.ID_ANY, 'Green Line',
+                                                   wx.Bitmap(os.path.join(icon_path, "GreenLine-25.png"), wx.BITMAP_TYPE_PNG),
+                                                   wx.Bitmap(os.path.join(icon_path, "GreenLine-Selected-25.png"), wx.BITMAP_TYPE_PNG),
+                                                   shortHelp="Toggle draggable green vertical line")
+
+    # Bind green line tool
+    frame.Bind(wx.EVT_TOOL, lambda evt: toggle_green_vline(frame), frame.green_line_tool)
 
     # v_toolbar.AddSeparator()
 
@@ -1763,6 +1774,100 @@ def open_thickogram_window(parent_window):
     from libraries.ToolsMenu.ThickogramWindow import ThickogramWindow
     thickogram_window = ThickogramWindow(parent_window)
     thickogram_window.Show()
+
+
+def toggle_green_vline(frame):
+    """Toggle the green vertical line on/off"""
+    frame.green_vline_active = not frame.green_vline_active
+
+    if frame.green_vline_active:
+        # Activate green line mode
+        frame.v_toolbar.ToggleTool(frame.green_line_tool.GetId(), True)
+
+        # Always create a fresh green line at center
+        xlim = frame.ax.get_xlim()
+        center_x = (xlim[0] + xlim[1]) / 2
+
+        # Remove old line if it exists
+        if hasattr(frame, 'green_vline') and frame.green_vline is not None:
+            try:
+                frame.green_vline.remove()
+            except:
+                pass
+
+        # Remove old text if it exists
+        if hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None:
+            try:
+                frame.green_vline_text.remove()
+            except:
+                pass
+
+        # Create new green line
+        frame.green_vline = frame.ax.axvline(center_x, color='green', linestyle='-', linewidth=1, alpha=0.7)
+
+        # Add text label
+        add_green_vline_text_label(frame)
+
+        frame.canvas.draw_idle()
+    else:
+        # Deactivate green line mode
+        frame.v_toolbar.ToggleTool(frame.green_line_tool.GetId(), False)
+
+        # Remove green line completely
+        if hasattr(frame, 'green_vline') and frame.green_vline is not None:
+            try:
+                frame.green_vline.remove()
+            except:
+                pass
+            frame.green_vline = None
+
+        # Remove text label
+        if hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None:
+            try:
+                frame.green_vline_text.remove()
+            except:
+                pass
+            frame.green_vline_text = None
+
+        frame.canvas.draw_idle()
+
+
+def add_green_vline_text_label(frame):
+    """Add text label to green vertical line showing its BE value."""
+    if frame.green_vline is not None:
+        # Get vline position and round to 2 digits
+        vline_x = round(frame.green_vline.get_xdata()[0], 2)
+
+        # Remove existing text if any
+        if hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None:
+            try:
+                frame.green_vline_text.remove()
+            except:
+                pass
+
+        # Create text label using mixed transform
+        # x in data coordinates, y in axes coordinates (0-1 range)
+        from matplotlib.transforms import blended_transform_factory
+        trans = blended_transform_factory(frame.ax.transData, frame.ax.transAxes)
+
+        # Position text at 95% of axes height (always visible)
+        frame.green_vline_text = frame.ax.text(vline_x, 0.95, f'{vline_x:.2f}',
+                                               transform=trans,
+                                               ha='center', va='top',
+                                               color='darkgreen', fontsize=10,
+                                               bbox=dict(boxstyle='round,pad=0.2', facecolor='lightgreen',
+                                                         alpha=0.8))
+
+def update_green_vline_text_label(frame):
+    """Update the text label when green vline is moved."""
+    if (frame.green_vline is not None and frame.green_vline.get_visible() and
+            hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None):
+        # Get current vline position and round to 2 digits
+        vline_x = round(frame.green_vline.get_xdata()[0], 2)
+
+        # Update position (x in data coords, y stays at 0.95 in axes coords)
+        frame.green_vline_text.set_position((vline_x, 0.95))
+        frame.green_vline_text.set_text(f'{vline_x:.2f}')
 
 
 class ToggleToolbar(wx.Frame):
