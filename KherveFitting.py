@@ -34,8 +34,16 @@ class MyFrame(wx.Frame):
         # Main panel - no style for None theme, SUNKEN for all others
         if self.panel_theme == 'None':
             self.panel = wx.Panel(self)
+        elif self.panel_theme == 'Simple':
+            self.panel = wx.Panel(self) #, style=wx.BORDER_SIMPLE)
+        elif self.panel_theme == 'Simple Dark':
+            self.panel = wx.Panel(self) #, style=wx.BORDER_SIMPLE)
         else:
             self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
+
+        # Set darker background for Simple theme
+        if self.panel_theme == 'Simple Dark':
+            self.panel.SetBackgroundColour(wx.Colour(200, 203, 205))
 
         # Will hold reference to FileManagerWindow when opened
         self.file_manager = None
@@ -380,6 +388,8 @@ class MyFrame(wx.Frame):
             return 0
         elif self.panel_theme == 'Simple':
             return wx.BORDER_SIMPLE
+        elif self.panel_theme == 'Simple Dark':
+            return wx.BORDER_SIMPLE
         elif self.panel_theme == 'Raised':
             return wx.BORDER_RAISED
         elif self.panel_theme == 'Sunken':
@@ -390,39 +400,181 @@ class MyFrame(wx.Frame):
         """Handle theme menu selection"""
         menu_id = event.GetId()
         if menu_id == self.theme_none_id:
-            self.panel_theme = 'None'
+            new_theme = 'None'
         elif menu_id == self.theme_simple_id:
-            self.panel_theme = 'Simple'
+            new_theme = 'Simple'
+        elif menu_id == self.theme_simpledark_id:
+            new_theme = 'Simple Dark'
         elif menu_id == self.theme_raised_id:
-            self.panel_theme = 'Raised'
+            new_theme = 'Raised'
         elif menu_id == self.theme_raised2_id:
-            self.panel_theme = 'Sunken'
+            new_theme = 'Sunken'
+        else:
+            return
 
+        # Update theme
+        self.panel_theme = new_theme
         self.save_config()
 
-        wx.MessageBox(
-            "Theme changed to: {}.\n\nPlease restart the application for changes to take effect.".format(self.panel_theme),
-            "Theme Changed - Restart Required",
-            wx.OK | wx.ICON_INFORMATION
-        )
+        # Store current state
+        current_sheet = self.sheet_combobox.GetValue() if hasattr(self, 'sheet_combobox') else None
+        sash_position = self.splitter.GetSashPosition() if hasattr(self, 'splitter') else 800
+
+        # Recreate UI
+        self.recreate_ui(current_sheet, sash_position)
+
+    def recreate_ui(self, current_sheet=None, sash_position=800):
+        """Recreate the UI with the new theme while preserving all data"""
+        import copy
+
+        # Store current state with deep copy
+        stored_data = {
+            'sheet': current_sheet,
+            'sash_position': sash_position,
+            'history': copy.deepcopy(self.history) if hasattr(self, 'history') else [],
+            'history_index': self.history_index if hasattr(self, 'history_index') else -1,
+            'Data': copy.deepcopy(self.Data) if hasattr(self, 'Data') else None,
+            'plot_limits': copy.deepcopy(self.plot_manager.plot_limits) if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'plot_limits') else {},
+            'original_limits': copy.deepcopy(self.plot_manager.original_limits) if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'original_limits') else {},
+        }
+
+        # Store peak fitting grid data
+        peak_grid_data = []
+        if hasattr(self, 'peak_params_grid'):
+            for row in range(self.peak_params_grid.GetNumberRows()):
+                row_data = []
+                for col in range(self.peak_params_grid.GetNumberCols()):
+                    row_data.append(self.peak_params_grid.GetCellValue(row, col))
+                peak_grid_data.append(row_data)
+
+        # Store results grid data
+        results_grid_data = []
+        if hasattr(self, 'results_grid'):
+            for row in range(self.results_grid.GetNumberRows()):
+                row_data = []
+                for col in range(self.results_grid.GetNumberCols()):
+                    row_data.append(self.results_grid.GetCellValue(row, col))
+                results_grid_data.append(row_data)
+
+        # Properly disconnect matplotlib canvas
+        if hasattr(self, 'canvas'):
+            self.canvas.mpl_disconnect('all')
+            if hasattr(self.canvas, 'stop_event_loop'):
+                self.canvas.stop_event_loop()
+            if hasattr(self, 'figure'):
+                import matplotlib.pyplot as plt
+                plt.close(self.figure)
+
+        # Destroy navigation toolbar first
+        if hasattr(self, 'navigation_toolbar') and self.navigation_toolbar:
+            self.navigation_toolbar.Destroy()
+            self.navigation_toolbar = None
+
+        # Destroy old panel and all children
+        if hasattr(self, 'panel'):
+            self.panel.DestroyChildren()
+            self.panel.Destroy()
+
+        # Small delay to ensure cleanup
+        wx.SafeYield()
+
+        # Recreate figure BEFORE panel
+        import matplotlib.pyplot as plt
+        self.figure = plt.figure()
+        self.ax = self.figure.add_subplot(111)
+
+        # Create new panel with new theme
+        if self.panel_theme == 'None':
+            self.panel = wx.Panel(self)
+        elif self.panel_theme == 'Simple':
+            self.panel = wx.Panel(self)
+        elif self.panel_theme == 'Simple Dark':
+            self.panel = wx.Panel(self)
+        else:
+            self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
+
+        if self.panel_theme == 'Simple Dark':
+            self.panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+
+        # Restore Data BEFORE creating widgets
+        if stored_data['Data']:
+            self.Data = stored_data['Data']
+
+        # Recreate all widgets
+        from libraries.Widgets_Toolbars import create_widgets
+        create_widgets(self)
+
+        # Restore history
+        self.history = stored_data['history']
+        self.history_index = stored_data['history_index']
+
+        # Restore plot manager limits
+        if hasattr(self, 'plot_manager'):
+            if stored_data['plot_limits']:
+                self.plot_manager.plot_limits = stored_data['plot_limits']
+            if stored_data['original_limits']:
+                self.plot_manager.original_limits = stored_data['original_limits']
+
+        # Restore peak fitting grid data
+        if peak_grid_data and hasattr(self, 'peak_params_grid'):
+            for row, row_data in enumerate(peak_grid_data):
+                if row < self.peak_params_grid.GetNumberRows():
+                    for col, value in enumerate(row_data):
+                        if col < self.peak_params_grid.GetNumberCols():
+                            self.peak_params_grid.SetCellValue(row, col, value)
+
+        # Restore results grid data
+        if results_grid_data and hasattr(self, 'results_grid'):
+            for row, row_data in enumerate(results_grid_data):
+                if row < self.results_grid.GetNumberRows():
+                    for col, value in enumerate(row_data):
+                        if col < self.results_grid.GetNumberCols():
+                            self.results_grid.SetCellValue(row, col, value)
+
+        # Repopulate sheet combobox with all sheets from Data
+        if hasattr(self, 'sheet_combobox') and stored_data['Data'] and 'Core levels' in stored_data['Data']:
+            all_sheets = list(stored_data['Data']['Core levels'].keys())
+            self.sheet_combobox.Clear()
+            self.sheet_combobox.AppendItems(all_sheets)
+
+        # Restore sash position
+        if hasattr(self, 'splitter'):
+            wx.CallAfter(lambda: self.splitter.SetSashPosition(stored_data['sash_position']))
+
+        # Restore sheet selection and redraw
+        if stored_data['sheet'] and hasattr(self, 'sheet_combobox'):
+            idx = self.sheet_combobox.FindString(stored_data['sheet'])
+            if idx != wx.NOT_FOUND:
+                self.sheet_combobox.SetSelection(idx)
+                from Functions import on_sheet_selected_wrapper
+                wx.CallAfter(lambda: on_sheet_selected_wrapper(self, None))
+
+        # Refresh layout
+        self.panel.Layout()
+        self.Layout()
+        self.Refresh()
 
     def on_grid_layout_change(self, event):
         """Handle grid layout menu selection"""
         menu_id = event.GetId()
 
         if menu_id == self.layout_split_id:
-            self.grid_layout = 'split'
+            new_layout = 'split'
         elif menu_id == self.layout_tabbed_id:
-            self.grid_layout = 'tabbed'
+            new_layout = 'tabbed'
+        else:
+            return
 
+        # Update layout
+        self.grid_layout = new_layout
         self.save_config()
 
-        wx.MessageBox(
-            "Grid layout changed to: {}.\n\nPlease restart the application for changes to take effect.".format(self.grid_layout),
-            "Layout Changed - Restart Required",
-            wx.OK | wx.ICON_INFORMATION
-        )
+        # Store current state
+        current_sheet = self.sheet_combobox.GetValue() if hasattr(self, 'sheet_combobox') else None
+        sash_position = self.splitter.GetSashPosition() if hasattr(self, 'splitter') else 800
 
+        # Recreate UI
+        self.recreate_ui(current_sheet, sash_position)
     def on_peak_params_context_menu(self, event):
         # Alternative event handler for context menu
         position = event.GetPosition()

@@ -426,6 +426,7 @@ Version 1.600-1.690
 - Added Export winddow
 - Added NPL Transmission Function
 - Created Theme menu
+- Created Layout Styles
 - Added Line tool 
 - Considerably improve the speed of startup
 - Added import of fitting input from Avantage files

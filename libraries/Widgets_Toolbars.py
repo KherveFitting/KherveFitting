@@ -136,11 +136,20 @@ def create_widgets(window):
     # main_sizer = wx.BoxSizer(wx.HORIZONTAL)
     main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-    # Create horizontal toolbar first so it stays on top
+
+
+    # Create toolbar as a child of the parent panel
     if window.panel_theme == 'None':
-        toolbar_panel = wx.Panel(window.panel)
+        toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_NONE)
     else:
-        toolbar_panel = wx.Panel(window.panel, style=window.get_panel_style())
+        toolbar_panel = wx.Panel(window.panel,  style=wx.TB_HORIZONTAL | window.get_panel_style())
+
+
+    # Set darker background for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        toolbar_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+
+
     toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
     window.toolbar = create_horizontal_toolbar(toolbar_panel, window)  # Pass panel instead of window
     toolbar_sizer.Add(window.toolbar, 0, wx.EXPAND,0)
@@ -163,6 +172,10 @@ def create_widgets(window):
         window.right_frame = wx.Panel(window.splitter, style=window.get_panel_style())
     # window.right_frame.SetBackgroundColour(wx.Colour(255, 255, 255)) # To change
     right_frame_sizer = wx.BoxSizer(wx.VERTICAL)
+
+    if window.panel_theme == 'Simple Dark':
+        window.right_frame.SetBackgroundColour(wx.Colour(00, 203, 205))
+
 
     # Create the FigureCanvas
     window.canvas = FigureCanvas(window.right_frame, -1, window.figure)
@@ -281,12 +294,19 @@ def create_grids_panel_OLD(window):
 
 def create_grids_panel(window):
     grids_panel = wx.Panel(window.splitter)
+    if window.panel_theme == 'Simple Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
 
     # Check layout type
     if window.grid_layout == 'tabbed':
         # Create FlatNotebook for tabbed layout
         notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_VC8) # | nb.FNB_BOTTOM )
         notebook.SetActiveTabColour(wx.Colour(200,245,228))
+
+        # Set notebook background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            notebook.SetBackgroundColour(wx.Colour(200, 203, 205))
+
         # Create peak params panel and grid (NO STATIC BOX)
         if window.panel_theme == 'None':
             peak_params_panel = wx.Panel(notebook)
@@ -295,6 +315,9 @@ def create_grids_panel(window):
         peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=False)
         peak_params_panel.SetSizer(peak_params_sizer)
 
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+
         # Create results panel and grid (NO STATIC BOX)
         if window.panel_theme == 'None':
             results_panel = wx.Panel(notebook)
@@ -302,6 +325,10 @@ def create_grids_panel(window):
             results_panel = wx.Panel(notebook, style=window.get_panel_style())
         results_sizer = create_results_grid(window, results_panel, use_static_box=False)
         results_panel.SetSizer(results_sizer)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
 
         # Add panels to notebook
         notebook.AddPage(peak_params_panel, "Peak Parameters")
@@ -331,6 +358,10 @@ def create_grids_panel(window):
         peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=True)
         peak_params_panel.SetSizer(peak_params_sizer)
 
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+
         # Create results panel and grid
         if window.panel_theme == 'None':
             results_panel = wx.Panel(inner_splitter)
@@ -338,6 +369,10 @@ def create_grids_panel(window):
             results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
         results_sizer = create_results_grid(window, results_panel, use_static_box=True)
         results_panel.SetSizer(results_sizer)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
 
         # Add splitter to main sizer
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -366,9 +401,17 @@ def create_peak_params_grid(window, parent, use_static_box=True):
         peak_params_frame_box = wx.StaticBox(parent, label="Peak Fitting Parameters")
         peak_params_sizer = wx.StaticBoxSizer(peak_params_frame_box, wx.VERTICAL)
         window.peak_params_frame = wx.Panel(peak_params_frame_box)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.peak_params_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
     else:
         peak_params_sizer = wx.BoxSizer(wx.VERTICAL)
         window.peak_params_frame = wx.Panel(parent)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.peak_params_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
 
     peak_params_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
@@ -457,10 +500,18 @@ def create_results_grid(window, parent, use_static_box=True):
         results_sizer = wx.StaticBoxSizer(results_frame_box, wx.VERTICAL)
         window.results_frame_box = results_frame_box
         window.results_frame = wx.Panel(results_frame_box)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.results_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
     else:
         results_sizer = wx.BoxSizer(wx.VERTICAL)
         window.results_frame_box = None
         window.results_frame = wx.Panel(parent)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.results_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
 
     results_sizer_inner = wx.BoxSizer(wx.VERTICAL)
 
@@ -717,6 +768,29 @@ def create_menu(window):
     preferences_item = edit_menu.Append(wx.ID_PREFERENCES, "Preferences")
     window.Bind(wx.EVT_MENU, window.on_preferences, preferences_item)
 
+
+    # View menu items
+    sample_manager_item = view_menu.Append(wx.NewId(), "Sample Manager")
+    window.Bind(wx.EVT_MENU, window.on_open_file_manager, sample_manager_item)
+
+    labels_manager_item = view_menu.Append(wx.NewId(), "Labels Manager")
+    window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
+
+    labels_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Toggles ▬▬▬▬▬▬")
+    labels_header.Enable(False)  # Make it non-clickable
+
+    ToggleFitting_item = view_menu.Append(wx.NewId(), "Toggle Peak Fitting")
+    window.Bind(wx.EVT_MENU, lambda event: toggle_plot(window), ToggleFitting_item)
+
+    ToggleLegend_item = view_menu.Append(wx.NewId(), "Toggle Legend")
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_legend(), ToggleLegend_item)
+
+    ToggleFit_item = view_menu.Append(wx.NewId(), "Toggle Fit Results")
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_fitting_results(), ToggleFit_item)
+
+    ToggleRes_item = view_menu.Append(wx.NewId(), "Toggle Residuals")
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_residuals(), ToggleRes_item)
+
     # Theme/Style submenu
     theme_style_menu = wx.Menu()
 
@@ -726,18 +800,21 @@ def create_menu(window):
     # Create all theme IDs FIRST
     window.theme_none_id = wx.NewId()
     window.theme_simple_id = wx.NewId()
+    window.theme_simpledark_id = wx.NewId()
     window.theme_raised_id = wx.NewId()
     window.theme_raised2_id = wx.NewId()
 
     # Theme items
     theme_none_item = panel_theme_menu.AppendRadioItem(window.theme_none_id, "None")
     theme_simple_item = panel_theme_menu.AppendRadioItem(window.theme_simple_id, "Simple")
+    theme_simpledark_item = panel_theme_menu.AppendRadioItem(window.theme_simpledark_id, "Simple Dark")
     theme_raised_item = panel_theme_menu.AppendRadioItem(window.theme_raised_id, "Raised")
     theme_raised2_item = panel_theme_menu.AppendRadioItem(window.theme_raised2_id, "Sunken")
 
     # Bind theme events
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_none_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simple_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simpledark_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised2_item)
 
@@ -747,6 +824,8 @@ def create_menu(window):
             theme_none_item.Check(True)
         elif window.panel_theme == 'Simple':
             theme_simple_item.Check(True)
+        elif window.panel_theme == 'Simple Dark':
+            theme_simpledark_item.Check(True)
         elif window.panel_theme == 'Raised':
             theme_raised_item.Check(True)
         elif window.panel_theme == 'Sunken':
@@ -778,33 +857,14 @@ def create_menu(window):
     else:
         layout_split_item.Check(True)
 
+    style_header = view_menu.Append(wx.ID_ANY, "▬▬▬Style▬▬▬▬▬▬▬▬")
+    style_header.Enable(False)  # Make it non-clickable
+
     # Add submenus to Theme/Style menu
     theme_style_menu.AppendSubMenu(panel_theme_menu, "Panel Theme")
     theme_style_menu.AppendSubMenu(grid_layout_menu, "Grid Layout")
 
-    edit_menu.AppendSubMenu(theme_style_menu, "Theme / Style")
-
-    # View menu items
-    sample_manager_item = view_menu.Append(wx.NewId(), "Sample Manager")
-    window.Bind(wx.EVT_MENU, window.on_open_file_manager, sample_manager_item)
-
-    labels_manager_item = view_menu.Append(wx.NewId(), "Labels Manager")
-    window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
-
-    labels_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Toggles ▬▬▬▬▬▬")
-    labels_header.Enable(False)  # Make it non-clickable
-
-    ToggleFitting_item = view_menu.Append(wx.NewId(), "Toggle Peak Fitting")
-    window.Bind(wx.EVT_MENU, lambda event: toggle_plot(window), ToggleFitting_item)
-
-    ToggleLegend_item = view_menu.Append(wx.NewId(), "Toggle Legend")
-    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_legend(), ToggleLegend_item)
-
-    ToggleFit_item = view_menu.Append(wx.NewId(), "Toggle Fit Results")
-    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_fitting_results(), ToggleFit_item)
-
-    ToggleRes_item = view_menu.Append(wx.NewId(), "Toggle Residuals")
-    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_residuals(), ToggleRes_item)
+    view_menu.AppendSubMenu(theme_style_menu, "Theme / Style")
 
     kin_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Beta ▬▬▬▬▬▬▬▬")
     kin_header.Enable(False)  # Make it non-clickable
@@ -1055,6 +1115,10 @@ def create_menu(window):
 
     window.SetMenuBar(menubar)
 
+    # Set menubar background color for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        menubar.SetBackgroundColour(wx.Colour(200, 203, 205))
+
 
 def create_rightside_toolbar(parent, window):
     r_toolbar = wx.ToolBar(parent, style= wx.TB_RIGHT)
@@ -1112,14 +1176,17 @@ def create_horizontal_toolbar(parent, window):
     # toolbar = window.CreateToolBar(style=  wx.TB_FLAT)
     # toolbar.SetToolBitmapSize(wx.Size(25, 25))
 
-    # Create toolbar as a panel instead of using window.CreateToolBar()
-    # toolbar_panel = wx.Panel(window.panel)
-    # toolbar = wx.ToolBar(parent, style=wx.TB_FLAT)
-    # toolbar = wx.ToolBar(parent, style=wx.BORDER_SUNKEN)
-    # toolbar = wx.ToolBar(parent, style=wx.BORDER_RAISED)
-    # toolbar = wx.ToolBar(parent, style=wx.BORDER_SIMPLE)
-    toolbar = wx.ToolBar(parent, style=wx.BORDER_NONE)
+    # Create toolbar as a child of the parent panel
+    if window.panel_theme == 'None':
+        toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | wx.BORDER_NONE)
+    else:
+        toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | window.get_panel_style())
+
     toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    # Set toolbar background color for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        toolbar.SetBackgroundColour(wx.Colour(200, 203, 205))
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     icon_path = os.path.join(current_dir, "Icons")
@@ -1562,11 +1629,11 @@ def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, f
 
 
 def create_vertical_toolbar(parent, frame):
-    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_DEFAULT_STYLE)
     v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT )
-    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.BORDER_RAISED)
-    # v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.BORDER_SIMPLE)
     v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    if frame.panel_theme == 'Simple Dark':
+        v_toolbar.SetBackgroundColour(wx.Colour(200, 203, 205))
 
     # Check if running on macOS
     is_mac = 'wxMac' in wx.PlatformInfo
@@ -1830,6 +1897,12 @@ def create_statusbar(window):
     # Set initial text for the status bar fields
     window.SetStatusText("Working Directory: " + window.Working_directory, 0)
     window.SetStatusText("BE: 0 eV, I: 0 CPS", 1)
+
+    # Set background color for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        statusbar = window.GetStatusBar()
+        if statusbar:
+            statusbar.SetBackgroundColour(wx.Colour(200, 203, 205))
 
 
 def update_statusbar(window, message):
