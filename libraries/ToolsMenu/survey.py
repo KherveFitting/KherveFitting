@@ -173,13 +173,13 @@ class PeriodicTableWindow(wx.Frame):
         # Get OS-dependent window size
         os_name = platform.system()
         if os_name == "Windows":
-            window_size = (940, 450)
+            window_size = (940, 420)
         elif os_name == "Darwin":  # macOS
-            window_size = (940, 430)
+            window_size = (940, 400)
         elif os_name == "Linux":
-            window_size = (990, 480)
+            window_size = (990, 450)
         else:
-            window_size = (940, 450)  # Default fallback
+            window_size = (940, 420)  # Default fallback
 
         super().__init__(parent, title="Survey Identification / Labelling",
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
@@ -200,6 +200,8 @@ class PeriodicTableWindow(wx.Frame):
         self.core_level_data = {}  # For list box data
 
         self.intensity_scale = 0.6
+
+        self.core_level_list_window = None
 
         # Create a KherveDB instance to access its methods
         if KHERVE_AVAILABLE:
@@ -242,14 +244,14 @@ class PeriodicTableWindow(wx.Frame):
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Info text
-        self.info_text1 = wx.StaticText(panel, style=wx.ALIGN_CENTER | wx.ST_NO_AUTORESIZE)
-        self.info_text1.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-        main_sizer.Add(self.info_text1, 0, wx.EXPAND | wx.ALL, 0)
-
-        self.info_text2 = wx.StaticText(panel, style=wx.ALIGN_CENTER | wx.ST_NO_AUTORESIZE)
-        self.info_text2.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-        main_sizer.Add(self.info_text2, 0, wx.EXPAND | wx.ALL, 0)
+        # # Info text
+        # self.info_text1 = wx.StaticText(panel, style=wx.ALIGN_CENTER | wx.ST_NO_AUTORESIZE)
+        # self.info_text1.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        # main_sizer.Add(self.info_text1, 0, wx.EXPAND | wx.ALL, 0)
+        #
+        # self.info_text2 = wx.StaticText(panel, style=wx.ALIGN_CENTER | wx.ST_NO_AUTORESIZE)
+        # self.info_text2.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        # main_sizer.Add(self.info_text2, 0, wx.EXPAND | wx.ALL, 0)
 
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -269,30 +271,23 @@ class PeriodicTableWindow(wx.Frame):
         button_sizer = wx.GridBagSizer(1, 1)
 
         self.add_labels_btn = wx.Button(panel, label="Add Labels")
-        self.add_peak_btn = wx.Button(panel, label="Add to Grid")
         self.remove_selected_btn = wx.Button(panel, label="Clear Selected")
         self.remove_all_btn = wx.Button(panel, label="Clear All List")
-        self.remove_last_label_btn = wx.Button(panel, label="Clear Last Label")
-        self.remove_all_labels_btn = wx.Button(panel, label="Clear All Labels")
         self.auto_id_button = wx.Button(panel, label="Auto ID")
-
+        self.core_levels_btn = wx.Button(panel, label="Core Level List")
 
         # Bind events
         self.add_labels_btn.Bind(wx.EVT_BUTTON, self.OnAddLabels)
-        self.add_peak_btn.Bind(wx.EVT_BUTTON, self.OnAddPeak)
         self.remove_selected_btn.Bind(wx.EVT_BUTTON, self.OnRemoveSelected)
         self.remove_all_btn.Bind(wx.EVT_BUTTON, self.OnRemoveAll)
-        self.remove_last_label_btn.Bind(wx.EVT_BUTTON, self.OnRemoveLastLabel)
-        self.remove_all_labels_btn.Bind(wx.EVT_BUTTON, self.OnRemoveAllLabels)
         self.auto_id_button.Bind(wx.EVT_BUTTON, self.on_auto_id)
+        self.core_levels_btn.Bind(wx.EVT_BUTTON, self.on_show_core_levels)
 
         button_sizer.Add(self.add_labels_btn, pos=(0, 0), flag=wx.EXPAND)
-        button_sizer.Add(self.add_peak_btn, pos=(0, 1), flag=wx.EXPAND)
-        button_sizer.Add(self.remove_selected_btn, pos=(1, 0), flag=wx.EXPAND)
-        button_sizer.Add(self.remove_all_btn, pos=(1, 1), flag=wx.EXPAND)
-        button_sizer.Add(self.remove_last_label_btn, pos=(2, 0), flag=wx.EXPAND)
-        button_sizer.Add(self.remove_all_labels_btn, pos=(2, 1), flag=wx.EXPAND)
-        button_sizer.Add(self.auto_id_button, pos=(3, 0), flag=wx.EXPAND)
+        button_sizer.Add(self.remove_selected_btn, pos=(0, 1), flag=wx.EXPAND)
+        button_sizer.Add(self.remove_all_btn, pos=(1, 0), flag=wx.EXPAND)
+        button_sizer.Add(self.auto_id_button, pos=(1, 1), flag=wx.EXPAND)
+        button_sizer.Add(self.core_levels_btn, pos=(2, 0), span=(1, 2), flag=wx.EXPAND)
 
         right_sizer.Add(button_sizer, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -324,10 +319,18 @@ class PeriodicTableWindow(wx.Frame):
         main_sizer.Add(hsizer, 1, wx.EXPAND)
         panel.SetSizer(main_sizer)
 
+    def on_show_core_levels(self, event):
+        """Open the core level list window."""
+        if not hasattr(self, 'core_level_list_window') or self.core_level_list_window is None:
+            self.core_level_list_window = CoreLevelListWindow(self)
+            self.core_level_list_window.Show()
+        else:
+            self.core_level_list_window.Raise()
+
     def create_kherve_periodic_table(self, parent, sizer):
         """Create periodic table using actual KherveDB ElementTiles"""
         # Create frame for periodic table
-        pt_panel = wx.Panel(parent, style=wx.BORDER_SUNKEN)
+        pt_panel = wx.Panel(parent, style=wx.BORDER_RAISED)
 
         # Handle macOS dark mode
         import platform
@@ -457,8 +460,8 @@ class PeriodicTableWindow(wx.Frame):
             # Remove element lines from plot
             self.remove_element_lines(element)
 
-        # Update element info
-        self.UpdateElementInfo(element)
+        # # Update element info
+        # self.UpdateElementInfo(element)
 
     def OnElementClick_ElementTile(self, event):
         """Modified OnElementClick to work with ElementTiles"""
@@ -750,40 +753,6 @@ class PeriodicTableWindow(wx.Frame):
                 text.remove()
             self.parent_window.canvas.draw_idle()
 
-    def get_element_transitions_OLD(self, element):
-        allowed_orbitals = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f', '5s', '5p', '5d', '5f']
-        transitions = {}
-        photon_energy = self.parent_window.photons  # Get photon energy
-
-        for (elem, orbital), data in self.library_data.items():
-            if elem == element:
-                # Choose instrument based on whether it's an Auger line
-                if 'C-Any' in data:
-                    instrument = 'C-Any'  # For Auger lines
-                else:
-                    instrument = 'C-Al1486' if 'C-Al1486' in data else next(iter(data))
-
-                if 'position' in data[instrument] and float(data[instrument]['position']) >= 20:
-                    # Check if it's a core level or Auger transition
-                    is_auger = instrument == 'C-Any'
-                    # is_auger = data[instrument]['Auger'] == '1'  # Corrected this line
-                    orbital_lower = orbital.lower()
-
-                    if is_auger:
-                        # Subtract photon energy for Auger transitions
-                        kinetic_energy = float(data[instrument]['position'])
-                        binding_energy = photon_energy - kinetic_energy  # Convert KE to BE
-                        transitions[orbital_lower] = binding_energy
-                    else:
-                        # For core levels
-                        main_orbital = ''.join([c for c in orbital_lower if c.isalpha() or c.isdigit()])[:2]
-                        if main_orbital in allowed_orbitals:
-                            energy = float(data[instrument]['position'])
-                            if main_orbital not in transitions or energy > transitions[main_orbital]:
-                                transitions[main_orbital] = energy
-
-        sorted_transitions = sorted(transitions.items(), key=lambda x: x[1])
-        return sorted_transitions
 
     def get_element_transitions(self, element):
         """Get filtered transitions for an element - matches backup.py filtering"""
@@ -927,51 +896,6 @@ class PeriodicTableWindow(wx.Frame):
 
         # Update element info
         self.UpdateElementInfo(element)
-
-    def OnAddLabels_OLD(self, event):
-        selections = self.core_level_list.GetSelections()
-        for selection in selections:
-            label = self.core_level_list.GetString(selection)
-            element_orbital, be_str = label.split(':')
-            print(f'Element Orbital: {element_orbital}')
-            be = float(be_str.replace(' eV', ''))
-            formatted_label = ".."
-
-            # Extract element and orbital correctly
-            import re
-            match = re.match(r'([A-Z][a-z]*)(\d+[spdf])', element_orbital)
-            if match:
-                element, orbital = match.groups()
-                formatted_label = f"{element} {orbital[0]}{orbital[1]}"  # e.g., "C 1 s"
-            elif any(element_orbital.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm']):
-                auger = element_orbital[-3:]
-                formatted_label = f"{element_orbital[:-3]} {auger.upper()}"
-
-            if formatted_label != "..":
-                # Get max intensity in ±5 eV range
-                x_values = self.parent_window.x_values
-                y_values = self.parent_window.y_values
-                maxY = max(y_values)
-                mask = (x_values >= be - 5) & (x_values <= be + 5)
-                if np.any(mask):
-                    local_max = np.max(y_values[mask])
-                    # Add label at 1.2 times the local maximum height
-                    self.parent_window.ax.text(be, local_max +0.05*maxY, formatted_label,
-                                               rotation=90, va='bottom', ha='center')
-                    self.parent_window.canvas.draw_idle()
-
-                sheet_name = self.parent_window.sheet_combobox.GetValue()
-
-                if 'Labels' not in self.parent_window.Data['Core levels'][sheet_name]:
-                    # print('Labels not in sheetname')
-                    self.parent_window.Data['Core levels'][sheet_name]['Labels'] = []
-
-                self.parent_window.Data['Core levels'][sheet_name]['Labels'].append({
-                    'text': formatted_label,
-                    'x':be,
-                    'y': local_max +0.05*maxY,
-                    'rotation': 90  # Force 90 degrees
-                })
 
     def OnAddLabels(self, event):
         selections = self.core_level_list.GetSelections()
@@ -1169,7 +1093,7 @@ class PeriodicTableWindow(wx.Frame):
 
                         # Draw the vertical line
                         line = self.parent_window.ax.vlines(be, ymin - intensity, ymin + intensity,
-                                                            color='red', linewidth=1)
+                                                            color='blue', linewidth=1)
                         self.element_lines[element].append(line)
 
                         # Add text label
@@ -1184,7 +1108,7 @@ class PeriodicTableWindow(wx.Frame):
                             va='bottom',
                             ha='right',
                             fontsize=7,
-                            color='red'
+                            color='black'
                         )
                         self.element_lines[element].append(text)
 
@@ -1278,8 +1202,8 @@ class PeriodicTableWindow(wx.Frame):
         self.UpdateElementInfo(element)
 
     def OnElementLeave(self, event):
-        self.info_text1.SetLabelMarkup("")
-        self.info_text2.SetLabelMarkup("")
+        # self.info_text1.SetLabelMarkup("")
+        # self.info_text2.SetLabelMarkup("")
         self.Layout()
 
     def OnIntensityIncrease(self, event):
@@ -1351,11 +1275,11 @@ class PeriodicTableWindow(wx.Frame):
                 info1 += info2
                 info2 = ""
 
-            self.info_text1.SetLabelMarkup(info1)
-            self.info_text2.SetLabelMarkup(info2)
-        else:
-            self.info_text1.SetLabelMarkup(f"<b>{element_names.get(element, element)}</b>: No BE transitions found")
-            self.info_text2.SetLabelMarkup("")
+            # self.info_text1.SetLabelMarkup(info1)
+            # self.info_text2.SetLabelMarkup(info2)
+        # else:
+        #     self.info_text1.SetLabelMarkup(f"<b>{element_names.get(element, element)}</b>: No BE transitions found")
+        #     self.info_text2.SetLabelMarkup("")
         self.Layout()
 
     def on_canvas_click(self, event):
@@ -1533,6 +1457,484 @@ class PeriodicTableWindow(wx.Frame):
 
         # Reset all element buttons (your existing functionality)
         self.reset_all_buttons()
+        self.Destroy()
+
+
+class CoreLevelListWindow(wx.Frame):
+    def __init__(self, parent):
+        self.parent = parent
+        self.max_line_intensity = 0.6
+        self.core_level_lines = []
+        self.core_level_texts = []
+
+        # Initialize vLines
+        self.vline1 = None
+        self.vline2 = None
+        self.vline_center = None
+        self.vline1_text = None
+        self.vline2_text = None
+        self.vline_center_text = None
+
+        # Track dragging state
+        self.dragging_vline = None
+        self.drag_offset = 0
+
+        # Filter options
+        self.show_auger = False  # Default hide
+        self.show_doublets = False  # Default show
+        self.show_core_levels = True  # Default show
+
+        super().__init__(None, title="Core Level Reference List",
+                         style=(wx.DEFAULT_FRAME_STYLE & ~wx.RESIZE_BORDER) | wx.STAY_ON_TOP)
+
+        self.init_ui()
+        self.position_window()
+        self.initialize_vlines()
+        self.update_list_and_lines()
+
+        # Connect mouse events
+        self.canvas_press_id = self.parent.parent_window.canvas.mpl_connect('button_press_event', self.on_canvas_press)
+        self.canvas_release_id = self.parent.parent_window.canvas.mpl_connect('button_release_event', self.on_canvas_release)
+        self.canvas_motion_id = self.parent.parent_window.canvas.mpl_connect('motion_notify_event', self.on_canvas_motion)
+        self.canvas_scroll_id = self.parent.parent_window.canvas.mpl_connect('scroll_event', self.on_scroll)
+
+    def init_ui(self):
+        """Initialize the user interface."""
+        panel = wx.Panel(self)
+        panel.SetBackgroundColour(wx.Colour(250, 250, 230))
+
+        # Create checkboxes for filtering
+        self.auger_checkbox = wx.CheckBox(panel, label="Show Auger Peaks")
+        self.auger_checkbox.SetValue(self.show_auger)
+        self.auger_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.doublets_checkbox = wx.CheckBox(panel, label="Show Doublets")
+        self.doublets_checkbox.SetValue(self.show_doublets)
+        self.doublets_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.core_levels_checkbox = wx.CheckBox(panel, label="Show Core Levels")
+        self.core_levels_checkbox.SetValue(self.show_core_levels)
+        self.core_levels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        # Create list control
+        self.list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.list_ctrl.InsertColumn(0, "Core Level", width=100)
+        self.list_ctrl.InsertColumn(1, "BE Center", width=80)
+        self.list_ctrl.InsertColumn(2, "RSF", width=80)
+        self.list_ctrl.InsertColumn(3, "Distance", width=70)
+
+        # Layout
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Instructions
+        instruction_text = wx.StaticText(panel, label="Drag vLines to adjust range | Mouse wheel to resize")
+        sizer.Add(instruction_text, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        # Checkboxes
+        checkbox_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        checkbox_sizer.Add(self.auger_checkbox, 0, wx.ALL, 5)
+        checkbox_sizer.Add(self.doublets_checkbox, 0, wx.ALL, 5)
+        checkbox_sizer.Add(self.core_levels_checkbox, 0, wx.ALL, 5)
+        sizer.Add(checkbox_sizer, 0, wx.ALL | wx.ALIGN_CENTER, 0)
+
+        sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+
+        panel.SetSizer(sizer)
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.SetSize((380, 500))
+
+    def on_filter_change(self, event):
+        """Handle checkbox changes."""
+        self.show_auger = self.auger_checkbox.GetValue()
+        self.show_doublets = self.doublets_checkbox.GetValue()
+        self.show_core_levels = self.core_levels_checkbox.GetValue()
+        self.update_list_and_lines()
+
+    def is_auger(self, orbital):
+        """Check if orbital is an Auger transition."""
+        orbital_lower = orbital.lower()
+
+        # Check for Auger patterns
+        # Pattern 1: Ends with specific Auger types
+        if any(orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm']):
+            return True
+
+        # Pattern 2: Contains Auger patterns with numbers (e.g., LM9, MN2, LMM1, KLL1, etc.)
+        import re
+        auger_patterns = [
+            r'kll\d*',  # KLL, KLL1, KLL2, etc.
+            r'kl\d+',  # KL1, KL2, etc. (require digit)
+            r'lmm\d*',  # LMM, LMM1, etc.
+            r'lm\d+',  # LM1, LM2, LM9, etc. (require digit)
+            r'mnn\d*',  # MNN, MNN1, etc.
+            r'mn\d+',  # MN1, MN2, MN5, etc. (require digit)
+            r'mvv\d*',  # MVV, MVV1, etc.
+            r'mv\d+',  # MV1, MV2, etc. (require digit)
+            r'mnv\d*',  # MNV, MNV1, etc.
+            r'noo\d*',  # NOO, NOO1, etc.
+            r'no\d+',  # NO1, NO2, etc. (require digit)
+        ]
+
+        for pattern in auger_patterns:
+            if re.search(pattern, orbital_lower):
+                return True
+
+        return False
+
+    def is_doublet(self, orbital):
+        """Check if orbital is a doublet (contains fractions like 1/2, 3/2, etc.)."""
+        return '/' in orbital or any(x in orbital.lower() for x in ['1/2', '3/2', '5/2', '7/2'])
+
+    def is_core_level(self, orbital):
+        """Check if orbital is a main core level (no fractions, no Auger)."""
+        return not self.is_auger(orbital) and not self.is_doublet(orbital)
+
+    def initialize_vlines(self):
+        """Initialize the three vertical lines (center and limits)."""
+        if not hasattr(self.parent.parent_window, 'ax'):
+            return
+
+        ax = self.parent.parent_window.ax
+        xlim = ax.get_xlim()
+
+        # Calculate initial positions (middle of plot with 10% of plot range)
+        center_pos = (xlim[0] + xlim[1]) / 2
+        plot_range = abs(xlim[1] - xlim[0])
+        range_width = plot_range * 0.05  # Half of 10% on each side
+
+        vline1_x = center_pos - range_width
+        vline2_x = center_pos + range_width
+
+        # Get y limits for text positioning
+        ylim = ax.get_ylim()
+        text_y = ylim[1] - (ylim[1] - ylim[0]) * 0.05
+
+        # Create vLines (red dashed for limits)
+        self.vline1 = ax.axvline(vline1_x, color='g', linestyle='--', alpha=0.6, linewidth=0.9)
+        self.vline2 = ax.axvline(vline2_x, color='g', linestyle='--', alpha=0.6, linewidth=0.9)
+
+        # Create center vLine (blue dotted)
+        self.vline_center = ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.5, linewidth=1.5)
+
+        # Create text labels for BE values
+        self.vline1_text = ax.text(vline1_x, text_y, f'{vline1_x:.2f}',
+                                   ha='center', va='top', fontsize=9, color='green',
+                                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        self.vline2_text = ax.text(vline2_x, text_y, f'{vline2_x:.2f}',
+                                   ha='center', va='top', fontsize=9, color='green',
+                                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        self.vline_center_text = ax.text(center_pos, text_y, f'{center_pos:.2f}',
+                                         ha='center', va='top', fontsize=9, color='blue',
+                                         bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+
+        self.parent.parent_window.canvas.draw_idle()
+
+    def update_list_and_lines(self):
+        """Update the list to show only core levels within range and draw their lines."""
+        # Clear previous lines
+        self.remove_core_level_lines()
+
+        # Clear list
+        self.list_ctrl.DeleteAllItems()
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Get vLine positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Ensure correct order (vline2 should be higher BE)
+        low_limit = min(vline1_x, vline2_x)
+        high_limit = max(vline1_x, vline2_x)
+
+        # Get photon energy
+        photon_energy = getattr(self.parent.parent_window, 'photons', 1486.6)
+
+        # Get y-axis limits
+        ax = self.parent.parent_window.ax
+        ymin, ymax = ax.get_ylim()
+
+        # Collect core levels within range
+        core_levels_data = []
+
+        for (elem, orbital), data in self.parent.parent_window.library_data.items():
+            # Apply filters
+            is_aug = self.is_auger(orbital)
+            is_doub = self.is_doublet(orbital)
+            is_core = self.is_core_level(orbital)
+
+            # Skip based on filter settings
+            if is_aug and not self.show_auger:
+                continue
+            if is_doub and not self.show_doublets:
+                continue
+            if is_core and not self.show_core_levels:
+                continue
+
+            # Choose instrument
+            if 'C-Any' in data:
+                instrument = 'C-Any'
+            elif 'Al1486' in data:
+                instrument = 'Al1486'
+            else:
+                instrument = next(iter(data))
+
+            if 'position' in data[instrument]:
+                position = float(data[instrument]['position'])
+
+                # Get RSF value
+                rsf = 1.0  # Default
+                if 'rsf' in data[instrument]:
+                    try:
+                        rsf = float(data[instrument]['rsf'])
+                    except (ValueError, TypeError):
+                        rsf = 1.0
+
+                # Check if Auger and convert BE
+                orbital_lower = orbital.lower()
+                is_auger_ke = instrument == 'C-Any' or any(
+                    orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm'])
+
+                if is_auger_ke and instrument == 'C-Any':
+                    be_center = photon_energy - position
+                else:
+                    be_center = position
+
+                # Check if within range
+                if low_limit <= be_center <= high_limit:
+                    # Calculate distance from center
+                    distance = abs(be_center - center_x)
+
+                    core_level_name = f"{elem} {orbital}"
+
+                    core_levels_data.append({
+                        'name': core_level_name,
+                        'center': be_center,
+                        'rsf': rsf,
+                        'distance': distance,
+                        'elem': elem,
+                        'orbital': orbital
+                    })
+
+        # Find maximum RSF in the filtered list
+        max_rsf = 1.0
+        if core_levels_data:
+            max_rsf = max(cl['rsf'] for cl in core_levels_data)
+            if max_rsf <= 0:
+                max_rsf = 1.0
+
+        # Sort by distance from center
+        core_levels_data.sort(key=lambda x: x['distance'])
+
+        # Add to list control with .2f format
+        for i, cl_data in enumerate(core_levels_data):
+            index = self.list_ctrl.InsertItem(i, cl_data['name'])
+            self.list_ctrl.SetItem(index, 1, f"{cl_data['center']:.2f}")
+            self.list_ctrl.SetItem(index, 2, f"{cl_data['rsf']:.2f}")
+            self.list_ctrl.SetItem(index, 3, f"{cl_data['distance']:.2f}")
+
+            # Highlight closest match
+            if i == 0:
+                self.list_ctrl.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))
+
+            # Calculate line intensity based on RSF
+            line_intensity = (cl_data['rsf'] / max_rsf) * self.max_line_intensity
+            line_height = ymin + (ymax - ymin) * line_intensity
+
+            # Draw vertical line from ymin to calculated height
+            line = ax.axvline(cl_data['center'], color='blue', linestyle='-', alpha=0.9, linewidth=0.9,
+                              ymin=0, ymax=line_intensity)
+            self.core_level_lines.append(line)
+
+            # Add text label at the top of the line
+            line_height = ymin + (ymax - ymin) * line_intensity
+            text = ax.text(cl_data['center'], line_height, cl_data['name'],
+                           rotation=90, va='bottom', ha='right',
+                           fontsize=8, color='black', alpha=1)
+            self.core_level_texts.append(text)
+
+        self.parent.parent_window.canvas.draw_idle()
+
+    def on_canvas_press(self, event):
+        """Handle mouse press to start dragging vLines."""
+        if event.inaxes != self.parent.parent_window.ax:
+            return
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Check which vLine was clicked
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        click_tolerance = (self.parent.parent_window.ax.get_xlim()[0] -
+                           self.parent.parent_window.ax.get_xlim()[1]) * 0.01
+
+        if abs(event.xdata - vline1_x) < click_tolerance:
+            self.dragging_vline = 'vline1'
+            self.drag_offset = event.xdata - vline1_x
+        elif abs(event.xdata - vline2_x) < click_tolerance:
+            self.dragging_vline = 'vline2'
+            self.drag_offset = event.xdata - vline2_x
+        elif abs(event.xdata - center_x) < click_tolerance:
+            self.dragging_vline = 'center'
+            self.drag_offset = event.xdata - center_x
+
+    def on_canvas_release(self, event):
+        """Handle mouse release to stop dragging."""
+        self.dragging_vline = None
+        self.drag_offset = 0
+
+    def on_canvas_motion(self, event):
+        """Handle mouse motion to drag vLines."""
+        if not self.dragging_vline or not event.inaxes:
+            return
+
+        new_x = event.xdata - self.drag_offset
+
+        # Get current positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Update the dragged vLine
+        if self.dragging_vline == 'vline1':
+            self.vline1.set_xdata([new_x, new_x])
+            self.vline1_text.set_x(new_x)
+            self.vline1_text.set_text(f'{new_x:.2f}')
+            # Update center
+            new_center = (new_x + vline2_x) / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+        elif self.dragging_vline == 'vline2':
+            self.vline2.set_xdata([new_x, new_x])
+            self.vline2_text.set_x(new_x)
+            self.vline2_text.set_text(f'{new_x:.2f}')
+            # Update center
+            new_center = (vline1_x + new_x) / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+        elif self.dragging_vline == 'center':
+            # Move all three lines together
+            offset = new_x - center_x
+            self.vline_center.set_xdata([new_x, new_x])
+            self.vline_center_text.set_x(new_x)
+            self.vline_center_text.set_text(f'{new_x:.2f}')
+
+            new_vline1_x = vline1_x + offset
+            new_vline2_x = vline2_x + offset
+            self.vline1.set_xdata([new_vline1_x, new_vline1_x])
+            self.vline1_text.set_x(new_vline1_x)
+            self.vline1_text.set_text(f'{new_vline1_x:.2f}')
+            self.vline2.set_xdata([new_vline2_x, new_vline2_x])
+            self.vline2_text.set_x(new_vline2_x)
+            self.vline2_text.set_text(f'{new_vline2_x:.2f}')
+
+        self.update_list_and_lines()
+
+    def on_scroll(self, event):
+        """Handle mouse wheel to adjust range."""
+        if event.inaxes != self.parent.parent_window.ax:
+            return
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Get current positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Calculate current range
+        current_range = abs(vline2_x - vline1_x)
+
+        # Adjust range (scroll up = increase, scroll down = decrease)
+        range_change = 2.0 if event.button == 'up' else -2.0
+        new_range = max(5.0, current_range + range_change)  # Minimum range of 5 eV
+
+        # Update vline positions symmetrically around center
+        half_range = new_range / 2
+        new_vline1_x = center_x - half_range
+        new_vline2_x = center_x + half_range
+
+        # Update vLines
+        self.vline1.set_xdata([new_vline1_x, new_vline1_x])
+        self.vline1_text.set_x(new_vline1_x)
+        self.vline1_text.set_text(f'{new_vline1_x:.2f}')
+
+        self.vline2.set_xdata([new_vline2_x, new_vline2_x])
+        self.vline2_text.set_x(new_vline2_x)
+        self.vline2_text.set_text(f'{new_vline2_x:.2f}')
+
+        self.update_list_and_lines()
+
+    def remove_core_level_lines(self):
+        """Remove all core level reference lines from the plot."""
+        for line in self.core_level_lines:
+            line.remove()
+        for text in self.core_level_texts:
+            text.remove()
+
+        self.core_level_lines.clear()
+        self.core_level_texts.clear()
+
+    def remove_vlines(self):
+        """Remove the vLines and their text labels."""
+        if self.vline1:
+            self.vline1.remove()
+            self.vline1 = None
+        if self.vline2:
+            self.vline2.remove()
+            self.vline2 = None
+        if self.vline_center:
+            self.vline_center.remove()
+            self.vline_center = None
+        if self.vline1_text:
+            self.vline1_text.remove()
+            self.vline1_text = None
+        if self.vline2_text:
+            self.vline2_text.remove()
+            self.vline2_text = None
+        if self.vline_center_text:
+            self.vline_center_text.remove()
+            self.vline_center_text = None
+
+    def position_window(self):
+        """Position window on top-right of parent window."""
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+
+        new_x = parent_pos.x + parent_size.width + 10
+        new_y = parent_pos.y
+
+        self.SetPosition((new_x, new_y))
+
+    def on_close(self, event):
+        """Handle window close event."""
+        # Disconnect mouse events
+        if hasattr(self, 'canvas_press_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_press_id)
+        if hasattr(self, 'canvas_release_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_release_id)
+        if hasattr(self, 'canvas_motion_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_motion_id)
+        if hasattr(self, 'canvas_scroll_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_scroll_id)
+
+        # Remove lines
+        self.remove_core_level_lines()
+        self.remove_vlines()
+
+        if hasattr(self.parent.parent_window, 'canvas'):
+            self.parent.parent_window.canvas.draw_idle()
+
+        self.parent.core_level_list_window = None
         self.Destroy()
 
 

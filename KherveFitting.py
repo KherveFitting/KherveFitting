@@ -537,6 +537,16 @@ class MyFrame(wx.Frame):
             self.sheet_combobox.Clear()
             self.sheet_combobox.AppendItems(all_sheets)
 
+        # Rebind mouse and key handlers
+        from libraries.On_Mouse_Defs import setup_mouse_handlers
+        from libraries.On_Key_Defs import setup_key_handlers
+        self.mouse_handler = setup_mouse_handlers(self)
+        setup_key_handlers(self)
+
+        # Rebind grid events
+        self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.peak_fitting_grid.on_peak_params_cell_changed)
+        self.peak_params_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.peak_fitting_grid.on_peak_params_cell_changed)
+
         # Restore sash position
         if hasattr(self, 'splitter'):
             wx.CallAfter(lambda: self.splitter.SetSashPosition(stored_data['sash_position']))
