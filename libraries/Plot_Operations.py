@@ -1281,6 +1281,16 @@ class PlotManager:
         are correctly positioned and formatted according to the current application state.
         """
 
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(window.heatmap_colorbar, 'ax'):
+                    window.figure.delaxes(window.heatmap_colorbar.ax)
+                window.heatmap_colorbar = None
+            except:
+                pass
+
         sheet_name = window.sheet_combobox.GetValue()
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
 

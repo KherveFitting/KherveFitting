@@ -173,11 +173,13 @@ class PeriodicTableWindow(wx.Frame):
         # Get OS-dependent window size
         os_name = platform.system()
         if os_name == "Windows":
-            window_size = (940, 420)
+            # window_size = (940, 420)
+            window_size = (905, 410)
         elif os_name == "Darwin":  # macOS
-            window_size = (940, 400)
+            # window_size = (940, 400)
+            window_size = (905, 390)
         elif os_name == "Linux":
-            window_size = (990, 450)
+            window_size = (960, 440)
         else:
             window_size = (940, 420)  # Default fallback
 
@@ -261,20 +263,21 @@ class PeriodicTableWindow(wx.Frame):
         else:
             self.create_fallback_periodic_table(panel, hsizer)
 
-        # Right side: Core Level List and Buttons
+        # Right side: Core Level List and Buttons in raised panel
+        right_panel = wx.Panel(panel, style=wx.BORDER_RAISED)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.core_level_list = wx.ListBox(panel, style=wx.LB_MULTIPLE, size=(170, -1))
+        self.core_level_list = wx.ListBox(right_panel, style=wx.LB_MULTIPLE, size=(170, -1))
         right_sizer.Add(self.core_level_list, 1, wx.EXPAND | wx.ALL, 5)
 
         # Buttons
         button_sizer = wx.GridBagSizer(1, 1)
 
-        self.add_labels_btn = wx.Button(panel, label="Add Labels")
-        self.remove_selected_btn = wx.Button(panel, label="Clear Selected")
-        self.remove_all_btn = wx.Button(panel, label="Clear All List")
-        self.auto_id_button = wx.Button(panel, label="Auto ID")
-        self.core_levels_btn = wx.Button(panel, label="Core Level List")
+        self.add_labels_btn = wx.Button(right_panel, label="Add Labels")
+        self.remove_selected_btn = wx.Button(right_panel, label="Clear Selected")
+        self.remove_all_btn = wx.Button(right_panel, label="Clear All List")
+        self.auto_id_button = wx.Button(right_panel, label="Auto ID")
+        self.core_levels_btn = wx.Button(right_panel, label="Core Level List")
 
         # Bind events
         self.add_labels_btn.Bind(wx.EVT_BUTTON, self.OnAddLabels)
@@ -294,28 +297,28 @@ class PeriodicTableWindow(wx.Frame):
         # ADD NEW INTENSITY CONTROL HERE
         intensity_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        intensity_label = wx.StaticText(panel, label="Line Intensity:")
+        intensity_label = wx.StaticText(right_panel, label="Line Intensity:")
         intensity_sizer.Add(intensity_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
 
         # Decrease button
-        self.intensity_down_btn = wx.Button(panel, label="-", size=(25, 25))
+        self.intensity_down_btn = wx.Button(right_panel, label="-", size=(25, 25))
         self.intensity_down_btn.Bind(wx.EVT_BUTTON, self.OnIntensityDecrease)
         intensity_sizer.Add(self.intensity_down_btn, 0, wx.ALL, 2)
 
         # Display current value
-        self.intensity_display = wx.StaticText(panel, label="0.6", size=(30, -1), style=wx.ALIGN_CENTER)
+        self.intensity_display = wx.StaticText(right_panel, label="0.6", size=(30, -1), style=wx.ALIGN_CENTER)
         self.intensity_display.SetBackgroundColour(wx.WHITE)
         intensity_sizer.Add(self.intensity_display, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
 
         # Increase button
-        self.intensity_up_btn = wx.Button(panel, label="+", size=(25, 25))
+        self.intensity_up_btn = wx.Button(right_panel, label="+", size=(25, 25))
         self.intensity_up_btn.Bind(wx.EVT_BUTTON, self.OnIntensityIncrease)
         intensity_sizer.Add(self.intensity_up_btn, 0, wx.ALL, 2)
 
         right_sizer.Add(intensity_sizer, 0, wx.ALL | wx.EXPAND, 5)
 
-        hsizer.Add(right_sizer, 0, wx.EXPAND)
-
+        right_panel.SetSizer(right_sizer)
+        hsizer.Add(right_panel, 0, wx.EXPAND | wx.ALL, 0)
         main_sizer.Add(hsizer, 1, wx.EXPAND)
         panel.SetSizer(main_sizer)
 
@@ -397,7 +400,7 @@ class PeriodicTableWindow(wx.Frame):
 
         # Set the sizer for the panel
         pt_panel.SetSizer(pt_sizer)
-        sizer.Add(pt_panel, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(pt_panel, 0, wx.EXPAND | wx.ALL, 0)
 
     def on_element_click_survey(self, element):
         """Handle element tile clicks - pass element directly"""

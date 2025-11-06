@@ -337,7 +337,6 @@ class FileManagerWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_offset, offset_plot_tool)
 
         # Stacked plot button (F4)
-        # Stacked plot button (F4)
         stacked_plot_icon = os.path.join(icon_path, "StackedPlot.png")
         if os.path.exists(stacked_plot_icon):
             stacked_plot_bmp = wx.Bitmap(stacked_plot_icon)
@@ -349,8 +348,18 @@ class FileManagerWindow(wx.Frame):
                                                  "Left-click/F4: increase spacing\n"
                                                  "Right-click/Shift+F4: decrease spacing")
         self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_fitted_data, stacked_plot_tool)
-        # Add right-click binding to decrease spacing
         self.Bind(wx.EVT_TOOL_RCLICKED, self.on_stacked_plot_right_click, stacked_plot_tool)
+
+        # Heatmap button
+        heatmap_icon = os.path.join(icon_path, "heatmap-3.png")
+        if os.path.exists(heatmap_icon):
+            heatmap_bmp = wx.Bitmap(heatmap_icon)
+        else:
+            heatmap_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        heatmap_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot 2D Heatmap", heatmap_bmp,
+                                           "Plot selected core levels as 2D heatmap\n"
+                                           "Press F5 or Ctrl+5 to plot heatmap")
+        self.Bind(wx.EVT_TOOL, self.on_plot_heatmap, heatmap_tool)
 
         self.norm_type = wx.ComboBox(self.toolbar, choices=["Norm. OFF", "Norm. Auto", "Norm. @ BE", "Norm. to A"],
                                      style=wx.CB_READONLY)
@@ -1111,6 +1120,22 @@ class FileManagerWindow(wx.Frame):
         """Handle key press events"""
         key_code = event.GetKeyCode()
 
+        # Check if we're in heatmap mode
+        is_heatmap_active = hasattr(self.parent, 'heatmap_data')
+
+        # Handle Ctrl+Down and Ctrl+Up for heatmap intensity adjustment
+        if is_heatmap_active and wx.GetKeyState(wx.WXK_CONTROL):
+            if key_code == wx.WXK_DOWN:
+                # Decrease vmax (increase contrast)
+                self.parent.heatmap_vmax = max(0.1, self.parent.heatmap_vmax - 0.05)
+                self.refresh_heatmap()
+                return
+            elif key_code == wx.WXK_UP:
+                # Increase vmax (decrease contrast)
+                self.parent.heatmap_vmax = min(2.0, self.parent.heatmap_vmax + 0.05)
+                self.refresh_heatmap()
+                return
+
         if key_code == wx.WXK_F2:
             # Call the plot function directly
             self.on_plot_selected(None)
@@ -1133,6 +1158,10 @@ class FileManagerWindow(wx.Frame):
             else:
                 # F4: Normal increase spacing
                 self.on_plot_selected_with_fitted_data(None)
+            return  # Don't skip the event
+        elif key_code == wx.WXK_F5:
+            # Call the heatmap plot function
+            self.on_plot_heatmap(None)
             return  # Don't skip the event
         elif event.ControlDown() and key_code == wx.WXK_F2:
             # CTRL+F2: Standard multiple plot
@@ -1163,6 +1192,14 @@ class FileManagerWindow(wx.Frame):
 
     def on_plot_selected(self, event):
         """Plot the currently selected core level(s)"""
+        # Clear heatmap data when switching to regular plot
+        if hasattr(self.parent, 'heatmap_data'):
+            self.parent.heatmap_data = None
+            self.parent.heatmap_sheets = None
+
+        # # Hide heatmap controls when switching to regular plots
+        # self.hide_heatmap_controls()
+
         sheet_names = self.get_selected_sheet_names()
 
         if sheet_names:
@@ -1690,6 +1727,16 @@ class FileManagerWindow(wx.Frame):
         # Clear the plot
         self.parent.ax.clear()
 
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
         # Get data
         x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
         y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
@@ -1802,6 +1849,15 @@ class FileManagerWindow(wx.Frame):
         # Clear the plot
         self.parent.ax.clear()
 
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
         # Restore green line if active
         self.restore_green_vline_if_active()
 
@@ -3474,6 +3530,12 @@ class FileManagerWindow(wx.Frame):
         if not sheet_names:
             return
 
+        # Clear heatmap data when switching to regular plot
+        if hasattr(self.parent, 'heatmap_data'):
+            self.parent.heatmap_data = None
+            self.parent.heatmap_sheets = None
+
+
         # Use current time to determine if this is a rapid keypress
         import time
         current_time = time.time()
@@ -3515,6 +3577,16 @@ class FileManagerWindow(wx.Frame):
             self.parent.plot_manager.residuals_subplot = None
             self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
             self.parent.ax.get_xaxis().set_visible(True)
+
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
 
         # Track min/max x values
         x_min = float('inf')
@@ -3784,6 +3856,14 @@ class FileManagerWindow(wx.Frame):
             self.parent.plot_manager.residuals_subplot = None
             self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
             self.parent.ax.get_xaxis().set_visible(True)
+
+        # Remove heatmap colorbar if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                self.parent.heatmap_colorbar.remove()
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
 
         # Track min/max x values
         x_min = float('inf')
@@ -5923,6 +6003,411 @@ class FileManagerWindow(wx.Frame):
         finally:
             if hasattr(self, 'grid') and self.grid.GetNumberRows() > 0:
                 self.grid.SetCellValue(row, col, original_value)
+
+    def on_plot_heatmap(self, event):
+        """Plot selected core levels as a 2D heatmap"""
+        sheet_names = self.get_selected_sheet_names()
+
+        if not sheet_names:
+            self.parent.show_popup_message2("No Selection", "Please select core levels to plot as heatmap.")
+            return
+
+        if len(sheet_names) < 2:
+            self.parent.show_popup_message2("Insufficient Data", "Please select at least 2 core levels for heatmap.")
+            return
+
+        # Check if we're already showing the same heatmap - just refresh instead of recreating
+        if (hasattr(self.parent, 'heatmap_sheets') and
+                self.parent.heatmap_sheets == sheet_names and
+                hasattr(self.parent, 'heatmap_data')):
+            # Already showing this heatmap, just refresh it
+            self.refresh_heatmap()
+        else:
+            # Create new heatmap
+            self.plot_heatmap(sheet_names)
+
+    def plot_heatmap(self, sheet_names):
+        """Create a 2D heatmap plot of the selected sheets"""
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LinearSegmentedColormap
+
+        # Use selected colormap if available
+        cmap_name = getattr(self.parent, 'heatmap_colormap', 'viridis')
+        cmap = plt.get_cmap(cmap_name)
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove old colorbar completely if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Reset axes position to default
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Remove any residual subplot
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Initialize heatmap intensity scale if not exists
+        if not hasattr(self.parent, 'heatmap_vmax'):
+            self.parent.heatmap_vmax = 1.0
+
+        # Collect all data
+        all_data = []
+        all_be = []
+        labels = []
+
+        for sheet_name in sheet_names:
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level = self.parent.Data['Core levels'][sheet_name]
+                x_values = np.array(core_level['B.E.'])
+                y_values = np.array(core_level['Raw Data'])
+
+                # Remove NaN and Inf values
+                valid_mask = np.isfinite(x_values) & np.isfinite(y_values)
+                x_values = x_values[valid_mask]
+                y_values = y_values[valid_mask]
+
+                if len(x_values) == 0:
+                    self.parent.show_popup_message2("Invalid Data",
+                                                    f"Sheet {sheet_name} has no valid data points.")
+                    return
+
+                all_data.append(y_values)
+                all_be.append(x_values)
+
+                # Get display label
+                display_text = self.get_display_text_for_sheet(sheet_name)
+                labels.append(display_text)
+
+        if not all_data:
+            self.parent.show_popup_message2("No Data", "No valid data found for heatmap.")
+            return
+
+        # Find the longest BE array to determine target length
+        max_length = max(len(be) for be in all_be)
+
+        # Find common BE range using the first spectrum as reference
+        reference_be = all_be[0]
+        min_be = reference_be[0]
+        max_be = reference_be[-1]
+
+        # Determine if BE is increasing or decreasing
+        be_increasing = reference_be[0] < reference_be[-1]
+
+        # Create common BE axis
+        common_be = np.linspace(max_be, min_be, max_length)
+
+        # Interpolate all data to common BE axis
+        interpolated_data = []
+        for i, (be, data) in enumerate(zip(all_be, all_data)):
+            # For np.interp to work, we need INCREASING x values
+            be_sorted = be[::-1]
+            data_sorted = data[::-1]
+
+            # Interpolate on the reversed (increasing) BE
+            common_be_sorted = common_be[::-1]
+            interp_data_sorted = np.interp(common_be_sorted, be_sorted, data_sorted)
+
+            # Reverse back to decreasing order for plotting
+            interp_data = interp_data_sorted[::-1]
+
+            # Replace any NaN or Inf that might have been introduced
+            interp_data = np.nan_to_num(interp_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+            interpolated_data.append(interp_data)
+
+        # Create 2D array for heatmap
+        heatmap_data = np.array(interpolated_data)
+
+        # Final safety check for NaN/Inf
+        heatmap_data = np.nan_to_num(heatmap_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Normalize each row (spectrum) individually to 0-1 range
+        normalized_data = np.zeros_like(heatmap_data)
+        for i in range(heatmap_data.shape[0]):
+            row_min = heatmap_data[i, :].min()
+            row_max = heatmap_data[i, :].max()
+            if row_max - row_min > 0:
+                normalized_data[i, :] = (heatmap_data[i, :] - row_min) / (row_max - row_min)
+            else:
+                normalized_data[i, :] = 0.5
+
+        # Store normalized data and sheet names for replotting
+        self.parent.heatmap_data = normalized_data
+        self.parent.heatmap_data_original = normalized_data.copy()  # ADD THIS LINE
+        self.parent.heatmap_be = common_be
+        self.parent.heatmap_labels = labels
+        self.parent.heatmap_sheets = sheet_names
+        self.parent.heatmap_be_increasing = be_increasing
+
+        # Plot heatmap using pcolormesh with normalized data
+        X, Y = np.meshgrid(common_be, np.arange(len(sheet_names)))
+
+        im = self.parent.ax.pcolormesh(X, Y, normalized_data, shading='auto', cmap=cmap,
+                                       vmin=0, vmax=self.parent.heatmap_vmax)
+
+        # Create colorbar with fixed axes to prevent shrinking
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Create colorbar axes manually at fixed position [left, bottom, width, height]
+        cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+        cbar = self.parent.figure.colorbar(im, cax=cbar_ax)
+        cbar.set_label('Normalized Intensity (0-1)', rotation=270, labelpad=20,
+                       fontsize=self.parent.axis_title_size)
+        cbar.ax.tick_params(labelsize=self.parent.axis_number_size)
+
+        # Store colorbar reference and axes for reuse
+        self.parent.heatmap_colorbar = cbar
+        self.parent.heatmap_cbar_ax = cbar_ax
+        self.parent.heatmap_axes_position = self.parent.ax.get_position()
+
+        # Set labels
+        if self.parent.energy_scale == 'BE':
+            self.parent.ax.set_xlabel('Binding Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+        else:
+            self.parent.ax.set_xlabel('Kinetic Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+
+        self.parent.ax.set_ylabel('Spectrum', fontsize=self.parent.axis_title_size)
+
+        # Set y-axis labels
+        self.parent.ax.set_yticks(np.arange(len(labels)))
+        self.parent.ax.set_yticklabels(labels, fontsize=self.parent.axis_number_size)
+
+        # Reverse x-axis for BE scale if needed
+        if not be_increasing:
+            self.parent.ax.invert_xaxis()
+
+        # Apply axis formatting
+        self.parent.ax.tick_params(axis='x', labelsize=self.parent.axis_number_size)
+
+        # Set title with current vmax value
+        self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
+                                 fontsize=self.parent.axis_title_size)
+
+        # Redraw canvas
+        self.parent.canvas.draw_idle()
+
+    def refresh_heatmap(self):
+        """Refresh the heatmap with updated intensity scale"""
+        if not hasattr(self.parent, 'heatmap_data') or self.parent.heatmap_data is None:
+            return
+
+        # Clear and replot with stored data
+        self.parent.ax.clear()
+
+        # Set axes position
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Plot heatmap
+        import matplotlib.pyplot as plt
+
+        # Use selected colormap if available
+        cmap_name = getattr(self.parent, 'heatmap_colormap', 'viridis')
+        cmap = plt.get_cmap(cmap_name)
+
+        X, Y = np.meshgrid(self.parent.heatmap_be, np.arange(len(self.parent.heatmap_sheets)))
+
+        im = self.parent.ax.pcolormesh(X, Y, self.parent.heatmap_data, shading='auto', cmap=cmap,
+                                       vmin=0, vmax=self.parent.heatmap_vmax)
+
+        # Check if colorbar axes exists and reuse it
+        if hasattr(self.parent, 'heatmap_cbar_ax') and self.parent.heatmap_cbar_ax is not None:
+            # Reuse existing colorbar axes
+            try:
+                cbar = self.parent.figure.colorbar(im, cax=self.parent.heatmap_cbar_ax)
+            except:
+                # If reuse fails, create new one
+                cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+                cbar = self.parent.figure.colorbar(im, cax=cbar_ax)
+                self.parent.heatmap_cbar_ax = cbar_ax
+        else:
+            # Create new colorbar axes
+            cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+            cbar = self.parent.figure.colorbar(im, cax=cbar_ax)
+            self.parent.heatmap_cbar_ax = cbar_ax
+
+        cbar.set_label('Normalized Intensity (0-1)', rotation=270, labelpad=20,
+                       fontsize=self.parent.axis_title_size)
+        cbar.ax.tick_params(labelsize=self.parent.axis_number_size)
+        self.parent.heatmap_colorbar = cbar
+
+        # Set labels
+        if self.parent.energy_scale == 'BE':
+            self.parent.ax.set_xlabel('Binding Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+        else:
+            self.parent.ax.set_xlabel('Kinetic Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+
+        self.parent.ax.set_ylabel('Spectrum', fontsize=self.parent.axis_title_size)
+        self.parent.ax.set_yticks(np.arange(len(self.parent.heatmap_labels)))
+        self.parent.ax.set_yticklabels(self.parent.heatmap_labels, fontsize=self.parent.axis_number_size)
+
+        if not self.parent.heatmap_be_increasing:
+            self.parent.ax.invert_xaxis()
+
+        self.parent.ax.tick_params(axis='x', labelsize=self.parent.axis_number_size)
+        self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
+                                 fontsize=self.parent.axis_title_size)
+
+        # Redraw canvas
+        self.parent.canvas.draw_idle()
+
+    def create_heatmap_controls(self):
+        """Create control panel for heatmap vmax adjustment"""
+        if hasattr(self, 'heatmap_control_panel'):
+            # Panel already exists
+            return
+
+        # Create a small control panel
+        self.heatmap_control_panel = wx.Panel(self.right_panel)
+        control_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Label
+        label = wx.StaticText(self.heatmap_control_panel, label="Heatmap Intensity (vmax):")
+        control_sizer.Add(label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+
+        # Slider for vmax control (0.1 to 2.0)
+        self.heatmap_vmax_slider = wx.Slider(self.heatmap_control_panel,
+                                             value=100,  # Start at 1.0
+                                             minValue=10,  # 0.1
+                                             maxValue=200,  # 2.0
+                                             style=wx.SL_HORIZONTAL | wx.SL_LABELS)
+        self.heatmap_vmax_slider.SetMinSize((200, -1))
+        control_sizer.Add(self.heatmap_vmax_slider, 1, wx.ALL | wx.EXPAND, 5)
+
+        # Text control for precise value
+        self.heatmap_vmax_text = wx.TextCtrl(self.heatmap_control_panel,
+                                             value="1.00",
+                                             style=wx.TE_PROCESS_ENTER,
+                                             size=(60, -1))
+        control_sizer.Add(self.heatmap_vmax_text, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+
+        # Reset button
+        reset_btn = wx.Button(self.heatmap_control_panel, label="Reset", size=(60, -1))
+        control_sizer.Add(reset_btn, 0, wx.ALL, 5)
+
+        self.heatmap_control_panel.SetSizer(control_sizer)
+
+        # Bind events
+        self.heatmap_vmax_slider.Bind(wx.EVT_SLIDER, self.on_heatmap_slider_change)
+        self.heatmap_vmax_text.Bind(wx.EVT_TEXT_ENTER, self.on_heatmap_text_change)
+        reset_btn.Bind(wx.EVT_BUTTON, self.on_heatmap_reset)
+
+        # Add to the right panel sizer (before the grid)
+        right_sizer = self.right_panel.GetSizer()
+        right_sizer.Insert(1, self.heatmap_control_panel, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Hide initially
+        self.heatmap_control_panel.Hide()
+
+    def on_heatmap_slider_change(self, event):
+        """Handle slider change for heatmap vmax"""
+        slider_value = self.heatmap_vmax_slider.GetValue()
+        vmax = slider_value / 100.0  # Convert to 0.1 - 2.0 range
+        self.parent.heatmap_vmax = vmax
+        self.heatmap_vmax_text.SetValue(f"{vmax:.2f}")
+        self.refresh_heatmap()
+
+    def on_heatmap_text_change(self, event):
+        """Handle text control change for heatmap vmax"""
+        try:
+            vmax = float(self.heatmap_vmax_text.GetValue())
+            vmax = max(0.1, min(2.0, vmax))  # Clamp to range
+            self.parent.heatmap_vmax = vmax
+            self.heatmap_vmax_slider.SetValue(int(vmax * 100))
+            self.refresh_heatmap()
+        except ValueError:
+            pass
+
+    def on_heatmap_reset(self, event):
+        """Reset heatmap vmax to default (1.0)"""
+        self.parent.heatmap_vmax = 1.0
+        self.heatmap_vmax_slider.SetValue(100)
+        self.heatmap_vmax_text.SetValue("1.00")
+        self.refresh_heatmap()
+
+    # def show_heatmap_controls(self):
+    #     """Show the heatmap control panel"""
+    #     if not hasattr(self, 'heatmap_control_panel'):
+    #         self.create_heatmap_controls()
+    #     self.heatmap_control_panel.Show()
+    #     self.right_panel.Layout()
+    #
+    # def hide_heatmap_controls(self):
+    #     """Hide the heatmap control panel"""
+    #     if hasattr(self, 'heatmap_control_panel'):
+    #         self.heatmap_control_panel.Hide()
+    #         self.right_panel.Layout()
+
+    # def set_heatmap_colormap(self, colormap_name):
+    #     """Set the heatmap colormap directly"""
+    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+    #         self.heatmap_colormap = colormap_name
+    #         self.plot_heatmap()
+
+    # def set_heatmap_colormap(self, colormap_name):
+    #     """Set the heatmap colormap directly"""
+    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+    #         self.heatmap_colormap = colormap_name
+    #         self.plot_heatmap()
+
+    def on_change_colormap(self, event):
+        """Legacy function - kept for compatibility"""
+        colormaps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'RdBu', 'coolwarm', 'jet', 'hot']
+        dlg = wx.SingleChoiceDialog(self, "Choose a colormap", "Colormap", colormaps)
+        if dlg.ShowModal() == wx.ID_OK:
+            selected = dlg.GetStringSelection()
+            self.heatmap_colormap = selected
+            self.plot_heatmap()
+        dlg.Destroy()
+
+    # def smooth_heatmap(self, sigma):
+    #     """Apply gaussian smoothing with specified sigma value"""
+    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+    #         from scipy.ndimage import gaussian_filter
+    #         if not hasattr(self, 'heatmap_data_original'):
+    #             self.heatmap_data_original = self.heatmap_data.copy()
+    #         self.heatmap_data = gaussian_filter(self.heatmap_data_original, sigma=sigma)
+    #         self.plot_heatmap()
+
+    # def smooth_heatmap_custom(self):
+    #     """Apply custom gaussian smoothing with user-specified sigma"""
+    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+    #         dlg = wx.TextEntryDialog(self, "Enter sigma value for smoothing:", "Custom Smooth", "1.0")
+    #         if dlg.ShowModal() == wx.ID_OK:
+    #             try:
+    #                 sigma = float(dlg.GetValue())
+    #                 if sigma > 0:
+    #                     self.smooth_heatmap(sigma)
+    #                 else:
+    #                     wx.MessageBox("Sigma must be positive", "Error", wx.OK | wx.ICON_ERROR)
+    #             except ValueError:
+    #                 wx.MessageBox("Invalid sigma value", "Error", wx.OK | wx.ICON_ERROR)
+    #         dlg.Destroy()
+
+    # def reset_heatmap(self):
+    #     """Reset heatmap to original data"""
+    #     if hasattr(self, 'heatmap_data_original'):
+    #         self.heatmap_data = self.heatmap_data_original.copy()
+    #         self.plot_heatmap()
+
+    def on_smooth_heatmap(self, event):
+        """Legacy function - kept for compatibility"""
+        self.smooth_heatmap(1.0)
+
 
 class CoreLevelSelectionDialog(wx.Dialog):
     """Dialog for selecting which core levels to paste peak table to"""

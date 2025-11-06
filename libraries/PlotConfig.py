@@ -309,6 +309,26 @@ class PlotConfig:
             self.update_plot_limits(window, sheet_name)
 
     def adjust_plot_limits(self, window, axis, direction):
+        # Check if we're in heatmap mode
+        if (hasattr(window, 'heatmap_data') and window.heatmap_data is not None and
+                hasattr(window, 'file_manager') and window.file_manager is not None):
+            # In heatmap mode - adjust heatmap intensity instead of Y-axis
+            if axis in ['high_int', 'low_int']:
+                # Both high_int and low_int will adjust heatmap vmax
+                if direction == 'increase':
+                    window.heatmap_vmax = min(2.0, window.heatmap_vmax + 0.05)
+                elif direction == 'decrease':
+                    window.heatmap_vmax = max(0.1, window.heatmap_vmax - 0.05)
+
+                # Refresh the heatmap with new intensity
+                window.file_manager.refresh_heatmap()
+                return
+            # For BE adjustments in heatmap mode, do nothing (or handle if needed)
+            elif axis in ['high_be', 'low_be']:
+                return
+
+        # Normal plot mode - original behavior
+
         sheet_name = window.sheet_combobox.GetValue()
         if sheet_name not in self.plot_limits:
             self.update_plot_limits(window, sheet_name)

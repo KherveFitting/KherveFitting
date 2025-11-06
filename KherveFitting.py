@@ -7,7 +7,7 @@ import wx
 
 class MyFrame(wx.Frame):
     def __init__(self, parent, title):
-        super().__init__(parent, title=title, size=(1470, 700))
+        super().__init__(parent, title=title, size=(1440, 700))
 
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -3870,6 +3870,45 @@ class MyFrame(wx.Frame):
             return
 
         event.Skip()
+
+    def set_heatmap_colormap(self, colormap_name):
+        """Set the heatmap colormap directly"""
+        if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+            self.heatmap_colormap = colormap_name
+            if hasattr(self, 'file_manager') and self.file_manager is not None:
+                self.file_manager.refresh_heatmap()
+
+    def smooth_heatmap(self, sigma):
+        """Apply gaussian smoothing with specified sigma value"""
+        if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+            from scipy.ndimage import gaussian_filter
+            if not hasattr(self, 'heatmap_data_original'):
+                self.heatmap_data_original = self.heatmap_data.copy()
+            self.heatmap_data = gaussian_filter(self.heatmap_data_original, sigma=sigma)
+            if hasattr(self, 'file_manager') and self.file_manager is not None:
+                self.file_manager.refresh_heatmap()
+
+    def smooth_heatmap_custom(self):
+        """Apply custom gaussian smoothing with user-specified sigma"""
+        if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
+            dlg = wx.TextEntryDialog(self, "Enter sigma value for smoothing:", "Custom Smooth", "1.0")
+            if dlg.ShowModal() == wx.ID_OK:
+                try:
+                    sigma = float(dlg.GetValue())
+                    if sigma > 0:
+                        self.smooth_heatmap(sigma)
+                    else:
+                        wx.MessageBox("Sigma must be positive", "Error", wx.OK | wx.ICON_ERROR)
+                except ValueError:
+                    wx.MessageBox("Invalid sigma value", "Error", wx.OK | wx.ICON_ERROR)
+            dlg.Destroy()
+
+    def reset_heatmap(self):
+        """Reset heatmap to original data"""
+        if hasattr(self, 'heatmap_data_original'):
+            self.heatmap_data = self.heatmap_data_original.copy()
+            if hasattr(self, 'file_manager') and self.file_manager is not None:
+                self.file_manager.refresh_heatmap()
 
     def after_checkbox_update(self):
         # Update percentages

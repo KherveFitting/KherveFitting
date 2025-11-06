@@ -429,6 +429,21 @@ class KeyEventHandlers:
     def _handle_ctrl_up_down_keys(self, keycode):
         """Handle Ctrl+Up/Down keys for intensity adjustment"""
 
+        # Check if we're in heatmap mode FIRST
+        if hasattr(self.main_frame, 'heatmap_data') and self.main_frame.heatmap_data is not None:
+            # Heatmap mode - adjust colorbar intensity
+            if keycode == wx.WXK_DOWN:
+                # Decrease vmax (increase contrast/brightness)
+                self.main_frame.heatmap_vmax = max(0.1, self.main_frame.heatmap_vmax - 0.05)
+            else:  # wx.WXK_UP
+                # Increase vmax (decrease contrast/brightness)
+                self.main_frame.heatmap_vmax = min(2.0, self.main_frame.heatmap_vmax + 0.05)
+
+            # Refresh the heatmap with new intensity
+            if hasattr(self.main_frame, 'file_manager') and self.main_frame.file_manager:
+                self.main_frame.file_manager.refresh_heatmap()
+            return
+
         # Check if FileManager exists and has multiple sheets selected
         is_multiple_plot_mode = False
 

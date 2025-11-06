@@ -1618,6 +1618,74 @@ class MouseEventHandler:
 
                 menu.AppendSeparator()
 
+                # Heatmap submenu
+                heatmap_menu = wx.Menu()
+
+                # Colormap submenu
+                colormap_submenu = wx.Menu()
+
+                # Sequential colormaps
+                seq_menu = wx.Menu()
+                seq_maps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'twilight', 'rocket', 'mako']
+                for cmap in seq_maps:
+                    item = seq_menu.Append(wx.ID_ANY, cmap)
+                    self.window.Bind(wx.EVT_MENU, lambda evt, c=cmap: self.window.set_heatmap_colormap(c), item)
+                colormap_submenu.AppendSubMenu(seq_menu, "Sequential")
+
+                # Diverging colormaps
+                div_menu = wx.Menu()
+                div_maps = ['RdBu', 'RdYlBu', 'coolwarm', 'bwr', 'seismic', 'PiYG', 'PRGn']
+                for cmap in div_maps:
+                    item = div_menu.Append(wx.ID_ANY, cmap)
+                    self.window.Bind(wx.EVT_MENU, lambda evt, c=cmap: self.window.set_heatmap_colormap(c), item)
+                colormap_submenu.AppendSubMenu(div_menu, "Diverging")
+
+                # Qualitative colormaps
+                qual_menu = wx.Menu()
+                qual_maps = ['tab10', 'Set1', 'Set2', 'Set3', 'Paired', 'Accent']
+                for cmap in qual_maps:
+                    item = qual_menu.Append(wx.ID_ANY, cmap)
+                    self.window.Bind(wx.EVT_MENU, lambda evt, c=cmap: self.window.set_heatmap_colormap(c), item)
+                colormap_submenu.AppendSubMenu(qual_menu, "Qualitative")
+
+                # Other colormaps
+                other_menu = wx.Menu()
+                other_maps = ['jet', 'hot', 'cool', 'spring', 'summer', 'autumn', 'winter', 'gray', 'bone', 'copper']
+                for cmap in other_maps:
+                    item = other_menu.Append(wx.ID_ANY, cmap)
+                    self.window.Bind(wx.EVT_MENU, lambda evt, c=cmap: self.window.set_heatmap_colormap(c), item)
+                colormap_submenu.AppendSubMenu(other_menu, "Other")
+
+                heatmap_menu.AppendSubMenu(colormap_submenu, "Colormap")
+
+                # Smooth options
+                smooth_submenu = wx.Menu()
+                smooth_light = smooth_submenu.Append(wx.ID_ANY, "Light (sigma=0.5)")
+                smooth_medium = smooth_submenu.Append(wx.ID_ANY, "Medium (sigma=1.0)")
+                smooth_heavy = smooth_submenu.Append(wx.ID_ANY, "Heavy (sigma=2.0)")
+                smooth_custom = smooth_submenu.Append(wx.ID_ANY, "Custom...")
+
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.window.smooth_heatmap(0.5), smooth_light)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.window.smooth_heatmap(1.0), smooth_medium)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.window.smooth_heatmap(2.0), smooth_heavy)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.window.smooth_heatmap_custom(), smooth_custom)
+
+                heatmap_menu.AppendSubMenu(smooth_submenu, "Smooth")
+
+                # Reset option
+                reset_item = heatmap_menu.Append(wx.ID_ANY, "Reset to Original")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.window.reset_heatmap(), reset_item)
+
+                # Add submenu to main menu
+                heatmap_submenu = menu.AppendSubMenu(heatmap_menu, "Heatmap")
+
+                # Enable only if heatmap is active
+                heatmap_active = hasattr(self.window, 'heatmap_data') and self.window.heatmap_data is not None
+                heatmap_submenu.Enable(heatmap_active)
+
+
+                menu.AppendSeparator()
+
                 info = menu.Append(wx.ID_ANY, "Info")
 
                 peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
