@@ -1028,58 +1028,10 @@ class AutoSurveyID:
         self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = y_data.tolist()
         print(f"  Background reset to raw data for clean AutoID processing")
 
-        # # Sort by binding energy (high to low)
-        # sorted_elements = sorted(identified_elements.items(),
-        #                          key=lambda x: x[1]['peak_position'],
-        #                          reverse=True)
-        # Sort by binding energy (high to low)
         sorted_elements = sorted(identified_elements.items(),
                                  key=lambda x: x[1]['peak_position'],
                                  reverse=True)
 
-        # # Filter peaks below 600eV according to orbital rules
-        # filtered_elements = {}
-        # for peak_name, element_data in sorted_elements:
-        #     print("\nFiltering peak:", peak_name)
-        #     position = element_data['peak_position']
-        #     orbital = element_data['orbital']
-        #     element = element_data['element']
-        #
-        #     if position < 600.0:
-        #         # Dismiss specific orbitals
-        #         if orbital in ['2p1/2', '3d3/2', '4f5/2']:
-        #             print(f"  DISMISSED: {peak_name} at {position:.2f} eV (orbital {orbital} below 600eV)")
-        #             continue
-        #
-        #         # Convert specific orbitals to simplified forms
-        #         elif orbital == '2p3/2':
-        #             simplified_orbital = '2p'
-        #             simplified_name = f"{element}{simplified_orbital}"
-        #             element_data = element_data.copy()
-        #             element_data['orbital'] = simplified_orbital
-        #             filtered_elements[simplified_name] = element_data
-        #             print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
-        #         elif orbital == '3d5/2':
-        #             simplified_orbital = '3d'
-        #             simplified_name = f"{element}{simplified_orbital}"
-        #             element_data = element_data.copy()
-        #             element_data['orbital'] = simplified_orbital
-        #             filtered_elements[simplified_name] = element_data
-        #             print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
-        #         elif orbital == '4f7/2':
-        #             simplified_orbital = '4f'
-        #             simplified_name = f"{element}{simplified_orbital}"
-        #             element_data = element_data.copy()
-        #             element_data['orbital'] = simplified_orbital
-        #             filtered_elements[simplified_name] = element_data
-        #             print(f"  CONVERTED: {peak_name} → {simplified_name} (using {simplified_orbital} RSF)")
-        #         else:
-        #             # Keep other orbitals as-is
-        #             filtered_elements[peak_name] = element_data
-        #     else:
-        #         # Keep peaks above 600eV as-is
-        #         filtered_elements[peak_name] = element_data
-        # Filter peaks below 600eV according to orbital rules
         filtered_elements = {}
 
         # First, analyze what orbitals we have for each element below 600eV
@@ -1199,12 +1151,13 @@ class AutoSurveyID:
             print(f"  Priority: {element_data['priority']}")
             print(f"  Prominence: {element_data['prominence']:.4f}")
 
-            # Calculate area and height with U2-Tougaard background
-            area, bg_low, bg_high, peak_height = self.calculate_peak_area_and_height_with_background(
+            # Calculate area and height with adaptive background
+            area, bg_low, bg_high, peak_height, background_type = self.calculate_peak_area_and_height_with_background(
                 element_data['peak_position'],
                 x_data,
                 y_data,
-                sheet_name
+                sheet_name,
+                element_data['orbital']
             )
 
             # Format peak name like AreaFit_Screen (with space and dot)
@@ -1235,7 +1188,7 @@ class AutoSurveyID:
             self.parent.peak_params_grid.SetCellValue(row, 8, "0.00")  # Gamma
             self.parent.peak_params_grid.SetCellValue(row, 9, "0.00")  # Skew
             self.parent.peak_params_grid.SetCellValue(row, 13, "Unfitted")  # Model
-            self.parent.peak_params_grid.SetCellValue(row, 14, "U2-Tougaard")  # Bkg Type
+            self.parent.peak_params_grid.SetCellValue(row, 14, background_type)  # Bkg Type
             self.parent.peak_params_grid.SetCellValue(row, 15, f"{bg_low:.2f}")  # Bkg Low
             self.parent.peak_params_grid.SetCellValue(row, 16, f"{bg_high:.2f}")  # Bkg High
             self.parent.peak_params_grid.SetCellValue(row, 17, "0.00")  # Offset Low
@@ -1263,7 +1216,7 @@ class AutoSurveyID:
                 'Gamma': 0.00,
                 'Skew': 0.00,
                 'Fitting Model': 'Unfitted',
-                'Bkg Type': 'U2-Tougaard',
+                'Bkg Type': background_type,
                 'Bkg Low': float(f"{bg_low:.2f}"),
                 'Bkg High': float(f"{bg_high:.2f}"),
                 'Bkg Offset Low': 0.00,
@@ -1305,41 +1258,90 @@ class AutoSurveyID:
 
         return bg_low, bg_high
 
-    def calculate_peak_area_and_height_with_background(self, peak_position, x_data, y_data, sheet_name):
-        """Calculate area and height with U2-Tougaard background using adaptive ranges"""
+    def calculate_peak_area_and_height_with_background(self, peak_position, x_data, y_data, sheet_name, orbital=''):
+        """Calculate area and height with adaptive background (Linear or U2-Tougaard) using adaptive ranges"""
         from libraries.Peak_Functions import BackgroundCalculations
 
         # Use adaptive range determination based on peak position
-        bg_low, bg_high = self.calculate_adaptive_range_from_position(peak_position)
+        bg_low_adaptive, bg_high_adaptive = self.calculate_adaptive_range_from_position(peak_position)
 
         # Always use the current background data (which was reset in create_peaks_and_measure)
         current_background = np.array(self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
 
-        # Calculate U2-Tougaard background for this range
-        adaptive_range = (bg_low, bg_high)
+        # Extract only the data in the adaptive range for initial analysis
+        mask_adaptive = (x_data >= bg_low_adaptive) & (x_data <= bg_high_adaptive)
+        x_range_adaptive = x_data[mask_adaptive]
+        y_range_adaptive = y_data[mask_adaptive]
 
-        # Extract only the data in the range for U2-Tougaard calculation
+        if len(x_range_adaptive) < 3:
+            print(f"    WARNING: Insufficient data points in range for background calculation")
+            return 0.00, bg_low_adaptive, bg_high_adaptive, 0.00, "U2-Tougaard"
+
+        # Find peak boundaries (start and end of peak)
+        peak_start, peak_end = self.find_peak_boundaries(peak_position, x_range_adaptive, y_range_adaptive)
+        print(f"    Peak boundaries: start={peak_start:.2f} eV, end={peak_end:.2f} eV")
+
+        if orbital.lower() == '1s' or peak_position < 550.00:
+            # Special case for Si2p: use -5 eV to +4 eV margins
+            if 'si' in orbital.lower() and '2p' in orbital.lower():
+                boundary_min = min(peak_start, peak_end) - 5.00
+                boundary_max = max(peak_start, peak_end) + 4.00
+                print(f"    Using Si2p-specific peak boundaries at {peak_position:.2f} eV: {boundary_min:.2f} to {boundary_max:.2f} eV")
+            else:
+                # Add ±6/±7 eV margin to peak boundaries for other peaks
+                boundary_min = min(peak_start, peak_end) - 6.00
+                boundary_max = max(peak_start, peak_end) + 7.00
+                print(f"    Using peak boundaries for {orbital} at {peak_position:.2f} eV: {boundary_min:.2f} to {boundary_max:.2f} eV")
+
+            bg_low = boundary_min
+            bg_high = boundary_max
+        else:
+            bg_low = bg_low_adaptive
+            bg_high = bg_high_adaptive
+            print(f"    Using adaptive range: {bg_low:.2f} to {bg_high:.2f} eV")
+
+        # Extract data in the final range for background calculation
         mask = (x_data >= bg_low) & (x_data <= bg_high)
         x_range = x_data[mask]
         y_range = y_data[mask]
 
         if len(x_range) < 3:
-            print(f"    WARNING: Insufficient data points in range for U2-Tougaard")
-            return 0.0, bg_low, bg_high, 0.0
+            print(f"    WARNING: Insufficient data points in final range for background calculation")
+            return 0.00, bg_low, bg_high, 0.00, "U2-Tougaard"
 
-        # Calculate U2-Tougaard background using only the range data
+        # Determine if background is increasing or decreasing using the extended range
+        is_decreasing = self.is_background_decreasing(x_range, y_range, bg_low, bg_high)
+
+        if is_decreasing:
+            print(f"    Background is DECREASING - using Linear background")
+            background_type = "Linear"
+        else:
+            print(f"    Background is INCREASING or FLAT - using U2-Tougaard background")
+            background_type = "U2-Tougaard"
+
+        # Calculate background based on type
+        adaptive_range = (bg_low, bg_high)
+
         try:
-            range_tougaard_bg = BackgroundCalculations.calculate_u2_tougaard_background(
-                x_range, y_range, sheet_name, self.parent, adaptive_range
-            )
+            if background_type == "Linear":
+                # Linear background only needs x, y data and offsets (use 0.00 for AutoID)
+                range_background = BackgroundCalculations.calculate_linear_background(
+                    x_range, y_range, 0.00, 0.00
+                )
+            else:
+                # U2-Tougaard uses tuple for range
+                range_background = BackgroundCalculations.calculate_u2_tougaard_background(
+                    x_range, y_range, sheet_name, self.parent, adaptive_range
+                )
 
             # Update the full background array with the calculated range
             background_filtered = current_background.copy()
-            background_filtered[mask] = range_tougaard_bg
+            background_filtered[mask] = range_background
         except Exception as e:
-            print(f"    WARNING: U2-Tougaard calculation failed: {e}")
+            print(f"    WARNING: {background_type} calculation failed: {e}")
             print(f"    Falling back to raw data")
             background_filtered = current_background.copy()
+            background_type = "U2-Tougaard"  # Set default for grid
 
         # Update background in data structure
         self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'] = background_filtered.tolist()
@@ -1352,7 +1354,7 @@ class AutoSurveyID:
 
         if len(x_range) < 3:
             print(f"    WARNING: Insufficient data points in range")
-            return 0.0, bg_low, bg_high, 0.0
+            return 0.00, bg_low, bg_high, 0.00, background_type
 
         # Calculate background-subtracted data
         y_minus_bg = y_range - bg_range
@@ -1370,11 +1372,154 @@ class AutoSurveyID:
         peak_height = y_minus_bg[peak_index]
 
         area = abs(area)
-        peak_height = max(0.0, peak_height)
+        peak_height = max(0.00, peak_height)
 
-        print(f"    Raw area: {area:.2f}, Height: {peak_height:.2f}")
+        print(f"    Raw area: {area:.2f}, Height: {peak_height:.2f}, Background: {background_type}")
 
-        return area, bg_low, bg_high, peak_height
+        return area, bg_low, bg_high, peak_height, background_type
+
+    def find_peak_boundaries_OLD(self, peak_position, x_data, y_data):
+        """
+        Find the start and end of a peak by detecting where the signal drops
+        to baseline or starts rising again.
+        Returns: (peak_start, peak_end) in eV
+        """
+        # Find the index closest to peak position
+        peak_idx = np.argmin(np.abs(x_data - peak_position))
+
+        # Get baseline level (use edges of the range)
+        edge_width = max(3, len(x_data) // 10)
+        baseline_left = np.mean(y_data[:edge_width])
+        baseline_right = np.mean(y_data[-edge_width:])
+        baseline_avg = (baseline_left + baseline_right) / 2
+
+        # Calculate threshold as percentage above baseline
+        peak_height = y_data[peak_idx] - baseline_avg
+        threshold = baseline_avg + peak_height * 0.010  # 10% of peak height above baseline
+
+        # Find left boundary (peak start) - scan left from peak
+        left_idx = peak_idx
+        for i in range(peak_idx, 0, -1):
+            if y_data[i] <= threshold:
+                left_idx = i
+                break
+
+        # Find right boundary (peak end) - scan right from peak
+        right_idx = peak_idx
+        for i in range(peak_idx, len(y_data)):
+            if y_data[i] <= threshold:
+                right_idx = i
+                break
+
+        peak_start = x_data[left_idx]
+        peak_end = x_data[right_idx]
+
+        return peak_start, peak_end
+
+    def find_peak_boundaries(self, peak_position, x_data, y_data):
+        """
+        Find the start and end of a peak by detecting where the signal drops
+        to baseline using multiple criteria: threshold crossing and derivative analysis.
+        Returns: (peak_start, peak_end) in eV
+        """
+        # Find the index closest to peak position
+        peak_idx = np.argmin(np.abs(x_data - peak_position))
+
+        # Get baseline level using minimum values in edge regions (more robust)
+        edge_width = max(5, len(x_data) // 8)
+
+        # Use minimum values at edges as baseline estimate (not average)
+        baseline_left = np.min(y_data[:edge_width])
+        baseline_right = np.min(y_data[-edge_width:])
+        baseline_avg = (baseline_left + baseline_right) / 2.00
+
+        # Calculate peak height above baseline
+        peak_height = y_data[peak_idx] - baseline_avg
+
+        # Use a very low threshold - 2% of peak height above baseline
+        threshold = baseline_avg + peak_height * 0.005
+
+        # Calculate first derivative (rate of change) to find inflection points
+        dy = np.gradient(y_data, x_data)
+
+        # Smooth the derivative to reduce noise
+        from scipy.ndimage import gaussian_filter1d
+        dy_smooth = gaussian_filter1d(dy, sigma=2.0)
+
+        # Find left boundary - scan left from peak
+        left_idx = 0
+        for i in range(peak_idx, 0, -1):
+            # Check both threshold crossing AND derivative flattening
+            if y_data[i] <= threshold:
+                left_idx = i
+                break
+            # Also check if derivative becomes very small (flat baseline)
+            if i > 5 and abs(dy_smooth[i]) < abs(dy_smooth[peak_idx]) * 0.05:
+                # Verify it's actually near baseline by checking several points
+                local_region = y_data[max(0, i - 3):i + 1]
+                if np.max(local_region) - np.min(local_region) < peak_height * 0.05:
+                    left_idx = i
+                    break
+
+        # Find right boundary - scan right from peak
+        right_idx = len(y_data) - 1
+        for i in range(peak_idx, len(y_data)):
+            # Check both threshold crossing AND derivative flattening
+            if y_data[i] <= threshold:
+                right_idx = i
+                break
+            # Also check if derivative becomes very small (flat baseline)
+            if i < len(y_data) - 5 and abs(dy_smooth[i]) < abs(dy_smooth[peak_idx]) * 0.05:
+                # Verify it's actually near baseline by checking several points
+                local_region = y_data[i:min(len(y_data), i + 4)]
+                if np.max(local_region) - np.min(local_region) < peak_height * 0.05:
+                    right_idx = i
+                    break
+
+        peak_start = x_data[left_idx]
+        peak_end = x_data[right_idx]
+
+        print(f"    Baseline: {baseline_avg:.2f}, Peak height: {peak_height:.2f}, Threshold: {threshold:.2f}")
+
+        return peak_start, peak_end
+
+    def is_background_decreasing(self, x_data, y_data, bg_low, bg_high):
+        """
+        Determine if the background below the peak is decreasing or increasing
+        by comparing signal levels at the left and right edges of the range.
+        In XPS, x_data is binding energy. Higher BE values are on the left.
+        Returns True if background is decreasing as BE increases (left < right in intensity)
+        """
+        # Find indices for the range boundaries
+        left_idx = np.argmin(np.abs(x_data - bg_high))  # Higher BE
+        right_idx = np.argmin(np.abs(x_data - bg_low))  # Lower BE
+
+        # Get edge regions for averaging (use 10% of the range width or at least 3 points)
+        edge_width = max(3, abs(right_idx - left_idx) // 10)
+
+        # Average intensity at left edge (higher BE side)
+        left_start = max(0, left_idx - edge_width)
+        left_region = y_data[left_start:left_idx]
+        left_avg = np.mean(left_region) if len(left_region) > 0 else y_data[left_idx]
+
+        # Average intensity at right edge (lower BE side)
+        right_end = min(len(y_data), right_idx + edge_width)
+        right_region = y_data[right_idx:right_end]
+        right_avg = np.mean(right_region) if len(right_region) > 0 else y_data[right_idx]
+
+        print(f"    Background analysis: left_avg={left_avg:.2f} (high BE), right_avg={right_avg:.2f} (low BE)")
+
+        # Background is decreasing as BE increases if left side (high BE) < right side (low BE)
+        # Use a smaller threshold to be more sensitive
+        avg_level = (left_avg + right_avg) / 2.00
+        threshold = avg_level * 0.005  # 2% threshold
+
+        difference = right_avg - left_avg
+        is_decreasing = difference > threshold
+
+        print(f"    Difference: {difference:.2f}, Threshold: {threshold:.2f}")
+
+        return is_decreasing
 
     def calculate_peak_area(self, peak_position, x_data, y_data):
         """Calculate area under peak with background subtraction"""
