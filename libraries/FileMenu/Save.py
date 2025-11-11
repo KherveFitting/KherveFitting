@@ -15,6 +15,7 @@ from libraries.Sheet_Operations import on_sheet_selected
 from copy import deepcopy
 import shutil
 import requests
+from libraries.Peak_Functions import EnvelopeModel
 
 
 # from Functions import convert_to_serializable_and_round
@@ -2321,7 +2322,7 @@ def create_plot_script_from_excel(window):
 
     print(f"Plot script created: {py_filepath}")
 
-def save_peaks_library(window):
+def save_peaks_library_OLD(window):
     sheet_name = window.sheet_combobox.GetValue()
     with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
                        defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
@@ -2350,7 +2351,128 @@ def save_peaks_library(window):
         with open(path, 'w') as f:
             json.dump(peaks_data, f, indent=2)
 
-def load_peaks_library(window):
+
+def save_peaks_library(window):
+    sheet_name = window.sheet_combobox.GetValue()
+
+    # Show choice dialog for save type
+    choices = ["Individual Peaks", "Composite Envelope"]
+    dialog = wx.SingleChoiceDialog(
+        window,
+        "Choose save format:",
+        "Save Peaks Library",
+        choices
+    )
+
+    if dialog.ShowModal() != wx.ID_OK:
+        dialog.Destroy()
+        return
+
+    save_type = choices[dialog.GetSelection()]
+    dialog.Destroy()
+
+    # Convert numpy arrays to lists before saving
+    def convert_numpy_to_list(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {k: convert_numpy_to_list(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy_to_list(item) for item in obj]
+        return obj
+
+    if save_type == "Composite Envelope":
+        # Check if there are peaks in the grid
+        if not hasattr(window, 'peak_params_grid') or window.peak_params_grid.GetNumberRows() == 0:
+            wx.MessageBox("No peaks defined. Add peaks first before saving as envelope",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        x_data = window.Data['Core levels'][sheet_name]['B.E.']
+        y_envelope = None
+
+        # Check if fit_results exists (from Functions.py after fitting)
+        if hasattr(window, 'fit_results') and 'result' in window.fit_results:
+            result = window.fit_results['result']
+            if result is not None:
+                # Evaluate the fitted model to get the envelope
+                y_envelope = result.eval(x=x_data)
+
+        if y_envelope is None:
+            wx.MessageBox("No fitted model found. Please fit the data first using the Fit button.",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get envelope name
+        name_dlg = wx.TextEntryDialog(window, "Enter envelope name:",
+                                      "Envelope Name", f"{sheet_name} Envelope")
+        if name_dlg.ShowModal() != wx.ID_OK:
+            name_dlg.Destroy()
+            return
+        envelope_name = name_dlg.GetValue()
+        name_dlg.Destroy()
+
+        # Calculate envelope properties
+        x_center = float(np.mean(x_data))
+        y_area = float(np.trapz(y_envelope, x_data))
+        y_max = float(np.max(y_envelope))
+
+        # Create envelope as a single peak entry
+        envelope_peak = {
+            envelope_name: {
+                "Position": round(x_center, 2),  # Original position - stays constant
+                "Height": round(y_max, 2),
+                "FWHM": 0.0,
+                "L/G": 0.0,
+                "Area": round(y_area, 2),  # Original area
+                "Sigma": 0.00,  # Initial shift = 0 (no movement yet)
+                "Gamma": 1.00,  # Initial scale = 1 (original size)
+                "Skew": 0.0,
+                "Fitting Model": "SingleEntity",
+                "x_data": convert_numpy_to_list(x_data),
+                "y_data": convert_numpy_to_list(y_envelope),
+                "Constraints": {
+                    "Position": f"{float(np.min(x_data)):.2f},{float(np.max(x_data)):.2f}",
+                    "Sigma": "-10:10",  # Allow shift of +/- 10 eV
+                    "Gamma": "0.1:10"  # Allow scale from 0.1x to 10x
+                }
+            }
+        }
+
+        peaks_data = {
+            'type': 'envelope',
+            'Core levels': {
+                sheet_name: {
+                    'Fitting': {
+                        'Peaks': envelope_peak,
+                        'Model': 'SingleEntity'
+                    }
+                }
+            }
+        }
+    else:
+        # Original save method for individual peaks
+        peaks_data = {
+            'type': 'peaks',
+            'Core levels': {
+                sheet_name: {
+                    'Fitting': convert_numpy_to_list(window.Data['Core levels'][sheet_name]['Fitting'])
+                }
+            }
+        }
+
+    with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
+                       defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+        if fileDialog.ShowModal() == wx.ID_CANCEL:
+            return
+        path = fileDialog.GetPath()
+
+        with open(path, 'w') as f:
+            json.dump(peaks_data, f, indent=2)
+
+        wx.MessageBox(f"Saved as {save_type}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+def load_peaks_library_OLD(window):
     import wx
     import json
     from libraries.Sheet_Operations import on_sheet_selected
@@ -2448,6 +2570,109 @@ def load_peaks_library(window):
     on_sheet_selected(window, sheet_name)
 
     # Ensure `fitting_window` exists and call `on_background`
+    if not hasattr(window, 'fitting_window') or window.fitting_window is None:
+        window.fitting_window = FittingWindow(parent=window)
+
+    bg_low = window.peak_params_grid.GetCellValue(0, 15)
+    bg_high = window.peak_params_grid.GetCellValue(0, 16)
+
+    if bg_low and bg_high:
+        window.bg_min_energy = float(bg_low)
+        window.bg_max_energy = float(bg_high)
+    else:
+        x_values = window.Data['Core levels'][sheet_name]['B.E.']
+        window.bg_min_energy = min(x_values) + 0.2
+        window.bg_max_energy = max(x_values) - 0.2
+
+
+def load_peaks_library(window):
+    import wx
+    import json
+    from libraries.Sheet_Operations import on_sheet_selected
+    from libraries.ToolsMenu.Fitting_Screen import FittingWindow
+    import re
+
+    with wx.FileDialog(window, "Load peaks library", wildcard="JSON files (*.json)|*.json",
+                       defaultDir="Peaks Library", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+        if fileDialog.ShowModal() == wx.ID_CANCEL:
+            return
+        path = fileDialog.GetPath()
+
+    with open(path) as f:
+        peaks_data = json.load(f)
+
+    sheet_name = window.sheet_combobox.GetValue()
+    source_sheet = list(peaks_data['Core levels'].keys())[0]
+    source_data = peaks_data['Core levels'][source_sheet]
+
+    # Check if there are existing peaks
+    existing_peaks = {}
+    existing_peak_count = 0
+    if ('Fitting' in window.Data['Core levels'][sheet_name] and
+            'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
+        existing_peaks = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+        existing_peak_count = len(existing_peaks)
+
+    # Show choice dialog if there are existing peaks
+    if existing_peak_count > 0:
+        dialog = wx.MessageDialog(window,
+                                  f"Found {existing_peak_count} existing peaks.\n\nChoose action:",
+                                  "Load Peaks Library",
+                                  wx.YES_NO | wx.CANCEL)
+        dialog.SetYesNoLabels("&Overwrite existing peaks", "&Add after existing peaks")
+
+        result = dialog.ShowModal()
+        dialog.Destroy()
+
+        if result == wx.ID_CANCEL:
+            return
+
+        overwrite = (result == wx.ID_YES)
+    else:
+        overwrite = True
+
+    if overwrite:
+        window.Data['Core levels'][sheet_name]['Fitting'] = source_data['Fitting']
+    else:
+        if 'Fitting' not in window.Data['Core levels'][sheet_name]:
+            window.Data['Core levels'][sheet_name]['Fitting'] = {}
+        if 'Peaks' not in window.Data['Core levels'][sheet_name]['Fitting']:
+            window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
+
+        def update_constraint_references(constraint_str, offset):
+            if not constraint_str or constraint_str == 'Fixed':
+                return constraint_str
+
+            def replace_peak_ref(match):
+                peak_letter = match.group(1)
+                old_index = ord(peak_letter) - ord('A')
+                new_index = old_index + offset
+                new_letter = chr(ord('A') + new_index)
+                return match.group(0).replace(peak_letter, new_letter)
+
+            updated = re.sub(r'\b([A-P])(?=[*+\-/])', replace_peak_ref, constraint_str)
+            updated = re.sub(r'^([A-P])$', replace_peak_ref, updated)
+
+            return updated
+
+        library_peaks = source_data['Fitting']['Peaks']
+        for peak_key, peak_data in library_peaks.items():
+            new_peak_data = peak_data.copy()
+
+            # Update constraints if they exist (skip for SingleEntity)
+            if 'Constraints' in new_peak_data and new_peak_data.get('Fitting Model') != 'SingleEntity':
+                updated_constraints = {}
+                for constraint_key, constraint_value in new_peak_data['Constraints'].items():
+                    updated_constraints[constraint_key] = update_constraint_references(
+                        constraint_value, existing_peak_count)
+                new_peak_data['Constraints'] = updated_constraints
+
+            window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_key] = new_peak_data
+
+        window.peak_count = len(window.Data['Core levels'][sheet_name]['Fitting']['Peaks'])
+
+    on_sheet_selected(window, sheet_name)
+
     if not hasattr(window, 'fitting_window') or window.fitting_window is None:
         window.fitting_window = FittingWindow(parent=window)
 

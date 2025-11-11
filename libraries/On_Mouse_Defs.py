@@ -647,8 +647,26 @@ class MouseEventHandler:
             delta = 0.05 if event.step > 0 else -0.05
             row = self.window.selected_peak_index * 2
             fitting_model = self.window.peak_params_grid.GetCellValue(row, 13)
+            if fitting_model == "SingleEntity":
+                # For SingleEntity, scale the area (vertical resize)
+                current_area = float(self.window.peak_params_grid.GetCellValue(row, 6))
+                area_delta = 50 if event.step > 0 else -50  # Larger steps for area
+                new_area = max(current_area + area_delta, 1.0)
+                self.window.peak_params_grid.SetCellValue(row, 6, f"{new_area:.2f}")
 
-            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
+                # Store scale factor in sigma column for reference
+                sheet_name = self.window.sheet_combobox.GetValue()
+                peaks_dict = self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                peak_letter = self.window.peak_params_grid.GetCellValue(row, 1)
+
+                for peak_name, data in peaks_dict.items():
+                    if data.get('Fitting Model') == 'SingleEntity':
+                        position = float(self.window.peak_params_grid.GetCellValue(row, 2))
+                        if abs(data.get('Position', 0) - position) < 0.01:
+                            # Update Area in Data structure
+                            data['Area'] = new_area
+                            break
+            elif fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
                                  "Voigt (Area, L/G, \u03c3, S)"]:
                 current_sigma = float(self.window.peak_params_grid.GetCellValue(row, 7))
                 new_sigma = max(current_sigma + delta, 0.1)
@@ -662,6 +680,10 @@ class MouseEventHandler:
                 current_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
                 new_fwhm = max(current_fwhm + delta, 0.1)
                 self.window.peak_params_grid.SetCellValue(row, 4, f"{new_fwhm:.2f}")
+            if fitting_model != "SingleEntity":
+                self.window.recalculate_peak_area(self.window.selected_peak_index)
+                self.window.update_linked_fwhm_recursive(self.window.selected_peak_index,
+                                                         new_sigma if fitting_model.startswith("Voigt") else new_fwhm)
 
             self.window.recalculate_peak_area(self.window.selected_peak_index)
             self.window.update_linked_fwhm_recursive(self.window.selected_peak_index,

@@ -12,6 +12,36 @@ from lmfitxps.backgrounds import shirley_calculate
 import numpy as np
 
 
+class EnvelopeModel:
+    """Stores a fitted envelope as a reusable model component"""
+
+    def __init__(self, x_data, y_data, name="Envelope"):
+        self.name = name
+        self.x_original = np.array(x_data)
+        self.y_original = np.array(y_data)
+
+    def get_parameters(self, position, area):
+        """Return parameters for this envelope"""
+        return {
+            'position': position,
+            'area': area,
+            'x_data': self.x_original.tolist(),
+            'y_data': self.y_original.tolist(),
+            'name': self.name
+        }
+
+    @classmethod
+    def from_fitted_model(cls, window, name="Envelope"):
+        """Create envelope from current fitted model"""
+        if not hasattr(window, 'result') or window.result is None:
+            return None
+
+        sheet_name = window.sheet_combobox.GetValue()
+        x_data = window.Data['Core levels'][sheet_name]['B.E.']
+        y_envelope = window.result.eval(x=x_data)
+
+        return cls(x_data, y_envelope, name)
+
 class PeakFunctions:
 
     @staticmethod
@@ -979,8 +1009,8 @@ class BackgroundCalculations:
         Returns:
             array: Smart background
         """
-        shirley_bg = BackgroundCalculations.calculate_shirley_background(x, y, offset_h, offset_l,num_points)
-        linear_bg = BackgroundCalculations.calculate_linear_background(x, y, offset_h, offset_l,num_points)
+        shirley_bg = BackgroundCalculations.calculate_shirley_background(x, y, offset_h, offset_l, num_points=num_points)
+        linear_bg = BackgroundCalculations.calculate_linear_background(x, y, offset_h, offset_l, num_points=num_points)
 
         # Choose background type based on first and last y-values
         background = shirley_bg if y[0] > y[-1] else linear_bg
@@ -1028,7 +1058,7 @@ class BackgroundCalculations:
         return background
 
     @staticmethod
-    def calculate_adaptive_smart_background(x, y, x_range, previous_background, offset_h, offset_l, num_points=5):
+    def calculate_adaptive_smart_background_OLD(x, y, x_range, previous_background, offset_h, offset_l, num_points=5):
         """
         Calculate an Multi-Regions Smart background for a selected range.
 
@@ -1055,6 +1085,43 @@ class BackgroundCalculations:
         else:
             new_background[mask] = BackgroundCalculations.calculate_linear_background(x_selected, y_selected, offset_h,
                                                                                       offset_l, num_points)
+
+        return new_background
+
+    @staticmethod
+    def calculate_adaptive_smart_background(x, y, x_range, previous_background, offset_h, offset_l, num_points=5):
+        """
+        Calculate an Multi-Regions Smart background for a selected range.
+
+        Args:
+            x (array): X-axis values (FULL dataset)
+            y (array): Y-axis values (FULL dataset)
+            x_range (tuple): Range of x values to calculate background for
+            previous_background (array): Previous background calculation
+            offset_h (float): High offset
+            offset_l (float): Low offset
+            num_points (int): Number of points for endpoint averaging
+
+        Returns:
+            array: Multi-Regions Smart background
+        """
+        previous_background = np.array(previous_background)
+        mask = (x >= x_range[0]) & (x <= x_range[1])
+        new_background = np.copy(previous_background)
+        x_selected, y_selected = x[mask], y[mask]
+
+        # Determine background type for selected range
+        if y_selected[0] > y_selected[-1]:
+            # Calculate shirley using FULL x,y for proper endpoint averaging
+            # But only take the portion within the mask
+            print(f'The number of points used for endpoint averaging is: {num_points}')
+            shirley_full = BackgroundCalculations.calculate_shirley_background(x, y, offset_h, offset_l, num_points=num_points)
+            new_background[mask] = shirley_full[mask]
+        else:
+            # Calculate linear using FULL x,y for proper endpoint averaging
+            # But only take the portion within the mask
+            linear_full = BackgroundCalculations.calculate_linear_background(x, y, offset_h, offset_l, num_points=num_points)
+            new_background[mask] = linear_full[mask]
 
         return new_background
 

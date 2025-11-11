@@ -73,6 +73,9 @@ class BackgroundWindow(wx.Frame):
         self.parent.area_tab_selected = True
         self.parent.area_batch_tab_selected = False
 
+        # Initialize averaging_points to default value
+        self.parent.averaging_points = 1
+
         notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
 
         # Initially disable all Tougaard controls
@@ -107,7 +110,7 @@ class BackgroundWindow(wx.Frame):
         panel = self.measure_area_panel
 
         method_label = wx.StaticText(panel, label="Method:")
-        self.method_combobox = wx.ComboBox(panel, choices=["Multi-Regions Smart", "Shirley", "Linear",
+        self.method_combobox = wx.ComboBox(panel, choices=["Smart", "Shirley", "Linear",
                                                            'U4-Tougaard', 'U2-Tougaard'],
                                            style=wx.CB_READONLY)
         self.method_combobox.SetSelection(4)
@@ -140,7 +143,7 @@ class BackgroundWindow(wx.Frame):
         self.update_range_controls_from_data()
 
         averaging_points_label = wx.StaticText(panel, label="Averaging Points:")
-        self.averaging_points_text = wx.TextCtrl(panel, value="5")
+        self.averaging_points_text = wx.TextCtrl(panel, value="1")
         self.averaging_points_text.Bind(wx.EVT_TEXT, self.on_averaging_points_change)
 
         # Add Tougaard controls

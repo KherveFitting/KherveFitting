@@ -1,5 +1,5 @@
 {
-  "FilePath": "C:\\Users\\gwilh\\OneDrive - Imperial College London\\Documents\\MEGAsync\\Programs\\Python\\KherveFitting\\dist\\KherveFitting_1.545_25g07\\Data-Examples\\LaSrMnCoO3\\LaSrCoMnO3_Kfitting.xlsx",
+  "FilePath": "C:\\Users\\gwilh\\OneDrive - Imperial College London\\Documents\\MEGAsync\\Programs\\Python\\KherveFitting\\Data-Examples\\LaSrMnCoO3\\LaSrCoMnO3_Kfitting.xlsx",
   "Number of Core levels": 7,
   "Core levels": {
     "Survey": {
@@ -13538,7 +13538,7 @@
         "Tougaard_T0": 0.0,
         "Recorded_Ranges": [
           [
-            -212.907512287803,
+            -212.91,
             -97.2,
             525.18,
             536.83
@@ -16648,14 +16648,14 @@
         "Tougaard_T0": 0.0,
         "Recorded_Ranges": [
           [
-            -506.82256874370796,
+            -506.82,
             -97.2,
             826.75,
             841.43
           ],
           [
             -485.6,
-            -556.3527184691811,
+            -556.35,
             840.7,
             858.92
           ]

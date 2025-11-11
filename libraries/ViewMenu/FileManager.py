@@ -6181,10 +6181,10 @@ class FileManagerWindow(wx.Frame):
 
         self.parent.ax.set_ylabel('Spectrum', fontsize=self.parent.axis_title_size)
 
-        # Set y-axis labels
+        # Set y-axis labels with numbers
         self.parent.ax.set_yticks(np.arange(len(labels)))
-        self.parent.ax.set_yticklabels(labels, fontsize=self.parent.axis_number_size)
-
+        numeric_labels = [str(i + 1) for i in range(len(labels))]
+        self.parent.ax.set_yticklabels(numeric_labels, fontsize=self.parent.axis_number_size)
         # Reverse x-axis for BE scale if needed
         if not be_increasing:
             self.parent.ax.invert_xaxis()
@@ -6193,8 +6193,8 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.tick_params(axis='x', labelsize=self.parent.axis_number_size)
 
         # Set title with current vmax value
-        self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
-                                 fontsize=self.parent.axis_title_size)
+        # self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
+        #                          fontsize=self.parent.axis_title_size)
 
         # Redraw canvas
         self.parent.canvas.draw_idle()
@@ -6253,14 +6253,16 @@ class FileManagerWindow(wx.Frame):
 
         self.parent.ax.set_ylabel('Spectrum', fontsize=self.parent.axis_title_size)
         self.parent.ax.set_yticks(np.arange(len(self.parent.heatmap_labels)))
-        self.parent.ax.set_yticklabels(self.parent.heatmap_labels, fontsize=self.parent.axis_number_size)
+        numeric_labels = [str(i + 1) for i in range(len(self.parent.heatmap_labels))]
+        self.parent.ax.set_yticklabels(numeric_labels, fontsize=self.parent.axis_number_size)
+
 
         if not self.parent.heatmap_be_increasing:
             self.parent.ax.invert_xaxis()
 
         self.parent.ax.tick_params(axis='x', labelsize=self.parent.axis_number_size)
-        self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
-                                 fontsize=self.parent.axis_title_size)
+        # self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
+        #                          fontsize=self.parent.axis_title_size)
 
         # Redraw canvas
         self.parent.canvas.draw_idle()
@@ -7074,9 +7076,9 @@ class FileManagerDropTarget(wx.FileDropTarget):
         # Check all files are valid first
         for file in filenames:
             if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal',
-                                                              '.avg', '.spe', '.mrs', '.1']):
+                                                              '.avg', '.spe', '.mrs', '.1', '.asc']):
                 wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
-                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech) and .spe "
+                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech), .asc and .spe "
                               f"(Phi) files can be dropped.", "Invalid File Type",
                               wx.OK | wx.ICON_ERROR)
                 return False
@@ -7513,6 +7515,10 @@ class FileManagerDropTarget(wx.FileDropTarget):
                     wb.close()
                 except Exception as e:
                     print(f"Error processing .xls file {file}: {e}")
+
+            elif file.lower().endswith('.asc'):
+                from libraries.FileMenu.Open import import_xps_asc_file_direct
+                wx.CallAfter(import_xps_asc_file_direct, self.main_window, file)
 
             # Handle other file types as before...
             elif file.lower().endswith('.vms'):

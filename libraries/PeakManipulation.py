@@ -225,7 +225,81 @@ class PeakManipulation:
 
             if event.button == 1:
                 try:
-                    if event.key == 'shift':
+                    if fitting_model == "SingleEntity":
+                        # Handle SingleEntity dragging - update shift and scale factors
+                        new_x = event.xdata
+
+                        # Get current peak data
+                        sheet_name = self.window.sheet_combobox.GetValue()
+                        peak_letter = self.window.peak_params_grid.GetCellValue(row, 1)
+                        peaks_dict = self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+                        # Find the SingleEntity peak by index position
+                        peak_keys = list(peaks_dict.keys())
+                        peak_index = self.window.selected_peak_index
+
+                        if peak_index < len(peak_keys):
+                            peak_name = peak_keys[peak_index]
+                            peak_data = peaks_dict[peak_name]
+
+                            # Verify it's actually a SingleEntity
+                            if peak_data.get('Fitting Model') != 'SingleEntity':
+                                peak_data = None
+                                print(f"Warning: Peak {peak_index} is not SingleEntity model")
+                        else:
+                            peak_data = None
+                            print(f"Warning: Peak index {peak_index} out of range")
+
+                        if peak_data and 'x_data' in peak_data and 'y_data' in peak_data:
+                            # Store original position if not already stored
+                            if 'Original_Position' not in peak_data:
+                                peak_data['Original_Position'] = peak_data.get('Position', 0)
+
+                            # Get ORIGINAL position from stored value (never changes)
+                            original_position = peak_data['Original_Position']
+
+                            # Get original envelope data
+                            x_env = np.array(peak_data['x_data'])
+                            y_env = np.array(peak_data['y_data'])
+                            original_max_height = float(np.max(y_env))
+
+                            # Calculate shift from ORIGINAL position
+                            position_shift = new_x - original_position
+
+                            # Calculate scale from height change
+                            closest_index = np.argmin(np.abs(self.window.x_values - event.xdata))
+                            bkg_y = self.window.background[closest_index]
+                            new_height = max(event.ydata - bkg_y, 0)
+
+                            if original_max_height > 0:
+                                scale_factor = new_height / original_max_height
+                            else:
+                                scale_factor = 1.0
+
+                            # Update grid
+                            # Position = current visual position (for cross display)
+                            self.window.peak_params_grid.SetCellValue(row, 2, f"{new_x:.2f}")
+                            # Sigma = shift from original
+                            self.window.peak_params_grid.SetCellValue(row, 7, f"{position_shift:.2f}")
+                            # Gamma = scale factor
+                            self.window.peak_params_grid.SetCellValue(row, 8, f"{scale_factor:.2f}")
+                            # Height for display
+                            self.window.peak_params_grid.SetCellValue(row, 3, f"{new_height:.2f}")
+
+                            # Update Data structure - Position and Height for cross display
+                            peak_data['Position'] = new_x
+                            peak_data['Height'] = new_height
+                            # Sigma tracks shift from original, Gamma tracks scale
+                            peak_data['Sigma'] = position_shift
+                            peak_data['Gamma'] = scale_factor
+
+                            print(f"Warning: SingleEntity data not found for peak {self.window.selected_peak_index}")
+
+                        self.window.update_ratios()
+                        self.window.clear_and_replot()
+                        self.window.plot_manager.add_cross_to_peak(self.window, self.window.selected_peak_index, skip_fwhm_calc=True)
+                        self.window.canvas.draw_idle()
+                    elif event.key == 'shift':
                         new_fwhm = self.window.update_peak_fwhm(event.xdata)
                         if new_fwhm is not None:
                             self.window.update_linked_fwhm_recursive(self.window.selected_peak_index, new_fwhm)
@@ -271,7 +345,37 @@ class PeakManipulation:
             bkg_y = self.window.background[np.argmin(np.abs(self.window.x_values - x))]
 
             if event.button == 1:
-                if event.key == 'shift':
+                if fitting_model == "SingleEntity":
+                    # SingleEntity drag complete - update both grid and Data structure
+                    sheet_name = self.window.sheet_combobox.GetValue()
+                    peak_letter = self.window.peak_params_grid.GetCellValue(row, 1)
+                    peaks_dict = self.window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+                    # Get final values from grid
+                    final_position = float(self.window.peak_params_grid.GetCellValue(row, 2))
+                    final_height = float(self.window.peak_params_grid.GetCellValue(row, 3))
+                    final_sigma = float(self.window.peak_params_grid.GetCellValue(row, 7))
+                    final_gamma = float(self.window.peak_params_grid.GetCellValue(row, 8))
+
+                    # Find the peak and update Data structure
+                    for peak_name, data in peaks_dict.items():
+                        if data.get('Fitting Model') == 'SingleEntity':
+                            if peak_name.startswith(peak_letter) or peak_letter in peak_name:
+                                # Save the shift and scale in Data
+                                data['Position'] = final_position  # Current visual position
+                                data['Height'] = final_height
+                                data['Sigma'] = final_sigma
+                                data['Gamma'] = final_gamma
+                                # Position column shows current visual position
+                                # Original position stays unchanged in Data
+                                break
+
+                    # Force grid refresh to maintain displayed values
+                    self.window.peak_params_grid.SetCellValue(row, 2, f"{final_position:.2f}")
+                    self.window.peak_params_grid.SetCellValue(row, 3, f"{final_height:.2f}")
+                    self.window.peak_params_grid.SetCellValue(row, 7, f"{final_sigma:.2f}")
+                    self.window.peak_params_grid.SetCellValue(row, 8, f"{final_gamma:.2f}")
+                elif event.key == 'shift':
                     new_fwhm = float(self.window.peak_params_grid.GetCellValue(row, 4))
                     self.window.update_linked_fwhm_recursive(self.window.selected_peak_index, new_fwhm)
                 else:

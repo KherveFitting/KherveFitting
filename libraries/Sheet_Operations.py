@@ -298,6 +298,19 @@ def on_sheet_selected(window, event):
                         for col in [4,5,6,8]:  # Columns for Height, FWHM
                             window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
                             window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method in ["SingleEntity"]:
+                        for col in [2,3,5,6]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [7,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [4,5,9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
                     else:
                         print("Fitting method not recognized")
                         for col in [6]:  # Columns for Area, sigma and gamma
@@ -420,6 +433,21 @@ def on_sheet_selected(window, event):
     # Update results grid label at the end
     if hasattr(window, 'update_results_grid_label'):
         window.update_results_grid_label()
+
+    # Validate peak grid state after sheet change
+    if hasattr(window, 'peak_params_grid'):
+        num_rows = window.peak_params_grid.GetNumberRows()
+        if num_rows == 0:
+            window.selected_peak_index = None
+            if hasattr(window, 'peak_manipulation'):
+                window.peak_manipulation.remove_cross_from_peak()
+        elif window.selected_peak_index is not None:
+            max_peak_index = (num_rows // 2) - 1
+            if max_peak_index < 0 or window.selected_peak_index > max_peak_index:
+                print(f"Resetting selected_peak_index from {window.selected_peak_index} to None")
+                window.selected_peak_index = None
+                if hasattr(window, 'peak_manipulation'):
+                    window.peak_manipulation.remove_cross_from_peak()
 
     # window.plot_manager.clear_and_replot(window)
 

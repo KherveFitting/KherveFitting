@@ -782,6 +782,53 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     params.add(f'{prefix}fwhm', value=fwhm, min=fwhm_min, max=fwhm_max, vary=fwhm_vary)
                     params.add(f'{prefix}fraction', value=lg_ratio, min=lg_ratio_min, max=lg_ratio_max,
                                vary=lg_ratio_vary)
+                elif peak_model_choice == "SingleEntity":
+                    # Handle SingleEntity - create a custom model from stored x_data and y_data
+                    from scipy.interpolate import interp1d
+
+                    # Get peak data from Data structure
+                    peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+                    # Find the peak with this model
+                    peak_data = None
+                    for peak_name, data in peaks_dict.items():
+                        if data.get('Fitting Model') == 'SingleEntity':
+                            # Check if this is the right peak by position match
+                            if abs(data.get('Position', 0) - center) < 0.01:
+                                peak_data = data
+                                break
+
+                    if peak_data and 'x_data' in peak_data and 'y_data' in peak_data:
+                        # Get stored envelope data
+                        x_env = np.array(peak_data['x_data'])
+                        y_env = np.array(peak_data['y_data'])
+
+                        # Create interpolator
+                        interpolator = interp1d(x_env, y_env, kind='cubic',
+                                                bounds_error=False, fill_value=0.0)
+
+                        # Define custom model function using shift and scale
+                        def envelope_func(x, shift=0.0, scale=1.0):
+                            # shift is position offset from original
+                            # scale is height/area multiplier
+                            x_shifted = x - shift
+                            y_base = interpolator(x_shifted)
+                            return y_base * scale
+
+                        # Create lmfit Model from the custom function
+                        peak_model = lmfit.Model(envelope_func, prefix=prefix)
+
+                        # Get current shift and scale from grid
+                        current_shift = float(peak_params_grid.GetCellValue(row, 7))
+                        current_scale = float(peak_params_grid.GetCellValue(row, 8))
+
+                        # Set up parameters - fit shift and scale, not position and area
+                        params.add(f'{prefix}shift', value=current_shift, min=-10, max=10, vary=center_vary)
+                        params.add(f'{prefix}scale', value=current_scale, min=0.01, max=100, vary=area_vary)
+
+                    else:
+                        raise ValueError(f"SingleEntity data not found for peak {i}")
+
                 elif peak_model_choice == "Unfitted":
                     return
                 elif peak_model_choice in ["D-parameter", "Fermi", "VBM", "Cut-Off"]:
@@ -863,7 +910,17 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                 peak_model_choice = peak_params_grid.GetCellValue(row, 13)
 
                 if peak_label in existing_peaks:
-                    center = result.params[f'{prefix}center'].value
+                    # Extract center based on peak model type first
+                    peak_model_choice = peak_params_grid.GetCellValue(row, 13)
+                    if peak_model_choice == "SingleEntity":
+                        # For SingleEntity, extract shift and scale
+                        shift = result.params[f'{prefix}shift'].value
+                        scale = result.params[f'{prefix}scale'].value
+                        # Calculate center from original position + shift
+                        original_pos = float(peak_params_grid.GetCellValue(row, 2)) - float(peak_params_grid.GetCellValue(row, 7))
+                        center = original_pos + shift
+                    else:
+                        center = result.params[f'{prefix}center'].value
                     if peak_model_choice == "Voigt (Area, L/G, \u03c3)":
                         amplitude = result.params[f'{prefix}amplitude'].value
                         sigma = result.params[f'{prefix}sigma'].value
@@ -1071,6 +1128,22 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         height = area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (
                                     fraction / 100) * np.pi * gamma)
                     # elif peak_model_choice == "D-parameter":
+                    elif peak_model_choice == "SingleEntity":
+                        # For SingleEntity, extract shift and scale parameters
+                        shift = result.params[f'{prefix}shift'].value
+                        scale = result.params[f'{prefix}scale'].value
+
+                        # Calculate new position from original + shift
+                        original_pos = float(peak_params_grid.GetCellValue(row, 2)) - float(peak_params_grid.GetCellValue(row, 7))
+                        center = original_pos + shift
+
+                        # Keep other values for display
+                        height = float(peak_params_grid.GetCellValue(row, 3))
+                        fwhm = 0.0
+                        fraction = 0.0
+                        sigma = shift  # Store shift in sigma column
+                        gamma = scale  # Store scale in gamma column
+                        area = float(peak_params_grid.GetCellValue(row, 6))  # Keep current area
                     else:
                         raise ValueError(f"Unknown fitting model: {peak_model_choice} for peak {peak_label}")
 
@@ -1105,12 +1178,15 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = round(float(gamma * 1), 3)
                         fraction = round(float(fraction), 3)
                         area = round(float(area), 2)
+                    elif peak_model_choice == "SingleEntity":
+                        # For SingleEntity, we already extracted shift and scale above
+                        sigma = round(float(sigma),2)  # Store shift in sigma column
+                        gamma = round(float(gamma),2)  # Store scale in gamma column
                     else:
                         sigma = round(float(sigma * 2.355), 2)
                         gamma = round(float(gamma * 2), 2)
                         fraction = round(float(fraction), 2)
                         area = round(float(area), 2)
-
 
                     peak_params_grid.SetCellValue(row, 2, f"{center:.2f}")
                     peak_params_grid.SetCellValue(row, 3, f"{height:.0f}")
@@ -1137,6 +1213,12 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = round(float(gamma * 1), 2)
                         fraction = round(fraction,2)
                         fwhm_g = round(float(fwhm_g), 2)
+                    elif peak_model_choice == "SingleEntity":
+                        # For SingleEntity, we already extracted shift and scale above
+                        peak_params_grid.SetCellValue(row, 7, f"{sigma:.2f}")  # shift
+                        peak_params_grid.SetCellValue(row, 8, f"{gamma:.2f}")  # scale
+
+
                     else:
                         peak_params_grid.SetCellValue(row, 7, "")
                         peak_params_grid.SetCellValue(row, 8, "")

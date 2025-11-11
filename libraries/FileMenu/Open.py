@@ -29,12 +29,11 @@ class ExcelDropTarget(wx.FileDropTarget):
 
         # Check all files are valid first
         for file in filenames:
-            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal', '.avg', '.spe',
-                                                              '.mrs', '.1']):
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal',
+                                                              '.avg', '.spe', '.mrs', '.1', '.asc']):
                 wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
-                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech) and .spe (Phi) files can be "
-                              f"dropped.",
-                              "Invalid File Type",
+                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech), .asc and .spe "
+                              f"(Phi) files can be dropped.", "Invalid File Type",
                               wx.OK | wx.ICON_ERROR)
                 return False
 
@@ -92,6 +91,10 @@ class ExcelDropTarget(wx.FileDropTarget):
             return True
         elif file.lower().endswith('.1'):
             wx.CallAfter(open_vg_microtech_file, self.window, file)
+            return True
+        elif file.lower().endswith('.asc'):
+            from libraries.FileMenu.Open import import_xps_asc_file_direct
+            wx.CallAfter(import_xps_asc_file_direct, self.window, file)
             return True
         return False
 
@@ -237,6 +240,10 @@ class ExcelDropTarget(wx.FileDropTarget):
         elif file.lower().endswith('.1'):
             wx.CallAfter(open_vg_microtech_file, self.window, file)
             return True
+        elif file.lower().endswith('.asc'):
+            from libraries.FileMenu.Open import import_xps_asc_file_direct
+            wx.CallAfter(import_xps_asc_file_direct, self.window, file)
+            return True
         return False
 
     def _is_numeric(self, value):
@@ -363,7 +370,8 @@ class ExcelDropTarget(wx.FileDropTarget):
             'avg': [],
             'spe': [],
             'mrs': [],
-            'vg': []
+            'vg': [],
+            'asc': []
         }
 
         # Categorize files
@@ -474,6 +482,8 @@ class ExcelDropTarget(wx.FileDropTarget):
                 file_groups['mrs'].append(file)
             elif file_lower.endswith('.1'):
                 file_groups['vg'].append(file)
+            elif file_lower.endswith('.asc'):
+                file_groups['asc'].append(file)
 
         # Process each group
         success = True
@@ -514,6 +524,12 @@ class ExcelDropTarget(wx.FileDropTarget):
             wx.CallAfter(self._import_multiple_vg_direct, file_groups['vg'])
         elif len(file_groups['vg']) == 1:
             success &= self._process_single_dropped_file(file_groups['vg'][0])
+
+        # Process ASC files
+        if len(file_groups['asc']) > 1:
+            wx.CallAfter(self._import_multiple_asc_direct, file_groups['asc'])
+        elif len(file_groups['asc']) == 1:
+            success &= self._process_single_dropped_file(file_groups['asc'][0])
 
         # Process other file types individually (no batch import available)
         for file_type in ['vms', 'kal', 'spe']:
@@ -764,6 +780,95 @@ class ExcelDropTarget(wx.FileDropTarget):
 
         except Exception as e:
             wx.MessageBox(f"Error importing multiple VG-Microtech files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _import_multiple_asc_direct(self, file_list):
+        """Import multiple ASC files directly"""
+        try:
+            import os
+            import openpyxl
+            from libraries.FileMenu.Open import open_xlsx_file
+
+            # Create a single Excel workbook
+            base_dir = os.path.dirname(file_list[0])
+            excel_path = os.path.join(base_dir, "XPS_Data.xlsx")
+
+            wb = openpyxl.Workbook()
+            if "Sheet" in wb.sheetnames:
+                wb.remove(wb["Sheet"])
+
+            processed_count = 0
+            for file_path in file_list:
+                try:
+                    base_filename = os.path.splitext(os.path.basename(file_path))[0]
+                    sheet_name = base_filename
+
+                    # Ensure sheet name is valid (max 31 chars)
+                    if len(sheet_name) > 31:
+                        sheet_name = sheet_name[:31]
+
+                    # Handle duplicate sheet names
+                    count = 1
+                    original_name = sheet_name
+                    while sheet_name in wb.sheetnames:
+                        sheet_name = f"{original_name[:27]}_{count}"
+                        count += 1
+
+                    # Read data from asc file
+                    data = []
+                    with open(file_path, 'r') as f:
+                        for line in f:
+                            if line.strip() and not line.startswith('#'):
+                                # Try different separators
+                                if ';' in line:
+                                    parts = line.strip().split(';')
+                                elif ',' in line:
+                                    parts = line.strip().split(',')
+                                else:
+                                    # Fall back to whitespace separator
+                                    parts = line.strip().split()
+
+                                if len(parts) >= 2:
+                                    try:
+                                        binding_energy = float(parts[0])
+                                        intensity = float(parts[1])
+                                        data.append([binding_energy, intensity])
+                                    except ValueError:
+                                        continue
+
+                    if not data:
+                        continue
+
+                    # Create sheet
+                    ws = wb.create_sheet(sheet_name)
+
+                    # Add headers
+                    ws["A1"] = "BE"
+                    ws["B1"] = "Raw Data"
+
+                    # Add data with .2f formatting
+                    for i, (binding_energy, intensity) in enumerate(data, start=2):
+                        ws[f"A{i}"] = f"{binding_energy:.2f}"
+                        ws[f"B{i}"] = f"{intensity:.2f}"
+
+                    processed_count += 1
+
+                except Exception as e:
+                    print(f"Error processing {os.path.basename(file_path)}: {e}")
+
+            # Save and open if any sheets were created
+            if len(wb.sheetnames) > 0:
+                wb.save(excel_path)
+                open_xlsx_file(self.window, excel_path)
+                self.window.show_popup_message2("Success",
+                                                f"Processed {processed_count} of {len(file_list)} ASC files.")
+            else:
+                self.window.show_popup_message2("Information",
+                                                "No valid data found in any of the ASC files.")
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            wx.MessageBox(f"Error importing multiple ASC files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
 
@@ -5318,7 +5423,15 @@ def import_xps_asc_file(window):
         with open(file_path, 'r') as f:
             for line in f:
                 if line.strip() and not line.startswith('#'):
-                    parts = line.strip().split()
+                    # Try different separators
+                    if ';' in line:
+                        parts = line.strip().split(';')
+                    elif ',' in line:
+                        parts = line.strip().split(',')
+                    else:
+                        # Fall back to whitespace separator
+                        parts = line.strip().split()
+
                     if len(parts) >= 2:
                         try:
                             binding_energy = float(parts[0])
@@ -5356,8 +5469,8 @@ def import_xps_asc_file(window):
 
         # Add data
         for i, (binding_energy, intensity) in enumerate(data, start=2):
-            ws[f"A{i}"] = binding_energy
-            ws[f"B{i}"] = intensity
+            ws[f"A{i}"] = f"{binding_energy:.2f}"
+            ws[f"B{i}"] = f"{intensity:.2f}"
 
         # Save Excel file
         wb.save(excel_path)
@@ -5421,7 +5534,15 @@ def import_multiple_xps_asc_files(window):
             with open(file_path, 'r') as f:
                 for line in f:
                     if line.strip() and not line.startswith('#'):
-                        parts = line.strip().split()
+                        # Try different separators
+                        if ';' in line:
+                            parts = line.strip().split(';')
+                        elif ',' in line:
+                            parts = line.strip().split(',')
+                        else:
+                            # Fall back to whitespace separator
+                            parts = line.strip().split()
+
                         if len(parts) >= 2:
                             try:
                                 binding_energy = float(parts[0])
@@ -5429,7 +5550,6 @@ def import_multiple_xps_asc_files(window):
                                 data.append([binding_energy, intensity])
                             except ValueError:
                                 continue
-
             if not data:
                 continue  # Skip files with no valid data
 
@@ -5457,6 +5577,70 @@ def import_multiple_xps_asc_files(window):
         import traceback
         traceback.print_exc()
         window.show_popup_message2("Error", f"Error processing files: {str(e)}")
+
+
+def import_xps_asc_file_direct(window, file_path):
+    import os
+    import openpyxl
+    from libraries.FileMenu.Open import open_xlsx_file
+
+    try:
+        base_filename = os.path.basename(file_path).split('.')[0]
+        sheet_name = base_filename
+
+        data = []
+        with open(file_path, 'r') as f:
+            for line in f:
+                if line.strip() and not line.startswith('#'):
+                    # Try different separators
+                    if ';' in line:
+                        parts = line.strip().split(';')
+                    elif ',' in line:
+                        parts = line.strip().split(',')
+                    else:
+                        # Fall back to whitespace separator
+                        parts = line.strip().split()
+
+                    if len(parts) >= 2:
+                        try:
+                            binding_energy = float(parts[0])
+                            intensity = float(parts[1])
+                            data.append([binding_energy, intensity])
+                        except ValueError:
+                            continue
+
+        if not data:
+            window.show_popup_message2("Error", "No valid data found in the file.")
+            return
+
+        output_dir = os.path.dirname(file_path)
+        excel_path = os.path.join(output_dir, f"{base_filename}.xlsx")
+
+        if os.path.exists(excel_path):
+            wb = openpyxl.load_workbook(excel_path)
+        else:
+            wb = openpyxl.Workbook()
+            if "Sheet" in wb.sheetnames:
+                wb.remove(wb["Sheet"])
+
+        if sheet_name in wb.sheetnames:
+            wb.remove(wb[sheet_name])
+        ws = wb.create_sheet(sheet_name)
+
+        ws["A1"] = "BE"
+        ws["B1"] = "Raw Data"
+
+        for i, (binding_energy, intensity) in enumerate(data, start=2):
+            ws[f"A{i}"] = f"{binding_energy:.2f}"
+            ws[f"B{i}"] = f"{intensity:.2f}"
+
+        wb.save(excel_path)
+        open_xlsx_file(window, excel_path)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        window.show_popup_message2("Error", f"Error processing file: {str(e)}")
 
 def import_xps_csv_file(window):
     import wx

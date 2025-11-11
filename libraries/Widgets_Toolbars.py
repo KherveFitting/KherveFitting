@@ -300,7 +300,7 @@ def create_grids_panel(window):
     # Check layout type
     if window.grid_layout == 'tabbed':
         # Create FlatNotebook for tabbed layout
-        notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_VC8) # | nb.FNB_BOTTOM )
+        notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_TABS_BORDER_SIMPLE) # | nb.FNB_BOTTOM )
         notebook.SetActiveTabColour(wx.Colour(200,245,228))
 
         # Set notebook background for Simple theme

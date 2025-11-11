@@ -12,6 +12,8 @@ class AutoSurveyID:
         self.parent = parent
         self.library_data = load_library_data()
         self.use_main_library = True  # Default to hardcoded ranges
+        self.excluded_elements = []
+        self.excluded_core_levels = []
 
         # Priority lists from AreaFit_Screen
         self.priority_1_elements = {
@@ -47,6 +49,15 @@ class AutoSurveyID:
         photon_energy = getattr(self.parent, 'photons', 1486.6)  # Get current photon energy
 
         for (element, orbital), data in self.library_data.items():
+            # Skip excluded elements
+            if any(element.lower() == excl.lower() for excl in self.excluded_elements):
+                continue
+
+            # Skip excluded core levels
+            core_level = f"{element}{orbital}"
+            if any(core_level.lower() == excl.lower() for excl in self.excluded_core_levels):
+                continue
+
             # Force use of A-ALTHERMO1 instrument for main library
             instrument = 'A-ALTHERMO1'
             if instrument not in data:
@@ -1875,11 +1886,20 @@ class AutoSurveyID:
                 'Bi': {'4s': (928.00, 953.00), '4p': (670.00, 695.00), '4d': (430.00, 455.00), '4f': (157.00, 160.00)}
             }
 
-            # Filter out high energy orbitals
+            # Filter out high energy orbitals, excluded elements, and excluded core levels
             filtered_db = {}
             for element, orbitals in elements_db.items():
+                # Skip excluded elements
+                if any(element.lower() == excl.lower() for excl in self.excluded_elements):
+                    continue
+
                 filtered_orbitals = {}
                 for orbital, (be_min, be_max) in orbitals.items():
+                    # Skip excluded core levels
+                    core_level = f"{element}{orbital}"
+                    if any(core_level.lower() == excl.lower() for excl in self.excluded_core_levels):
+                        continue
+
                     if be_min <= max_energy:
                         filtered_orbitals[orbital] = (be_min, be_max)
 
@@ -3039,11 +3059,12 @@ class AutoIDWindow(wx.Frame):
     def parse_forced_elements(self, force_text):
         """Parse forced elements text into elements, core levels, and exclusions"""
         if not force_text.strip():
-            return [], [], []
+            return [], [], [], []
 
         forced_elements = []
         forced_core_levels = []
         excluded_elements = []
+        excluded_core_levels = []
 
         items = [item.strip() for item in force_text.split(',')]
 
@@ -3054,7 +3075,17 @@ class AutoIDWindow(wx.Frame):
             # Check for exclusion prefix
             if item.startswith('-'):
                 excluded_item = item[1:].strip()  # Remove the '-'
-                excluded_elements.append(excluded_item)
+
+                # Check if it's a core level or just an element
+                has_digits = any(c.isdigit() for c in excluded_item)
+                has_auger = 'kll' in excluded_item.lower()
+
+                if has_digits or has_auger:
+                    # It's a specific core level to exclude
+                    excluded_core_levels.append(excluded_item)
+                else:
+                    # It's an element to exclude
+                    excluded_elements.append(excluded_item)
                 continue
 
             # Check if it contains digits (core level like Ni2p, Br3d) or 'kll' (Auger)
@@ -3068,7 +3099,7 @@ class AutoIDWindow(wx.Frame):
                 # It's just an element
                 forced_elements.append(item)
 
-        return forced_elements, forced_core_levels, excluded_elements
+        return forced_elements, forced_core_levels, excluded_elements, excluded_core_levels
 
     def get_element_core_levels_by_rsf(self, element):
         """Get core levels for an element sorted by RSF (highest first)"""
@@ -3320,7 +3351,7 @@ class AutoIDWindow(wx.Frame):
 
     def _apply_exclusions_to_peaks(self, peaks_to_check):
         """Apply exclusions to a list of peaks and return filtered list (for manual operations)"""
-        forced_elements, forced_core_levels, excluded_elements = self.parse_forced_elements(
+        forced_elements, forced_core_levels, excluded_elements, excluded_core_levels = self.parse_forced_elements(
             self.force_elements_ctrl.GetValue()
         )
 
@@ -3357,7 +3388,7 @@ class AutoIDWindow(wx.Frame):
 
     def _apply_exclusions_to_final_assignments(self):
         """Apply exclusions only to peaks that are actually assigned to excluded elements"""
-        forced_elements, forced_core_levels, excluded_elements = self.parse_forced_elements(
+        forced_elements, forced_core_levels, excluded_elements, excluded_core_levels = self.parse_forced_elements(
             self.force_elements_ctrl.GetValue()
         )
 
@@ -5172,10 +5203,14 @@ class Method2Identifier:
         """Process forced elements/core levels before usual suspects - prioritize assignment to found peaks"""
         self.process_log.append("=== Step 2.5: Processing Forced Elements ===")
 
-        # Process forced elements/core levels first
-        forced_elements, forced_core_levels, excluded_elements = self.parent_window.parse_forced_elements(
+        forced_elements, forced_core_levels, excluded_elements, excluded_core_levels = self.parent_window.parse_forced_elements(
             self.parent_window.force_elements_ctrl.GetValue()
         )
+
+        # Set excluded elements in AutoSurveyID so they're removed from database
+        self.auto_survey_id.excluded_elements = excluded_elements
+        if excluded_elements:
+            self.process_log.append(f"Removed from database: {', '.join(excluded_elements)}")
 
         # Apply exclusions - dismiss peaks that match excluded elements
         for excluded_element in excluded_elements:

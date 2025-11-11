@@ -637,6 +637,73 @@ class PlotManager:
             gamma = fwhm / 2
             area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
             params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
+        elif fitting_model == "SingleEntity":
+            # Handle SingleEntity envelope - get stored data and interpolate
+            if ('Fitting' in window.Data['Core levels'][sheet_name] and
+                    'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
+
+                peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+                # Find the peak data with SingleEntity model
+                peak_data = None
+                for peak_name, data in peaks_dict.items():
+                    if data.get('Fitting Model') == 'SingleEntity':
+                        # Check if this is the right peak by position match (original position)
+                        original_pos = data.get('Position', 0)
+                        if abs(original_pos - x) < 0.01:
+                            peak_data = data
+                            break
+
+                if peak_data and 'x_data' in peak_data and 'y_data' in peak_data:
+                    # Get stored envelope data
+                    x_env = np.array(peak_data['x_data'])
+                    y_env = np.array(peak_data['y_data'])
+
+                    # Get shift and scale from sigma/gamma columns
+                    position_shift = float(window.peak_params_grid.GetCellValue(row, 7))  # Sigma = shift
+                    area_scale = float(window.peak_params_grid.GetCellValue(row, 8))  # Gamma = scale
+
+                    # Create interpolator from original envelope
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Apply shift and scale to envelope
+                    x_shifted = x_values - position_shift  # Shift envelope position
+                    y_interpolated = interpolator(x_shifted)
+                    peak_y = y_interpolated * area_scale  # Scale envelope height
+
+                    # Create interpolator
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Shift x and interpolate
+                    x_shifted = x_values - position_shift
+                    y_interpolated = interpolator(x_shifted)
+
+                    # Scale by area and add background
+                    peak_y = y_interpolated * area_scale + background
+
+                    # Plot the SingleEntity
+                    if color is None:
+                        color = self.peak_colors[len(self.ax.lines) % len(self.peak_colors)]
+                    if alpha is None:
+                        alpha = self.peak_alpha
+
+                    if window.energy_scale == 'KE':
+                        self.ax.fill_between(window.photons - x_values, background, peak_y,
+                                             color=color, alpha=alpha, label=formatted_label)
+                    else:
+                        self.ax.fill_between(x_values, background, peak_y,
+                                             color=color, alpha=alpha, label=formatted_label)
+
+                    return background
+                else:
+                    # If no data found, skip this peak
+                    return background
+            else:
+                return background
         else:
             raise ValueError(f"Unknown fitting model: {fitting_model}")
 
@@ -826,6 +893,17 @@ class PlotManager:
 
         try:
             self.ax.clear()
+
+            # Remove heatmap colorbar AND its axes if it exists
+            if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
+                try:
+                    if hasattr(window.heatmap_colorbar, 'ax'):
+                        self.figure.delaxes(window.heatmap_colorbar.ax)
+                    window.heatmap_colorbar = None
+                    window.heatmap_data = None
+                    window.heatmap_sheets = None
+                except:
+                    pass
 
             if hasattr(self, 'residuals_subplot'):
                 if self.residuals_subplot:
@@ -1441,29 +1519,6 @@ class PlotManager:
                 cst_unfit = "Cut Off"
             elif fitting_model == "SurveyID":
                 cst_unfit = "SurveyID"
-            if 'Labels' in window.Data['Core levels'][sheet_name]:
-                table_exists = False
-
-                for label_data in window.Data['Core levels'][sheet_name]['Labels']:
-                    # Skip drawing Table entities - they are handled separately
-                    if label_data.get('text') == 'Table' and label_data.get('is_table'):
-                        table_exists = True
-                        continue
-
-                    window.ax.text(
-                        label_data['x'],
-                        label_data['y'],
-                        label_data['text'],
-                        rotation=label_data.get('rotation', 90),
-                        va='bottom',
-                        ha='center',
-                        fontsize=window.label_font_size
-                    )
-
-                # Redraw survey table if Table entity exists and it's a survey plot
-                if table_exists and hasattr(self, 'is_survey_plot') and self.is_survey_plot():
-                    if hasattr(self, 'survey_table_state') and self.survey_table_state == 1:
-                        self.draw_survey_table()
             if fitting_model == "Unfitted":
                 cst_unfit = "Unfitted"
                 XrangeMin = float(window.peak_params_grid.GetCellValue(row, 15))
@@ -1636,6 +1691,31 @@ class PlotManager:
 
         # Apply text settings and continue with existing functionality
         self.apply_text_settings(window)
+
+        # Draw labels after all peaks are plotted
+        if 'Labels' in window.Data['Core levels'][sheet_name]:
+            table_exists = False
+
+            for label_data in window.Data['Core levels'][sheet_name]['Labels']:
+                # Skip drawing Table entities - they are handled separately
+                if label_data.get('text') == 'Table' and label_data.get('is_table'):
+                    table_exists = True
+                    continue
+
+                window.ax.text(
+                    label_data['x'],
+                    label_data['y'],
+                    label_data['text'],
+                    rotation=label_data.get('rotation', 90),
+                    va='bottom',
+                    ha='center',
+                    fontsize=window.label_font_size
+                )
+
+            # Redraw survey table if Table entity exists and it's a survey plot
+            if table_exists and hasattr(self, 'is_survey_plot') and self.is_survey_plot():
+                if hasattr(self, 'survey_table_state') and self.survey_table_state == 1:
+                    self.draw_survey_table()
 
         # Apply y-axis state
         if hasattr(self, 'y_axis_state'):
@@ -1989,10 +2069,47 @@ class PlotManager:
             elif fitting_model == "SurveyID":
                 # Skip D-parameter in overall fit calculation
                 continue
+            elif fitting_model == "SingleEntity":
+                # Handle SingleEntity envelope - get shift and scale from grid
+                position_shift = float(window.peak_params_grid.GetCellValue(row, 7))  # Sigma = shift
+                area_scale = float(window.peak_params_grid.GetCellValue(row, 8))  # Gamma = scale
+
+                # Find the peak data by letter/index
+                sheet_name = window.sheet_combobox.GetValue()
+                peak_letter = window.peak_params_grid.GetCellValue(row, 1)
+                peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+                peak_data = None
+                for peak_name, data in peaks_dict.items():
+                    if data.get('Fitting Model') == 'SingleEntity':
+                        if peak_letter in peak_name:
+                            peak_data = data
+                            break
+
+                if peak_data and 'x_data' in peak_data and 'y_data' in peak_data:
+                    # Get stored envelope data
+                    x_env = np.array(peak_data['x_data'])
+                    y_env = np.array(peak_data['y_data'])
+
+                    # Create interpolator
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Shift x and interpolate
+                    x_shifted = window.x_values - position_shift
+                    y_interpolated = interpolator(x_shifted)
+
+                    # Scale by area
+                    peak_fit = y_interpolated * area_scale
+                    overall_fit += peak_fit
+                    continue
+                else:
+                    print(f"Warning: SingleEntity data not found for peak {i + 1}")
+                    continue
             else:
                 print(f"Warning: Unknown fitting model '{fitting_model}' for peak {i + 1}. Skipping this peak.")
                 continue
-
             peak_fit = peak_model.eval(params, x=window.x_values)
             overall_fit += peak_fit
 
@@ -2825,8 +2942,7 @@ class PlotManager:
             adaptive_range = (bg_min_energy, bg_max_energy)
 
         current_background = np.array(window.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
-        # Get averaging points from window
-        averaging_points = getattr(window, 'averaging_points', 5)
+
 
         background_filtered = BackgroundCalculations.calculate_adaptive_smart_background(
             x_values, y_values, adaptive_range, current_background, offset_h, offset_l, num_points=averaging_points
@@ -2873,6 +2989,8 @@ class PlotManager:
             # If conversion fails, use default values
             bg_min_energy = min(x_values)
             bg_max_energy = max(x_values)
+
+
 
         # Create mask and ensure we have at least some data points
         mask = (x_values >= bg_min_energy) & (x_values <= bg_max_energy)
