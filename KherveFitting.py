@@ -44,6 +44,7 @@ class MyFrame(wx.Frame):
         # Set darker background for Simple theme
         if self.panel_theme == 'Simple Dark':
             self.panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+            self.panel.SetForegroundColour(wx.Colour(200, 203, 205))
 
         # Will hold reference to FileManagerWindow when opened
         self.file_manager = None
@@ -4136,6 +4137,20 @@ class MyFrame(wx.Frame):
         except Exception as e:
             print(f"Error loading library: {e}")
             self.library_data = {}
+
+    def debug_singleentity_data(self, location_name):
+        """Debug function to check SingleEntity envelope data"""
+        sheet_name = self.sheet_combobox.GetValue()
+        if sheet_name in self.Data['Core levels']:
+            peaks = self.Data['Core levels'][sheet_name].get('Fitting', {}).get('Peaks', {})
+            for peak_name, peak_data in peaks.items():
+                if peak_data.get('Fitting Model') == 'SingleEntity':
+                    has_x = 'x_data' in peak_data
+                    has_y = 'y_data' in peak_data
+                    has_orig = 'Original_Position' in peak_data
+                    print(f"DEBUG {location_name}: {peak_name} - x_data: {has_x}, y_data: {has_y}, Original_Position: {has_orig}")
+                    if not has_x or not has_y:
+                        print(f"  >>> ENVELOPE DATA LOST AT {location_name} <<<")
 
 
 

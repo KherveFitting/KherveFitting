@@ -1038,8 +1038,35 @@ class PeakFittingGrid:
                         sigma = try_float(self.window.peak_params_grid.GetCellValue(row, 7), 0.0)
                         gamma = try_float(self.window.peak_params_grid.GetCellValue(row, 8), 0.0)
                         skew = try_float(self.window.peak_params_grid.GetCellValue(row, 9))
+                        # Handle SingleEntity model
+                        if model == 'SingleEntity':
+                            # For SingleEntity, preserve envelope data during updates
+                            current_data = peaks[correct_peak_key]
 
-                        if model in ["LA (Area, \u03c3/\u03b3, \u03b3)"]:
+                            # Store envelope data if it exists
+                            envelope_backup = {}
+                            if 'x_data' in current_data:
+                                envelope_backup['x_data'] = current_data['x_data']
+                            if 'y_data' in current_data:
+                                envelope_backup['y_data'] = current_data['y_data']
+                            if 'Original_Position' in current_data:
+                                envelope_backup['Original_Position'] = current_data['Original_Position']
+
+                            # Update standard parameters
+                            peaks[correct_peak_key].update({
+                                'Position': float(self.window.peak_params_grid.GetCellValue(row, 2)),
+                                'Height': height,
+                                'FWHM': fwhm,
+                                'L/G': fraction,
+                                'Area': area,
+                                'Sigma': sigma,  # Shift value
+                                'Gamma': gamma,  # Scale value
+                                'Fitting Model': model
+                            })
+
+                            # Restore envelope data
+                            peaks[correct_peak_key].update(envelope_backup)
+                        elif model in ["LA (Area, \u03c3/\u03b3, \u03b3)"]:
                             if col == 5:  # L/G ratio changed
                                 gamma = float(self.window.peak_params_grid.GetCellValue(row, 8))
                                 sigma = (fraction / 100) * gamma / (1 - fraction / 100)
@@ -1360,18 +1387,20 @@ class PeakFittingGrid:
             sigma_str = self.window.peak_params_grid.GetCellValue(row_data, 7)
             gamma_str = self.window.peak_params_grid.GetCellValue(row_data, 8)
 
-            # def safe_float_convert(value_str):
-            #     """Convert string to float, return 0.0 if it's a constraint string or invalid"""
-            #     if not value_str or ':' in value_str or '*' in value_str or '#' in value_str or '+' in value_str or '-' in value_str:
-            #         return 0.0
-            #     try:
-            #         return float(value_str)
-            #     except ValueError:
-            #         return 0.0
+            # PRESERVE EXISTING DATA - don't replace, just update
+            if peak_label not in peaks:
+                peaks[peak_label] = {}
 
-            # Update main parameters with safe conversion
-            sigma_str = self.window.peak_params_grid.GetCellValue(row_data, 7)
-            gamma_str = self.window.peak_params_grid.GetCellValue(row_data, 8)
+            # Preserve SingleEntity envelope data
+            existing_data = peaks[peak_label]
+            envelope_backup = {}
+            if existing_data.get('Fitting Model') == 'SingleEntity':
+                if 'x_data' in existing_data:
+                    envelope_backup['x_data'] = existing_data['x_data']
+                if 'y_data' in existing_data:
+                    envelope_backup['y_data'] = existing_data['y_data']
+                if 'Original_Position' in existing_data:
+                    envelope_backup['Original_Position'] = existing_data['Original_Position']
 
             peaks[peak_label] = {
                 'Position': float(self.window.peak_params_grid.GetCellValue(row_data, 2)),
@@ -1384,6 +1413,11 @@ class PeakFittingGrid:
                 'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
                 'Fitting Model': self.window.peak_params_grid.GetCellValue(row_data, 13)
             }
+
+            # Restore envelope data for SingleEntity
+            if envelope_backup:
+                peaks[peak_label].update(envelope_backup)
+
             # Update constraints
 
             if 'Constraints' not in peaks[peak_label]:

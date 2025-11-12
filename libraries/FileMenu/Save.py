@@ -2322,7 +2322,7 @@ def create_plot_script_from_excel(window):
 
     print(f"Plot script created: {py_filepath}")
 
-def save_peaks_library_OLD(window):
+def save_peaks_library_OLD_Bef_SEntity(window):
     sheet_name = window.sheet_combobox.GetValue()
     with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
                        defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
@@ -2352,7 +2352,7 @@ def save_peaks_library_OLD(window):
             json.dump(peaks_data, f, indent=2)
 
 
-def save_peaks_library(window):
+def save_peaks_library_OLD(window):
     sheet_name = window.sheet_combobox.GetValue()
 
     # Show choice dialog for save type
@@ -2471,6 +2471,259 @@ def save_peaks_library(window):
             json.dump(peaks_data, f, indent=2)
 
         wx.MessageBox(f"Saved as {save_type}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+
+def save_peaks_library(window):
+    sheet_name = window.sheet_combobox.GetValue()
+
+    # Show choice dialog for save type
+    choices = ["Individual Peaks", "Composite Envelope"]
+    dialog = wx.SingleChoiceDialog(
+        window,
+        "Choose save format:",
+        "Save Peaks Library",
+        choices
+    )
+
+    if dialog.ShowModal() != wx.ID_OK:
+        dialog.Destroy()
+        return
+
+    save_type = choices[dialog.GetSelection()]
+    dialog.Destroy()
+
+    # Convert numpy arrays to lists before saving
+    def convert_numpy_to_list(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {k: convert_numpy_to_list(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy_to_list(item) for item in obj]
+        return obj
+
+    if save_type == "Composite Envelope":
+        # Check if there are peaks in the grid
+        if not hasattr(window, 'peak_params_grid') or window.peak_params_grid.GetNumberRows() == 0:
+            wx.MessageBox("No peaks defined. Add peaks first before saving as envelope",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # STEP 1: Store original constraints and apply tight constraints ±0.01
+        print("Applying tight constraints for SingleEntity creation...")
+        original_constraints = store_and_apply_tight_constraints(window)
+
+        try:
+            # STEP 2: Perform single fit with tight constraints
+            print("Performing constrained fit...")
+            success = perform_constrained_fit(window)
+
+            if not success:
+                wx.MessageBox("Fitting failed. Cannot create SingleEntity envelope.",
+                              "Fit Error", wx.OK | wx.ICON_ERROR)
+                restore_original_constraints(window, original_constraints)
+                return
+
+            # STEP 3: Generate envelope from fitted results
+            x_data = window.Data['Core levels'][sheet_name]['B.E.']
+            y_envelope = None
+
+            # Check if fit_results exists (from Functions.py after fitting)
+            if hasattr(window, 'fit_results') and 'result' in window.fit_results:
+                result = window.fit_results['result']
+                if result is not None:
+                    # Evaluate the fitted model to get the envelope
+                    y_envelope = result.eval(x=x_data)
+
+            if y_envelope is None:
+                wx.MessageBox("No fitted model found after constrained fitting.",
+                              "Error", wx.OK | wx.ICON_ERROR)
+                restore_original_constraints(window, original_constraints)
+                return
+
+            # STEP 4: Restore original constraints after getting envelope
+            restore_original_constraints(window, original_constraints)
+
+        except Exception as e:
+            print(f"Error during constrained fitting: {e}")
+            restore_original_constraints(window, original_constraints)
+            wx.MessageBox(f"Error during fitting: {e}", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get default envelope name from filename
+        if 'FilePath' in window.Data and window.Data['FilePath']:
+            file_path = window.Data['FilePath']
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+            # Remove "SingleEntity" if present (case insensitive)
+            import re
+            default_name = re.sub(r'SingleEntity', '', filename, flags=re.IGNORECASE).strip()
+            # Remove any extra spaces or underscores
+            default_name = re.sub(r'[_\s]+', ' ', default_name).strip()
+            if not default_name:  # If nothing left after removing SingleEntity
+                default_name = f"{sheet_name} Envelope"
+        else:
+            default_name = f"{sheet_name} Envelope"
+
+        # Get envelope name
+        name_dlg = wx.TextEntryDialog(window, "Enter envelope name:",
+                                      "Envelope Name", default_name)
+        if name_dlg.ShowModal() != wx.ID_OK:
+            name_dlg.Destroy()
+            return
+        envelope_name = name_dlg.GetValue()
+        name_dlg.Destroy()
+
+        # Convert to numpy arrays for proper indexing
+        x_data_array = np.array(x_data)
+        y_envelope_array = np.array(y_envelope)
+
+        # Calculate envelope properties
+        y_max = float(np.max(y_envelope_array))
+        y_max_index = np.argmax(y_envelope_array)
+        x_center = float(x_data_array[y_max_index])  # Position at maximum height
+
+        # Sort data for proper integration (x should be ascending)
+        sorted_indices = np.argsort(x_data_array)
+        x_sorted = x_data_array[sorted_indices]
+        y_sorted = y_envelope_array[sorted_indices]
+
+        # Calculate area with proper integration
+        y_area = float(abs(np.trapz(y_sorted, x_sorted)))
+
+        # Create envelope as a single peak entry
+        envelope_peak = {
+            envelope_name: {
+                "Position": round(x_center, 2),  # Position at y_max
+                "Height": round(y_max, 2),
+                "FWHM": 0.0,
+                "L/G": 0.0,
+                "Area": round(y_area, 2),  # Real positive area
+                "Sigma": 0.00,  # Initial shift = 0 (no movement yet)
+                "Gamma": 1.00,  # Initial scale = 1 (original size)
+                "Skew": 0.0,
+                "Fitting Model": "SingleEntity",
+                "x_data": convert_numpy_to_list(x_data),
+                "y_data": convert_numpy_to_list(y_envelope),
+                "Original_Position": round(x_center, 2),  # Store original for dragging
+                "Constraints": {
+                    "Position": f"{float(np.min(x_data)):.2f},{float(np.max(x_data)):.2f}",
+                    "Sigma": "-10:10",  # Allow shift of +/- 10 eV
+                    "Gamma": "0.001:1000"  # Allow scale from 0.1x to 10x
+                }
+            }
+        }
+
+        peaks_data = {
+            'type': 'envelope',
+            'Core levels': {
+                sheet_name: {
+                    'Fitting': {
+                        'Peaks': envelope_peak,
+                        'Model': 'SingleEntity'
+                    }
+                }
+            }
+        }
+    else:
+        # Original save method for individual peaks
+        peaks_data = {
+            'type': 'peaks',
+            'Core levels': {
+                sheet_name: {
+                    'Fitting': convert_numpy_to_list(window.Data['Core levels'][sheet_name]['Fitting'])
+                }
+            }
+        }
+
+    with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
+                       defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+        if fileDialog.ShowModal() == wx.ID_CANCEL:
+            return
+        path = fileDialog.GetPath()
+
+        with open(path, 'w') as f:
+            json.dump(peaks_data, f, indent=2)
+
+        wx.MessageBox(f"Saved as {save_type}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+
+def store_and_apply_tight_constraints(window):
+    """Store original constraints and apply tight ±0.01 constraints to all peaks"""
+    original_constraints = {}
+
+    num_peaks = window.peak_params_grid.GetNumberRows() // 2
+
+    for peak_idx in range(num_peaks):
+        row = peak_idx * 2
+        constraint_row = row + 1
+
+        # Store original constraints
+        original_constraints[peak_idx] = {}
+
+        # Constraint columns: Position(2), Height(3), FWHM(4), L/G(5), Area(6), Sigma(7), Gamma(8), Skew(9)
+        constraint_cols = [2, 3, 4, 5, 6, 7, 8, 9]
+        constraint_names = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
+
+        for col, name in zip(constraint_cols, constraint_names):
+            # Store original constraint
+            original_constraints[peak_idx][name] = window.peak_params_grid.GetCellValue(constraint_row, col)
+
+            # Get current parameter value
+            try:
+                current_value = float(window.peak_params_grid.GetCellValue(row, col))
+
+                # Apply tight constraint: ±0.01
+                tight_constraint = f"{current_value - 0.01:.3f},{current_value + 0.01:.3f}"
+                window.peak_params_grid.SetCellValue(constraint_row, col, tight_constraint)
+
+            except (ValueError, TypeError):
+                # If can't convert to float, skip this parameter
+                continue
+
+    window.peak_params_grid.ForceRefresh()
+    return original_constraints
+
+
+def perform_constrained_fit(window):
+    """Perform single fit iteration with tight constraints"""
+    try:
+        # Import the fit_peaks function from Functions.py
+        from Functions import fit_peaks
+
+        # Call fit_peaks with the correct signature
+        print("Calling fit_peaks for constrained fitting...")
+        result = fit_peaks(window, window.peak_params_grid, evaluate=False)
+
+        # Check if fitting was successful
+        if result is not None:
+            print("Constrained fitting completed successfully")
+            return True
+        else:
+            print("Warning: Fitting failed - no results returned")
+            return False
+
+    except ImportError as e:
+        print(f"Error importing fit_peaks from Functions.py: {e}")
+        return False
+    except Exception as e:
+        print(f"Error during fitting: {e}")
+        return False
+
+
+def restore_original_constraints(window, original_constraints):
+    """Restore the original constraints after fitting"""
+    constraint_cols = [2, 3, 4, 5, 6, 7, 8, 9]
+    constraint_names = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
+
+    for peak_idx, constraints in original_constraints.items():
+        constraint_row = peak_idx * 2 + 1
+
+        for col, name in zip(constraint_cols, constraint_names):
+            if name in constraints:
+                original_value = constraints[name]
+                window.peak_params_grid.SetCellValue(constraint_row, col, original_value)
+
+    window.peak_params_grid.ForceRefresh()
 
 def load_peaks_library_OLD(window):
     import wx

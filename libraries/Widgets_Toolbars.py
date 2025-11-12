@@ -141,6 +141,8 @@ def create_widgets(window):
     # Create toolbar as a child of the parent panel
     if window.panel_theme == 'None':
         toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_NONE)
+    elif window.panel_theme == 'Sunken':
+        toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_RAISED)
     else:
         toolbar_panel = wx.Panel(window.panel,  style=wx.TB_HORIZONTAL | window.get_panel_style())
 
@@ -1179,6 +1181,8 @@ def create_horizontal_toolbar(parent, window):
     # Create toolbar as a child of the parent panel
     if window.panel_theme == 'None':
         toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | wx.BORDER_NONE)
+    if window.panel_theme == 'Sunken':
+        toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | wx.BORDER_RAISED)
     else:
         toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | window.get_panel_style())
 

@@ -292,8 +292,9 @@ class PeakManipulation:
                             # Sigma tracks shift from original, Gamma tracks scale
                             peak_data['Sigma'] = position_shift
                             peak_data['Gamma'] = scale_factor
-
+                        else:
                             print(f"Warning: SingleEntity data not found for peak {self.window.selected_peak_index}")
+                            return
 
                         self.window.update_ratios()
                         self.window.clear_and_replot()
