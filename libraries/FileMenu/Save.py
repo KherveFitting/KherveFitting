@@ -2563,7 +2563,7 @@ def save_peaks_library(window):
                 return
 
             # STEP 3: Generate envelope from fitted results
-            x_data = window.Data['Core levels'][sheet_name]['B.E.']
+            x_data = np.array(window.Data['Core levels'][sheet_name]['B.E.'])  # Ensure it's numpy array
             y_envelope = None
 
             # Check if fit_results exists (from Functions.py after fitting)
@@ -2590,8 +2590,8 @@ def save_peaks_library(window):
 
         # envelope_name is already calculated above from JSON filename
 
-        # Convert to numpy arrays for proper indexing
-        x_data_array = np.array(x_data)
+        # Convert to numpy arrays for proper indexing (x_data is already numpy from above)
+        x_data_array = x_data  # Already converted above
         y_envelope_array = np.array(y_envelope)
 
         # Calculate envelope properties

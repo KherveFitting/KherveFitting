@@ -302,6 +302,16 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
             individual_peaks = []
 
             for i in range(num_peaks):
+                if i == 0:
+                    peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                    for name, data in peaks_dict.items():
+                        if data.get('Fitting Model') == 'SingleEntity':
+                            x_data_len = len(data.get('x_data', []))
+                            y_data_len = len(data.get('y_data', []))
+                            position = data.get('Position', 0)
+                            if 'y_data' in data:
+                                y_max = np.max(data['y_data'])
+
                 row = i * 2
                 prefix = f'peak{i}_'  # Define the prefix here
 
@@ -782,6 +792,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     params.add(f'{prefix}fwhm', value=fwhm, min=fwhm_min, max=fwhm_max, vary=fwhm_vary)
                     params.add(f'{prefix}fraction', value=lg_ratio, min=lg_ratio_min, max=lg_ratio_max,
                                vary=lg_ratio_vary)
+
                 elif peak_model_choice == "SingleEntity":
                     # Handle SingleEntity - create a custom model from stored x_data and y_data
                     from scipy.interpolate import interp1d
@@ -789,42 +800,88 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     # Get peak data from Data structure
                     peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
 
-                    # Find the peak with this model
+                    # Find the peak with this model - use peak index for better matching
                     peak_data = None
-                    for peak_name, data in peaks_dict.items():
+                    peak_keys = list(peaks_dict.keys())
+
+                    # Try to match by peak index first
+                    if i < len(peak_keys):
+                        peak_name = peak_keys[i]
+                        data = peaks_dict[peak_name]
                         if data.get('Fitting Model') == 'SingleEntity':
-                            # Check if this is the right peak by position match
-                            if abs(data.get('Position', 0) - center) < 0.01:
-                                peak_data = data
-                                break
+                            peak_data = data
+
+                    # Fallback to position matching if index method fails
+                    if peak_data is None:
+                        for peak_name, data in peaks_dict.items():
+                            if data.get('Fitting Model') == 'SingleEntity':
+                                if abs(data.get('Position', 0) - center) < 5.0:  # Wider tolerance
+                                    peak_data = data
+                                    break
 
                     if peak_data and 'x_data' in peak_data and 'y_data' in peak_data:
                         # Get stored envelope data
                         x_env = np.array(peak_data['x_data'])
                         y_env = np.array(peak_data['y_data'])
 
-                        # Create interpolator
+                        # Create interpolator with better bounds checking
                         interpolator = interp1d(x_env, y_env, kind='cubic',
                                                 bounds_error=False, fill_value=0.0)
 
-                        # Define custom model function using shift and scale
-                        def envelope_func(x, shift=0.0, scale=1.0):
-                            # shift is position offset from original
-                            # scale is height/area multiplier
-                            x_shifted = x - shift
-                            y_base = interpolator(x_shifted)
-                            return y_base * scale
+
+                        # Define custom model function using shift and scale - ensure complete independence
+                        def make_envelope_func(x_data, y_data, peak_id):
+                            # Create a fresh interpolator inside the closure
+                            from scipy.interpolate import interp1d
+                            local_interp = interp1d(x_data, y_data, kind='cubic',
+                                                    bounds_error=False, fill_value=0.0)
+
+                            def envelope_func(x, shift=0.0, scale=1.0):
+                                # shift is position offset from original
+                                # scale is height/area multiplier
+                                x_shifted = x - shift
+                                y_base = local_interp(x_shifted)
+                                return y_base * scale
+
+                            # Give the function a unique name for debugging
+                            envelope_func.__name__ = f'envelope_func_{peak_id}'
+                            return envelope_func
+
+                        envelope_func = make_envelope_func(x_env.copy(), y_env.copy(), i)
 
                         # Create lmfit Model from the custom function
                         peak_model = lmfit.Model(envelope_func, prefix=prefix)
 
                         # Get current shift and scale from grid
-                        current_shift = float(peak_params_grid.GetCellValue(row, 7))
-                        current_scale = float(peak_params_grid.GetCellValue(row, 8))
+                        base_shift = float(peak_params_grid.GetCellValue(row, 7))
+                        base_scale = float(peak_params_grid.GetCellValue(row, 8))
 
-                        # Set up parameters - fit shift and scale, not position and area
-                        params.add(f'{prefix}shift', value=current_shift, min=-10, max=10, vary=center_vary)
-                        params.add(f'{prefix}scale', value=current_scale, min=0.01, max=100, vary=area_vary)
+                        # Add small random offset to avoid identical starting points for multiple SingleEntity
+                        import random
+                        shift_offset = random.uniform(-0.1, 0.1) if i > 0 else 0.0  # Only for 2nd+ SingleEntity
+                        scale_offset = random.uniform(0.95, 1.05) if i > 0 else 1.0
+
+                        current_shift = base_shift + shift_offset
+                        current_scale = base_scale * scale_offset
+
+
+                        # Parse constraints for Sigma (shift) and Gamma (scale) from grid
+                        sigma_min, sigma_max, sigma_vary = parse_constraints(
+                            peak_params_grid.GetCellValue(row + 1, 7), current_shift, peak_params_grid, i, "Sigma"
+                        )
+                        gamma_min, gamma_max, gamma_vary = parse_constraints(
+                            peak_params_grid.GetCellValue(row + 1, 8), current_scale, peak_params_grid, i, "Gamma"
+                        )
+
+                        # Evaluate constraints
+                        sigma_min = evaluate_constraint(sigma_min, peak_params_grid, 'sigma', current_shift)
+                        sigma_max = evaluate_constraint(sigma_max, peak_params_grid, 'sigma', current_shift)
+                        gamma_min = evaluate_constraint(gamma_min, peak_params_grid, 'gamma', current_scale)
+                        gamma_max = evaluate_constraint(gamma_max, peak_params_grid, 'gamma', current_scale)
+
+                        # Set up parameters with parsed constraints
+                        params.add(f'{prefix}shift', value=current_shift, min=sigma_min, max=sigma_max, vary=sigma_vary)
+                        params.add(f'{prefix}scale', value=current_scale, min=gamma_min, max=gamma_max, vary=gamma_vary)
 
                     else:
                         raise ValueError(f"SingleEntity data not found for peak {i}")
@@ -1127,80 +1184,47 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         gamma = fwhm / 2
                         height = area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (
                                     fraction / 100) * np.pi * gamma)
-                    # elif peak_model_choice == "D-parameter":
-                    # elif peak_model_choice == "SingleEntity":
-                    #     # For SingleEntity, extract shift and scale parameters
-                    #     shift = result.params[f'{prefix}shift'].value
-                    #     scale = result.params[f'{prefix}scale'].value
-                    #
-                    #     # Calculate new position from original + shift
-                    #     original_pos = float(peak_params_grid.GetCellValue(row, 2)) - float(peak_params_grid.GetCellValue(row, 7))
-                    #     center = original_pos + shift
-                    #
-                    #     # Keep other values for display
-                    #     height = float(peak_params_grid.GetCellValue(row, 3))
-                    #     fwhm = 0.0
-                    #     fraction = 0.0
-                    #     sigma = shift  # Store shift in sigma column
-                    #     gamma = scale  # Store scale in gamma column
-                    #     area = float(peak_params_grid.GetCellValue(row, 6))  # Keep current area
                     elif peak_model_choice == "SingleEntity":
                         # For SingleEntity, extract shift and scale parameters
                         shift = result.params[f'{prefix}shift'].value
                         scale = result.params[f'{prefix}scale'].value
 
-                        # Get peak data from Data structure to find original values
+                        # Use peak index to find the correct peak data (more reliable than position matching)
                         peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
-                        peak_data = None
-                        for peak_name, data in peaks_dict.items():
-                            if data.get('Fitting Model') == 'SingleEntity':
-                                # Match by current position (approximately)
-                                current_pos = float(peak_params_grid.GetCellValue(row, 2))
-                                if abs(data.get('Position', 0) - current_pos) < 5.0:  # Wider tolerance
-                                    peak_data = data
-                                    break
+                        peak_keys = list(peaks_dict.keys())
 
-                        if peak_data:
-                            # Get original values from stored data
+                        if i < len(peak_keys):
+                            peak_name = peak_keys[i]
+                            peak_data = peaks_dict[peak_name]
+
+                            # Get TRUE original values (not current grid values)
                             original_position = peak_data.get('Original_Position', peak_data.get('Position', 0))
-                            original_area = peak_data.get('Original_Area', peak_data.get('Area', 1))
+                            true_original_area = peak_data.get('Original_Area', peak_data.get('Area', 1))
 
-                            # Calculate new position and area from fitted parameters
+                            # Calculate position: original + shift
                             center = original_position + shift
 
-                            # Get the TRUE original area (not the current one that might have been updated)
-                            true_original_area = peak_data.get('Original_Area', original_area)
-
-                            # Calculate area from TRUE original area
+                            # Calculate area: original * scale
                             area = true_original_area * scale
 
-                            print(f"DEBUG SingleEntity area calculation:")
-                            print(f"  True original area: {true_original_area:.2f}")
-                            print(f"  Scale factor: {scale:.3f}")
-                            print(f"  Calculated area: {area:.2f}")
-
-                            # Calculate current height from scaled envelope
+                            # Calculate height from original envelope data
                             if 'x_data' in peak_data and 'y_data' in peak_data:
                                 y_env = np.array(peak_data['y_data'])
                                 original_max_height = float(np.max(y_env))
                                 height = original_max_height * scale
-
-
-                                # Safety check - if height is too small, use a minimum
-                                if height < 1.0:
-                                    # print(f"  Warning: Height {height:.2f} too small, using grid value")
-                                    height = float(peak_params_grid.GetCellValue(row, 3))
                             else:
-                                height = float(peak_params_grid.GetCellValue(row, 3))
-                                print(f"DEBUG: Using grid height: {height:.2f}")
+                                # Fallback: scale the current grid height
+                                height = float(peak_params_grid.GetCellValue(row, 3)) * scale
+
+
                         else:
-                            # Fallback if peak data not found
-                            center = float(peak_params_grid.GetCellValue(row, 2)) + shift
-                            area = float(peak_params_grid.GetCellValue(row, 6)) * scale
-                            height = float(peak_params_grid.GetCellValue(row, 3)) * scale
+                            print(f"Warning: Could not find peak data for SingleEntity index {i}")
+                            center = float(peak_params_grid.GetCellValue(row, 2))
+                            area = float(peak_params_grid.GetCellValue(row, 6))
+                            height = float(peak_params_grid.GetCellValue(row, 3))
 
                         fwhm = 0.0
-                        fraction = area  # Store area in L/G field as requested
+                        fraction = area  # Store area in L/G field
                         sigma = shift  # Store shift in sigma column
                         gamma = scale  # Store scale in gamma column
                     else:
