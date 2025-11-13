@@ -1128,22 +1128,81 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         height = area / ((1 - fraction / 100) * sigma * np.sqrt(2 * np.pi) + (
                                     fraction / 100) * np.pi * gamma)
                     # elif peak_model_choice == "D-parameter":
+                    # elif peak_model_choice == "SingleEntity":
+                    #     # For SingleEntity, extract shift and scale parameters
+                    #     shift = result.params[f'{prefix}shift'].value
+                    #     scale = result.params[f'{prefix}scale'].value
+                    #
+                    #     # Calculate new position from original + shift
+                    #     original_pos = float(peak_params_grid.GetCellValue(row, 2)) - float(peak_params_grid.GetCellValue(row, 7))
+                    #     center = original_pos + shift
+                    #
+                    #     # Keep other values for display
+                    #     height = float(peak_params_grid.GetCellValue(row, 3))
+                    #     fwhm = 0.0
+                    #     fraction = 0.0
+                    #     sigma = shift  # Store shift in sigma column
+                    #     gamma = scale  # Store scale in gamma column
+                    #     area = float(peak_params_grid.GetCellValue(row, 6))  # Keep current area
                     elif peak_model_choice == "SingleEntity":
                         # For SingleEntity, extract shift and scale parameters
                         shift = result.params[f'{prefix}shift'].value
                         scale = result.params[f'{prefix}scale'].value
 
-                        # Calculate new position from original + shift
-                        original_pos = float(peak_params_grid.GetCellValue(row, 2)) - float(peak_params_grid.GetCellValue(row, 7))
-                        center = original_pos + shift
+                        # Get peak data from Data structure to find original values
+                        peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                        peak_data = None
+                        for peak_name, data in peaks_dict.items():
+                            if data.get('Fitting Model') == 'SingleEntity':
+                                # Match by current position (approximately)
+                                current_pos = float(peak_params_grid.GetCellValue(row, 2))
+                                if abs(data.get('Position', 0) - current_pos) < 5.0:  # Wider tolerance
+                                    peak_data = data
+                                    break
 
-                        # Keep other values for display
-                        height = float(peak_params_grid.GetCellValue(row, 3))
+                        if peak_data:
+                            # Get original values from stored data
+                            original_position = peak_data.get('Original_Position', peak_data.get('Position', 0))
+                            original_area = peak_data.get('Original_Area', peak_data.get('Area', 1))
+
+                            # Calculate new position and area from fitted parameters
+                            center = original_position + shift
+
+                            # Get the TRUE original area (not the current one that might have been updated)
+                            true_original_area = peak_data.get('Original_Area', original_area)
+
+                            # Calculate area from TRUE original area
+                            area = true_original_area * scale
+
+                            print(f"DEBUG SingleEntity area calculation:")
+                            print(f"  True original area: {true_original_area:.2f}")
+                            print(f"  Scale factor: {scale:.3f}")
+                            print(f"  Calculated area: {area:.2f}")
+
+                            # Calculate current height from scaled envelope
+                            if 'x_data' in peak_data and 'y_data' in peak_data:
+                                y_env = np.array(peak_data['y_data'])
+                                original_max_height = float(np.max(y_env))
+                                height = original_max_height * scale
+
+
+                                # Safety check - if height is too small, use a minimum
+                                if height < 1.0:
+                                    # print(f"  Warning: Height {height:.2f} too small, using grid value")
+                                    height = float(peak_params_grid.GetCellValue(row, 3))
+                            else:
+                                height = float(peak_params_grid.GetCellValue(row, 3))
+                                print(f"DEBUG: Using grid height: {height:.2f}")
+                        else:
+                            # Fallback if peak data not found
+                            center = float(peak_params_grid.GetCellValue(row, 2)) + shift
+                            area = float(peak_params_grid.GetCellValue(row, 6)) * scale
+                            height = float(peak_params_grid.GetCellValue(row, 3)) * scale
+
                         fwhm = 0.0
-                        fraction = 0.0
+                        fraction = area  # Store area in L/G field as requested
                         sigma = shift  # Store shift in sigma column
                         gamma = scale  # Store scale in gamma column
-                        area = float(peak_params_grid.GetCellValue(row, 6))  # Keep current area
                     else:
                         raise ValueError(f"Unknown fitting model: {peak_model_choice} for peak {peak_label}")
 
@@ -1180,8 +1239,10 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         area = round(float(area), 2)
                     elif peak_model_choice == "SingleEntity":
                         # For SingleEntity, we already extracted shift and scale above
-                        sigma = round(float(sigma),2)  # Store shift in sigma column
-                        gamma = round(float(gamma),2)  # Store scale in gamma column
+                        sigma = round(float(sigma), 2)  # Store shift in sigma column
+                        gamma = round(float(gamma), 2)  # Store scale in gamma column
+                        area = round(float(area), 2)  # Make sure area is properly rounded
+                        fraction = round(float(fraction), 2)  # L/G field with area
                     else:
                         sigma = round(float(sigma * 2.355), 2)
                         gamma = round(float(gamma * 2), 2)

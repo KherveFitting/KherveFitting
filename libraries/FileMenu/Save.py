@@ -2476,8 +2476,28 @@ def save_peaks_library_OLD(window):
 def save_peaks_library(window):
     sheet_name = window.sheet_combobox.GetValue()
 
+    # Check if background exists
+    has_background = False
+    if (sheet_name in window.Data['Core levels'] and
+            'Background' in window.Data['Core levels'][sheet_name]):
+        background_data = window.Data['Core levels'][sheet_name]['Background']
+        if 'Bkg Y' in background_data and len(background_data['Bkg Y']) > 0:
+            has_background = True
+
+    # Check if peaks exist
+    has_peaks = (hasattr(window, 'peak_params_grid') and
+                 window.peak_params_grid.GetNumberRows() > 0)
+
+    # Build choices based on available data
+    choices = ["Individual Peaks"]
+
+    if has_peaks:
+        choices.append("SingleEntity using Peak Model")
+
+    if has_background:
+        choices.append("SingleEntity using Raw Data")
+
     # Show choice dialog for save type
-    choices = ["Individual Peaks", "Composite Envelope"]
     dialog = wx.SingleChoiceDialog(
         window,
         "Choose save format:",
@@ -2492,6 +2512,24 @@ def save_peaks_library(window):
     save_type = choices[dialog.GetSelection()]
     dialog.Destroy()
 
+    # Show save dialog first to get the JSON filename for envelope naming
+    if save_type in ["SingleEntity using Peak Model", "SingleEntity using Raw Data"]:
+        with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
+                           defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            json_path = fileDialog.GetPath()
+
+        # Get envelope name from the JSON filename (not the main file)
+        filename = os.path.splitext(os.path.basename(json_path))[0]
+        # Remove "SingleEntity" if present (case insensitive)
+        import re
+        envelope_name = re.sub(r'SingleEntity', '', filename, flags=re.IGNORECASE).strip()
+        # Remove any extra spaces or underscores
+        envelope_name = re.sub(r'[_\s]+', ' ', envelope_name).strip()
+        if not envelope_name:  # If nothing left after removing SingleEntity
+            envelope_name = f"{sheet_name} Envelope"
+
     # Convert numpy arrays to lists before saving
     def convert_numpy_to_list(obj):
         if isinstance(obj, np.ndarray):
@@ -2502,7 +2540,7 @@ def save_peaks_library(window):
             return [convert_numpy_to_list(item) for item in obj]
         return obj
 
-    if save_type == "Composite Envelope":
+    if save_type == "SingleEntity using Peak Model":
         # Check if there are peaks in the grid
         if not hasattr(window, 'peak_params_grid') or window.peak_params_grid.GetNumberRows() == 0:
             wx.MessageBox("No peaks defined. Add peaks first before saving as envelope",
@@ -2550,28 +2588,7 @@ def save_peaks_library(window):
             wx.MessageBox(f"Error during fitting: {e}", "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        # Get default envelope name from filename
-        if 'FilePath' in window.Data and window.Data['FilePath']:
-            file_path = window.Data['FilePath']
-            filename = os.path.splitext(os.path.basename(file_path))[0]
-            # Remove "SingleEntity" if present (case insensitive)
-            import re
-            default_name = re.sub(r'SingleEntity', '', filename, flags=re.IGNORECASE).strip()
-            # Remove any extra spaces or underscores
-            default_name = re.sub(r'[_\s]+', ' ', default_name).strip()
-            if not default_name:  # If nothing left after removing SingleEntity
-                default_name = f"{sheet_name} Envelope"
-        else:
-            default_name = f"{sheet_name} Envelope"
-
-        # Get envelope name
-        name_dlg = wx.TextEntryDialog(window, "Enter envelope name:",
-                                      "Envelope Name", default_name)
-        if name_dlg.ShowModal() != wx.ID_OK:
-            name_dlg.Destroy()
-            return
-        envelope_name = name_dlg.GetValue()
-        name_dlg.Destroy()
+        # envelope_name is already calculated above from JSON filename
 
         # Convert to numpy arrays for proper indexing
         x_data_array = np.array(x_data)
@@ -2596,7 +2613,7 @@ def save_peaks_library(window):
                 "Position": round(x_center, 2),  # Position at y_max
                 "Height": round(y_max, 2),
                 "FWHM": 0.0,
-                "L/G": 0.0,
+                "L/G": round(y_area, 2),  # Store area in L/G ratio
                 "Area": round(y_area, 2),  # Real positive area
                 "Sigma": 0.00,  # Initial shift = 0 (no movement yet)
                 "Gamma": 1.00,  # Initial scale = 1 (original size)
@@ -2605,16 +2622,103 @@ def save_peaks_library(window):
                 "x_data": convert_numpy_to_list(x_data),
                 "y_data": convert_numpy_to_list(y_envelope),
                 "Original_Position": round(x_center, 2),  # Store original for dragging
+                "Original_Area": round(y_area, 2),  # Store original area for scaling
                 "Constraints": {
                     "Position": f"{float(np.min(x_data)):.2f},{float(np.max(x_data)):.2f}",
                     "Sigma": "-10:10",  # Allow shift of +/- 10 eV
-                    "Gamma": "0.001:1000"  # Allow scale from 0.1x to 10x
+                    "Gamma": "0.1:10"  # Allow scale from 0.1x to 10x
+
                 }
             }
         }
 
         peaks_data = {
             'type': 'envelope',
+            'Core levels': {
+                sheet_name: {
+                    'Fitting': {
+                        'Peaks': envelope_peak,
+                        'Model': 'SingleEntity'
+                    }
+                }
+            }
+        }
+    elif save_type == "SingleEntity using Raw Data":
+        # Create SingleEntity from raw data - background
+        if not has_background:
+            wx.MessageBox("No background found. Create a background first.",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get raw data and background
+        core_level_data = window.Data['Core levels'][sheet_name]
+        x_data = np.array(core_level_data['B.E.'])
+        y_raw = np.array(core_level_data['Raw Data'])
+        y_background = np.array(core_level_data['Background']['Bkg Y'])
+
+        # Calculate raw data - background
+        y_envelope = y_raw - y_background
+
+        # Make sure no negative values
+        y_envelope = np.maximum(y_envelope, 0)
+
+        # Get envelope name from filename automatically
+        if 'FilePath' in window.Data and window.Data['FilePath']:
+            file_path = window.Data['FilePath']
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+            # Remove "SingleEntity" if present (case insensitive)
+            import re
+            envelope_name = re.sub(r'SingleEntity', '', filename, flags=re.IGNORECASE).strip()
+            # Remove any extra spaces or underscores
+            envelope_name = re.sub(r'[_\s]+', ' ', envelope_name).strip()
+            if not envelope_name:  # If nothing left after removing SingleEntity
+                envelope_name = f"{sheet_name} RawData"
+        else:
+            envelope_name = f"{sheet_name} RawData"
+
+        # Convert to numpy arrays for proper indexing
+        x_data_array = np.array(x_data)
+        y_envelope_array = np.array(y_envelope)
+
+        # Calculate envelope properties
+        y_max = float(np.max(y_envelope_array))
+        y_max_index = np.argmax(y_envelope_array)
+        x_center = float(x_data_array[y_max_index])  # Position at maximum height
+
+        # Sort data for proper integration (x should be ascending)
+        sorted_indices = np.argsort(x_data_array)
+        x_sorted = x_data_array[sorted_indices]
+        y_sorted = y_envelope_array[sorted_indices]
+
+        # Calculate area with proper integration
+        y_area = float(abs(np.trapz(y_sorted, x_sorted)))
+
+        # Create envelope as a single peak entry
+        envelope_peak = {
+            envelope_name: {
+                "Position": round(x_center, 2),  # Position at y_max
+                "Height": round(y_max, 2),
+                "FWHM": 0.0,
+                "L/G": round(y_area, 2),  # Store area in L/G ratio
+                "Area": round(y_area, 2),  # Real positive area
+                "Sigma": 0.00,  # Initial shift = 0 (no movement yet)
+                "Gamma": 1.00,  # Initial scale = 1 (original size)
+                "Skew": 0.0,
+                "Fitting Model": "SingleEntity",
+                "x_data": convert_numpy_to_list(x_data),
+                "y_data": convert_numpy_to_list(y_envelope),
+                "Original_Position": round(x_center, 2),  # Store original for dragging
+                "Original_Area": round(y_area, 2),  # Store original area for scaling
+                "Constraints": {
+                    "Position": f"{float(np.min(x_data)):.2f},{float(np.max(x_data)):.2f}",
+                    "Sigma": "-10:10",  # Allow shift of +/- 10 eV
+                    "Gamma": "0.1:10"  # Allow scale from 0.1x to 10x
+                }
+            }
+        }
+
+        peaks_data = {
+            'type': 'envelope_rawdata',
             'Core levels': {
                 sheet_name: {
                     'Fitting': {
@@ -2635,16 +2739,46 @@ def save_peaks_library(window):
             }
         }
 
-    with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
-                       defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
-        if fileDialog.ShowModal() == wx.ID_CANCEL:
-            return
-        path = fileDialog.GetPath()
+    # For SingleEntity types, we already have the path from earlier
+    if save_type in ["SingleEntity using Peak Model", "SingleEntity using Raw Data"]:
+        save_path = json_path
+    else:
+        # For Individual Peaks, show file dialog now
+        with wx.FileDialog(window, "Save peaks library", wildcard="JSON files (*.json)|*.json",
+                           defaultDir="Peaks Library", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            save_path = fileDialog.GetPath()
 
-        with open(path, 'w') as f:
-            json.dump(peaks_data, f, indent=2)
+    with open(save_path, 'w') as f:
+        json.dump(peaks_data, f, indent=2)
 
         wx.MessageBox(f"Saved as {save_type}", "Success", wx.OK | wx.ICON_INFORMATION)
+
+
+def calculate_singleentity_area(self, peak_data, position_shift, area_scale):
+    """Calculate the current area of a SingleEntity envelope"""
+    try:
+        if 'x_data' not in peak_data or 'y_data' not in peak_data:
+            return 0.0
+
+        x_env = np.array(peak_data['x_data'])
+        y_env = np.array(peak_data['y_data'])
+
+        # Apply transformations
+        x_shifted = x_env + position_shift  # Shift the envelope
+        y_scaled = y_env * area_scale  # Scale the envelope
+
+        # Calculate area with proper integration
+        sorted_indices = np.argsort(x_shifted)
+        x_sorted = x_shifted[sorted_indices]
+        y_sorted = y_scaled[sorted_indices]
+
+        area = abs(np.trapz(y_sorted, x_sorted))
+        return area
+    except Exception as e:
+        print(f"Error calculating SingleEntity area: {e}")
+        return 0.0
 
 
 def store_and_apply_tight_constraints(window):
@@ -2909,18 +3043,34 @@ def load_peaks_library(window):
             return updated
 
         library_peaks = source_data['Fitting']['Peaks']
+        new_peak_index = existing_peak_count
+
         for peak_key, peak_data in library_peaks.items():
             new_peak_data = peak_data.copy()
 
-            # Update constraints if they exist (skip for SingleEntity)
-            if 'Constraints' in new_peak_data and new_peak_data.get('Fitting Model') != 'SingleEntity':
+            # Generate new peak name based on index
+            new_peak_letter = chr(ord('A') + new_peak_index)
+
+            # Create new peak name - keep original descriptive name but with new letter
+            if new_peak_data.get('Fitting Model') == 'SingleEntity':
+                # For SingleEntity, keep descriptive name but ensure uniqueness
+                base_name = peak_key
+                new_peak_key = f"{base_name}_{new_peak_letter}" if base_name != new_peak_letter else base_name
+            else:
+                # For regular peaks, use the alphabetical naming
+                new_peak_key = new_peak_letter
+
+            # Update constraints if they exist
+            if 'Constraints' in new_peak_data:
                 updated_constraints = {}
                 for constraint_key, constraint_value in new_peak_data['Constraints'].items():
                     updated_constraints[constraint_key] = update_constraint_references(
                         constraint_value, existing_peak_count)
                 new_peak_data['Constraints'] = updated_constraints
 
-            window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_key] = new_peak_data
+            # Add the peak with the new key
+            window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][new_peak_key] = new_peak_data
+            new_peak_index += 1
 
         window.peak_count = len(window.Data['Core levels'][sheet_name]['Fitting']['Peaks'])
 

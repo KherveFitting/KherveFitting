@@ -276,19 +276,35 @@ class PeakManipulation:
                             else:
                                 scale_factor = 1.0
 
+                            # Calculate current area with transformations
+                            x_shifted = x_env + position_shift
+                            y_scaled = y_env * scale_factor
+
+                            # Sort for proper integration
+                            sorted_indices = np.argsort(x_shifted)
+                            x_sorted = x_shifted[sorted_indices]
+                            y_sorted = y_scaled[sorted_indices]
+                            current_area = abs(np.trapz(y_sorted, x_sorted))
+
                             # Update grid
                             # Position = current visual position (for cross display)
                             self.window.peak_params_grid.SetCellValue(row, 2, f"{new_x:.2f}")
+                            # Height for display
+                            self.window.peak_params_grid.SetCellValue(row, 3, f"{new_height:.2f}")
+                            # L/G = current area
+                            self.window.peak_params_grid.SetCellValue(row, 5, f"{current_area:.2f}")
+                            # Area = current area
+                            self.window.peak_params_grid.SetCellValue(row, 6, f"{current_area:.2f}")
                             # Sigma = shift from original
                             self.window.peak_params_grid.SetCellValue(row, 7, f"{position_shift:.2f}")
                             # Gamma = scale factor
                             self.window.peak_params_grid.SetCellValue(row, 8, f"{scale_factor:.2f}")
-                            # Height for display
-                            self.window.peak_params_grid.SetCellValue(row, 3, f"{new_height:.2f}")
 
                             # Update Data structure - Position and Height for cross display
                             peak_data['Position'] = new_x
                             peak_data['Height'] = new_height
+                            peak_data['L/G'] = current_area
+                            peak_data['Area'] = current_area
                             # Sigma tracks shift from original, Gamma tracks scale
                             peak_data['Sigma'] = position_shift
                             peak_data['Gamma'] = scale_factor
