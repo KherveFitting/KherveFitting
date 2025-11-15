@@ -10,6 +10,7 @@ from matplotlib.ticker import ScalarFormatter, FuncFormatter
 from libraries.Peak_Functions import BackgroundCalculations
 import re
 import json
+import os
 
 
 class PCAnalysisWindow(wx.Frame):
@@ -127,6 +128,23 @@ class PCAnalysisWindow(wx.Frame):
         offset_sizer.Add(self.offset_min, 0, wx.ALL, 5)
         offset_sizer.Add(self.offset_smart, 0, wx.ALL, 5)
         control_sizer.Add(offset_sizer, 0, wx.EXPAND | wx.ALL, 0)
+
+        # Normalization options
+        norm_box = wx.StaticBox(control_panel, label="Normalization")
+        norm_sizer = wx.StaticBoxSizer(norm_box, wx.VERTICAL)
+        self.norm_none = wx.RadioButton(control_panel, label="None", style=wx.RB_GROUP)
+        self.norm_area = wx.RadioButton(control_panel, label="Area")
+        self.norm_height = wx.RadioButton(control_panel, label="Max Height")
+        self.norm_area.SetValue(True)
+        # Bind radio buttons to replot
+        self.norm_none.Bind(wx.EVT_RADIOBUTTON, self.on_norm_changed)
+        self.norm_area.Bind(wx.EVT_RADIOBUTTON, self.on_norm_changed)
+        self.norm_height.Bind(wx.EVT_RADIOBUTTON, self.on_norm_changed)
+        # norm_sizer.Add(wx.StaticText(control_panel, label="Normalization:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        norm_sizer.Add(self.norm_none, 0, wx.ALL, 5)
+        norm_sizer.Add(self.norm_area, 0, wx.ALL, 5)
+        norm_sizer.Add(self.norm_height, 0, wx.ALL, 5)
+        control_sizer.Add(norm_sizer, 0, wx.EXPAND | wx.ALL, 0)
 
         # Non-Negativity Fitting parameters
         nonneg_box = wx.StaticBox(control_panel, label="Non-Negativity Fitting")
@@ -248,6 +266,11 @@ class PCAnalysisWindow(wx.Frame):
         plots_panel.SetSizer(plots_sizer)
 
         self.main_sizer.Add(plots_panel, 1, wx.EXPAND | wx.ALL, 0)
+
+    def on_norm_changed(self, event):
+        """Handle normalization radio button change"""
+        if self.spectra_data is not None and len(self.spectra_data) > 0:
+            self.plot_all_spectra()
 
     def populate_core_level_list(self):
         """Populate the core level list from parent Data"""
@@ -439,25 +462,55 @@ class PCAnalysisWindow(wx.Frame):
         self.plot_all_spectra()
 
     def plot_all_spectra(self):
-        """Plot all selected spectra overlaid"""
+        """Plot all selected spectra overlaid with normalization"""
         self.ax_spectrum.clear()
 
-        colors = plt.cm.Greens(np.linspace(0.4, 0.9, len(self.spectra_data)))
+        # Get normalization mode
+        if self.norm_none.GetValue():
+            norm_mode = "None"
+        elif self.norm_area.GetValue():
+            norm_mode = "Area"
+        else:
+            norm_mode = "Max Height"
 
-        for idx, (spectrum, sheet_name) in enumerate(zip(self.spectra_data, self.sheet_names)):
+        # Copy data for plotting
+        plot_data = self.spectra_data.copy()
+
+        # Apply normalization to plot data
+        if norm_mode == "Area":
+            # Normalize each spectrum by its area (integral)
+            for i in range(len(plot_data)):
+                area = np.trapz(plot_data[i], self.common_be_grid)
+                if area > 0:
+                    plot_data[i] = plot_data[i] / area
+        elif norm_mode == "Max Height":
+            # Normalize each spectrum by its maximum value
+            for i in range(len(plot_data)):
+                max_val = np.max(plot_data[i])
+                if max_val > 0:
+                    plot_data[i] = plot_data[i] / max_val
+
+        colors = plt.cm.Greens(np.linspace(0.4, 0.9, len(plot_data)))
+
+        for idx, (spectrum, sheet_name) in enumerate(zip(plot_data, self.sheet_names)):
             self.ax_spectrum.plot(self.common_be_grid, spectrum,
                                   label=f'{sheet_name}',
                                   color=colors[idx],
                                   linewidth=1)
 
-        self.ax_spectrum.set_title(f'{len(self.spectra_data)} Spectra Selected')
+        # Update title to show normalization mode
+        title = f'{len(plot_data)} Spectra Selected'
+        if norm_mode != "None":
+            title += f' (Norm: {norm_mode})'
+        self.ax_spectrum.set_title(title)
+
         self.ax_spectrum.set_xlabel('Binding Energy (eV)')
         self.ax_spectrum.set_ylabel('Counts / s')
 
         # Invert x-axis to show High BE to Low BE
         self.ax_spectrum.invert_xaxis()
 
-        # if len(self.spectra_data) > 1:
+        # if len(plot_data) > 1:
         #     self.ax_spectrum.legend(fontsize=8, loc='best')
 
         # Ensure scientific notation is maintained
@@ -482,6 +535,14 @@ class PCAnalysisWindow(wx.Frame):
         self.offset_mode = "Minimum Value" if self.offset_min.GetValue() else "Smart Background"
         self.nonneg_iterations = self.iter_spin.GetValue()
         self.nonneg_convergence = self.conv_spin.GetValue()
+
+        # Get normalization mode
+        if self.norm_none.GetValue():
+            norm_mode = "None"
+        elif self.norm_area.GetValue():
+            norm_mode = "Area"
+        else:
+            norm_mode = "Max Height"
 
         # Preprocess data - make a copy to avoid modifying original
         data_for_analysis = np.abs(self.spectra_data.copy())
@@ -517,6 +578,20 @@ class PCAnalysisWindow(wx.Frame):
 
         # Final safety check: ensure all values are non-negative
         data_for_analysis = np.maximum(data_for_analysis, 0)
+
+        # Apply normalization
+        if norm_mode == "Area":
+            # Normalize each spectrum by its area (integral)
+            for i in range(len(data_for_analysis)):
+                area = np.trapz(data_for_analysis[i], self.common_be_grid)
+                if area > 0:
+                    data_for_analysis[i] = data_for_analysis[i] / area
+        elif norm_mode == "Max Height":
+            # Normalize each spectrum by its maximum value
+            for i in range(len(data_for_analysis)):
+                max_val = np.max(data_for_analysis[i])
+                if max_val > 0:
+                    data_for_analysis[i] = data_for_analysis[i] / max_val
 
         # Add small epsilon to avoid exact zeros (helps NMF stability)
         data_for_analysis = data_for_analysis + 1e-10
@@ -655,7 +730,7 @@ class PCAnalysisWindow(wx.Frame):
             self,
             'Choose export format:',
             'Export PCA Results',
-            ['Single Entity (JSON)', 'Full Analysis (JSON)', 'Excel (Multiple Sheets)']
+            ['Single Entity (JSON)', 'Excel (Multiple Sheets)']
         )
 
         if dlg.ShowModal() == wx.ID_OK:
@@ -691,7 +766,7 @@ class PCAnalysisWindow(wx.Frame):
 
                     # Write profiles
                     plot_numbers = list(range(len(self.etch_times)))
-                    profiles_data = {'Plot number': plot_numbers, 'Sheet Name': self.sheet_names}
+                    profiles_data = {'Plot Number': plot_numbers, 'Sheet Name': self.sheet_names}
                     for i in range(self.transformed_data.shape[1]):
                         profiles_data[f'PCA {i + 1}'] = self.transformed_data[:, i]
                     df_profiles = pd.DataFrame(profiles_data)
@@ -809,8 +884,20 @@ class PCAnalysisWindow(wx.Frame):
                 # Create envelope peaks for each PCA component
                 envelope_peaks = {}
 
+                # Get base name from selected core levels
+                base_name = "PCA"
+                if len(self.sheet_names) > 0:
+                    first_sheet = self.sheet_names[0]
+                    if '_' in first_sheet:
+                        base_name = first_sheet.split('_')[0]
+                    else:
+                        import re
+                        match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
+                        if match:
+                            base_name = match.group(1)
+
                 for i in range(min(n_use, len(self.components))):
-                    component_name = f"PCA{i + 1}"
+                    component_name = f"{base_name} PCA{i + 1}"
 
                     # Get component data
                     x_data = self.common_be_grid
@@ -874,7 +961,6 @@ class PCAnalysisWindow(wx.Frame):
 
         dlg.Destroy()
 
-
     def on_create_core_levels(self, event):
         """Create core levels from PCA eigenvectors"""
         if self.components is None:
@@ -889,41 +975,102 @@ class PCAnalysisWindow(wx.Frame):
             wx.MessageBox("No data structure found", "Error", wx.OK | wx.ICON_ERROR)
             return
 
+        # Get file path
+        file_path = self.parent.Data.get('FilePath', '')
+        if not file_path:
+            wx.MessageBox("No file path found. Please save your data first.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Import necessary modules
+        import pandas as pd
+        import openpyxl
+        from openpyxl.utils.dataframe import dataframe_to_rows
+
         existing_sheets = list(self.parent.Data['Core levels'].keys())
-
-        # Find highest number in existing sheets
-        max_num = 0
-        for sheet_name in existing_sheets:
-            # Extract numbers from sheet names
-            import re
-            numbers = re.findall(r'\d+', sheet_name)
-            if numbers:
-                for num_str in numbers:
-                    num = int(num_str)
-                    if num > max_num:
-                        max_num = num
-
-        # Start from next available number
-        next_num = max_num + 1
 
         # Create core levels for each PCA component
         created_sheets = []
-        for i in range(min(n_use, len(self.components))):
-            sheet_name = f"PCA{i + 1}"#_{next_num + i}"
 
-            # Create the core level data structure
-            self.parent.Data['Core levels'][sheet_name] = {
-                'B.E.': self.common_be_grid.tolist(),
-                'Raw Data': self.components[i].tolist(),
-                'Background': {
-                    'Bkg Y': self.components[i].tolist(),
-                    'Type': 'None',
-                    'Bkg Low': self.common_be_grid[-1],
-                    'Bkg High': self.common_be_grid[0]
+        try:
+            # Load workbook
+            wb = openpyxl.load_workbook(file_path)
+
+            for i in range(min(n_use, len(self.components))):
+                sheet_name = f"PCA{i + 1}"
+
+                # Create the core level data structure
+                self.parent.Data['Core levels'][sheet_name] = {
+                    'B.E.': self.common_be_grid.tolist(),
+                    'Raw Data': self.components[i].tolist(),
+                    'Background': {
+                        'Bkg Y': self.components[i].tolist(),
+                        'Type': 'None',
+                        'Bkg Low': float(self.common_be_grid[-1]),
+                        'Bkg High': float(self.common_be_grid[0])
+                    }
                 }
-            }
 
-            created_sheets.append(sheet_name)
+                # Create DataFrame for Excel
+                data_length = len(self.common_be_grid)
+                column_names = ['Binding Energy', 'Corrected Data', 'Raw Data', 'Transmission']
+
+                data_dict = {
+                    column_names[0]: self.common_be_grid.tolist(),
+                    column_names[1]: self.components[i].tolist(),
+                    column_names[2]: self.components[i].tolist(),
+                    column_names[3]: [1.0] * data_length
+                }
+
+                df = pd.DataFrame(data_dict)
+
+                # Create new sheet in Excel
+                if sheet_name in wb.sheetnames:
+                    # Remove existing sheet if it exists
+                    del wb[sheet_name]
+
+                ws = wb.create_sheet(sheet_name)
+
+                # Write DataFrame to worksheet
+                for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+                    for c_idx, value in enumerate(row, 1):
+                        ws.cell(row=r_idx, column=c_idx, value=value)
+
+                created_sheets.append(sheet_name)
+
+            # Update number of core levels
+            self.parent.Data['Number of Core levels'] = len(self.parent.Data['Core levels'])
+
+            # Save workbook
+            wb.save(file_path)
+
+            # Update JSON file
+            import json
+
+            def convert_numpy_to_serializable(obj):
+                """Convert numpy types to Python native types"""
+                import numpy as np
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, np.integer):
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    return float(obj)
+                elif isinstance(obj, dict):
+                    return {key: convert_numpy_to_serializable(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_to_serializable(item) for item in obj]
+                return obj
+
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            json_data = convert_numpy_to_serializable(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating Excel sheets: {e}", "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
+            return
 
         # Update the sheet combobox if it exists
         if hasattr(self.parent, 'sheet_combobox'):
@@ -938,10 +1085,9 @@ class PCAnalysisWindow(wx.Frame):
             # Select the first created sheet
             if created_sheets:
                 self.parent.sheet_combobox.SetStringSelection(created_sheets[0])
-                # Trigger sheet selection event
-                event = wx.CommandEvent(wx.EVT_CHOICE.typeId)
-                event.SetEventObject(self.parent.sheet_combobox)
-                self.parent.GetEventHandler().ProcessEvent(event)
+                # Load the new sheet
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, created_sheets[0])
 
         wx.MessageBox(f"Created {len(created_sheets)} core levels:\n" + "\n".join(created_sheets),
                       "Core Levels Created", wx.OK | wx.ICON_INFORMATION)

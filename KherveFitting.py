@@ -1900,15 +1900,30 @@ class MyFrame(wx.Frame):
         fraction = float(self.peak_params_grid.GetCellValue(row, 5))
         model = self.peak_params_grid.GetCellValue(row, 13)
 
-        if model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)", "ExpGauss.(Area, \u03c3, \u03b3)",
-                     "LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)", "LA*G (Area, \u03c3/\u03b3, "
-                        "\u03b3)", "Voigt (Area, L/G, \u03c3, S)", "DS (A, \u03c3, \u03b3)", "DS*G (A, \u03c3, "
-                                                                                             "\u03b3, S)"]:
+        if model == "SingleEntity":
+            # For SingleEntity: Area = Original_Area * scale_factor (Gamma)
+            scale_factor = float(self.peak_params_grid.GetCellValue(row, 8))  # Gamma = scale
+
+            # Get original area from peak data
+            if sheet_name in self.Data['Core levels'] and 'Fitting' in self.Data['Core levels'][sheet_name]:
+                peaks_dict = self.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+                if peak_label in peaks_dict:
+                    peak_data = peaks_dict[peak_label]
+                    original_area = peak_data.get('Original_Area', peak_data.get('Area', 0))
+                    area = original_area * scale_factor
+                else:
+                    area = 0
+            else:
+                area = 0
+        elif model in ["Voigt (Area, L/G, σ)", "Voigt (Area, σ, γ)", "ExpGauss.(Area, σ, γ)",
+                       "LA (Area, σ, γ)", "LA (Area, σ/γ, γ)", "LA*G (Area, σ/γ, "
+                                                               "γ)", "Voigt (Area, L/G, σ, S)", "DS (A, σ, γ)", "DS*G (A, σ, "
+                                                                                                                "γ, S)"]:
             sigma = float(self.peak_params_grid.GetCellValue(row, 7))
             gamma = float(self.peak_params_grid.GetCellValue(row, 8))
             skew = float(self.peak_params_grid.GetCellValue(row, 9))
             area = self.calculate_peak_area(model, height, fwhm, fraction, sigma, gamma, skew)
-        elif model in ["D-parameter"," Fermi"]:
+        elif model in ["D-parameter", " Fermi"]:
             return
         else:
             area = self.calculate_peak_area(model, height, fwhm, fraction)
