@@ -637,7 +637,7 @@ class PlotManager:
             gamma = fwhm / 2
             area = y * ((1 - lg_ratio / 100) * sigma * np.sqrt(2 * np.pi) + (lg_ratio / 100) * np.pi * gamma)
             params = peak_model.make_params(center=x, fwhm=fwhm, fraction=lg_ratio, area=area)
-        elif fitting_model == "SingleEntity":
+        elif fitting_model == "SingleEntity_OLD":
             # Handle SingleEntity envelope - get stored data and interpolate
             if ('Fitting' in window.Data['Core levels'][sheet_name] and
                     'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
@@ -704,6 +704,237 @@ class PlotManager:
                     return background
             else:
                 return background
+        elif fitting_model == "SingleEntity":
+            # Handle SingleEntity envelope - get stored data and interpolate
+            if ('Fitting' in window.Data['Core levels'][sheet_name] and
+                    'Peaks' in window.Data['Core levels'][sheet_name]['Fitting']):
+
+                peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
+
+                # Find the peak data with SingleEntity model
+                peak_data = None
+                for peak_name, data in peaks_dict.items():
+                    if data.get('Fitting Model') == 'SingleEntity':
+                        # Check if this is the right peak by position match (original position)
+                        original_pos = data.get('Position', 0)
+                        if abs(original_pos - x) < 0.01:
+                            peak_data = data
+                            break
+
+                if peak_data and 'x_data' in peak_data and 'y_data' in peak_data:
+                    # Get stored envelope data
+                    x_env = np.array(peak_data['x_data'])
+                    y_env = np.array(peak_data['y_data'])
+
+                    # Get shift and scale from sigma/gamma columns
+                    position_shift = float(window.peak_params_grid.GetCellValue(row, 7))  # Sigma = shift
+                    area_scale = float(window.peak_params_grid.GetCellValue(row, 8))  # Gamma = scale
+
+                    # Create interpolator from original envelope
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Apply shift and scale to envelope
+                    x_shifted = x_values - position_shift  # Shift envelope position
+                    y_interpolated = interpolator(x_shifted)
+                    peak_y = y_interpolated * area_scale  # Scale envelope height
+
+                    # Create interpolator
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Shift x and interpolate
+                    x_shifted = x_values - position_shift
+                    y_interpolated = interpolator(x_shifted)
+
+                    # Scale by area and add background
+                    peak_y = y_interpolated * area_scale + background
+
+                    # Plot the SingleEntity - same as other peaks
+                    if color is None:
+                        color = self.peak_colors[len(self.ax.lines) % len(self.peak_colors)]
+                    if alpha is None:
+                        alpha = self.peak_alpha
+
+                    # Get background regions for masking
+                    bg_regions = self.get_background_regions(window)
+
+                    # Apply background region masking using NaN
+                    if bg_regions is not None and len(bg_regions) > 0:
+                        # Create mask for all background regions
+                        region_mask = np.zeros(len(x_values), dtype=bool)
+                        for bg_start, bg_end in bg_regions:
+                            region_mask |= (x_values >= bg_start) & (x_values <= bg_end)
+
+                        # Work with copies to avoid affecting original data
+                        peak_y_masked = peak_y.copy()
+                        peak_y_masked = peak_y_masked.astype(float)
+                        peak_y_masked[~region_mask] = np.nan
+
+                        background_masked = background.copy()
+                        background_masked = background_masked.astype(float)
+                        background_masked[~region_mask] = np.nan
+                    else:
+                        # No masking - but still use copies
+                        peak_y_masked = peak_y.copy()
+                        background_masked = background.copy()
+
+                    # Get peak index and fill type for consistency with other peaks
+                    num_peaks = window.peak_params_grid.GetNumberRows() // 2
+                    peak_index = 0
+                    for i in range(num_peaks):
+                        if window.peak_params_grid.GetCellValue(i * 2, 1) == peak_label:
+                            peak_index = i
+                            break
+
+                    # Determine fill type
+                    fill_type = "Solid Fill"
+                    if hasattr(window, 'peak_fill_types') and peak_index < len(window.peak_fill_types):
+                        fill_type = window.peak_fill_types[peak_index]
+
+                    if fill_type == "Solid Fill":
+                        # Plot fill_between with solid fill
+                        if bg_regions is not None and len(bg_regions) > 0:
+                            if window.energy_scale == 'KE':
+                                self.ax.fill_between(window.photons - x_values, background_masked, peak_y_masked,
+                                                     color=color, alpha=alpha, edgecolor='none', label=formatted_label)
+                            else:
+                                self.ax.fill_between(x_values, background_masked, peak_y_masked,
+                                                     color=color, alpha=alpha, edgecolor='none', label=formatted_label)
+                        else:
+                            if window.energy_scale == 'KE':
+                                self.ax.fill_between(window.photons - x_values, background, peak_y,
+                                                     color=color, alpha=alpha, edgecolor='none', label=formatted_label)
+                            else:
+                                self.ax.fill_between(x_values, background, peak_y,
+                                                     color=color, alpha=alpha, edgecolor='none', label=formatted_label)
+
+                    elif fill_type == "Hatch":
+                        # Use fill_between with hatch pattern
+                        hatch_pattern = "/"
+                        if hasattr(window, 'peak_hatch_patterns') and peak_index < len(window.peak_hatch_patterns):
+                            hatch_pattern = window.peak_hatch_patterns[peak_index]
+                        hatch_density = getattr(window, 'hatch_density', 2)
+                        final_hatch = hatch_pattern * hatch_density
+
+                        if bg_regions is not None and len(bg_regions) > 0:
+                            if window.energy_scale == 'KE':
+                                self.ax.fill_between(window.photons - x_values, background_masked, peak_y_masked,
+                                                     color='none', hatch=final_hatch,
+                                                     linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                     edgecolor=color, alpha=alpha, label=formatted_label)
+                            else:
+                                self.ax.fill_between(x_values, background_masked, peak_y_masked,
+                                                     color='none', hatch=final_hatch,
+                                                     linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                     edgecolor=color, alpha=alpha, label=formatted_label)
+                        else:
+                            if window.energy_scale == 'KE':
+                                self.ax.fill_between(window.photons - x_values, background, peak_y,
+                                                     color='none', hatch=final_hatch,
+                                                     linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                     edgecolor=color, alpha=alpha, label=formatted_label)
+                            else:
+                                self.ax.fill_between(x_values, background, peak_y,
+                                                     color='none', hatch=final_hatch,
+                                                     linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                     edgecolor=color, alpha=alpha, label=formatted_label)
+
+                    elif fill_type == "None":
+                        # Only draw the line (no fill) - similar to other peaks
+                        peak_line_style = getattr(window, 'peak_line_style', 'Same Color')
+                        if peak_line_style != "No Line":
+                            # Determine line color
+                            if peak_line_style == "Black":
+                                line_color = 'black'
+                            elif peak_line_style == "Grey":
+                                line_color = 'grey'
+                            elif peak_line_style == "Yellow":
+                                line_color = 'yellow'
+                            else:  # Same Color
+                                line_color = color
+
+                            if bg_regions is not None and len(bg_regions) > 0:
+                                if window.energy_scale == 'KE':
+                                    self.ax.plot(window.photons - x_values, peak_y_masked,
+                                                 color=line_color,
+                                                 alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                                 linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                 linestyle=getattr(window, 'peak_line_pattern', '-'),
+                                                 label=formatted_label)
+                                else:
+                                    self.ax.plot(x_values, peak_y_masked,
+                                                 color=line_color,
+                                                 alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                                 linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                 linestyle=getattr(window, 'peak_line_pattern', '-'),
+                                                 label=formatted_label)
+                            else:
+                                if window.energy_scale == 'KE':
+                                    self.ax.plot(window.photons - x_values, peak_y,
+                                                 color=line_color,
+                                                 alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                                 linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                 linestyle=getattr(window, 'peak_line_pattern', '-'),
+                                                 label=formatted_label)
+                                else:
+                                    self.ax.plot(x_values, peak_y,
+                                                 color=line_color,
+                                                 alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                                 linewidth=getattr(window, 'peak_line_thickness', 1),
+                                                 linestyle=getattr(window, 'peak_line_pattern', '-'),
+                                                 label=formatted_label)
+
+                    # Add peak line on top if peak_line_style is not "No Line" (same as other peaks)
+                    peak_line_style = getattr(window, 'peak_line_style', 'Same Color')
+                    if peak_line_style != "No Line" and fill_type != "None":
+                        # Determine line color
+                        if peak_line_style == "Black":
+                            line_color = "black"
+                        elif peak_line_style == "Grey":
+                            line_color = "grey"
+                        elif peak_line_style == "Yellow":
+                            line_color = "yellow"
+                        else:  # Same Color
+                            line_color = color
+
+                        # Use the same masking as fill
+                        if bg_regions is not None and len(bg_regions) > 0:
+                            if window.energy_scale == 'KE':
+                                self.ax.plot(window.photons - x_values, peak_y_masked,
+                                             color=line_color,
+                                             alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                             linewidth=getattr(window, 'peak_line_thickness', 1),
+                                             linestyle=getattr(window, 'peak_line_pattern', '-'))
+                            else:
+                                self.ax.plot(x_values, peak_y_masked,
+                                             color=line_color,
+                                             alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                             linewidth=getattr(window, 'peak_line_thickness', 1),
+                                             linestyle=getattr(window, 'peak_line_pattern', '-'))
+                        else:
+                            if window.energy_scale == 'KE':
+                                self.ax.plot(window.photons - x_values, peak_y,
+                                             color=line_color,
+                                             alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                             linewidth=getattr(window, 'peak_line_thickness', 1),
+                                             linestyle=getattr(window, 'peak_line_pattern', '-'))
+                            else:
+                                self.ax.plot(x_values, peak_y,
+                                             color=line_color,
+                                             alpha=getattr(window, 'peak_line_alpha', 0.7),
+                                             linewidth=getattr(window, 'peak_line_thickness', 1),
+                                             linestyle=getattr(window, 'peak_line_pattern', '-'))
+
+                    return background
+                else:
+                    # If no data found, skip this peak
+                    return background
+            else:
+                return background
+
         else:
             raise ValueError(f"Unknown fitting model: {fitting_model}")
 

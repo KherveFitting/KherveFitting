@@ -1343,8 +1343,6 @@ def create_horizontal_toolbar(parent, window):
                                 wx.Bitmap(os.path.join(icon_path, "Dpara-3.png"), wx.BITMAP_TYPE_PNG),
                                 shortHelp="D-parameter Calculation")
 
-
-
     plot_mod_tool = toolbar.AddTool(wx.ID_ANY, 'Plot Modifications',
                                     wx.Bitmap(os.path.join(icon_path, "Mod-3.png"), wx.BITMAP_TYPE_PNG),
                                     shortHelp="Plot modifications window")
@@ -1363,6 +1361,24 @@ def create_horizontal_toolbar(parent, window):
     vb_tool = toolbar.AddTool(wx.ID_ANY, 'VB',
                                    wx.Bitmap(os.path.join(icon_path, "VBM-3.png"), wx.BITMAP_TYPE_PNG),
                                    shortHelp='VB Measurements')
+
+    # Add PCA Analysis tool
+    pca_tool = toolbar.AddTool(wx.ID_ANY, 'PCA',
+                               wx.Bitmap(os.path.join(icon_path, "PCA-3.png"), wx.BITMAP_TYPE_PNG),
+                               shortHelp='Principal Component Analysis')
+
+    def open_pca_analysis(event):
+        from libraries.ToolsMenu.PCA_Analysis import launch_pca_analysis
+        if not hasattr(window, 'pca_analysis_window') or window.pca_analysis_window is None:
+            window.pca_analysis_window = launch_pca_analysis(window)
+        else:
+            try:
+                window.pca_analysis_window.Raise()
+            except RuntimeError:
+                # Window was deleted, create new one
+                window.pca_analysis_window = launch_pca_analysis(window)
+
+    window.Bind(wx.EVT_TOOL, open_pca_analysis, pca_tool)
 
     def open_profile_creator(event):
         from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow

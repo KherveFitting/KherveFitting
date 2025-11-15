@@ -6341,31 +6341,6 @@ class FileManagerWindow(wx.Frame):
         self.heatmap_vmax_text.SetValue("1.00")
         self.refresh_heatmap()
 
-    # def show_heatmap_controls(self):
-    #     """Show the heatmap control panel"""
-    #     if not hasattr(self, 'heatmap_control_panel'):
-    #         self.create_heatmap_controls()
-    #     self.heatmap_control_panel.Show()
-    #     self.right_panel.Layout()
-    #
-    # def hide_heatmap_controls(self):
-    #     """Hide the heatmap control panel"""
-    #     if hasattr(self, 'heatmap_control_panel'):
-    #         self.heatmap_control_panel.Hide()
-    #         self.right_panel.Layout()
-
-    # def set_heatmap_colormap(self, colormap_name):
-    #     """Set the heatmap colormap directly"""
-    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
-    #         self.heatmap_colormap = colormap_name
-    #         self.plot_heatmap()
-
-    # def set_heatmap_colormap(self, colormap_name):
-    #     """Set the heatmap colormap directly"""
-    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
-    #         self.heatmap_colormap = colormap_name
-    #         self.plot_heatmap()
-
     def on_change_colormap(self, event):
         """Legacy function - kept for compatibility"""
         colormaps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'RdBu', 'coolwarm', 'jet', 'hot']
@@ -6376,35 +6351,6 @@ class FileManagerWindow(wx.Frame):
             self.plot_heatmap()
         dlg.Destroy()
 
-    # def smooth_heatmap(self, sigma):
-    #     """Apply gaussian smoothing with specified sigma value"""
-    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
-    #         from scipy.ndimage import gaussian_filter
-    #         if not hasattr(self, 'heatmap_data_original'):
-    #             self.heatmap_data_original = self.heatmap_data.copy()
-    #         self.heatmap_data = gaussian_filter(self.heatmap_data_original, sigma=sigma)
-    #         self.plot_heatmap()
-
-    # def smooth_heatmap_custom(self):
-    #     """Apply custom gaussian smoothing with user-specified sigma"""
-    #     if hasattr(self, 'heatmap_data') and self.heatmap_data is not None:
-    #         dlg = wx.TextEntryDialog(self, "Enter sigma value for smoothing:", "Custom Smooth", "1.0")
-    #         if dlg.ShowModal() == wx.ID_OK:
-    #             try:
-    #                 sigma = float(dlg.GetValue())
-    #                 if sigma > 0:
-    #                     self.smooth_heatmap(sigma)
-    #                 else:
-    #                     wx.MessageBox("Sigma must be positive", "Error", wx.OK | wx.ICON_ERROR)
-    #             except ValueError:
-    #                 wx.MessageBox("Invalid sigma value", "Error", wx.OK | wx.ICON_ERROR)
-    #         dlg.Destroy()
-
-    # def reset_heatmap(self):
-    #     """Reset heatmap to original data"""
-    #     if hasattr(self, 'heatmap_data_original'):
-    #         self.heatmap_data = self.heatmap_data_original.copy()
-    #         self.plot_heatmap()
 
     def on_smooth_heatmap(self, event):
         """Legacy function - kept for compatibility"""

@@ -418,23 +418,31 @@ Philosophy:
 -v1.3 Dec-24  - Towards true Atomic concentration (TPP-2M, IMFP, Transmission)
 -v1.4 Feb-25  - Towards Mac Version
 -v1.5 May-25  - Towards multi-samples 2D-Manager
--v1.6 xxx-25  - Towards opening/saving fitted CasaXPS / Better Background management
--v1.7 xxx-25  - Automatic Survey identification / batch fitting
--v1.8 xxx-25  - Towards Linux Version (Synchrotron)
+-v1.6 Aug-25  - Towards opening/saving fitted CasaXPS / Better Background management
+-v1.7 Nov-25  - Automatic Survey identification / batch fitting / Profile manager
+-v1.8 Jan-26  - Fitting of Entities or Shapes
+-v1.9 xxx-26  - Towards Linux Version (Synchrotron)
 
 Version 1.600-1.690
-- Added Export winddow
+- Added Entity/Shape fitting (work in progress)
+- Added Peak Fitting Propagation for multiple samples
+- Added Batch Fitting of multiple samples
+- Added Profile Manager for easy switching between different fitting profiles
+- Added Export window
+- Improve KherveDB library
 - Added NPL Transmission Function
 - Created Theme menu
 - Created Layout Styles
 - Added Line tool 
+- Improve the Game: Khervey the Flappy Bird
 - Considerably improve the speed of startup
 - Added import of fitting input from Avantage files
 - Improve Smart background
 - Added U2 Tougaard
 - Added Mini-Fitting Screen
 - Create Usage Statistics
-- Add Table to AutoID
+- Considerably improve the AutoID
+- Add Table to AutoID 
 - Added center lines to Area Screen 
 - Fix import of Avantage files with missing intensity values 
 - Correct Zoom out with multiple plots
