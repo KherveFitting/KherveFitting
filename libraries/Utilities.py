@@ -652,16 +652,16 @@ def propagate_constraint(window, row, col):
     window.peak_fitting_grid.refresh_peak_params_grid()
     window.clear_and_replot()
 
+
 class CropWindow(wx.Frame):
-    def __init__(self, parent,*args, **kw):
+    def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw, style=wx.DEFAULT_FRAME_STYLE & ~(
-                    wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
+                wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
         self.parent = parent
         self.SetTitle("Crop Data")
-        self.SetSize(250, 220)
+        self.SetSize(250, 400)
 
         self.panel = wx.Panel(self)
-
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -697,6 +697,13 @@ class CropWindow(wx.Frame):
         name_sizer.Add(wx.StaticText(self.panel, label="New Sheet:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         name_sizer.Add(self.name_ctrl, 1)
 
+        # Related sheets checkbox list
+        related_box = wx.StaticBox(self.panel, label="Also Crop Related Sheets")
+        related_sizer = wx.StaticBoxSizer(related_box, wx.VERTICAL)
+
+        self.related_list = wx.CheckListBox(self.panel, size=(-1, 100))
+        related_sizer.Add(self.related_list, 1, wx.EXPAND | wx.ALL, 5)
+
         # Crop button
         self.crop_btn = wx.Button(self.panel, label="Crop")
         self.crop_btn.SetMinSize((125, 40))
@@ -704,6 +711,7 @@ class CropWindow(wx.Frame):
 
         sizer.Add(range_sizer, 0, wx.EXPAND | wx.ALL, 5)
         sizer.Add(name_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(related_sizer, 1, wx.EXPAND | wx.ALL, 5)
         sizer.Add(self.crop_btn, 0, wx.EXPAND | wx.ALL, 5)
 
         self.panel.SetSizer(sizer)
@@ -711,7 +719,6 @@ class CropWindow(wx.Frame):
         self.vline_min = None
         self.vline_max = None
 
-        #self.init_values()
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.min_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
         self.max_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
@@ -736,12 +743,47 @@ class CropWindow(wx.Frame):
             # Find the earliest available row name
             new_name = self.get_earliest_row_name(base_name)
             self.name_ctrl.SetValue(new_name)
+
+            # Populate related sheets list
+            self.populate_related_sheets(base_name, sheet_name)
+
             self.show_vlines()
             return True
         else:
             wx.MessageBox("No data present in the plot to be cropped.\nPlease select a dataset first.",
                           "No Data", style=wx.OK | wx.ICON_INFORMATION)
             return False
+
+    def populate_related_sheets(self, base_name, current_sheet):
+        """
+        Find and display all sheets with the same base core level.
+        """
+        import re
+
+        all_sheets = list(self.parent.Data['Core levels'].keys())
+        related_sheets = []
+
+        # Pattern to match base name with optional numeric suffix
+        pattern = re.compile(f"^{re.escape(base_name)}\\d*$")
+
+        for sheet in all_sheets:
+            if pattern.match(sheet) and sheet != current_sheet:
+                related_sheets.append(sheet)
+
+        # Sort sheets naturally (e.g., O1s, O1s1, O1s2, O1s10)
+        def natural_sort_key(s):
+            match = re.search(r'\d+$', s)
+            if match:
+                return (s[:match.start()], int(match.group()))
+            return (s, 0)
+
+        related_sheets.sort(key=natural_sort_key)
+
+        # Add to checkbox list
+        self.related_list.Clear()
+        for sheet in related_sheets:
+            self.related_list.Append(sheet)
+
     def get_earliest_row_name(self, base_name):
         """
         Find the earliest available row for a core level.
@@ -796,45 +838,12 @@ class CropWindow(wx.Frame):
     def on_range_change(self, event):
         self.show_vlines()
 
-    def on_crop(self, event):
-        sheet_name = self.parent.sheet_combobox.GetValue()
-        suggested_name = self.name_ctrl.GetValue()
-        min_be = self.min_ctrl.GetValue()
-        max_be = self.max_ctrl.GetValue()
-
-        # Extract base name and ensure we don't create a '0' suffix
-        import re
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', suggested_name)
-        # match = re.match(r'([A-Za-z]+(?:\d+[spdfg]+)?)(\d*)$', suggested_name)
-        if match:
-            base_name = match.group(1)  # Base name like C1s
-            number_suffix = match.group(2)  # Numeric suffix or empty
-
-            # Find existing sheets with this base name
-            existing_sheets = list(self.parent.Data['Core levels'].keys())
-            existing_base_sheets = [s for s in existing_sheets if re.match(r'^' + re.escape(base_name) + r'\d*$', s)]
-
-            # Find the earliest available row
-            used_suffixes = set()
-            for s in existing_base_sheets:
-                suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
-                if suffix_match:
-                    used_suffixes.add(int(suffix_match.group(1)))
-                elif s == base_name:  # Base without suffix is like having suffix 0
-                    used_suffixes.add(0)
-
-            # Find first unused number starting from 0
-            suffix = 0
-            while suffix in used_suffixes:
-                suffix += 1
-
-            # Create new name (don't add 0 suffix if base name is unused)
-            if suffix == 0 and base_name not in existing_sheets:
-                new_name = base_name
-            else:
-                new_name = f"{base_name}{suffix}"
-        else:
-            new_name = suggested_name
+    def crop_single_sheet(self, sheet_name, new_name, min_be, max_be):
+        """
+        Crop a single sheet to the specified range.
+        Returns True if successful.
+        """
+        import pandas as pd
 
         data = self.parent.Data['Core levels'][sheet_name]
         x_values = np.array(data['B.E.'])
@@ -853,17 +862,97 @@ class CropWindow(wx.Frame):
         self.parent.Data['Number of Core levels'] += 1
 
         # Update Excel file
-        import pandas as pd
         df = pd.DataFrame({
-            'BE': new_data['B.E.'],
-            'Raw Data': new_data['Raw Data'],
-            'Background': new_data['Background']['Bkg Y'],
-            'Transmission': np.ones(sum(mask)).tolist()
+            'BE': [float(f"{val:.2f}") for val in new_data['B.E.']],
+            'Raw Data': [float(f"{val:.2f}") for val in new_data['Raw Data']],
+            'Background': [float(f"{val:.2f}") for val in new_data['Background']['Bkg Y']],
+            'Transmission': [1.00 for _ in range(sum(mask))]
         })
 
         with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
                             if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=new_name, index=False)
+
+        return True
+
+    def on_crop(self, event):
+        import re
+        import pandas as pd
+
+        sheet_name = self.parent.sheet_combobox.GetValue()
+        suggested_name = self.name_ctrl.GetValue()
+        min_be = self.min_ctrl.GetValue()
+        max_be = self.max_ctrl.GetValue()
+
+        # Extract base name and ensure we don't create a '0' suffix
+        match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', suggested_name)
+        if match:
+            base_name = match.group(1)
+
+            # Find existing sheets with this base name
+            existing_sheets = list(self.parent.Data['Core levels'].keys())
+            existing_base_sheets = [s for s in existing_sheets if re.match(r'^' + re.escape(base_name) + r'\d*$', s)]
+
+            # Find the earliest available row
+            used_suffixes = set()
+            for s in existing_base_sheets:
+                suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
+                if suffix_match:
+                    used_suffixes.add(int(suffix_match.group(1)))
+                elif s == base_name:
+                    used_suffixes.add(0)
+
+            # Find first unused number starting from 0
+            suffix = 0
+            while suffix in used_suffixes:
+                suffix += 1
+
+            # Create new name
+            if suffix == 0 and base_name not in existing_sheets:
+                new_name = base_name
+            else:
+                new_name = f"{base_name}{suffix}"
+        else:
+            new_name = suggested_name
+
+        # Crop the main sheet
+        self.crop_single_sheet(sheet_name, new_name, min_be, max_be)
+
+        # Get checked related sheets
+        checked_sheets = [self.related_list.GetString(i)
+                          for i in range(self.related_list.GetCount())
+                          if self.related_list.IsChecked(i)]
+
+        # Crop each checked related sheet
+        for related_sheet in checked_sheets:
+            # Extract base name from related sheet
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', related_sheet)
+            if match:
+                related_base = match.group(1)
+
+                # Find earliest available name for this related sheet
+                existing_sheets = list(self.parent.Data['Core levels'].keys())
+                used_suffixes = set()
+
+                for s in existing_sheets:
+                    suffix_match = re.search(r'^' + re.escape(related_base) + r'(\d+)$', s)
+                    if suffix_match:
+                        used_suffixes.add(int(suffix_match.group(1)))
+                    elif s == related_base:
+                        used_suffixes.add(0)
+
+                # Find first unused number
+                related_suffix = 0
+                while related_suffix in used_suffixes:
+                    related_suffix += 1
+
+                if related_suffix == 0 and related_base not in existing_sheets:
+                    related_new_name = related_base
+                else:
+                    related_new_name = f"{related_base}{related_suffix}"
+
+                # Crop this related sheet
+                self.crop_single_sheet(related_sheet, related_new_name, min_be, max_be)
 
         # Update JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
@@ -882,12 +971,10 @@ class CropWindow(wx.Frame):
         # Close and reopen the file manager if it exists
         if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
             try:
-                # Close existing file manager
                 self.parent.file_manager.Close()
                 self.parent.file_manager.Destroy()
                 self.parent.file_manager = None
 
-                # Reopen file manager
                 import wx
                 wx.CallAfter(self.parent.on_open_file_manager, None)
             except Exception as e:
