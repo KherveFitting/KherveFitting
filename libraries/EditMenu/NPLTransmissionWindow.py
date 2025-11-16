@@ -14,7 +14,7 @@ import pandas as pd
 
 class NPLTransmissionWindow(wx.Frame):
     def __init__(self, parent):
-        super().__init__(parent, title="NPL Transmission Function", size=(820, 680), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+        super().__init__(parent, title="NPL Transmission Function", size=(820, 674), style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX) | wx.STAY_ON_TOP)
         self.parent = parent
 
         # Current slot (1, 2, or 3)
@@ -51,7 +51,7 @@ class NPLTransmissionWindow(wx.Frame):
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         # Left panel for controls
-        left_panel = wx.Panel(panel)
+        left_panel = wx.Panel(panel, style=wx.BORDER_RAISED)
         left_panel.SetBackgroundColour(wx.Colour(255, 255, 255))
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -146,10 +146,11 @@ class NPLTransmissionWindow(wx.Frame):
         main_sizer.Add(left_panel, 0, wx.ALL, 1)
 
         # Right panel for plot
-        right_panel = wx.Panel(panel)
+        right_panel = wx.Panel(panel, style=wx.BORDER_RAISED)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.figure = plt.figure(figsize=(6, 4))
+        # self.figure.tight_layout()
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(right_panel, -1, self.figure)
 
@@ -323,7 +324,7 @@ class NPLTransmissionWindow(wx.Frame):
         self.ax2.set_xlim(be_max, be_min)
 
         # Create hover marker on the main axis (initially invisible)
-        self.hover_point, = self.ax.plot([], [], 'ro', markersize=10, visible=False, zorder=10)
+        self.hover_point, = self.ax.plot([], [], 'go', markersize=10, visible=False, zorder=10)
 
         # Create annotation for displaying values
         if self.annotation is not None:

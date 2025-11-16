@@ -571,7 +571,7 @@ def create_peak_params_grid(window, parent, use_static_box=True):
         window.peak_params_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
     elif window.panel_theme == 'Simple Very Dark':
         window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(140, 140, 142))
-        window.peak_params_grid.SetLabelTextColour(wx.Colour(255, 255, 255))
+        # window.peak_params_grid.SetLabelTextColour(wx.Colour(255, 255, 255))
 
     # Ensure all cells have white background
     for row in range(window.peak_params_grid.GetNumberRows()):

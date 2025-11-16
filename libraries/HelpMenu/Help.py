@@ -55,12 +55,12 @@ License: HPND"""
 
 def on_about(self, event):
     about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 480))
-    panel = wx.Panel(about_dialog)
+    panel = wx.Panel(about_dialog, style=wx.BORDER_RAISED)
     sizer = wx.BoxSizer(wx.VERTICAL)
 
     name = wx.StaticText(panel, label="KherveFitting")
     name.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-    version = wx.StaticText(panel, label="Version 1.6 Sept 25")
+    version = wx.StaticText(panel, label="Version 1.7 Dec 25")
 
     button_grid = wx.GridBagSizer(2, 2)
     libraries_button = wx.Button(panel, label="Libraries Used")

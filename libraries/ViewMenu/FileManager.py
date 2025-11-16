@@ -7064,12 +7064,12 @@ class FileManagerDropTarget(wx.FileDropTarget):
             if current_path:
                 current_file_name = os.path.splitext(os.path.basename(current_path))[0]
 
-        # Create dialog
+        # Create dialog - use file_manager_window as parent to appear on top of it
         dlg = wx.MessageDialog(
-            self.main_window,
+            self.file_manager_window,
             f"What would you like to do with {file_name}?",
             "File Action",
-            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION
+            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION | wx.STAY_ON_TOP
         )
 
         dlg.SetYesNoLabels(f"Open {file_name}", f"Add {file_name} to {current_file_name}")
@@ -7223,17 +7223,25 @@ class FileManagerDropTarget(wx.FileDropTarget):
                 json.dump(json_data, json_file, indent=2)
             # print(f"DEBUG: Final JSON saved with SampleNames: {json_data.get('SampleNames')}")
 
-            # Close and reopen the file manager if it exists
-            if hasattr(self.main_window, 'file_manager') and self.main_window.file_manager is not None:
-                try:
-                    self.main_window.file_manager.Close()
-                    self.main_window.file_manager.Destroy()
-                    self.main_window.file_manager = None
+            # Refresh all sheets to update everything properly
+            from libraries.FileMenu.Save import refresh_sheets
+            from libraries.Sheet_Operations import on_sheet_selected
 
-                    import wx
-                    wx.CallAfter(self.main_window.on_open_file_manager, None)
-                except Exception as e:
-                    print(f"Error refreshing file manager: {e}")
+            wx.CallAfter(refresh_sheets, self.main_window, on_sheet_selected)
+
+            # Close and reopen the file manager after refresh
+            if hasattr(self.main_window, 'file_manager') and self.main_window.file_manager is not None:
+                def reopen_file_manager():
+                    try:
+                        if self.main_window.file_manager is not None:
+                            self.main_window.file_manager.Close()
+                            self.main_window.file_manager.Destroy()
+                            self.main_window.file_manager = None
+                        wx.CallAfter(self.main_window.on_open_file_manager, None)
+                    except Exception as e:
+                        print(f"Error refreshing file manager: {e}")
+
+                wx.CallLater(500, reopen_file_manager)
 
         except Exception as e:
             import traceback
@@ -7255,12 +7263,13 @@ class FileManagerDropTarget(wx.FileDropTarget):
         # Find next available row as default suggestion
         suggested_row = self._find_next_available_row(sheet_names)
 
-        # Create dialog
+        # Create dialog - use file_manager_window as parent to appear on top of it
         dlg = wx.TextEntryDialog(
-            self.main_window,
+            self.file_manager_window,
             f"Enter row number to insert sample {sample_row}\nCore levels: {core_levels_str}\n\nSuggested next available row: {suggested_row}",
             "Select Row",
-            str(suggested_row)
+            str(suggested_row),
+            style=wx.OK | wx.CANCEL | wx.STAY_ON_TOP
         )
 
         while True:
@@ -7268,10 +7277,10 @@ class FileManagerDropTarget(wx.FileDropTarget):
                 try:
                     target_row = int(dlg.GetValue())
                     if target_row < 0:
-                        wx.MessageBox("Row number must be 0 or greater.", "Invalid Row", wx.OK | wx.ICON_ERROR)
+                        wx.MessageBox("Row number must be 0 or greater.", "Invalid Row", wx.OK | wx.ICON_ERROR | wx.STAY_ON_TOP, parent=self.file_manager_window)
                         continue
                     if target_row > 500:
-                        wx.MessageBox("Row number must be 500 or less.", "Invalid Row", wx.OK | wx.ICON_ERROR)
+                        wx.MessageBox("Row number must be 500 or less.", "Invalid Row", wx.OK | wx.ICON_ERROR | wx.STAY_ON_TOP)
                         continue
 
                     # Check if row is occupied

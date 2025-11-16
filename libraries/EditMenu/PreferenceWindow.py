@@ -36,11 +36,11 @@ class PreferenceWindow(wx.Frame):
             self.SetMinSize((495, 630))
             self.SetMaxSize((495, 630))
 
-        panel = wx.Panel(self)
+        panel = wx.Panel(self, style=wx.BORDER_RAISED)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Create notebook
-        self.notebook = wx.Notebook(panel)
+        self.notebook = wx.Notebook(panel, style=wx.BORDER_RAISED)
 
         # Create tabs
         self.plot_tab = wx.Panel(self.notebook)
@@ -55,13 +55,13 @@ class PreferenceWindow(wx.Frame):
         self.notebook.AddPage(self.instrument_tab, "Instrument Settings")
 
         # Add notebook to sizer
-        main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 1)
 
         # Create button grid with 4 columns
         button_grid = wx.GridBagSizer(2, 2)
 
         # Create save button below notebook
-        save_button = wx.Button(panel, label="Save")
+        save_button = wx.Button(panel, label="Save", style=wx.BORDER_NONE)
         save_button.SetMinSize((110, 40))
         save_button.Bind(wx.EVT_BUTTON, self.OnSave)
         button_grid.Add(save_button, pos=(0, 0), flag=wx.ALL, border=5)

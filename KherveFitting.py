@@ -439,6 +439,10 @@ class MyFrame(wx.Frame):
             'Data': copy.deepcopy(self.Data) if hasattr(self, 'Data') else None,
             'plot_limits': copy.deepcopy(self.plot_manager.plot_limits) if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'plot_limits') else {},
             'original_limits': copy.deepcopy(self.plot_manager.original_limits) if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'original_limits') else {},
+            'legend_visible': self.plot_manager.legend_visible if hasattr(self, 'plot_manager') else 1,
+            'survey_table_state': self.survey_table_state if hasattr(self, 'survey_table_state') else 0,
+            'residuals_state': self.plot_manager.residuals_state if hasattr(self, 'plot_manager') else 2,
+            'y_axis_state': self.plot_manager.y_axis_state if hasattr(self, 'plot_manager') else 0,
         }
 
         # Store peak fitting grid data
@@ -522,12 +526,19 @@ class MyFrame(wx.Frame):
         self.history = stored_data['history']
         self.history_index = stored_data['history_index']
 
-        # Restore plot manager limits
+        # Restore plot manager state
         if hasattr(self, 'plot_manager'):
             if stored_data['plot_limits']:
                 self.plot_manager.plot_limits = stored_data['plot_limits']
             if stored_data['original_limits']:
                 self.plot_manager.original_limits = stored_data['original_limits']
+            self.plot_manager.legend_visible = stored_data['legend_visible']
+            self.plot_manager.residuals_state = stored_data['residuals_state']
+            self.plot_manager.y_axis_state = stored_data['y_axis_state']
+            self.plot_manager.survey_table_state = stored_data['survey_table_state']
+
+        # Restore survey table state on window
+        self.survey_table_state = stored_data['survey_table_state']
 
         # Restore peak fitting grid data
         if peak_grid_data and hasattr(self, 'peak_params_grid'):
@@ -4336,11 +4347,11 @@ if __name__ == '__main__':
     # Create main frame
     splash.update_message("Building Main Application Window...")
     if os_name == "Darwin":
-        frame = MyFrame(None, "KherveFitting-v1.70_25k17")
+        frame = MyFrame(None, "KherveFitting-v1.70_25k17 - Cite this Paper -> DOI: 10.1002/sia.70032")
     elif os_name == "Windows":
-        frame = MyFrame(None, "KherveFitting-v1.70_25k17")
+        frame = MyFrame(None, "KherveFitting-v1.70_25k17 - Cite this Paper -> DOI: 10.1002/sia.70032")
     else:
-        frame = MyFrame(None, "KherveFitting-v1.70_25k17")
+        frame = MyFrame(None, "KherveFitting-v1.70_25k17 - Cite this Paper -> DOI: 10.1002/sia.70032")
 
     # Apply preferences
     splash.update_message("Loading User Preferences...")
