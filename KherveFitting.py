@@ -34,17 +34,19 @@ class MyFrame(wx.Frame):
         # Main panel - no style for None theme, SUNKEN for all others
         if self.panel_theme == 'None':
             self.panel = wx.Panel(self)
-        elif self.panel_theme == 'Simple':
-            self.panel = wx.Panel(self) #, style=wx.BORDER_SIMPLE)
-        elif self.panel_theme == 'Simple Dark':
-            self.panel = wx.Panel(self) #, style=wx.BORDER_SIMPLE)
+        elif self.panel_theme in ['Simple', 'Simple Dark', 'Simple Darker', 'Simple Very Dark']:
+            self.panel = wx.Panel(self)
         else:
             self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
 
-        # Set darker background for Simple theme
+        # Set background colors for Simple-based themes
         if self.panel_theme == 'Simple Dark':
             self.panel.SetBackgroundColour(wx.Colour(200, 203, 205))
-            self.panel.SetForegroundColour(wx.Colour(200, 203, 205))
+        elif self.panel_theme == 'Simple Darker':
+            self.panel.SetBackgroundColour(wx.Colour(165, 165,168))
+        elif self.panel_theme == 'Simple Very Dark':
+            self.panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
 
         # Will hold reference to FileManagerWindow when opened
         self.file_manager = None
@@ -387,9 +389,7 @@ class MyFrame(wx.Frame):
         """Return the appropriate panel style based on theme setting"""
         if self.panel_theme == 'None':
             return 0
-        elif self.panel_theme == 'Simple':
-            return wx.BORDER_SIMPLE
-        elif self.panel_theme == 'Simple Dark':
+        elif self.panel_theme in ['Simple', 'Simple Dark', 'Simple Darker', 'Simple Very Dark']:
             return wx.BORDER_SIMPLE
         elif self.panel_theme == 'Raised':
             return wx.BORDER_RAISED
@@ -406,10 +406,12 @@ class MyFrame(wx.Frame):
             new_theme = 'Simple'
         elif menu_id == self.theme_simpledark_id:
             new_theme = 'Simple Dark'
+        elif menu_id == self.theme_dark_id:
+            new_theme = 'Simple Darker'
+        elif menu_id == self.theme_verydark_id:
+            new_theme = 'Simple Very Dark'
         elif menu_id == self.theme_raised_id:
             new_theme = 'Raised'
-        elif menu_id == self.theme_raised2_id:
-            new_theme = 'Sunken'
         else:
             return
 
@@ -491,11 +493,19 @@ class MyFrame(wx.Frame):
             self.panel = wx.Panel(self)
         elif self.panel_theme == 'Simple Dark':
             self.panel = wx.Panel(self)
+        elif self.panel_theme == 'Simple Darker':
+            self.panel = wx.Panel(self)
+        elif self.panel_theme == 'Simple Very Dark':
+            self.panel = wx.Panel(self)
         else:
             self.panel = wx.Panel(self, style=wx.BORDER_SUNKEN)
 
         if self.panel_theme == 'Simple Dark':
             self.panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif self.panel_theme == 'Simple Darker':
+            self.panel.SetBackgroundColour(wx.Colour(165, 165,168))
+        elif self.panel_theme == 'Simple Very Dark':
+            self.panel.SetBackgroundColour(wx.Colour(140, 140, 142))
 
         # Restore Data BEFORE creating widgets
         if stored_data['Data']:
@@ -504,6 +514,9 @@ class MyFrame(wx.Frame):
         # Recreate all widgets
         from libraries.Widgets_Toolbars import create_widgets
         create_widgets(self)
+
+        # Recreate status bar
+        create_statusbar(self)
 
         # Restore history
         self.history = stored_data['history']

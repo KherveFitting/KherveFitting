@@ -150,6 +150,10 @@ def create_widgets(window):
     # Set darker background for Simple theme
     if window.panel_theme == 'Simple Dark':
         toolbar_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        toolbar_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+    if window.panel_theme == 'Simple Very Dark':
+        toolbar_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
 
 
     toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -176,7 +180,11 @@ def create_widgets(window):
     right_frame_sizer = wx.BoxSizer(wx.VERTICAL)
 
     if window.panel_theme == 'Simple Dark':
-        window.right_frame.SetBackgroundColour(wx.Colour(00, 203, 205))
+        window.right_frame.SetBackgroundColour(wx.Colour(203, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        window.right_frame.SetBackgroundColour(wx.Colour(165, 165, 168))
+    if window.panel_theme == 'Simple Very Dark':
+        window.right_frame.SetBackgroundColour(wx.Colour(140, 140, 142))
 
 
     # Create the FigureCanvas
@@ -247,57 +255,14 @@ def create_widgets(window):
 
 def create_grids_panel_OLD(window):
     grids_panel = wx.Panel(window.splitter)
-    # grids_panel = wx.Panel(window.splitter,style=wx.BORDER_SUNKEN)
-
-    # Create splitter window
-    inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
-
-    # Store reference to inner_splitter for later access
-    window.inner_splitter = inner_splitter
-
-    # Create peak params panel and grid
-    if window.panel_theme == 'None':
-        peak_params_panel = wx.Panel(inner_splitter)
-    else:
-        peak_params_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
-    peak_params_sizer = create_peak_params_grid(window, peak_params_panel)
-    peak_params_panel.SetSizer(peak_params_sizer)
-
-    # Create results panel and grid
-    if window.panel_theme == 'None':
-        results_panel = wx.Panel(inner_splitter)
-    else:
-        results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
-    results_sizer = create_results_grid(window, results_panel)
-    results_panel.SetSizer(results_sizer)
-
-    # Add splitter to main sizer
-    sizer = wx.BoxSizer(wx.VERTICAL)
-    sizer.Add(inner_splitter, 1, wx.EXPAND)
-    grids_panel.SetSizer(sizer)
-
-    # Split horizontally
-    window_height = grids_panel.GetSize().GetHeight()
-    split_position = window_height // 2
-    inner_splitter.SplitHorizontally(peak_params_panel, results_panel, split_position)
-    inner_splitter.SetMinimumPaneSize(100)
-
-    # Bind size event to maintain 50-50 split
-    def on_size(event):
-        size = inner_splitter.GetSize()
-        # Change this value to adjust the ratio (e.g., 0.6 gives 60% to peak params grid)
-        inner_splitter.SetSashPosition(int(size.GetHeight() * 0.6))
-        event.Skip()
-
-    inner_splitter.Bind(wx.EVT_SIZE, on_size)
-
-    return grids_panel
-
-
-def create_grids_panel(window):
-    grids_panel = wx.Panel(window.splitter)
     if window.panel_theme == 'Simple Dark':
         grids_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        grids_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+    elif window.panel_theme == 'Simple Very Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+    print(f'Creating grids panel with layout: {window.grid_layout}')
 
     # Check layout type
     if window.grid_layout == 'tabbed':
@@ -308,6 +273,10 @@ def create_grids_panel(window):
         # Set notebook background for Simple theme
         if window.panel_theme == 'Simple Dark':
             notebook.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            notebook.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            notebook.SetBackgroundColour(wx.Colour(140, 140, 142))
 
         # Create peak params panel and grid (NO STATIC BOX)
         if window.panel_theme == 'None':
@@ -317,8 +286,13 @@ def create_grids_panel(window):
         peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=False)
         peak_params_panel.SetSizer(peak_params_sizer)
 
+        # Set background colors for Simple-based themes
         if window.panel_theme == 'Simple Dark':
             peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
 
         # Create results panel and grid (NO STATIC BOX)
         if window.panel_theme == 'None':
@@ -328,9 +302,13 @@ def create_grids_panel(window):
         results_sizer = create_results_grid(window, results_panel, use_static_box=False)
         results_panel.SetSizer(results_sizer)
 
-        # Set background for Simple theme
+        # Set background colors for Simple-based themes
         if window.panel_theme == 'Simple Dark':
             results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
 
         # Add panels to notebook
         notebook.AddPage(peak_params_panel, "Peak Parameters")
@@ -363,6 +341,10 @@ def create_grids_panel(window):
         # Set background for Simple theme
         if window.panel_theme == 'Simple Dark':
             peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165,168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
 
         # Create results panel and grid
         if window.panel_theme == 'None':
@@ -372,13 +354,158 @@ def create_grids_panel(window):
         results_sizer = create_results_grid(window, results_panel, use_static_box=True)
         results_panel.SetSizer(results_sizer)
 
-        # Set background for Simple theme
+        # Set background colors for Simple-based themes
         if window.panel_theme == 'Simple Dark':
             results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
 
         # Add splitter to main sizer
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(inner_splitter, 1, wx.EXPAND)
+        grids_panel.SetSizer(sizer)
+
+        # Split horizontally
+        window_height = grids_panel.GetSize().GetHeight()
+        split_position = window_height // 2
+        inner_splitter.SplitHorizontally(peak_params_panel, results_panel, split_position)
+        inner_splitter.SetMinimumPaneSize(100)
+
+        # Bind size event to maintain 60-40 split
+        def on_size(event):
+            size = inner_splitter.GetSize()
+            inner_splitter.SetSashPosition(int(size.GetHeight() * 0.6))
+            event.Skip()
+
+        inner_splitter.Bind(wx.EVT_SIZE, on_size)
+
+    return grids_panel
+
+
+def create_grids_panel(window):
+    grids_panel = wx.Panel(window.splitter)
+    if window.panel_theme == 'Simple Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        grids_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+    elif window.panel_theme == 'Simple Very Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+    print(f'Creating grids panel with layout: {window.grid_layout}')
+
+    # Check layout type
+    if window.grid_layout == 'tabbed':
+        # Create FlatNotebook for tabbed layout
+        notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_TABS_BORDER_SIMPLE)
+        notebook.SetActiveTabColour(wx.Colour(200, 245, 228))
+        # Set notebook colors based on theme
+        if window.panel_theme == 'Simple Dark':
+            # notebook.SetActiveTabColour(wx.Colour(200, 203, 205))
+            notebook.SetTabAreaColour(wx.Colour(200, 203, 205))
+            # notebook.SetNonActiveTabTextColour(wx.Colour(80, 80, 80))
+            notebook.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            # notebook.SetActiveTabColour(wx.Colour(165, 165, 168))
+            notebook.SetTabAreaColour(wx.Colour(165, 165, 168))
+            # notebook.SetNonActiveTabTextColour(wx.Colour(60, 60, 60))
+            notebook.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            # notebook.SetActiveTabColour(wx.Colour(140, 140, 142))
+            notebook.SetTabAreaColour(wx.Colour(140, 140, 142))
+            # notebook.SetNonActiveTabTextColour(wx.Colour(40, 40, 40))
+            notebook.SetBackgroundColour(wx.Colour(140, 140, 142))
+        else:
+            notebook.SetActiveTabColour(wx.Colour(200, 245, 228))
+
+        # Create peak params panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(notebook)
+        else:
+            peak_params_panel = wx.Panel(notebook, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=False)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create results panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(notebook)
+        else:
+            results_panel = wx.Panel(notebook, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=False)
+        results_panel.SetSizer(results_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Add panels to notebook
+        notebook.AddPage(peak_params_panel, "Peak Parameters")
+        notebook.AddPage(results_panel, "Results")
+
+        # Add notebook to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(notebook, 1, wx.EXPAND,0)
+        grids_panel.SetSizer(sizer)
+
+        # Store reference for later access
+        window.inner_splitter = None
+        window.grid_notebook = notebook
+
+    else:
+        # Original split layout (WITH STATIC BOX)
+        inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
+
+        # Store reference to inner_splitter for later access
+        window.inner_splitter = inner_splitter
+
+        # Create peak params panel and grid
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(inner_splitter)
+        else:
+            peak_params_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=True)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create results panel and grid
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(inner_splitter)
+        else:
+            results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=True)
+        results_panel.SetSizer(results_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Add splitter to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(inner_splitter, 1, wx.EXPAND,0)
         grids_panel.SetSizer(sizer)
 
         # Split horizontally
@@ -434,6 +561,17 @@ def create_peak_params_grid(window, parent, use_static_box=True):
     window.peak_params_grid.SetColLabelSize(35)
     window.peak_params_grid.SetDefaultColSize(60)
     window.peak_params_grid.SetRowLabelSize(25)
+
+    # Set header colors based on theme
+    if window.panel_theme == 'Simple Dark':
+        window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(200, 203, 205))
+        window.peak_params_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Darker':
+        window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(165, 165, 168))
+        window.peak_params_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Very Dark':
+        window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(140, 140, 142))
+        window.peak_params_grid.SetLabelTextColour(wx.Colour(255, 255, 255))
 
     # Ensure all cells have white background
     for row in range(window.peak_params_grid.GetNumberRows()):
@@ -535,6 +673,17 @@ def create_results_grid(window, parent, use_static_box=True):
     window.results_grid.SetDefaultColSize(60)
     window.results_grid.SetRowLabelSize(25)
     window.results_grid.SetColLabelSize(35)
+
+    # Set header colors based on theme
+    if window.panel_theme == 'Simple Dark':
+        window.results_grid.SetLabelBackgroundColour(wx.Colour(200, 203, 205))
+        window.results_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Darker':
+        window.results_grid.SetLabelBackgroundColour(wx.Colour(165, 165, 168))
+        window.results_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Very Dark':
+        window.results_grid.SetLabelBackgroundColour(wx.Colour(140, 140, 142))
+        # window.results_grid.SetLabelTextColour(wx.Colour(255, 255, 255))
 
     # Adjust specific column sizes
     col_sizes = [100, 55, 55, 50, 50, 80, 50, 20, 30, 30, 50, 80, 120, 60, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
@@ -803,6 +952,8 @@ def create_menu(window):
     window.theme_none_id = wx.NewId()
     window.theme_simple_id = wx.NewId()
     window.theme_simpledark_id = wx.NewId()
+    window.theme_dark_id = wx.NewId()
+    window.theme_verydark_id = wx.NewId()
     window.theme_raised_id = wx.NewId()
     window.theme_raised2_id = wx.NewId()
 
@@ -810,13 +961,24 @@ def create_menu(window):
     theme_none_item = panel_theme_menu.AppendRadioItem(window.theme_none_id, "None")
     theme_simple_item = panel_theme_menu.AppendRadioItem(window.theme_simple_id, "Simple")
     theme_simpledark_item = panel_theme_menu.AppendRadioItem(window.theme_simpledark_id, "Simple Dark")
+    theme_dark_item = panel_theme_menu.AppendRadioItem(window.theme_dark_id, "Simple Darker")
+    theme_verydark_item = panel_theme_menu.AppendRadioItem(window.theme_verydark_id, "Simple Very Dark")
     theme_raised_item = panel_theme_menu.AppendRadioItem(window.theme_raised_id, "Raised")
     theme_raised2_item = panel_theme_menu.AppendRadioItem(window.theme_raised2_id, "Sunken")
 
-    # Bind theme events
+    # # Bind theme events
+    # window.Bind(wx.EVT_MENU, window.on_theme_change, theme_none_item)
+    # window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simple_item)
+    # window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simpledark_item)
+    # window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised_item)
+    # window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised2_item)
+
+    # Bind layout events
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_none_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simple_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simpledark_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_dark_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_verydark_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised_item)
     window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised2_item)
 
@@ -828,6 +990,10 @@ def create_menu(window):
             theme_simple_item.Check(True)
         elif window.panel_theme == 'Simple Dark':
             theme_simpledark_item.Check(True)
+        elif window.panel_theme == 'Simple Darker':
+            theme_dark_item.Check()
+        elif window.panel_theme == 'Simple Very Dark':
+            theme_verydark_item.Check()
         elif window.panel_theme == 'Raised':
             theme_raised_item.Check(True)
         elif window.panel_theme == 'Sunken':
@@ -1191,6 +1357,10 @@ def create_horizontal_toolbar(parent, window):
     # Set toolbar background color for Simple theme
     if window.panel_theme == 'Simple Dark':
         toolbar.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        toolbar.SetBackgroundColour(wx.Colour(165, 165,168))
+    elif window.panel_theme == 'Simple Very Dark':
+        toolbar.SetBackgroundColour(wx.Colour(140, 140, 142))
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     icon_path = os.path.join(current_dir, "Icons")
@@ -1654,6 +1824,10 @@ def create_vertical_toolbar(parent, frame):
 
     if frame.panel_theme == 'Simple Dark':
         v_toolbar.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif frame.panel_theme == 'Simple Darker':
+       v_toolbar.SetBackgroundColour(wx.Colour(165, 165,168))
+    elif frame.panel_theme == 'Simple Very Dark':
+        v_toolbar.SetBackgroundColour(wx.Colour(140, 140, 142))
 
     # Check if running on macOS
     is_mac = 'wxMac' in wx.PlatformInfo
@@ -1901,29 +2075,42 @@ def open_example_file(window, file_path):
     except Exception as e:
         window.show_popup_message2("Error", f"Error opening example file: {str(e)}")
 
+
 def create_statusbar(window):
     """
-    Create a status bar for the main window.
+    Create or update a status bar for the main window.
 
     Args:
     window: The main application window.
     """
-    # Create a status bar with two fields
-    window.CreateStatusBar(2)
+    # Get existing statusbar or create new one
+    statusbar = window.GetStatusBar()
 
-    # Set the widths of the status bar fields
-    window.SetStatusWidths([-1, 200])
-
-    # Set initial text for the status bar fields
-    window.SetStatusText("Working Directory: " + window.Working_directory, 0)
-    window.SetStatusText("BE: 0 eV, I: 0 CPS", 1)
-
-    # Set background color for Simple theme
-    if window.panel_theme == 'Simple Dark':
+    if not statusbar:
+        # Create a status bar with two fields
+        window.CreateStatusBar(2)
         statusbar = window.GetStatusBar()
-        if statusbar:
-            statusbar.SetBackgroundColour(wx.Colour(200, 203, 205))
 
+        # Set the widths of the status bar fields
+        window.SetStatusWidths([-1, 200])
+
+        # Set initial text for the status bar fields
+        window.SetStatusText("Working Directory: " + window.Working_directory, 0)
+        window.SetStatusText("BE: 0 eV, I: 0 CPS", 1)
+
+    # Update statusbar colors for themes
+    if statusbar:
+        if window.panel_theme == 'Simple Dark':
+            statusbar.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            statusbar.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            statusbar.SetBackgroundColour(wx.Colour(140, 140, 142))
+        else:
+            # Reset to default colors for other themes
+            statusbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+        statusbar.Refresh()
 
 def update_statusbar(window, message):
     """
