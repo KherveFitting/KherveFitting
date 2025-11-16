@@ -86,7 +86,7 @@ class FittingWindow(wx.Frame):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
 
-        notebook = wx.Notebook(panel)
+        notebook = wx.Notebook(panel, style=wx.BORDER_RAISED)
 
         # Bind notebook page change event
         notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_notebook_page_changed)
@@ -1804,13 +1804,23 @@ class FittingWindow(wx.Frame):
             save_state(self.parent)
 
     def on_clear_background_only(self, event):
-        # Clear recorded ranges and active state
-        self.clear_recorded_ranges_from_data()
-        self.clear_active_range()  # Clear active range highlighting
-        self.update_range_boxes()
+        # Show confirmation dialog
+        dlg = wx.MessageDialog(self,
+                               "Are you sure you want to remove all regions?",
+                               "Confirm Remove All Regions",
+                               wx.YES_NO | wx.ICON_QUESTION)
 
-        # Existing clear background only code
-        self.parent.plot_manager.clear_background_only(self.parent)
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+        if result == wx.ID_YES:
+            # Clear recorded ranges and active state
+            self.clear_recorded_ranges_from_data()
+            self.clear_active_range()  # Clear active range highlighting
+            self.update_range_boxes()
+
+            # Existing clear background only code
+            self.parent.plot_manager.clear_background_only(self.parent)
 
     def set_active_range(self, index):
         """Set the active range and update visual highlighting"""
@@ -4352,6 +4362,18 @@ class FittingWindow(wx.Frame):
 
         # Store which region we're removing for the print message
         removed_region_number = self.active_range_index + 1
+
+        # Show confirmation dialog
+        dlg = wx.MessageDialog(self,
+                               f"Are you sure you want to remove region {removed_region_number}?",
+                               "Confirm Remove Region",
+                               wx.YES_NO | wx.ICON_QUESTION)
+
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+        if result != wx.ID_YES:
+            return
 
         # STEP 1: Remove the region data from window.data
         ranges.pop(self.active_range_index)

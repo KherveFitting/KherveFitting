@@ -57,7 +57,7 @@ class BackgroundWindow(wx.Frame):
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        notebook = wx.Notebook(panel)
+        notebook = wx.Notebook(panel, )
 
         if not detect_dark_mode():
             notebook.SetBackgroundColour(wx.Colour(250, 250, 230))

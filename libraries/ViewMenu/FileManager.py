@@ -4439,7 +4439,31 @@ class FileManagerWindow(wx.Frame):
                 else:
                     # Fallback - skip this peak
                     return None
+            elif fitting_model == "SingleEntity":
+                # Handle SingleEntity envelope - get stored data and interpolate
+                if 'x_data' in peak_data and 'y_data' in peak_data:
+                    # Get stored envelope data
+                    x_env = np.array(peak_data['x_data'])
+                    y_env = np.array(peak_data['y_data'])
 
+                    # Get shift and scale from peak_data
+                    position_shift = float(peak_data.get('Sigma', 0))
+                    area_scale = float(peak_data.get('Gamma', 1))
+
+                    # Create interpolator
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Shift x and interpolate
+                    x_shifted = x_values - position_shift
+                    y_interpolated = interpolator(x_shifted)
+
+                    # Scale by area
+                    peak_curve = y_interpolated * area_scale
+                else:
+                    # No envelope data - skip this peak
+                    return None
             else:
                 # Fallback to Voigt for unknown models
                 sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
@@ -4560,6 +4584,33 @@ class FileManagerWindow(wx.Frame):
                     elif fitting_model in ["D-parameter", "SurveyID", "VBM", "Fermi"]:
                         # Skip these models in overall fit calculation
                         continue
+                    elif fitting_model == "SingleEntity":
+                        # Handle SingleEntity envelope
+                        if 'x_data' in peak_data and 'y_data' in peak_data:
+                            # Get stored envelope data
+                            x_env = np.array(peak_data['x_data'])
+                            y_env = np.array(peak_data['y_data'])
+
+                            # Get shift and scale
+                            position_shift = float(peak_data.get('Sigma', 0))
+                            area_scale = float(peak_data.get('Gamma', 1))
+
+                            # Create interpolator
+                            from scipy.interpolate import interp1d
+                            interpolator = interp1d(x_env, y_env, kind='cubic',
+                                                    bounds_error=False, fill_value=0.0)
+
+                            # Shift x and interpolate
+                            x_shifted = x_values - position_shift
+                            y_interpolated = interpolator(x_shifted)
+
+                            # Scale by area and add to overall fit
+                            peak_fit = y_interpolated * area_scale
+                            overall_fit += peak_fit
+                            continue
+                        else:
+                            # No envelope data - skip this peak
+                            continue
 
                     else:
                         print(

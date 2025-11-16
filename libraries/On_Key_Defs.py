@@ -348,7 +348,7 @@ class KeyEventHandlers:
         from libraries.FileMenu.Save import save_state
         save_state(self.main_frame)
 
-    def _handle_zoom_keys(self, keycode):
+    def _handle_zoom_keys_OLD(self, keycode):
         """Handle zoom in/out with Ctrl+- and Ctrl+="""
         sheet_name = self.main_frame.sheet_combobox.GetValue()
         limits = self.main_frame.plot_config.get_plot_limits(self.main_frame, sheet_name)
@@ -390,6 +390,85 @@ class KeyEventHandlers:
         # Update averaging indicator lines after zoom
         if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
             self.main_frame.add_averaging_indicator_lines()
+
+    def _handle_zoom_keys(self, keycode):
+        """Handle zoom in/out with Ctrl+- and Ctrl+="""
+        # Check if we're in multiple plot mode
+        is_multiple_plot_mode = False
+
+        if hasattr(self.main_frame, 'file_manager') and self.main_frame.file_manager:
+            try:
+                selected_sheets = self.main_frame.file_manager.get_selected_sheet_names()
+                is_multiple_plot_mode = len(selected_sheets) > 1
+            except:
+                is_multiple_plot_mode = False
+
+        # Alternative check
+        if hasattr(self.main_frame, 'multiple_plot_mode'):
+            is_multiple_plot_mode = self.main_frame.multiple_plot_mode
+
+        if is_multiple_plot_mode:
+            # For multiple plots: zoom X axis only, keep Y axis unchanged
+            current_xlim = self.main_frame.ax.get_xlim()
+
+            # Get X range
+            x_left = current_xlim[0]
+            x_right = current_xlim[1]
+
+            zoom_factor = 0.2
+            if keycode == ord('-'):  # Zoom out
+                x_left += zoom_factor
+                x_right -= zoom_factor
+            else:  # Zoom in
+                x_left -= zoom_factor
+                x_right += zoom_factor
+
+            # Apply new X limits only (Y axis unchanged)
+            self.main_frame.ax.set_xlim(x_left, x_right)
+
+            self.main_frame.canvas.draw_idle()
+        else:
+            # Single plot mode: use existing zoom logic
+            sheet_name = self.main_frame.sheet_combobox.GetValue()
+            limits = self.main_frame.plot_config.get_plot_limits(self.main_frame, sheet_name)
+
+            zoom_factor = 0.2
+            if keycode == ord('-'):  # Zoom out
+                limits['Xmin'] -= zoom_factor
+                limits['Xmax'] += zoom_factor
+            else:  # Zoom in
+                limits['Xmin'] += zoom_factor
+                limits['Xmax'] -= zoom_factor
+
+            # Update the plot limits
+            self.main_frame.plot_config.update_plot_limits(self.main_frame, sheet_name,
+                                                           x_min=limits['Xmin'],
+                                                           x_max=limits['Xmax'])
+
+            # Update the plot - zzProfile uses normal X-axis, others reverse
+            if sheet_name.startswith('zzProfile'):
+                self.main_frame.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal X-axis for zzProfile
+            else:
+                self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+
+            # Update subplot limits if it exists
+            if hasattr(self.main_frame, 'residuals_subplot') and self.main_frame.residuals_subplot:
+                if sheet_name.startswith('zzProfile'):
+                    self.main_frame.residuals_subplot.set_xlim(limits['Xmin'], limits['Xmax'])
+                else:
+                    self.main_frame.residuals_subplot.set_xlim(limits['Xmax'], limits['Xmin'])
+
+            # After zooming, update residuals
+            self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
+
+            self.main_frame.canvas.draw_idle()
+
+            # Refresh vline text labels after zoom
+            self.main_frame.refresh_vline_text_labels()
+
+            # Update averaging indicator lines after zoom
+            if hasattr(self.main_frame, 'add_averaging_indicator_lines'):
+                self.main_frame.add_averaging_indicator_lines()
 
     def _handle_ctrl_arrow_keys(self, keycode):
         """Handle Ctrl+Arrow keys for plot movement"""

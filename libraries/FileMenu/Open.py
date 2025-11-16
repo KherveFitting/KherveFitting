@@ -4324,7 +4324,6 @@ def open_vamas_file(window, file_path):
                             'Peaks': casa_data['Peaks']
                         }
                     }
-
                     if casa_data['Background']:
                         print(f"DEBUG: Background exists, storing it")
                         wb._fitting_data[sheet_name]['Background'] = casa_data['Background']
@@ -4349,9 +4348,20 @@ def open_vamas_file(window, file_path):
                         print(f"DEBUG: corrected_y_values length: {len(corrected_y_values)}")
                         wb._fitting_data[sheet_name]['Background']['Bkg Y'] = corrected_y_values
 
+                        # Create region with background limits
+                        bkg_low = float(casa_data['Background'].get('Bkg Low', 0.00))
+                        bkg_high = float(casa_data['Background'].get('Bkg High', 0.00))
+
+                        # Initialize Recorded_Ranges with the region
+                        wb._fitting_data[sheet_name]['Background']['Recorded_Ranges'] = [
+                            (0.00, 0.00, round(bkg_low, 2), round(bkg_high, 2))
+                        ]
+
+                        print(f"DEBUG: Created region for {sheet_name}: {bkg_low:.2f} - {bkg_high:.2f} eV")
+
                         if update_console:
                             update_console(
-                                f"  Background: {casa_data['Background'].get('Bkg Type')} from {casa_data['Background'].get('Bkg Low'):.1f} to {casa_data['Background'].get('Bkg High'):.1f} eV")
+                                f"  Background: {casa_data['Background'].get('Bkg Type')} from {bkg_low:.1f} to {bkg_high:.1f} eV")
                     else:
                         print(f"DEBUG: No background data in casa_data or background is empty")
                         print(f"DEBUG: casa_data['Background'] = {casa_data.get('Background', 'KEY NOT FOUND')}")
