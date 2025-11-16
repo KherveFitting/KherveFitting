@@ -7151,9 +7151,16 @@ class FileManagerDropTarget(wx.FileDropTarget):
             for sample_row, sheet_names in sheets_by_sample.items():
                 # print(f"DEBUG: Processing sample_row {sample_row} with sheets: {sheet_names}")
 
-                # Find next available row that can accommodate all core levels from this sample
-                target_row = self._find_next_available_row(sheet_names)
-                # print(f"DEBUG: Found target_row: {target_row}")
+                # Ask user at which row to insert this sample
+                target_row = self._ask_user_for_row(sample_row, sheet_names)
+
+                if target_row is None:
+                    # User cancelled
+                    wb_to_add.close()
+                    current_wb.close()
+                    return
+
+                # print(f"DEBUG: User selected target_row: {target_row}")
 
                 # Determine what SampleName to use for this target row
                 if 'SampleNames' in json_data_to_add and str(sample_row) in json_data_to_add['SampleNames']:
@@ -7232,6 +7239,72 @@ class FileManagerDropTarget(wx.FileDropTarget):
             import traceback
             traceback.print_exc()
             wx.MessageBox(f"Error adding file data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _ask_user_for_row(self, sample_row, sheet_names):
+        """Ask user at which row to insert the sample's core levels"""
+        import re
+
+        # Get base names for display
+        base_names = []
+        for sheet_name in sheet_names:
+            base_name = re.sub(r'\d+$', '', sheet_name)
+            base_names.append(base_name)
+
+        core_levels_str = ", ".join(base_names)
+
+        # Find next available row as default suggestion
+        suggested_row = self._find_next_available_row(sheet_names)
+
+        # Create dialog
+        dlg = wx.TextEntryDialog(
+            self.main_window,
+            f"Enter row number to insert sample {sample_row}\nCore levels: {core_levels_str}\n\nSuggested next available row: {suggested_row}",
+            "Select Row",
+            str(suggested_row)
+        )
+
+        while True:
+            if dlg.ShowModal() == wx.ID_OK:
+                try:
+                    target_row = int(dlg.GetValue())
+                    if target_row < 0:
+                        wx.MessageBox("Row number must be 0 or greater.", "Invalid Row", wx.OK | wx.ICON_ERROR)
+                        continue
+                    if target_row > 500:
+                        wx.MessageBox("Row number must be 500 or less.", "Invalid Row", wx.OK | wx.ICON_ERROR)
+                        continue
+
+                    # Check if row is occupied
+                    row_occupied = False
+                    for base_name in base_names:
+                        if target_row == 0:
+                            if base_name in self.main_window.Data.get('Core levels', {}) or \
+                                    f"{base_name}0" in self.main_window.Data.get('Core levels', {}):
+                                row_occupied = True
+                                break
+                        else:
+                            if f"{base_name}{target_row}" in self.main_window.Data.get('Core levels', {}):
+                                row_occupied = True
+                                break
+
+                    if row_occupied:
+                        response = wx.MessageBox(
+                            f"Row {target_row} already contains some core levels.\nOverwrite?",
+                            "Row Occupied",
+                            wx.YES_NO | wx.ICON_WARNING
+                        )
+                        if response == wx.NO:
+                            continue
+
+                    dlg.Destroy()
+                    return target_row
+
+                except ValueError:
+                    wx.MessageBox("Please enter a valid integer.", "Invalid Input", wx.OK | wx.ICON_ERROR)
+                    continue
+            else:
+                dlg.Destroy()
+                return None
 
     def _get_new_sheet_name(self, base_sheet_name):
         """Get the proper new sheet name following the naming convention"""

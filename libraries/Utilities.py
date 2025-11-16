@@ -698,7 +698,7 @@ class CropWindow(wx.Frame):
         name_sizer.Add(self.name_ctrl, 1)
 
         # Related sheets checkbox list
-        related_box = wx.StaticBox(self.panel, label="Also Crop Related Sheets")
+        related_box = wx.StaticBox(self.panel, label="Select Sheets to Crop")
         related_sizer = wx.StaticBoxSizer(related_box, wx.VERTICAL)
 
         self.related_list = wx.CheckListBox(self.panel, size=(-1, 100))
@@ -709,9 +709,9 @@ class CropWindow(wx.Frame):
         self.crop_btn.SetMinSize((125, 40))
         self.crop_btn.Bind(wx.EVT_BUTTON, self.on_crop)
 
-        sizer.Add(range_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(range_sizer, 0, wx.EXPAND | wx.ALL, 0)
         sizer.Add(name_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        sizer.Add(related_sizer, 1, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(related_sizer, 1, wx.EXPAND | wx.ALL, 0)
         sizer.Add(self.crop_btn, 0, wx.EXPAND | wx.ALL, 5)
 
         self.panel.SetSizer(sizer)
@@ -744,7 +744,7 @@ class CropWindow(wx.Frame):
             new_name = self.get_earliest_row_name(base_name)
             self.name_ctrl.SetValue(new_name)
 
-            # Populate related sheets list
+            # Populate related sheets list including current sheet
             self.populate_related_sheets(base_name, sheet_name)
 
             self.show_vlines()
@@ -756,7 +756,8 @@ class CropWindow(wx.Frame):
 
     def populate_related_sheets(self, base_name, current_sheet):
         """
-        Find and display all sheets with the same base core level.
+        Find and display all sheets with the same base core level, including current sheet.
+        Current sheet is checked by default.
         """
         import re
 
@@ -767,7 +768,7 @@ class CropWindow(wx.Frame):
         pattern = re.compile(f"^{re.escape(base_name)}\\d*$")
 
         for sheet in all_sheets:
-            if pattern.match(sheet) and sheet != current_sheet:
+            if pattern.match(sheet):
                 related_sheets.append(sheet)
 
         # Sort sheets naturally (e.g., O1s, O1s1, O1s2, O1s10)
@@ -781,8 +782,11 @@ class CropWindow(wx.Frame):
 
         # Add to checkbox list
         self.related_list.Clear()
-        for sheet in related_sheets:
+        for i, sheet in enumerate(related_sheets):
             self.related_list.Append(sheet)
+            # Check the current sheet by default
+            if sheet == current_sheet:
+                self.related_list.Check(i)
 
     def get_earliest_row_name(self, base_name):
         """
@@ -884,75 +888,41 @@ class CropWindow(wx.Frame):
         min_be = self.min_ctrl.GetValue()
         max_be = self.max_ctrl.GetValue()
 
-        # Extract base name and ensure we don't create a '0' suffix
-        match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', suggested_name)
-        if match:
-            base_name = match.group(1)
-
-            # Find existing sheets with this base name
-            existing_sheets = list(self.parent.Data['Core levels'].keys())
-            existing_base_sheets = [s for s in existing_sheets if re.match(r'^' + re.escape(base_name) + r'\d*$', s)]
-
-            # Find the earliest available row
-            used_suffixes = set()
-            for s in existing_base_sheets:
-                suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
-                if suffix_match:
-                    used_suffixes.add(int(suffix_match.group(1)))
-                elif s == base_name:
-                    used_suffixes.add(0)
-
-            # Find first unused number starting from 0
-            suffix = 0
-            while suffix in used_suffixes:
-                suffix += 1
-
-            # Create new name
-            if suffix == 0 and base_name not in existing_sheets:
-                new_name = base_name
-            else:
-                new_name = f"{base_name}{suffix}"
-        else:
-            new_name = suggested_name
-
-        # Crop the main sheet
-        self.crop_single_sheet(sheet_name, new_name, min_be, max_be)
-
-        # Get checked related sheets
+        # Get all checked sheets
         checked_sheets = [self.related_list.GetString(i)
                           for i in range(self.related_list.GetCount())
                           if self.related_list.IsChecked(i)]
 
-        # Crop each checked related sheet
-        for related_sheet in checked_sheets:
-            # Extract base name from related sheet
-            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', related_sheet)
+        # Crop each checked sheet
+        for sheet_to_crop in checked_sheets:
+            # Extract base name
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_to_crop)
             if match:
-                related_base = match.group(1)
+                base_name = match.group(1)
 
-                # Find earliest available name for this related sheet
+                # Find earliest available name
                 existing_sheets = list(self.parent.Data['Core levels'].keys())
                 used_suffixes = set()
 
                 for s in existing_sheets:
-                    suffix_match = re.search(r'^' + re.escape(related_base) + r'(\d+)$', s)
+                    suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
                     if suffix_match:
                         used_suffixes.add(int(suffix_match.group(1)))
-                    elif s == related_base:
+                    elif s == base_name:
                         used_suffixes.add(0)
 
                 # Find first unused number
-                related_suffix = 0
-                while related_suffix in used_suffixes:
-                    related_suffix += 1
+                suffix = 0
+                while suffix in used_suffixes:
+                    suffix += 1
 
-                if related_suffix == 0 and related_base not in existing_sheets:
-                    related_new_name = related_base
+                if suffix == 0 and base_name not in existing_sheets:
+                    new_name = base_name
                 else:
-                    related_new_name = f"{related_base}{related_suffix}"
+                    new_name = f"{base_name}{suffix}"
 
-                # Crop this related sheet
-                self.crop_single_sheet(related_sheet, related_new_name, min_be, max_be)
+                # Crop this sheet
+                self.crop_single_sheet(sheet_to_crop, new_name, min_be, max_be)
 
         # Update JSON file
         json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
@@ -962,11 +932,26 @@ class CropWindow(wx.Frame):
             with open(json_file_path, 'w') as json_file:
                 json.dump(json_data, json_file, indent=2)
 
-        # Update sheet list and display
-        self.parent.sheet_combobox.Append(new_name)
-        self.parent.sheet_combobox.SetValue(new_name)
-        from libraries.Sheet_Operations import on_sheet_selected
-        on_sheet_selected(self.parent, new_name)
+        # Update sheet list with the first cropped sheet
+        if checked_sheets:
+            # Get the name of the first cropped sheet
+            first_sheet = checked_sheets[0]
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
+            if match:
+                base_name = match.group(1)
+                existing_sheets = list(self.parent.Data['Core levels'].keys())
+
+                # Find what we named it
+                pattern = re.compile(f"^{re.escape(base_name)}\\d*$")
+                matching = [s for s in existing_sheets if pattern.match(s)]
+                matching.sort(key=lambda s: (s[:len(base_name)], int(s[len(base_name):]) if s[len(base_name):] else 0))
+
+                if matching:
+                    display_name = matching[-1]  # Get the last one added
+                    self.parent.sheet_combobox.Append(display_name)
+                    self.parent.sheet_combobox.SetValue(display_name)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, display_name)
 
         # Close and reopen the file manager if it exists
         if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:

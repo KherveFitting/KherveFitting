@@ -8,7 +8,7 @@ import re
 import platform
 
 class UpdateChecker:
-    def __init__(self, current_version=1.65):
+    def __init__(self, current_version=1.70):
         self.current_version = float(current_version)
         self.url = "https://sourceforge.net/projects/khervefitting/files/"
         self.download_url = "https://sourceforge.net/projects/khervefitting/files/latest/download"
