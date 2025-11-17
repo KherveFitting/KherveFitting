@@ -1055,6 +1055,9 @@ def create_menu(window):
     other_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Others ▬▬▬▬▬▬▬▬")
     other_header.Enable(False)  # Make it non-clickable
 
+    PCA_item = tools_menu.Append(wx.NewId(), "PCA Analysis")
+    window.Bind(wx.EVT_MENU, lambda event: open_pca_window(window), PCA_item)
+
     Dparam_item = tools_menu.Append(wx.NewId(), "D-parameter\tCtrl+D")
     window.Bind(wx.EVT_MENU, window.on_differentiate, Dparam_item)
 
@@ -2288,6 +2291,12 @@ def update_green_vline_text_label(frame):
         # Update position (x in data coords, y stays at 0.95 in axes coords)
         frame.green_vline_text.set_position((vline_x, 0.95))
         frame.green_vline_text.set_text(f'{vline_x:.2f}')
+
+def open_pca_window(window):
+    """Open PCA Analysis window"""
+    from libraries.ToolsMenu.PCA_Analysis import PCAnalysisWindow
+    pca_window = PCAnalysisWindow(window)
+    pca_window.Show()
 
 
 class ToggleToolbar(wx.Frame):

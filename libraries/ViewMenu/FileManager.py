@@ -1803,6 +1803,18 @@ class FileManagerWindow(wx.Frame):
         if not sheet_names:
             return
 
+        # Mark this as F2 plot type
+        self.parent.last_multiplot_type = 'F2'
+
+        # Get palette and linewidth settings
+        palette = getattr(self.parent, 'multiplot_palette', 'tab10')
+        linewidth = getattr(self.parent, 'multiplot_linewidth', 1.0)
+
+        # Get colors from palette
+        import matplotlib.cm as cm
+        cmap = cm.get_cmap(palette)
+        num_sheets = len(sheet_names)
+
         # Store the original residuals state
         original_residuals_state = self.parent.plot_manager.residuals_state
 
@@ -1941,7 +1953,9 @@ class FileManagerWindow(wx.Frame):
                                 pass
 
                 # Use a different color for each plot
-                color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+                # color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+                color_value = 0.1 + (0.65 * i / max(num_sheets - 1, 1))
+                color = cmap(color_value)
 
                 # Get legend label (use experiment name if available)
                 legend_label = self.get_legend_label_for_sheet(sheet_name)
@@ -1949,10 +1963,12 @@ class FileManagerWindow(wx.Frame):
                 # Plot the data
                 if self.parent.energy_scale == 'KE':
                     self.parent.ax.plot(self.parent.photons - x_values, y_values, label=legend_label, color=color,
-                                        linewidth=self.parent.line_width)
+                                        linewidth = linewidth)
+                                        # linewidth=self.parent.line_width)
                 else:
                     self.parent.ax.plot(x_values, y_values, label=legend_label, color=color,
-                                        linewidth=self.parent.line_width)
+                                        linewidth=linewidth)
+                                        # linewidth=self.parent.line_width)
 
         # Set labels and formatting
         self.parent.ax.set_xlabel("Binding Energy (eV)")
@@ -1963,7 +1979,9 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
         # Set legend on the left
-        self.parent.ax.legend(loc='upper left')
+        # Only show legend if 7 or fewer items
+        if len(sheet_names) <= 7:
+            self.parent.ax.legend(loc='upper left')
 
         # Set labels and formatting
         self.parent.ax.set_xlabel("Binding Energy (eV)")
@@ -3530,6 +3548,18 @@ class FileManagerWindow(wx.Frame):
         if not sheet_names:
             return
 
+        # Mark this as F3 plot type
+        self.parent.last_multiplot_type = 'F3'
+
+        # Get palette and linewidth settings
+        palette = getattr(self.parent, 'multiplot_palette', 'tab10')
+        linewidth = getattr(self.parent, 'multiplot_linewidth', 1.0)
+
+        # Get colors from palette
+        import matplotlib.cm as cm
+        cmap = cm.get_cmap(palette)
+        num_sheets = len(sheet_names)
+
         # Clear heatmap data when switching to regular plot
         if hasattr(self.parent, 'heatmap_data'):
             self.parent.heatmap_data = None
@@ -3695,7 +3725,9 @@ class FileManagerWindow(wx.Frame):
                                 pass
 
                 # Use a different color for each plot
-                color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+                # color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+                color_value = 0.1 + (0.65 * i / max(num_sheets - 1, 1))
+                color = cmap(color_value)
 
                 # Get legend label (use experiment name if available)
                 legend_label = self.get_legend_label_for_sheet(sheet_name)
@@ -3703,10 +3735,12 @@ class FileManagerWindow(wx.Frame):
                 # Plot the data
                 if self.parent.energy_scale == 'KE':
                     self.parent.ax.plot(self.parent.photons - x_values, y_values, label=legend_label, color=color,
-                                        linewidth=self.parent.line_width)
+                                        linewidth= linewidth)
+                                        # linewidth=self.parent.line_width)
                 else:
                     self.parent.ax.plot(x_values, y_values, label=legend_label, color=color,
-                                        linewidth=self.parent.line_width)
+                                        linewidth=linewidth)
+                                        # linewidth=self.parent.line_width)
 
         # Set labels and formatting
         self.parent.ax.set_xlabel("Binding Energy (eV)")
@@ -3719,8 +3753,10 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
-        # Set legend on the left
-        self.parent.ax.legend(loc='upper left')
+        # Only show legend if 7 or fewer items
+        if len(sheet_names) <= 7:
+            # Set legend on the left
+            self.parent.ax.legend(loc='upper left')
 
         # Set x-axis limits to min/max values from all datasets
         self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS

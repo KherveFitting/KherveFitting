@@ -86,7 +86,7 @@ class FittingWindow(wx.Frame):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
 
-        notebook = wx.Notebook(panel, style=wx.BORDER_RAISED)
+        notebook = wx.Notebook(panel)
 
         # Bind notebook page change event
         notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_notebook_page_changed)

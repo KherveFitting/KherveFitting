@@ -1705,6 +1705,88 @@ class MouseEventHandler:
                 heatmap_active = hasattr(self.window, 'heatmap_data') and self.window.heatmap_data is not None
                 heatmap_submenu.Enable(heatmap_active)
 
+                # Multiplot settings menu
+                multiplot_menu = wx.Menu()
+
+                # Color palette submenu
+                palette_menu = wx.Menu()
+
+                # Categorical palettes submenu
+                categorical_menu = wx.Menu()
+                categorical_palettes = ['tab10', 'tab20', 'tab20b', 'tab20c', 'Set1', 'Set2', 'Set3',
+                                        'Paired', 'Dark2', 'Pastel1', 'Pastel2', 'Accent']
+                for palette in categorical_palettes:
+                    item = categorical_menu.Append(wx.ID_ANY, palette)
+                    self.window.Bind(wx.EVT_MENU, lambda evt, p=palette: self.on_change_multiplot_palette(evt, p), item)
+                palette_menu.AppendSubMenu(categorical_menu, "Categorical")
+
+                # Gradients submenu
+                gradients_menu = wx.Menu()
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Blue")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'Blues_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Green")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'Greens_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Red")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'Reds_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Purple")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'Purples_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Pink")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'RdPu_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Orange")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'Oranges_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Yellow")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'YlOrBr_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Brown")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'YlOrBr_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Grey")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'Greys_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Dark Grey")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'gray_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Black")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'binary_r'), item)
+
+                item = gradients_menu.Append(wx.ID_ANY, "Gradient Cyan")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.on_change_multiplot_palette(evt, 'GnBu_r'), item)
+
+                palette_menu.AppendSubMenu(gradients_menu, "Gradients")
+
+                # Rainbow/Multi-color submenu
+                rainbow_menu = wx.Menu()
+                rainbow_palettes = ['viridis', 'plasma', 'inferno', 'magma', 'turbo', 'rainbow', 'jet', 'hsv']
+                for palette in rainbow_palettes:
+                    item = rainbow_menu.Append(wx.ID_ANY, palette)
+                    self.window.Bind(wx.EVT_MENU, lambda evt, p=palette: self.on_change_multiplot_palette(evt, p), item)
+                palette_menu.AppendSubMenu(rainbow_menu, "Rainbow/Multi-color")
+
+                multiplot_menu.AppendSubMenu(palette_menu, "Color Palette")
+
+                # Line width submenu
+                width_menu = wx.Menu()
+                widths = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+
+                for width in widths:
+                    item = width_menu.Append(wx.ID_ANY, f"{width:.1f}")
+                    self.window.Bind(wx.EVT_MENU, lambda evt, w=width: self.on_change_multiplot_linewidth(evt, w), item)
+
+                multiplot_menu.AppendSubMenu(width_menu, "Line Width")
+
+                multiplot_submenu = menu.AppendSubMenu(multiplot_menu, "Multiplot Settings")
+
+                # Enable only if file_manager is open
+                multiplot_active = hasattr(self.window, 'file_manager') and self.window.file_manager is not None
+                multiplot_submenu.Enable(multiplot_active)
+
 
                 menu.AppendSeparator()
 
@@ -2542,6 +2624,58 @@ class MouseEventHandler:
                 print(f"Error updating VBM controls: {e}")
         # else:
         #     print("No VBM window found")  # Debug line
+
+    def on_change_multiplot_palette(self, event, palette):
+        """Change color palette for multiplot"""
+        self.window.multiplot_palette = palette
+
+        # Save to preferences
+        if hasattr(self.window, 'config_manager'):
+            try:
+                self.window.config_manager.set('multiplot_palette', palette)
+                self.window.config_manager.save()
+            except:
+                pass
+
+        # Refresh the multiplot if file_manager exists and has a plot
+        if hasattr(self.window, 'file_manager') and self.window.file_manager:
+            selected_sheets = self.window.file_manager.get_selected_sheet_names()
+            if len(selected_sheets) > 1:
+                # Determine which plot type to refresh based on last plot
+                if hasattr(self.window, 'last_multiplot_type'):
+                    if self.window.last_multiplot_type == 'F2':
+                        self.window.file_manager.plot_multiple_sheets(selected_sheets)
+                    elif self.window.last_multiplot_type == 'F3':
+                        self.window.file_manager.plot_multiple_sheets_with_offset(selected_sheets)
+                else:
+                    # Default to F2 style
+                    self.window.file_manager.plot_multiple_sheets(selected_sheets)
+
+    def on_change_multiplot_linewidth(self, event, linewidth):
+        """Change line width for multiplot"""
+        self.window.multiplot_linewidth = linewidth
+
+        # Save to preferences
+        if hasattr(self.window, 'config_manager'):
+            try:
+                self.window.config_manager.set('multiplot_linewidth', linewidth)
+                self.window.config_manager.save()
+            except:
+                pass
+
+        # Refresh the multiplot if file_manager exists and has a plot
+        if hasattr(self.window, 'file_manager') and self.window.file_manager:
+            selected_sheets = self.window.file_manager.get_selected_sheet_names()
+            if len(selected_sheets) > 1:
+                # Determine which plot type to refresh based on last plot
+                if hasattr(self.window, 'last_multiplot_type'):
+                    if self.window.last_multiplot_type == 'F2':
+                        self.window.file_manager.plot_multiple_sheets(selected_sheets)
+                    elif self.window.last_multiplot_type == 'F3':
+                        self.window.file_manager.plot_multiple_sheets_with_offset(selected_sheets)
+                else:
+                    # Default to F2 style
+                    self.window.file_manager.plot_multiple_sheets(selected_sheets)
 
 
 

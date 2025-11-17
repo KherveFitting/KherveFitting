@@ -109,9 +109,9 @@ def apply_be_correction(window, correction):
             # Update Background range
             if 'Background' in sheet_data:
                 if 'Bkg Low' in sheet_data['Background'] and sheet_data['Background']['Bkg Low'] != '':
-                    sheet_data['Background']['Bkg Low'] += delta_correction
+                    sheet_data['Background']['Bkg Low'] = f"{float(sheet_data['Background']['Bkg Low']) + delta_correction:.2f}"
                 if 'Bkg High' in sheet_data['Background'] and sheet_data['Background']['Bkg High'] != '':
-                    sheet_data['Background']['Bkg High'] += delta_correction
+                    sheet_data['Background']['Bkg High'] = f"{float(sheet_data['Background']['Bkg High']) + delta_correction:.2f}"
 
             # Update peak positions
             if 'Fitting' in sheet_data and 'Peaks' in sheet_data['Fitting']:

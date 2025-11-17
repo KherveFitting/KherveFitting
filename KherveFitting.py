@@ -3485,6 +3485,9 @@ class MyFrame(wx.Frame):
                 self.panel_theme = config.get('panel_theme', 'Raised')
                 self.grid_layout = config.get('grid_layout', 'split')
 
+                self.multiplot_palette = config.get('multiplot_palette', 'Greens_r')
+                self.multiplot_linewidth = config.get('multiplot_linewidth', 1.0)
+
                 # Set registered flag
                 self.registered = config.get('registered', False)
 
@@ -3608,6 +3611,9 @@ class MyFrame(wx.Frame):
 
             'panel_theme': self.panel_theme,
             'grid_layout': self.grid_layout,
+
+            'multiplot_palette':  self.multiplot_palette,
+            'multiplot_linewidth': self.multiplot_linewidth,
 
             #Tines opened
             'times_opened': getattr(self, 'times_opened', 0),

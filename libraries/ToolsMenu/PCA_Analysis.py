@@ -125,6 +125,9 @@ class PCAnalysisWindow(wx.Frame):
         self.offset_min = wx.RadioButton(control_panel, label="Minimum Value", style=wx.RB_GROUP)
         self.offset_smart = wx.RadioButton(control_panel, label="Smart Background")
         self.offset_min.SetValue(True)
+        # Bind radio buttons to replot
+        self.offset_min.Bind(wx.EVT_RADIOBUTTON, self.on_offset_changed)
+        self.offset_smart.Bind(wx.EVT_RADIOBUTTON, self.on_offset_changed)
         offset_sizer.Add(self.offset_min, 0, wx.ALL, 5)
         offset_sizer.Add(self.offset_smart, 0, wx.ALL, 5)
         control_sizer.Add(offset_sizer, 0, wx.EXPAND | wx.ALL, 0)
@@ -269,6 +272,11 @@ class PCAnalysisWindow(wx.Frame):
 
     def on_norm_changed(self, event):
         """Handle normalization radio button change"""
+        if self.spectra_data is not None and len(self.spectra_data) > 0:
+            self.plot_all_spectra()
+
+    def on_offset_changed(self, event):
+        """Handle offset radio button change"""
         if self.spectra_data is not None and len(self.spectra_data) > 0:
             self.plot_all_spectra()
 
@@ -473,19 +481,56 @@ class PCAnalysisWindow(wx.Frame):
         else:
             norm_mode = "Max Height"
 
+        # Get offset mode
+        offset_mode = "Minimum Value" if self.offset_min.GetValue() else "Smart Background"
+
         # Copy data for plotting
-        plot_data = self.spectra_data.copy()
+        plot_data = np.abs(self.spectra_data.copy())
+
+        # Apply offset (background subtraction)
+        if offset_mode == "Minimum Value":
+            plot_data = plot_data - np.min(plot_data, axis=1, keepdims=True)
+        elif offset_mode == "Smart Background":
+            # Apply smart background using the full spectrum for each
+            for i in range(len(plot_data)):
+                spectrum = plot_data[i]
+                x_data = self.common_be_grid
+
+                # Determine if background is ascending or descending
+                if spectrum[0] > spectrum[-1]:
+                    # Descending - use Shirley background
+                    bg = BackgroundCalculations.calculate_shirley_background(
+                        x_data, spectrum, start_offset=0.0, end_offset=0.0, num_points=5
+                    )
+                else:
+                    # Ascending - use Linear background
+                    bg = BackgroundCalculations.calculate_linear_background(
+                        x_data, spectrum, start_offset=0.0, end_offset=0.0, num_points=5
+                    )
+
+                # Subtract background
+                plot_data[i] = spectrum - bg
+
+                # Ensure no negative values after subtraction
+                plot_data[i] = np.maximum(plot_data[i], 0)
+
+        # Ensure all values are non-negative
+        plot_data = np.maximum(plot_data, 0)
 
         # Apply normalization to plot data
         if norm_mode == "Area":
-            # Normalize each spectrum by its area (integral)
+            # Set lowest BE to 0, then normalize by area
             for i in range(len(plot_data)):
+                plot_data[i] = plot_data[i] - plot_data[i][-1]
+                plot_data[i] = np.maximum(plot_data[i], 0)
                 area = np.trapz(plot_data[i], self.common_be_grid)
                 if area > 0:
                     plot_data[i] = plot_data[i] / area
         elif norm_mode == "Max Height":
-            # Normalize each spectrum by its maximum value
+            # Set lowest BE to 0, then normalize by maximum
             for i in range(len(plot_data)):
+                plot_data[i] = plot_data[i] - plot_data[i][-1]
+                plot_data[i] = np.maximum(plot_data[i], 0)
                 max_val = np.max(plot_data[i])
                 if max_val > 0:
                     plot_data[i] = plot_data[i] / max_val
@@ -498,8 +543,10 @@ class PCAnalysisWindow(wx.Frame):
                                   color=colors[idx],
                                   linewidth=1)
 
-        # Update title to show normalization mode
+        # Update title to show offset and normalization mode
         title = f'{len(plot_data)} Spectra Selected'
+        if offset_mode == "Smart Background":
+            title += ' (Smart Bkg)'
         if norm_mode != "None":
             title += f' (Norm: {norm_mode})'
         self.ax_spectrum.set_title(title)
@@ -581,14 +628,18 @@ class PCAnalysisWindow(wx.Frame):
 
         # Apply normalization
         if norm_mode == "Area":
-            # Normalize each spectrum by its area (integral)
+            # Set lowest BE to 0, then normalize by area
             for i in range(len(data_for_analysis)):
+                data_for_analysis[i] = data_for_analysis[i] - data_for_analysis[i][-1]
+                data_for_analysis[i] = np.maximum(data_for_analysis[i], 0)
                 area = np.trapz(data_for_analysis[i], self.common_be_grid)
                 if area > 0:
                     data_for_analysis[i] = data_for_analysis[i] / area
         elif norm_mode == "Max Height":
-            # Normalize each spectrum by its maximum value
+            # Set lowest BE to 0, then normalize by maximum
             for i in range(len(data_for_analysis)):
+                data_for_analysis[i] = data_for_analysis[i] - data_for_analysis[i][-1]
+                data_for_analysis[i] = np.maximum(data_for_analysis[i], 0)
                 max_val = np.max(data_for_analysis[i])
                 if max_val > 0:
                     data_for_analysis[i] = data_for_analysis[i] / max_val
