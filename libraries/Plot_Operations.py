@@ -1108,6 +1108,7 @@ class PlotManager:
 
         sheet_name = window.sheet_combobox.GetValue()
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+        is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
 
         is_d_parameter = False
         limits = window.plot_config.get_plot_limits(window, sheet_name)
@@ -1289,6 +1290,16 @@ class PlotManager:
                 self.ax.set_xlabel("Wavenumber (cm⁻¹)")
 
                 # Clear existing sheet name text for Raman data
+                for txt in self.ax.texts:
+                    if getattr(txt, 'sheet_name_text', False):
+                        txt.remove()
+            elif is_xas:
+                self.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for XAS
+                self.ax.set_xlim(limits['Xmax'], limits['Xmin']) # Reverse X-axis for XAS
+                self.ax.set_ylabel("Intensity (a.u.)")
+                self.ax.set_xlabel("Photon Energy (eV)")
+
+                # Clear existing sheet name text for XAS data
                 for txt in self.ax.texts:
                     if getattr(txt, 'sheet_name_text', False):
                         txt.remove()
@@ -1602,6 +1613,7 @@ class PlotManager:
 
         sheet_name = window.sheet_combobox.GetValue()
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+        is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
 
         if not sheet_name or 'Core levels' not in window.Data or sheet_name not in window.Data['Core levels']:
             return
@@ -1669,6 +1681,10 @@ class PlotManager:
         if is_raman:
             self.ax.set_xlabel("Wavenumber (cm⁻¹)")
             self.ax.set_ylabel("Intensity (a.u.)")
+        elif is_xas:
+            self.ax.set_xlabel("Photon Energy (eV)")
+            self.ax.set_ylabel("Intensity (a.u.)")
+
         elif window.energy_scale == 'KE':
             self.ax.set_xlabel("Kinetic Energy (eV)")
             self.ax.set_ylabel("Intensity (CPS)")
@@ -2602,11 +2618,14 @@ class PlotManager:
 
         sheet_name = window.sheet_combobox.GetValue()
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+        is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
 
         # Configure subplot
         self.residuals_subplot.set_ylabel('Res.')
         if is_raman:
             self.residuals_subplot.set_xlabel('Wavenumber (cm$^{-1}$)')
+        elif is_xas:
+            self.residuals_subplot.set_xlabel('Photon Energy (eV)')
         elif window.energy_scale == 'KE':
             self.residuals_subplot.set_xlabel('Kinetic Energy (eV)')
         else:
@@ -3264,7 +3283,11 @@ class PlotManager:
                                                                                     y_values_filtered, offset_h,
                                                                                     offset_l, num_points=averaging_points)
             label = 'Background (Smart)'
-
+        elif method == "Offset":
+            background_filtered = BackgroundCalculations.calculate_offset_background(x_values_filtered,
+                                                                                     y_values_filtered, offset_h,
+                                                                                     offset_l)
+            label = 'Background (Offset)'
         elif method == "U4-Tougaard":
             background_filtered = BackgroundCalculations.calculate_tougaard_background(x_values_filtered,
                                                                                        y_values_filtered,
@@ -3289,6 +3312,11 @@ class PlotManager:
                                                                                               sheet_name,
                                                                                               window)
             label = 'Background (Tougaard)'
+        elif method == "Arctan":
+            background_filtered = BackgroundCalculations.calculate_arctan_background(x_values_filtered,
+                                                                                     y_values_filtered, offset_h,
+                                                                                     offset_l, num_points=averaging_points)
+            label = 'Background (Arctan)'
         elif method == "ALS-Raman":
             # Get ALS parameters if available
             lambda_val = 1e5

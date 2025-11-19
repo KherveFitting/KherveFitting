@@ -54,14 +54,14 @@ License: HPND"""
 
 
 def on_about(self, event):
-    about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 480))
+    about_dialog = wx.Dialog(None, title="About KherveFitting", size=(400, 540))
     panel = wx.Panel(about_dialog, style=wx.BORDER_RAISED)
     sizer = wx.BoxSizer(wx.VERTICAL)
 
     name = wx.StaticText(panel, label="KherveFitting")
     name.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
     version = wx.StaticText(panel, label="Version 1.7 Dec 25")
-
+    paper = wx.adv.HyperlinkCtrl(panel, -1, "DOI: 10.1002/sia.70032", "https://doi.org/10.1002/sia.70032")
     button_grid = wx.GridBagSizer(2, 2)
     libraries_button = wx.Button(panel, label="Libraries Used")
     libraries_button.Bind(wx.EVT_BUTTON, lambda evt: show_libraries_used(self))
@@ -72,8 +72,9 @@ def on_about(self, event):
     button_grid.Add(version_log_button, pos=(0, 1), flag=wx.ALL, border=5)
 
     description = wx.StaticText(panel,
-                                label="An Open-Source peak fitting software written\n"
-                                      "for XPS and Raman data analysis")
+                                label="An Open-Source Peak Fitting Software\n"
+                                      " written for\n"
+                                      "XPS and Raman data analysis")
 
     # Create a horizontal box sizer for the websites
     website_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -98,7 +99,7 @@ def on_about(self, event):
     for text_item in [description, developers, Testers, copyright]:
         text_item.SetWindowStyle(wx.ALIGN_CENTER_HORIZONTAL)
 
-    for item in [name, version]:
+    for item in [name, version, paper]:
         sizer.Add(item, 0, wx.ALIGN_CENTER | wx.ALL, 5)
 
     sizer.Add(button_grid, 0, wx.ALIGN_CENTER | wx.ALL, 5)
@@ -420,10 +421,11 @@ Philosophy:
 -v1.5 May-25  - Towards multi-samples 2D-Manager
 -v1.6 Aug-25  - Towards opening/saving fitted CasaXPS / Better Background management
 -v1.7 Nov-25  - Automatic Survey identification / batch fitting / Profile manager
--v1.8 Jan-26  - Fitting of Entities or Shapes
+-v1.8 Jan-26  - Fitting of Entities or Shapes / PCA tool
 -v1.9 xxx-26  - Towards Linux Version (Synchrotron)
 
 Version 1.600-1.690
+- Added Principal Component Analysis (PCA) tool
 - Added Entity/Shape fitting (work in progress)
 - Added Peak Fitting Propagation for multiple samples
 - Added Batch Fitting of multiple samples

@@ -33,6 +33,11 @@ class PCAnalysisWindow(wx.Frame):
         self.nonneg_iterations = 1000
         self.nonneg_convergence = 0.0001
 
+        # Profile plot controls
+        self.profile_y_auto = True
+        self.profile_y_min = 0.0
+        self.profile_y_max = 100.0
+
         # Analysis results
         self.nmf_model = None
         self.transformed_data = None
@@ -108,7 +113,7 @@ class PCAnalysisWindow(wx.Frame):
         selection_sizer.Add(button_sizer, 0, wx.ALL, 0)
 
         # CheckListBox for core levels
-        self.core_level_list = wx.CheckListBox(control_panel, size=(-1, 200))
+        self.core_level_list = wx.CheckListBox(control_panel, size=(-1, 120))
         self.core_level_list.Bind(wx.EVT_CHECKLISTBOX, self.on_core_level_checked)
         self.core_level_list.Bind(wx.EVT_RIGHT_DOWN, self.on_list_right_click)
         selection_sizer.Add(self.core_level_list, 1, wx.EXPAND | wx.ALL, 0)
@@ -180,13 +185,14 @@ class PCAnalysisWindow(wx.Frame):
         self.find_spin = wx.SpinCtrl(control_panel, value="2", min=1, max=28, size=(60, -1))
         find_sizer.Add(self.find_spin, 0, wx.RIGHT, 10)
         find_btn = wx.Button(control_panel, label="Analyse", size=(80, -1))
+        find_btn.SetBackgroundColour(wx.Colour(144, 238, 144))  # Light green
         find_btn.Bind(wx.EVT_BUTTON, self.on_analyse)
         find_sizer.Add(find_btn, 0)
         comp_sizer.Add(find_sizer, 0, wx.ALL, 0)
 
-        # Result range text
-        self.result_text = wx.StaticText(control_panel, label="1 to 28")
-        comp_sizer.Add(self.result_text, 0, wx.ALL, 5)
+        # # Result range text
+        # self.result_text = wx.StaticText(control_panel, label="1 to 28")
+        # comp_sizer.Add(self.result_text, 0, wx.ALL, 5)
 
         # Use components
         use_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -200,36 +206,510 @@ class PCAnalysisWindow(wx.Frame):
 
         control_sizer.Add(comp_sizer, 0, wx.EXPAND | wx.ALL, 0)
 
+        # Profile Plot Controls
+        profile_box = wx.StaticBox(control_panel, label="Profile Y-axis")
+        profile_sizer = wx.StaticBoxSizer(profile_box, wx.VERTICAL)
+
+        # Auto Y-axis checkbox
+        self.auto_y_checkbox = wx.CheckBox(control_panel, label="Auto Y-axis")
+        self.auto_y_checkbox.SetValue(True)
+        self.auto_y_checkbox.Bind(wx.EVT_CHECKBOX, self.on_auto_y_changed)
+        profile_sizer.Add(self.auto_y_checkbox, 0, wx.ALL, 5)
+
+        # Y min control
+        ymin_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ymin_sizer.Add(wx.StaticText(control_panel, label="Y Min"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.ymin_ctrl = wx.SpinCtrlDouble(control_panel, value="0.00", min=-1e6, max=1e6, inc=1.0, size=(80, -1))
+        self.ymin_ctrl.SetDigits(2)
+        self.ymin_ctrl.Enable(False)
+        self.ymin_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_y_limit_changed)
+        ymin_sizer.Add(self.ymin_ctrl, 0)
+        profile_sizer.Add(ymin_sizer, 0, wx.ALL, 5)
+
+        # Y max control
+        ymax_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ymax_sizer.Add(wx.StaticText(control_panel, label="Y Max"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.ymax_ctrl = wx.SpinCtrlDouble(control_panel, value="100.00", min=-1e6, max=1e6, inc=1.0, size=(80, -1))
+        self.ymax_ctrl.SetDigits(2)
+        self.ymax_ctrl.Enable(False)
+        self.ymax_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_y_limit_changed)
+        ymax_sizer.Add(self.ymax_ctrl, 0)
+        profile_sizer.Add(ymax_sizer, 0, wx.ALL, 5)
+
+        control_sizer.Add(profile_sizer, 0, wx.EXPAND | wx.ALL, 0)
+
         # Bottom buttons
         control_sizer.AddStretchSpacer()
         # Bottom buttons
         bottom_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Add some spacing
-        bottom_sizer.AddSpacer(10)
+        # # Add some spacing
+        # bottom_sizer.AddSpacer(10)
 
-        # Create Core Levels button
-        create_cl_btn = wx.Button(control_panel, label="Create Core Levels from PCA")
-        create_cl_btn.Bind(wx.EVT_BUTTON, self.on_create_core_levels)
-        bottom_sizer.Add(create_cl_btn, 0, wx.EXPAND | wx.ALL, 5)
+        buttons2_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Create two separate buttons for core level creation
+        create_pca_btn = wx.Button(control_panel, label="Create PCA\nas Core Levels")
+        create_pca_btn.SetMinSize((100, 35))
+        create_pca_btn.Bind(wx.EVT_BUTTON, self.on_create_pca_core_levels)
+        buttons2_sizer.Add(create_pca_btn, 0, wx.EXPAND | wx.ALL, 0)
+
+        add_pca_btn = wx.Button(control_panel, label="Add PCAs to\nCore Levels")
+        add_pca_btn.SetMinSize((100, 35))
+        add_pca_btn.SetBackgroundColour(wx.Colour(144, 238, 144))  # Light green
+        add_pca_btn.Bind(wx.EVT_BUTTON, self.on_create_fitted_core_levels)
+        buttons2_sizer.Add(add_pca_btn, 0, wx.EXPAND | wx.ALL, 0)
+
+        bottom_sizer.Add(buttons2_sizer, 0, wx.EXPAND)
 
         # Export and Close buttons
         buttons_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        export_btn = wx.Button(control_panel, label="Export Results")
+        export_btn = wx.Button(control_panel, label="Export\nResults")
+        export_btn.SetMinSize((100, 35))
         export_btn.Bind(wx.EVT_BUTTON, self.on_export_results)
-        buttons_sizer.Add(export_btn, 1, wx.ALL, 5)
+        buttons_sizer.Add(export_btn, 0,  wx.EXPAND | wx.ALL, 0)
 
         cancel_btn = wx.Button(control_panel, label="Close")
+        cancel_btn.SetMinSize((100, 35))
         cancel_btn.Bind(wx.EVT_BUTTON, self.on_cancel)
-        buttons_sizer.Add(cancel_btn, 1, wx.ALL, 5)
+        buttons_sizer.Add(cancel_btn, 0,  wx.EXPAND |wx.ALL, 0)
 
         bottom_sizer.Add(buttons_sizer, 0, wx.EXPAND)
 
-        control_sizer.Add(bottom_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        control_sizer.Add(bottom_sizer, 0, wx.EXPAND | wx.ALL, 0)
 
         control_panel.SetSizer(control_sizer)
         self.main_sizer.Add(control_panel, 0, wx.EXPAND | wx.ALL, 0)
+
+    def on_create_core_levels_menu(self, event):
+        """Show menu to choose which type of core levels to create"""
+        if self.components is None:
+            wx.MessageBox("Please run Analyse first", "No Results", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create dialog to choose type
+        dlg = wx.SingleChoiceDialog(
+            self,
+            'Choose core level type to create:',
+            'Create Core Levels',
+            ['Create PCA Core Levels', 'Create Fitted Core Levels']
+        )
+
+        if dlg.ShowModal() == wx.ID_OK:
+            choice = dlg.GetSelection()
+            dlg.Destroy()
+
+            if choice == 0:
+                self.on_create_pca_core_levels(None)
+            else:
+                self.on_create_fitted_core_levels(None)
+        else:
+            dlg.Destroy()
+
+    def on_create_pca_core_levels(self, event):
+        """Create core levels from PCA eigenvectors (renamed from original)"""
+        self.on_create_core_levels(event)
+
+    def on_create_fitted_core_levels_OLD(self, event):
+        """Create fitted core levels with PCA components as SingleEntity peaks"""
+        if self.components is None:
+            wx.MessageBox("Please run Analyse first", "No Results", wx.OK | wx.ICON_WARNING)
+            return
+
+        if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
+            wx.MessageBox("No data structure found", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        file_path = self.parent.Data.get('FilePath', '')
+        if not file_path:
+            wx.MessageBox("No file path found. Please save your data first.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get number of components to use
+        n_use = self.use_spin.GetValue()
+
+        # Import necessary modules
+        import pandas as pd
+        import openpyxl
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        import json
+
+        # Determine base name from selected core levels
+        base_name = "PCA"
+        if len(self.sheet_names) > 0:
+            first_sheet = self.sheet_names[0]
+            if '_' in first_sheet:
+                base_name = first_sheet.split('_')[0]
+            else:
+                import re
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
+                if match:
+                    base_name = match.group(1)
+
+        created_sheets = []
+
+        try:
+            # Load workbook
+            wb = openpyxl.load_workbook(file_path)
+
+            # Create one core level for each original spectrum with fitted components
+            for j in range(len(self.sheet_names)):
+                sheet_name = f"PCA{base_name}{j + 1}"
+
+                # Reconstruct fitted spectrum
+                reconstructed = np.zeros_like(self.common_be_grid)
+                for i in range(min(n_use, self.transformed_data.shape[1])):
+                    reconstructed += self.transformed_data[j, i] * self.components[i]
+
+                # Create peaks dictionary with SingleEntity for each component
+                peaks_dict = {}
+
+                for i in range(min(n_use, len(self.components))):
+                    component_name = f"{base_name} PCA{i + 1}"
+
+                    # Scale component by coefficient
+                    scaled_component = self.transformed_data[j, i] * self.components[i]
+
+                    # Calculate properties
+                    y_max = float(np.max(scaled_component))
+                    y_max_index = np.argmax(scaled_component)
+                    x_center = float(self.common_be_grid[y_max_index])
+
+                    # Calculate area
+                    sorted_indices = np.argsort(self.common_be_grid)
+                    x_sorted = self.common_be_grid[sorted_indices]
+                    y_sorted = scaled_component[sorted_indices]
+                    y_area = float(abs(np.trapz(y_sorted, x_sorted)))
+
+
+                    peaks_dict[component_name] = {
+                        "Position": round(x_center, 2),
+                        "Height": round(y_max, 2),
+                        "FWHM": round(0, 2),
+                        "L/G": round(y_area, 2),
+                        "Area": round(y_area, 2),
+                        "Sigma":  0, # round(sigma_estimate, 2),
+                        "Gamma":  1, # round(sigma_estimate, 2),
+                        "Skew": 0.0,
+                        "Fitting Model": "SingleEntity",
+                        "x_data": self.common_be_grid.tolist(),
+                        "y_data": scaled_component.tolist(),
+                        "Original_Position": round(x_center, 2),
+                        "Original_Area": round(y_area, 2),
+                        "Constraints": {
+                            "Position": f"{float(np.min(self.common_be_grid)):.2f},{float(np.max(self.common_be_grid)):.2f}",
+                            "FWHM": "0.1:10",
+                            "L/G": "0:1",
+                            "Sigma": "-10:10",
+                            "Gamma": f"0.01:10000"
+                        }
+                    }
+
+                # Calculate Offset background
+                from libraries.Peak_Functions import BackgroundCalculations
+                offset_h = 0.0
+                offset_l = 0.0
+                offset_bg = BackgroundCalculations.calculate_offset_background(
+                    self.common_be_grid,
+                    self.spectra_data[j],
+                    offset_h,
+                    offset_l,
+                    num_points=5
+                )
+
+                # Create core level data structure
+                self.parent.Data['Core levels'][sheet_name] = {
+                    'B.E.': self.common_be_grid.tolist(),
+                    'Raw Data': self.spectra_data[j].tolist(),
+                    'Background': {
+                        'Bkg Y': offset_bg.tolist(),
+                        'Type': 'Offset',
+                        'Bkg Low': float(self.common_be_grid[-1]),
+                        'Bkg High': float(self.common_be_grid[0]),
+                        'offset_h': offset_h,
+                        'offset_l': offset_l
+                    },
+                    'Fitting': {
+                        'Peaks': peaks_dict,
+                        'Model': 'SingleEntity'
+                    }
+                }
+
+                # Create DataFrame for Excel
+                data_length = len(self.common_be_grid)
+                data_dict = {
+                    'Binding Energy': self.common_be_grid.tolist(),
+                    'Corrected Data': self.spectra_data[j].tolist(),
+                    'Raw Data': self.spectra_data[j].tolist(),
+                    'Transmission': [1.0] * data_length
+                }
+
+                df = pd.DataFrame(data_dict)
+
+                # Create new sheet in Excel
+                if sheet_name in wb.sheetnames:
+                    del wb[sheet_name]
+
+                ws = wb.create_sheet(sheet_name)
+
+                # Write DataFrame to worksheet
+                for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+                    for c_idx, value in enumerate(row, 1):
+                        ws.cell(row=r_idx, column=c_idx, value=value)
+
+                created_sheets.append(sheet_name)
+
+            # Update number of core levels
+            self.parent.Data['Number of Core levels'] = len(self.parent.Data['Core levels'])
+
+            # Save workbook
+            wb.save(file_path)
+
+            # Update JSON file
+            def convert_numpy_to_serializable(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, np.integer):
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    return float(obj)
+                elif isinstance(obj, dict):
+                    return {key: convert_numpy_to_serializable(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_to_serializable(item) for item in obj]
+                return obj
+
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            json_data = convert_numpy_to_serializable(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating fitted core levels: {e}", "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
+            return
+
+        # Update the sheet combobox
+        if hasattr(self.parent, 'sheet_combobox'):
+            current_sheets = [self.parent.sheet_combobox.GetString(i)
+                              for i in range(self.parent.sheet_combobox.GetCount())]
+
+            for sheet_name in created_sheets:
+                if sheet_name not in current_sheets:
+                    self.parent.sheet_combobox.Append(sheet_name)
+
+            if created_sheets:
+                self.parent.sheet_combobox.SetStringSelection(created_sheets[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, created_sheets[0])
+
+        wx.MessageBox(f"Created {len(created_sheets)} fitted core levels:\n" + "\n".join(created_sheets),
+                      "Fitted Core Levels Created", wx.OK | wx.ICON_INFORMATION)
+
+    def on_create_fitted_core_levels(self, event):
+        """Replace peaks in selected core levels with PCA components as SingleEntity peaks"""
+        if self.components is None:
+            wx.MessageBox("Please run Analyse first", "No Results", wx.OK | wx.ICON_WARNING)
+            return
+
+        if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
+            wx.MessageBox("No data structure found", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        file_path = self.parent.Data.get('FilePath', '')
+        if not file_path:
+            wx.MessageBox("No file path found. Please save your data first.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get number of components to use
+        n_use = self.use_spin.GetValue()
+
+        # Check if any core levels are selected
+        if len(self.sheet_names) == 0:
+            wx.MessageBox("No core levels selected", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Determine base name for component naming from first sheet
+        first_sheet = self.sheet_names[0]
+        base_name = "PCA"
+        if '_' in first_sheet:
+            base_name = first_sheet.split('_')[0]
+        else:
+            import re
+            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
+            if match:
+                base_name = match.group(1)
+
+        # Define PCA range for recorded ranges
+        pca_min_be = float(np.min(self.common_be_grid))
+        pca_max_be = float(np.max(self.common_be_grid))
+
+        updated_sheets = []
+
+        try:
+            # Process each selected core level
+            for j, original_sheet_name in enumerate(self.sheet_names):
+
+                # Get the original core level data
+                if original_sheet_name not in self.parent.Data['Core levels']:
+                    print(f"Warning: Core level '{original_sheet_name}' not found, skipping")
+                    continue
+
+                original_be = np.array(self.parent.Data['Core levels'][original_sheet_name]['B.E.'])
+                original_raw = np.array(self.parent.Data['Core levels'][original_sheet_name]['Raw Data'])
+
+                # Get the profile coefficients for this spectrum (j-th row)
+                profile_coefficients = self.transformed_data[j, :n_use]
+
+                # Calculate the scale factors from profile ratios
+                # Each component gets scaled by its coefficient relative to the sum
+                total_coefficient = np.sum(profile_coefficients)
+
+                # Create peaks dictionary with SingleEntity for each PCA component
+                peaks_dict = {}
+
+                for i in range(min(n_use, len(self.components))):
+                    component_name = f"{base_name} PCA{i + 1}"
+
+                    # Get the component's coefficient for this spectrum
+                    coefficient = self.transformed_data[j, i]
+
+                    # Calculate the scale factor (Gamma) as the ratio
+                    # Gamma represents how much to scale this component
+                    scale_factor = float(coefficient)
+
+                    # The unscaled component (what's stored in x_data/y_data)
+                    unscaled_component = self.components[i]
+
+                    # Calculate properties from UNSCALED component
+                    y_max_unscaled = float(np.max(unscaled_component))
+                    y_max_index = np.argmax(unscaled_component)
+                    x_center = float(self.common_be_grid[y_max_index])
+
+                    # Calculate ORIGINAL area (from unscaled component)
+                    sorted_indices = np.argsort(self.common_be_grid)
+                    x_sorted = self.common_be_grid[sorted_indices]
+                    y_sorted_unscaled = unscaled_component[sorted_indices]
+                    original_area = float(abs(np.trapz(y_sorted_unscaled, x_sorted)))
+
+                    # Calculate CURRENT scaled area (what should be displayed)
+                    scaled_component = coefficient * unscaled_component
+                    y_sorted_scaled = scaled_component[sorted_indices]
+                    current_area = float(abs(np.trapz(y_sorted_scaled, x_sorted)))
+
+                    # Calculate current height
+                    current_height = float(np.max(scaled_component))
+
+                    peaks_dict[component_name] = {
+                        "Position": round(x_center, 2),
+                        "Height": round(current_height, 2),
+                        "FWHM": round(0, 2),
+                        "L/G": round(original_area, 2),  # Original area - never changes
+                        "Area": round(current_area, 2),  # Current scaled area
+                        "Sigma": 0.00,
+                        "Gamma": round(scale_factor, 2),  # Scale factor from profile
+                        "Skew": 0.0,
+                        "Fitting Model": "SingleEntity",
+                        "x_data": self.common_be_grid.tolist(),
+                        "y_data": unscaled_component.tolist(),  # Store UNSCALED component
+                        "Original_Position": round(x_center, 2),
+                        "Original_Area": round(original_area, 2),  # Original area
+                        "Constraints": {
+                            "Position": f"{pca_min_be:.2f},{pca_max_be:.2f}",
+                            "FWHM": "0.1:10",
+                            "L/G": "0:1",
+                            "Sigma": "-10:10",
+                            "Gamma": "0.01:1000000"
+                        }
+                    }
+
+                # Calculate Offset background for the PCA region only
+                from libraries.Peak_Functions import BackgroundCalculations
+                offset_h = 0.0
+                offset_l = 0.0
+                pca_offset_bg = BackgroundCalculations.calculate_offset_background(
+                    self.common_be_grid,
+                    self.spectra_data[j],
+                    offset_h,
+                    offset_l,
+                    num_points=5
+                )
+
+                # Create full-length background array matching original B.E.
+                from scipy.interpolate import interp1d
+
+                # Create interpolator for PCA background
+                interp_bg = interp1d(self.common_be_grid, pca_offset_bg,
+                                     kind='linear', bounds_error=False, fill_value='extrapolate')
+
+                # Create full background array
+                full_background = interp_bg(original_be)
+
+                # Ensure background is reasonable (non-negative)
+                full_background = np.maximum(full_background, 0)
+
+                # Update the core level with new peaks and background
+                # Update background
+                self.parent.Data['Core levels'][original_sheet_name]['Background'] = {
+                    'Bkg Y': full_background.tolist(),
+                    'Bkg Type': 'Offset',
+                    'Bkg Low': pca_max_be,
+                    'Bkg High': pca_min_be,
+                    'Bkg Offset Low': offset_l,
+                    'Bkg Offset High': offset_h,
+                    'Recorded_Ranges': [
+                        (offset_h, offset_l, pca_min_be, pca_max_be)
+                    ]
+                }
+
+                # Replace peaks with PCA components
+                if 'Fitting' not in self.parent.Data['Core levels'][original_sheet_name]:
+                    self.parent.Data['Core levels'][original_sheet_name]['Fitting'] = {}
+
+                self.parent.Data['Core levels'][original_sheet_name]['Fitting']['Peaks'] = peaks_dict
+                self.parent.Data['Core levels'][original_sheet_name]['Fitting']['Model'] = 'SingleEntity'
+
+                updated_sheets.append(original_sheet_name)
+
+            # Save JSON file
+            import json
+            import os
+
+            def convert_numpy_to_serializable(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, np.integer):
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    return float(obj)
+                elif isinstance(obj, dict):
+                    return {key: convert_numpy_to_serializable(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_to_serializable(item) for item in obj]
+                return obj
+
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            json_data = convert_numpy_to_serializable(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating PCA peaks: {e}", "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
+            return
+
+        # Refresh the display if any updated core level is currently selected
+        if hasattr(self.parent, 'sheet_combobox'):
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet in updated_sheets:
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, current_sheet)
+
+        wx.MessageBox(f"Created {n_use} PCA SingleEntity peaks in {len(updated_sheets)} core levels",
+                      "PCA Peaks Created", wx.OK | wx.ICON_INFORMATION)
 
     def create_plots_panel(self):
         """Create the right panel with 4 plots arranged in 2x2 grid"""
@@ -289,6 +769,31 @@ class PCAnalysisWindow(wx.Frame):
         for sheet_name in self.parent.Data['Core levels'].keys():
             if 'B.E.' in self.parent.Data['Core levels'][sheet_name] and \
                     'Raw Data' in self.parent.Data['Core levels'][sheet_name]:
+
+                # Skip profile data
+                if 'zzProfile' in sheet_name:
+                    continue
+
+                # Skip valence band spectra (case-insensitive)
+                sheet_lower = sheet_name.lower()
+                if any(x in sheet_lower for x in ['vb', 'valence', 'valenceband', 'wide']):
+                    continue
+
+                # Skip Auger transitions (contains 3 letters like "lmm", "kmm", "lmv", etc.)
+                # Auger notation: element + 3 lowercase letters
+                if any(c.islower() for c in sheet_name):
+                    # Check for 3 consecutive lowercase letters (Auger transition)
+                    lower_count = 0
+                    for c in sheet_name:
+                        if c.islower():
+                            lower_count += 1
+                            if lower_count >= 3:
+                                break
+                        else:
+                            lower_count = 0
+                    if lower_count >= 3:
+                        continue
+
                 core_levels.append(sheet_name)
 
         # Sort using natural sorting
@@ -484,10 +989,10 @@ class PCAnalysisWindow(wx.Frame):
         # Get offset mode
         offset_mode = "Minimum Value" if self.offset_min.GetValue() else "Smart Background"
 
-        # Copy data for plotting
+        # Copy data for plotting and apply SAME preprocessing as analysis
         plot_data = np.abs(self.spectra_data.copy())
 
-        # Apply offset (background subtraction)
+        # Apply offset FIRST (same as in on_analyse)
         if offset_mode == "Minimum Value":
             plot_data = plot_data - np.min(plot_data, axis=1, keepdims=True)
         elif offset_mode == "Smart Background":
@@ -517,23 +1022,28 @@ class PCAnalysisWindow(wx.Frame):
         # Ensure all values are non-negative
         plot_data = np.maximum(plot_data, 0)
 
-        # Apply normalization to plot data
+        # Store original max intensity before normalization
+        original_max_intensity = np.max(np.abs(plot_data))
+
+        # Apply normalization AFTER offset (same as in on_analyse)
         if norm_mode == "Area":
             # Set lowest BE to 0, then normalize by area
             for i in range(len(plot_data)):
                 plot_data[i] = plot_data[i] - plot_data[i][-1]
                 plot_data[i] = np.maximum(plot_data[i], 0)
-                area = np.trapz(plot_data[i], self.common_be_grid)
+                area = np.abs(np.trapz(plot_data[i], self.common_be_grid))
                 if area > 0:
                     plot_data[i] = plot_data[i] / area
         elif norm_mode == "Max Height":
-            # Set lowest BE to 0, then normalize by maximum
+            # Normalize each spectrum by its maximum value
             for i in range(len(plot_data)):
-                plot_data[i] = plot_data[i] - plot_data[i][-1]
-                plot_data[i] = np.maximum(plot_data[i], 0)
                 max_val = np.max(plot_data[i])
                 if max_val > 0:
                     plot_data[i] = plot_data[i] / max_val
+
+        # Rescale back to original intensity for display
+        if norm_mode != "None" and original_max_intensity > 0:
+            plot_data = plot_data * original_max_intensity
 
         colors = plt.cm.Greens(np.linspace(0.4, 0.9, len(plot_data)))
 
@@ -545,10 +1055,11 @@ class PCAnalysisWindow(wx.Frame):
 
         # Update title to show offset and normalization mode
         title = f'{len(plot_data)} Spectra Selected'
-        if offset_mode == "Smart Background":
-            title += ' (Smart Bkg)'
-        if norm_mode != "None":
-            title += f' (Norm: {norm_mode})'
+        if offset_mode != "Minimum Value" or norm_mode != "None":
+            title += f' ({offset_mode}'
+            if norm_mode != "None":
+                title += f', Norm: {norm_mode}'
+            title += ')'
         self.ax_spectrum.set_title(title)
 
         self.ax_spectrum.set_xlabel('Binding Energy (eV)')
@@ -556,9 +1067,6 @@ class PCAnalysisWindow(wx.Frame):
 
         # Invert x-axis to show High BE to Low BE
         self.ax_spectrum.invert_xaxis()
-
-        # if len(plot_data) > 1:
-        #     self.ax_spectrum.legend(fontsize=8, loc='best')
 
         # Ensure scientific notation is maintained
         formatter = ScalarFormatter(useMathText=True)
@@ -626,13 +1134,16 @@ class PCAnalysisWindow(wx.Frame):
         # Final safety check: ensure all values are non-negative
         data_for_analysis = np.maximum(data_for_analysis, 0)
 
+        # Store original max intensity before normalization for rescaling components
+        self.original_max_intensity = np.max(np.abs(data_for_analysis))
+
         # Apply normalization
         if norm_mode == "Area":
             # Set lowest BE to 0, then normalize by area
             for i in range(len(data_for_analysis)):
                 data_for_analysis[i] = data_for_analysis[i] - data_for_analysis[i][-1]
                 data_for_analysis[i] = np.maximum(data_for_analysis[i], 0)
-                area = np.trapz(data_for_analysis[i], self.common_be_grid)
+                area = np.abs(np.trapz(data_for_analysis[i], self.common_be_grid))
                 if area > 0:
                     data_for_analysis[i] = data_for_analysis[i] / area
         elif norm_mode == "Max Height":
@@ -653,6 +1164,11 @@ class PCAnalysisWindow(wx.Frame):
                                  max_iter=self.nonneg_iterations, tol=self.nonneg_convergence)
             self.transformed_data = self.nmf_model.fit_transform(data_for_analysis)
             self.components = self.nmf_model.components_
+
+            # Rescale components back to original intensity if normalization was applied
+            if norm_mode != "None" and self.original_max_intensity > 0:
+                self.components = self.components * self.original_max_intensity
+
             self.eigenvalues = np.sum(self.transformed_data, axis=0)
         except Exception as e:
             wx.MessageBox(f"NMF analysis failed: {e}\n\nTry using 'Minimum Value' offset instead.",
@@ -692,30 +1208,33 @@ class PCAnalysisWindow(wx.Frame):
         self.ax_eigenvectors.invert_xaxis()
         self.ax_eigenvectors.legend()
 
-        # Plot profiles
-        self.ax_profiles.clear()
-        plot_numbers = list(range(len(self.etch_times)))
-        colors = plt.cm.Greens(np.linspace(0.4, 0.9, n_components))
-        for i in range(n_components):
-            self.ax_profiles.plot(
-                plot_numbers,
-                self.transformed_data[:, i],
-                marker='o',
-                label=f'PCA {i + 1}',
-                color=colors[i],
-                linewidth=1,
-                markersize=3
-            )
-        self.ax_profiles.set_title('PCA Profiles Rotated NonNeg')
-        self.ax_profiles.set_xlabel('Plot Number')
-        self.ax_profiles.set_ylabel('Intensity')
-        self.ax_profiles.legend()
+        # # Plot profiles
+        # self.ax_profiles.clear()
+        # plot_numbers = list(range(len(self.etch_times)))
+        # colors = plt.cm.Greens(np.linspace(0.4, 0.9, n_components))
+        # for i in range(n_components):
+        #     self.ax_profiles.plot(
+        #         plot_numbers,
+        #         self.transformed_data[:, i],
+        #         marker='o',
+        #         label=f'PCA {i + 1}',
+        #         color=colors[i],
+        #         linewidth=1,
+        #         markersize=3
+        #     )
+        # self.ax_profiles.set_title('PCA Profiles Rotated NonNeg')
+        # self.ax_profiles.set_xlabel('Plot Number')
+        # self.ax_profiles.set_ylabel('Intensity')
+        # self.ax_profiles.legend()
+
+        # Plot profiles using the update method
+        self.update_profile_plot()
 
         self.fig.tight_layout(pad=0.5, h_pad=0.5, w_pad=0.5)
         self.canvas.draw()
 
         # Update result range
-        self.result_text.SetLabel(f"1 to {n_components}")
+        # self.result_text.SetLabel(f"1 to {n_components}")
 
 
     def on_redisplay(self, event):
@@ -744,22 +1263,25 @@ class PCAnalysisWindow(wx.Frame):
         self.ax_eigenvectors.invert_xaxis()
         self.ax_eigenvectors.legend()
 
-        self.ax_profiles.clear()
-        plot_numbers = list(range(len(self.etch_times)))
-        for i in range(min(n_use, self.transformed_data.shape[1])):
-            self.ax_profiles.plot(
-                plot_numbers,
-                self.transformed_data[:, i],
-                marker='o',
-                label=f'PCA {i + 1}',
-                color=colors[i],
-                linewidth=1,
-                markersize=3
-            )
-        self.ax_profiles.set_title('PCA Profiles Rotated NonNeg')
-        self.ax_profiles.set_xlabel('Plot Number')
-        self.ax_profiles.set_ylabel('Intensity')
-        self.ax_profiles.legend()
+        # self.ax_profiles.clear()
+        # plot_numbers = list(range(len(self.etch_times)))
+        # for i in range(min(n_use, self.transformed_data.shape[1])):
+        #     self.ax_profiles.plot(
+        #         plot_numbers,
+        #         self.transformed_data[:, i],
+        #         marker='o',
+        #         label=f'PCA {i + 1}',
+        #         color=colors[i],
+        #         linewidth=1,
+        #         markersize=3
+        #     )
+        # self.ax_profiles.set_title('PCA Profiles Rotated NonNeg')
+        # self.ax_profiles.set_xlabel('Plot Number')
+        # self.ax_profiles.set_ylabel('Intensity')
+        # self.ax_profiles.legend()
+
+        # Update profiles using the update method
+        self.update_profile_plot()
 
         # Ensure scientific notation
         formatter = ScalarFormatter(useMathText=True)
@@ -791,13 +1313,13 @@ class PCAnalysisWindow(wx.Frame):
             if choice == 0:  # Single Entity
                 self.export_as_single_entity()
             elif choice == 1:  # Full JSON
-                self.export_to_json()
+                self.export_to_excel()
             else:  # Excel export
                 self.export_to_excel()
         else:
             dlg.Destroy()
 
-    def export_to_excel(self):
+    def export_to_excel_OLD(self):
         """Export PCA results to Excel (original method)"""
         wildcard = "Excel Files (*.xlsx)|*.xlsx"
         dlg = wx.FileDialog(self, "Export PCA Results to Excel", wildcard=wildcard,
@@ -831,6 +1353,80 @@ class PCAnalysisWindow(wx.Frame):
                     df_eigen.to_excel(writer, sheet_name='Eigenvalues', index=False)
 
                 wx.MessageBox("PCA results exported to Excel successfully!", "Export Complete", wx.OK)
+            except Exception as e:
+                wx.MessageBox(f"Error exporting to Excel: {e}", "Export Error", wx.OK | wx.ICON_ERROR)
+
+        dlg.Destroy()
+
+    def export_to_excel(self):
+        """Export PCA results to Excel including reconstructed fits"""
+        wildcard = "Excel Files (*.xlsx)|*.xlsx"
+        dlg = wx.FileDialog(self, "Export PCA Results to Excel", wildcard=wildcard,
+                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            filepath = dlg.GetPath()
+
+            try:
+                with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                    # Get number of components to use
+                    n_use = self.use_spin.GetValue()
+
+                    # Write binding energy grid and components
+                    components_data = {'Binding Energy (eV)': self.common_be_grid}
+                    for i in range(min(n_use, len(self.components))):
+                        components_data[f'PCA {i + 1}'] = self.components[i]
+                    df_components = pd.DataFrame(components_data)
+                    df_components.to_excel(writer, sheet_name='PCA Components', index=False)
+
+                    # Write profiles in concentration (%)
+                    plot_numbers = list(range(len(self.etch_times)))
+                    profiles_data = {'Plot Number': plot_numbers, 'Sheet Name': self.sheet_names}
+
+                    # Calculate concentration
+                    for j in range(len(self.etch_times)):
+                        row_sum = np.sum(self.transformed_data[j, :min(n_use, self.transformed_data.shape[1])])
+                        if row_sum == 0:
+                            row_sum = 1.0
+                        for i in range(min(n_use, self.transformed_data.shape[1])):
+                            if f'PCA {i + 1} (%)' not in profiles_data:
+                                profiles_data[f'PCA {i + 1} (%)'] = []
+                            concentration = (self.transformed_data[j, i] / row_sum) * 100.0
+                            profiles_data[f'PCA {i + 1} (%)'].append(concentration)
+
+                    df_profiles = pd.DataFrame(profiles_data)
+                    df_profiles.to_excel(writer, sheet_name='PCA Profiles', index=False)
+
+                    # Write reconstructed spectra - each sheet is one plot/spectrum
+                    for j in range(len(self.sheet_names)):
+                        # Reconstruct this spectrum from components
+                        reconstructed = np.zeros_like(self.common_be_grid)
+                        fit_data = {'Binding Energy (eV)': self.common_be_grid}
+
+                        # Add each component contribution
+                        for i in range(min(n_use, self.transformed_data.shape[1])):
+                            component_contrib = self.transformed_data[j, i] * self.components[i]
+                            fit_data[f'PCA {i + 1}'] = component_contrib
+                            reconstructed += component_contrib
+
+                        # Add total fit and original data
+                        fit_data['Total Fit'] = reconstructed
+                        fit_data['Original Data'] = self.spectra_data[j]
+                        fit_data['Residual'] = self.spectra_data[j] - reconstructed
+
+                        df_fit = pd.DataFrame(fit_data)
+                        sheet_name = f'Fit_{self.sheet_names[j]}'[:31]  # Excel sheet name limit
+                        df_fit.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                    # Write eigenvalues
+                    df_eigen = pd.DataFrame({
+                        'Component': range(1, len(self.eigenvalues) + 1),
+                        'Eigenvalue': self.eigenvalues
+                    })
+                    df_eigen.to_excel(writer, sheet_name='Eigenvalues', index=False)
+
+                wx.MessageBox(f"PCA results exported to Excel successfully!\n{len(self.sheet_names)} fit sheets created.",
+                              "Export Complete", wx.OK)
             except Exception as e:
                 wx.MessageBox(f"Error exporting to Excel: {e}", "Export Error", wx.OK | wx.ICON_ERROR)
 
@@ -950,7 +1546,7 @@ class PCAnalysisWindow(wx.Frame):
                 for i in range(min(n_use, len(self.components))):
                     component_name = f"{base_name} PCA{i + 1}"
 
-                    # Get component data
+                    # Get component data - already rescaled in on_analyse
                     x_data = self.common_be_grid
                     y_data = self.components[i]
 
@@ -985,7 +1581,7 @@ class PCAnalysisWindow(wx.Frame):
                         "Constraints": {
                             "Position": f"{float(np.min(x_data)):.2f},{float(np.max(x_data)):.2f}",
                             "Sigma": "-10:10",
-                            "Gamma": "0.01:1000"
+                            "Gamma": "0.01:1000000"
                         }
                     }
 
@@ -1142,6 +1738,73 @@ class PCAnalysisWindow(wx.Frame):
 
         wx.MessageBox(f"Created {len(created_sheets)} core levels:\n" + "\n".join(created_sheets),
                       "Core Levels Created", wx.OK | wx.ICON_INFORMATION)
+
+    def on_concentration_changed(self, event):
+        """Handle concentration display checkbox"""
+        self.profile_as_concentration = self.conc_checkbox.GetValue()
+        if self.transformed_data is not None:
+            self.update_profile_plot()
+
+    def on_auto_y_changed(self, event):
+        """Handle auto Y-axis checkbox"""
+        self.profile_y_auto = self.auto_y_checkbox.GetValue()
+        self.ymin_ctrl.Enable(not self.profile_y_auto)
+        self.ymax_ctrl.Enable(not self.profile_y_auto)
+        if self.transformed_data is not None:
+            self.update_profile_plot()
+
+    def on_y_limit_changed(self, event):
+        """Handle Y-axis limit changes"""
+        if not self.profile_y_auto:
+            self.profile_y_min = self.ymin_ctrl.GetValue()
+            self.profile_y_max = self.ymax_ctrl.GetValue()
+            if self.transformed_data is not None:
+                self.update_profile_plot()
+
+    def update_profile_plot(self):
+        """Update the profile plot with current settings - always as concentration"""
+        if self.transformed_data is None:
+            return
+
+        n_use = self.use_spin.GetValue()
+        self.ax_profiles.clear()
+        plot_numbers = list(range(len(self.etch_times)))
+        # colors = plt.cm.tab10(np.linspace(0, 1, n_use))
+        colors = plt.cm.Greens(np.linspace(0.4, 0.9, n_use))
+
+        # Convert to concentration (percentage)
+        plot_data = np.zeros_like(self.transformed_data)
+        for j in range(len(self.etch_times)):
+            row_sum = np.sum(self.transformed_data[j, :min(n_use, self.transformed_data.shape[1])])
+            if row_sum > 0:
+                for i in range(min(n_use, self.transformed_data.shape[1])):
+                    plot_data[j, i] = (self.transformed_data[j, i] / row_sum) * 100.0
+            else:
+                plot_data[j, :] = 0.0
+
+        # Plot profiles
+        for i in range(min(n_use, plot_data.shape[1])):
+            self.ax_profiles.plot(
+                plot_numbers,
+                plot_data[:, i],
+                marker='o',
+                label=f'PCA {i + 1}',
+                color=colors[i],
+                linewidth=1,
+                markersize=3
+            )
+
+        self.ax_profiles.set_title('PCA Profiles Rotated NonNeg')
+        self.ax_profiles.set_xlabel('Plot Number')
+        self.ax_profiles.set_ylabel('Concentration (%)')
+
+        # Apply Y-axis limits
+        if not self.profile_y_auto:
+            self.ax_profiles.set_ylim(self.profile_y_min, self.profile_y_max)
+
+        self.ax_profiles.legend()
+        self.fig.tight_layout(pad=0.5, h_pad=0.5, w_pad=0.5)
+        self.canvas.draw()
 
     def on_cancel(self, event):
         """Close the PCA analysis window"""

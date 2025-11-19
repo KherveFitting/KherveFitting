@@ -157,7 +157,7 @@ class FittingWindow(wx.Frame):
         method_label = wx.StaticText(self.background_panel, label="Method:")
         if self.normal:
             self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart", "Shirley",
-                                                "Linear", 'U4-Tougaard', 'U2-Tougaard',"ALS-Raman"],
+                                                "Linear","Offset", 'U4-Tougaard', 'U2-Tougaard',"ALS-Raman", "Arctan"],
                                                style=wx.CB_READONLY)
         else:
             self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart",'U2-Tougaard'],
@@ -2206,6 +2206,14 @@ class FittingWindow(wx.Frame):
                                 float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
                         elif background_method == "Linear":
                             current_background = BackgroundCalculations.calculate_adaptive_linear_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif background_method == "Offset":
+                            current_background = BackgroundCalculations.calculate_adaptive_linear_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif background_method == "Arctan":
+                            current_background = BackgroundCalculations.calculate_adaptive_arctan_background(
                                 x_values, y_values, (min_range, max_range), current_background,
                                 float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
                         elif background_method == "Smart":

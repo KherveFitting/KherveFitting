@@ -832,6 +832,9 @@ class MouseEventHandler:
                 current_vline2_pos = self.window.vline2.get_xdata()[0]
 
             x_click = event.xdata
+            if x_click is None:
+                return
+
             sheet_name = self.window.sheet_combobox.GetValue()
             if self.window.vline1 is not None and self.window.vline2 is not None:
                 vline1_x = self.window.vline1.get_xdata()[0]

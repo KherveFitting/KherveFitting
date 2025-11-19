@@ -852,9 +852,26 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         # Create lmfit Model from the custom function
                         peak_model = lmfit.Model(envelope_func, prefix=prefix)
 
-                        # Get current shift and scale from grid
+                        # # Get current shift and scale from grid
+                        # base_shift = float(peak_params_grid.GetCellValue(row, 7))
+                        # base_scale = float(peak_params_grid.GetCellValue(row, 8))
+                        #
+                        # # Add small random offset to avoid identical starting points for multiple SingleEntity
+                        # import random
+                        # shift_offset = random.uniform(-0.1, 0.1) if i > 0 else 0.0  # Only for 2nd+ SingleEntity
+                        # scale_offset = random.uniform(0.95, 1.05) if i > 0 else 1.0
+                        #
+                        # current_shift = base_shift + shift_offset
+                        # current_scale = base_scale * scale_offset
+
+                        # Get current shift from grid
                         base_shift = float(peak_params_grid.GetCellValue(row, 7))
-                        base_scale = float(peak_params_grid.GetCellValue(row, 8))
+
+                        # Calculate scale from current area / original area (not from grid gamma)
+                        # This prevents exponential growth on repeated fits
+                        current_area = float(peak_params_grid.GetCellValue(row, 6))
+                        true_original_area = peak_data.get('Original_Area', peak_data.get('Area', 1))
+                        base_scale = current_area / true_original_area if true_original_area != 0 else 1.0
 
                         # Add small random offset to avoid identical starting points for multiple SingleEntity
                         import random
@@ -1193,13 +1210,15 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
                         peak_keys = list(peaks_dict.keys())
 
+                        # For SingleEntity, ALWAYS get Original_Area from L/G column (row, 5)
+                        true_original_area = float(peak_params_grid.GetCellValue(row, 5))
+
                         if i < len(peak_keys):
                             peak_name = peak_keys[i]
                             peak_data = peaks_dict[peak_name]
 
-                            # Get TRUE original values (not current grid values)
+                            # Get TRUE original position (not current grid value)
                             original_position = peak_data.get('Original_Position', peak_data.get('Position', 0))
-                            true_original_area = peak_data.get('Original_Area', peak_data.get('Area', 1))
 
                             # Calculate position: original + shift
                             center = original_position + shift
@@ -1216,15 +1235,17 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                                 # Fallback: scale the current grid height
                                 height = float(peak_params_grid.GetCellValue(row, 3)) * scale
 
-
                         else:
                             print(f"Warning: Could not find peak data for SingleEntity index {i}")
+                            # Fallback values from grid
                             center = float(peak_params_grid.GetCellValue(row, 2))
-                            area = float(peak_params_grid.GetCellValue(row, 6))
                             height = float(peak_params_grid.GetCellValue(row, 3))
+                            # Area still calculated from Original_Area (L/G) * scale
+                            area = true_original_area * scale
 
                         fwhm = 0.0
-                        fraction = area  # Store area in L/G field
+                        # L/G stores ORIGINAL area - get from grid, never recalculate
+                        fraction = float(peak_params_grid.GetCellValue(row, 5))
                         sigma = shift  # Store shift in sigma column
                         gamma = scale  # Store scale in gamma column
                     else:
@@ -1266,7 +1287,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         sigma = round(float(sigma), 2)  # Store shift in sigma column
                         gamma = round(float(gamma), 2)  # Store scale in gamma column
                         area = round(float(area), 2)  # Make sure area is properly rounded
-                        fraction = round(float(fraction), 2)  # L/G field with area
+                        fraction = float(peak_params_grid.GetCellValue(row, 5))
                     else:
                         sigma = round(float(sigma * 2.355), 2)
                         gamma = round(float(gamma * 2), 2)
@@ -1276,7 +1297,8 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                     peak_params_grid.SetCellValue(row, 2, f"{center:.2f}")
                     peak_params_grid.SetCellValue(row, 3, f"{height:.0f}")
                     peak_params_grid.SetCellValue(row, 4, f"{fwhm:.2f}")
-                    peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
+                    if peak_model_choice != "SingleEntity":
+                        peak_params_grid.SetCellValue(row, 5, f"{fraction:.2f}")
                     peak_params_grid.SetCellValue(row, 6, f"{area:.0f}")
                     if peak_model_choice in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)",
                                              "Voigt (Area, L/G, \u03c3, S)",

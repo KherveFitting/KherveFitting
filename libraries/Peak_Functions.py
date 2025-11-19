@@ -961,6 +961,79 @@ class BackgroundCalculations:
         return np.linspace(y_start, y_end, len(y))
 
     @staticmethod
+    def calculate_offset_background(x, y, offset_h, offset_l, num_points=5):
+        """
+        Calculate an offset background that brings the lowest BE to 0 intensity.
+        Uses endpoint averaging at the minimum intensity position.
+
+        Args:
+            x (array): X-axis values (Binding Energy)
+            y (array): Y-axis values (Intensity)
+            offset_h (float): Offset for left side (high BE)
+            offset_l (float): Offset for right side (low BE)
+            num_points (int): Number of points for endpoint averaging
+
+        Returns:
+            array: Offset background (constant value based on averaged minimum intensity)
+        """
+        min_idx = np.argmin(y)
+        min_x_position = x[min_idx]
+        min_intensity_avg = BackgroundCalculations.calculate_endpoint_average(x, y, min_x_position, num_points)
+        avg_offset = (offset_h + offset_l) / 2.0
+        offset_value = min_intensity_avg + avg_offset
+        return np.full_like(y, offset_value)
+
+    @staticmethod
+    def calculate_arctan_background(x, y, start_offset, end_offset, num_points=5):
+        """
+        Calculate an arctangent step background for XAS data.
+
+        The arctan function models the absorption edge as a step function:
+        y = amplitude * arctan((x - center) / width) + offset
+
+        Args:
+            x (array): X-axis values (energy)
+            y (array): Y-axis values (intensity)
+            start_offset (float): Y-offset to add to the start point (high energy/left side)
+            end_offset (float): Y-offset to add to the end point (low energy/right side)
+            num_points (int): Number of points to average at endpoints
+
+        Returns:
+            array: Calculated arctangent background
+        """
+        x = np.array(x)
+        y = np.array(y)
+
+        # Calculate averaged endpoint Y values and ADD offsets
+        y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + end_offset
+        y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + start_offset
+
+        # Calculate arctan step parameters
+        center = (x[0] + x[-1]) / 2.0  # Center of the energy range
+        amplitude = (y_end - y_start) / np.pi  # Height of step divided by pi (arctan range is pi)
+        offset = (y_start + y_end) / 2.0  # Vertical offset (midpoint)
+        width = abs(x[-1] - x[0]) / 4.0  # Width parameter (controls steepness of transition)
+
+        # Calculate arctan background
+        # arctan goes from -pi/2 to +pi/2, so total range is pi
+        background = amplitude * np.arctan((x - center) / width) + offset
+
+        return background
+
+    @staticmethod
+    def calculate_adaptive_arctan_background(x, y, x_range, previous_background, offset_h, offset_l, num_points=5):
+        """Calculate Arctan background for a selected range."""
+        previous_background = np.array(previous_background)
+        mask = (x >= x_range[0]) & (x <= x_range[1])
+        new_background = np.copy(previous_background)
+        x_selected, y_selected = x[mask], y[mask]
+
+        new_background[mask] = BackgroundCalculations.calculate_arctan_background(
+            x_selected, y_selected, offset_h, offset_l, num_points)
+        return new_background
+
+
+    @staticmethod
     def validate_background_smoothness(background, data, x, smoothness_threshold=0.1):
         """
         Check if background shows sinusoidal behavior and validate against data average.
