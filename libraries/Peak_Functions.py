@@ -1008,6 +1008,12 @@ class BackgroundCalculations:
         y_start = BackgroundCalculations.calculate_endpoint_average(x, y, x[0], num_points) + end_offset
         y_end = BackgroundCalculations.calculate_endpoint_average(x, y, x[-1], num_points) + start_offset
 
+        # Check if high energy part is lower than low energy part
+        if y_end <= y_start:
+            # Keep background flat at the average value
+            background = np.full_like(x, (y_start + y_end) / 2.0)
+            return background
+
         # Calculate arctan step parameters
         center = (x[0] + x[-1]) / 2.0  # Center of the energy range
         amplitude = (y_end - y_start) / np.pi  # Height of step divided by pi (arctan range is pi)

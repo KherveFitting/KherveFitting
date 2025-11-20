@@ -57,12 +57,13 @@ class PlotConfig:
             # Get current sheet name
             sheet_name = window.sheet_combobox.GetValue()
             is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
+            is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
 
             # Set x-axis limits based on energy scale and data type
             if window.energy_scale == 'KE':
                 window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
             else:
-                if is_raman or sheet_name.startswith('zzProfile'):
+                if is_raman or is_xas or sheet_name.startswith('zzProfile'):
                     window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman and zzProfile
                 else:
                     window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
@@ -372,6 +373,7 @@ class PlotConfig:
     def resize_plot(self, window):
         sheet_name = window.sheet_combobox.GetValue()
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
+        is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
 
         if sheet_name not in self.plot_limits:
             self.update_plot_limits(window, sheet_name)
@@ -381,6 +383,8 @@ class PlotConfig:
             window.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
         else:
             if is_raman:
+                window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
+            elif is_xas:
                 window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
             else:
                 window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
@@ -449,6 +453,7 @@ class PlotConfig:
 
 
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
+        is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
 
         if sheet_name not in self.plot_limits:
             self.plot_limits[sheet_name] = {}
@@ -463,7 +468,7 @@ class PlotConfig:
         if window.energy_scale == 'KE':
             window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
         else:
-            if is_raman:
+            if is_raman or is_xas:
                 window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
             else:
                 window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS

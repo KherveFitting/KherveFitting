@@ -1295,7 +1295,7 @@ class PlotManager:
                         txt.remove()
             elif is_xas:
                 self.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for XAS
-                self.ax.set_xlim(limits['Xmax'], limits['Xmin']) # Reverse X-axis for XAS
+                # self.ax.set_xlim(limits['Xmax'], limits['Xmin']) # Reverse X-axis for XAS
                 self.ax.set_ylabel("Intensity (a.u.)")
                 self.ax.set_xlabel("Photon Energy (eV)")
 
@@ -1706,6 +1706,8 @@ class PlotManager:
 
         # Set plot limits based on data type
         if is_raman:
+            self.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
+        elif is_xas:
             self.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
         elif window.energy_scale == 'KE':
             X_MIN = window.photons - limits['Xmax']

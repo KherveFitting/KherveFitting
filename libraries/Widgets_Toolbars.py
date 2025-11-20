@@ -772,14 +772,14 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: on_save_as(window), save_as_item)
 
     # Import submenu items
+    import_generic_excel_item = import_menu.Append(wx.NewId(), "Import Generic Excel File (Interactive)")
+    window.Bind(wx.EVT_MENU, lambda event: import_generic_excel_file(window), import_generic_excel_item)
+
     import_avantage_item = import_menu.Append(wx.NewId(), "Import Avantage Data file (.xlsx or .xls)")
     window.Bind(wx.EVT_MENU, lambda event: import_avantage_file(window), import_avantage_item)
 
     import_multiple_avantage_item = import_menu.Append(wx.NewId(), "Import Multiple Avantage xlsx files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_avantage_files(window), import_multiple_avantage_item)
-
-    import_generic_excel_item = import_menu.Append(wx.NewId(), "Import Generic Excel File (Interactive)")
-    window.Bind(wx.EVT_MENU, lambda event: import_generic_excel_file(window), import_generic_excel_item)
 
     import_vamas_item = import_menu.Append(wx.NewId(), "Import Vamas Data file (.vms)")
     window.Bind(wx.EVT_MENU, lambda event: open_vamas_file_dialog(window), import_vamas_item)
