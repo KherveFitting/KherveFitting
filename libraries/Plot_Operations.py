@@ -1303,6 +1303,20 @@ class PlotManager:
                 for txt in self.ax.texts:
                     if getattr(txt, 'sheet_name_text', False):
                         txt.remove()
+
+                # Format and add sheet name text for XAS
+                formatted_sheet_name = self.format_xas_sheet_name(sheet_name)
+                sheet_name_text = self.ax.text(
+                    0.98, 0.98,  # Position (top-right corner)
+                    formatted_sheet_name,
+                    transform=self.ax.transAxes,
+                    fontsize=15,
+                    fontweight='bold',
+                    verticalalignment='top',
+                    horizontalalignment='right',
+                    bbox=dict(facecolor='none', edgecolor='none', alpha=0.7),
+                )
+                sheet_name_text.sheet_name_text = True  # Mark this text object
             else:
                 # Existing XPS plotting code with reverse x-axis
                 self.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
@@ -1923,7 +1937,12 @@ class PlotManager:
         # Only add sheet name text for non-Raman data
         if not is_raman:
             if sheet_name_text is None:
-                formatted_sheet_name = self.format_sheet_name(sheet_name)
+                # Format sheet name based on data type
+                if is_xas:
+                    formatted_sheet_name = self.format_xas_sheet_name(sheet_name)
+                else:
+                    formatted_sheet_name = self.format_sheet_name(sheet_name)
+
                 sheet_name_text = self.ax.text(
                     0.98, 0.98,  # Position (top-right corner)
                     formatted_sheet_name,
@@ -3876,6 +3895,48 @@ class PlotManager:
                     'coordinate_system': 'axes'  # Flag to indicate axes coordinates (0-1)
                 }
                 labels.append(table_label)
+
+    def format_xas_sheet_name(self, sheet_name):
+        """Format XAS sheet names to extract and format the core level name from the XAS~ prefix."""
+        if sheet_name.startswith('XAS~'):
+            # Remove XAS~ prefix
+            name_part = sheet_name[4:]  # Remove 'XAS~'
+
+            # Split by ~ and take the first part (before any trailing number)
+            parts = name_part.split('~')
+            core_level_name = parts[0]
+
+            # Check if there's already a hyphen/dash in the name
+            if '-' not in core_level_name:
+                # Use regex to separate element and transition (e.g., "CoL8MN" -> "Co L8MN")
+                import re
+                match = re.match(r'([A-Z][a-z]?)([L|K|M|N]\d+[A-Z]*)', core_level_name)
+                if match:
+                    element = match.group(1)
+                    transition = match.group(2)
+
+                    # Make the number subscript in the transition (e.g., "L8MN" -> "L₈MN")
+                    transition_formatted = re.sub(r'(\d+)', lambda m: ''.join(['₀₁₂₃₄₅₆₇₈₉'[int(d)] for d in m.group(1)]), transition)
+
+                    # Format as "Element Transition edge"
+                    formatted_name = f"{element} {transition_formatted} edge"
+                    return formatted_name
+            else:
+                # If there's already a dash, just add subscript to numbers and " edge"
+                import re
+                # Make numbers subscript
+                formatted_name = re.sub(r'(\d+)', lambda m: ''.join(['₀₁₂₃₄₅₆₇₈₉'[int(d)] for d in m.group(1)]), core_level_name)
+                formatted_name += " edge"
+                return formatted_name
+
+            # Fallback if regex doesn't match
+            return core_level_name + " edge"
+        else:
+            # Fallback for non-XAS sheets or use existing format_sheet_name if available
+            if hasattr(self, 'format_sheet_name'):
+                return self.format_sheet_name(sheet_name)
+            else:
+                return sheet_name
 
 
 

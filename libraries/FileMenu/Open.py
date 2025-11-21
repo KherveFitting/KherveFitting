@@ -145,7 +145,7 @@ class ExcelDropTarget(wx.FileDropTarget):
                             header_b_lower = str(header_b).lower().strip()
 
                             # Valid kFitting headers
-                            valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                            valid_headers_a = ['binding energy','photon energy' ,'raman shift', 'wavelength', 'depth']
                             valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
 
                             if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
@@ -200,7 +200,7 @@ class ExcelDropTarget(wx.FileDropTarget):
                             header_a_lower = str(header_a).lower().strip()
                             header_b_lower = str(header_b).lower().strip()
 
-                            valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                            valid_headers_a = ['binding energy', 'energy', 'photon energy', 'raman shift', 'wavelength', 'depth']
                             valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
 
                             if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
@@ -408,7 +408,7 @@ class ExcelDropTarget(wx.FileDropTarget):
                                     header_a_lower = str(header_a).lower().strip()
                                     header_b_lower = str(header_b).lower().strip()
 
-                                    valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                                    valid_headers_a = ['binding energy', 'energy', 'photon energy', 'raman shift', 'wavelength', 'depth']
                                     valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
 
                                     if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
@@ -454,7 +454,7 @@ class ExcelDropTarget(wx.FileDropTarget):
                                     header_a_lower = str(header_a).lower().strip()
                                     header_b_lower = str(header_b).lower().strip()
 
-                                    valid_headers_a = ['binding energy', 'raman shift', 'wavelength', 'depth']
+                                    valid_headers_a = ['binding energy', 'energy', 'photon energy', 'raman shift', 'wavelength', 'depth']
                                     valid_headers_b = ['raw data', 'intensity', 'cps', 'counts']
 
                                     if header_a_lower in valid_headers_a and header_b_lower in valid_headers_b:
@@ -3867,8 +3867,9 @@ def open_xlsx_file(window, file_path=None):
                         ('RAW DATA' in col2_value or 'CORRECTED DATA' in col2_value or 'INTENSITY' in col2_value)
             raman_valid = ('WAVENUMBER' in col1_value or 'CM-1' in col1_value) and \
                           ('RAW DATA' in col2_value or 'INTENSITY' in col2_value)
+            xas_valid = ('ENERGY' in col1_value or 'PHOTON ENERGY' in col1_value) and ('INTENSITY' in col2_value or 'RAW DATA' in col2_value)
 
-            if not (xps_valid or raman_valid):
+            if not (xps_valid or raman_valid or xas_valid):
                 console_frame.Close()
                 wx.MessageBox(f"Sheet '{sheet_name}' has invalid column labels", "Invalid Column Labels",
                               wx.OK | wx.ICON_WARNING)
@@ -6409,10 +6410,31 @@ def is_numeric(value):
         return False
 
 
+def calculate_xas_scale_factor(first_value):
+    """
+    Calculate scale factor for XAS data normalization.
+    For value like -5e-11, returns (-1) * (1e11) * 100
+    """
+    if first_value == 0 or first_value is None:
+        return 1.0
+
+    import math
+
+    # Get absolute value and find order of magnitude
+    abs_val = abs(first_value)
+    exponent = math.floor(math.log10(abs_val))
+
+    # Calculate scale: (-1) * (10^(-exponent)) * 100
+    scale_factor = (-1) * (10 ** (-exponent)) * 100
+
+    return scale_factor
+
+
 def import_generic_excel_file(window, file_path=None):
     """
     Interactive import for non-standard Excel files.
     Asks user to identify data type and reformats to kFitting format.
+    Supports XPS and XAS data.
     """
     if not file_path:
         with wx.FileDialog(window, "Open Generic Excel File",
@@ -6484,7 +6506,8 @@ def analyze_excel_sheets(wb):
             'data_start_row': 1,
             'has_headers': False,
             'num_cols': 0,
-            'sample_data': []
+            'sample_data': [],
+            'is_xas': sheet_name.startswith('XAS_')
         }
 
         # Check if first row has headers or numeric data
@@ -6511,10 +6534,10 @@ def analyze_excel_sheets(wb):
                         info['has_headers'] = row_idx > 1
                         break
 
-        # Count columns with data
+        # Count columns with data - increased limit for more columns
         if info['data_start_row'] <= sheet.max_row:
             row = info['data_start_row']
-            for col_idx in range(1, min(20, sheet.max_column + 1)):
+            for col_idx in range(1, min(30, sheet.max_column + 1)):
                 val = sheet.cell(row=row, column=col_idx).value
                 if val is not None:
                     info['num_cols'] += 1
@@ -6522,7 +6545,7 @@ def analyze_excel_sheets(wb):
         # Get sample data (show from data start row)
         for row_idx in range(info['data_start_row'], min(info['data_start_row'] + 5, sheet.max_row + 1)):
             row_data = []
-            for col_idx in range(1, min(info['num_cols'] + 1, 5)):
+            for col_idx in range(1, min(info['num_cols'] + 1, 10)):
                 val = sheet.cell(row=row_idx, column=col_idx).value
                 if is_numeric(val):
                     row_data.append(f"{float(val):.2f}")
@@ -6579,82 +6602,99 @@ class SheetConfigDialog(wx.Dialog):
         self.SetSizer(main_sizer)
         self.Centre()
 
+    def calculate_xas_scale_factor(first_value):
+        """
+        Calculate scale factor for XAS data normalization.
+        For value like -5e-11, returns (-1) * (1e11) * 100
+        """
+        if first_value == 0 or first_value is None:
+            return 1.0
+
+        import math
+
+        # Get absolute value and find order of magnitude
+        abs_val = abs(first_value)
+        exponent = math.floor(math.log10(abs_val))
+
+        # Calculate scale: (-1) * (10^(-exponent)) * 100
+        scale_factor = (-1) * (10 ** (-exponent)) * 100
+
+        return scale_factor
+
     def create_sheet_config_panel(self, parent, sheet_name, info):
         """Create configuration panel for a single sheet."""
         panel = wx.Panel(parent)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Create grid sizer for controls (2 columns: label, control)
-        grid = wx.FlexGridSizer(rows=5, cols=2, hgap=10, vgap=5)
+        grid = wx.FlexGridSizer(rows=8, cols=2, hgap=10, vgap=5)
 
         # Row 1: Data Type
         type_label = wx.StaticText(panel, label="Data Type:")
-        type_choice = wx.Choice(panel, choices=[
+
+        # Determine default data type based on sheet name
+        is_xas = sheet_name.startswith('XAS~')
+        choices = [
             "XPS Core Level",
             "Raman Spectrum",
+            "XAS Spectrum",
             "zzProfile",
             "Skip This Sheet"
-        ], size=(150, -1))
-        type_choice.SetSelection(0)
+        ]
+        type_choice = wx.Choice(panel, choices=choices, size=(150, -1))
+        type_choice.SetSelection(1 if is_xas else 0)
 
         grid.Add(type_label, 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(type_choice, 0, wx.ALIGN_CENTER_VERTICAL)
 
         # Row 2: Sheet Name
-        name_label = wx.StaticText(panel, label="Core level (e.g. C1s):")
+        name_label = wx.StaticText(panel, label="Sheet Name:")
         name_text = wx.TextCtrl(panel, value=sheet_name, size=(150, -1))
 
         grid.Add(name_label, 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(name_text, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        # Row 3: Data Starts at Row
-        row_label = wx.StaticText(panel, label="Data Starts at Row:")
+        # Row 3: Data Start Row
+        row_label = wx.StaticText(panel, label="Data Start Row:")
         row_spin = wx.SpinCtrl(panel, value=str(info['data_start_row']),
-                               min=1, max=1000, initial=info['data_start_row'],
-                               size=(80, -1))
+                               min=1, max=1000, size=(150, -1))
 
         grid.Add(row_label, 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(row_spin, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        # Row 4: X-Axis Column
-        x_label = wx.StaticText(panel, label="X-Axis Column:")
-        x_spin = wx.SpinCtrl(panel, value="1", min=1, max=50, initial=1,
-                             size=(80, -1))
+        # Row 4: X Column
+        x_label = wx.StaticText(panel, label="X Column (Energy):")
+        x_spin = wx.SpinCtrl(panel, value="1", min=1, max=info['num_cols'], size=(150, -1))
 
         grid.Add(x_label, 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(x_spin, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        # Row 5: Y-Axis Column
-        y_label = wx.StaticText(panel, label="Y-Axis Column:")
-        y_spin = wx.SpinCtrl(panel, value="2", min=1, max=50, initial=2,
-                             size=(80, -1))
+        # Row 5: Y Column
+        y_label = wx.StaticText(panel, label="Y Column (Intensity):")
+        y_spin = wx.SpinCtrl(panel, value="2", min=1, max=info['num_cols'], size=(150, -1))
 
         grid.Add(y_label, 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(y_spin, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        main_sizer.Add(grid, 0, wx.ALL, 10)
+        main_sizer.Add(grid, 0, wx.ALL | wx.EXPAND, 10)
 
         # Preview section
         preview_label = wx.StaticText(panel, label="Data Preview:")
         main_sizer.Add(preview_label, 0, wx.ALL, 5)
 
-        # Always show 6 columns and up to 20 rows
-        max_col_to_show = 6
-        max_rows_to_show = 20
-
-        preview_grid = wx.grid.Grid(panel)
-        preview_grid.CreateGrid(max_rows_to_show, max_col_to_show)
-        preview_grid.EnableEditing(False)
-        preview_grid.SetColLabelSize(25)
-        preview_grid.SetRowLabelSize(25)
-
-        # Set size for all columns
-        for col_idx in range(max_col_to_show):
-            preview_grid.SetColSize(col_idx, 80)
-
-        # Populate grid - read first 20 rows from source data
+        # Create preview grid
         sheet = self.wb[sheet_name]
-        for row_idx in range(max_rows_to_show):
+        max_col_to_show = min(info['num_cols'], 10)
+        preview_grid = wx.grid.Grid(panel, size=(780, 150))
+        preview_grid.CreateGrid(5, max_col_to_show)
+        preview_grid.EnableEditing(False)
+
+        # Set column headers
+        for col_idx in range(max_col_to_show):
+            preview_grid.SetColLabelValue(col_idx, f"Col {col_idx + 1}")
+
+        # Fill with sample data
+        for row_idx in range(5):
             actual_row = info['data_start_row'] + row_idx
             if actual_row > sheet.max_row:
                 break
@@ -6662,7 +6702,12 @@ class SheetConfigDialog(wx.Dialog):
                 val = sheet.cell(row=actual_row, column=col_idx + 1).value
                 if val is not None:
                     if is_numeric(val):
-                        preview_grid.SetCellValue(row_idx, col_idx, f"{float(val):.2f}")
+                        float_val = float(val)
+                        # Show in scientific notation if value is very small or very large
+                        if abs(float_val) < 0.01 or abs(float_val) > 10000:
+                            preview_grid.SetCellValue(row_idx, col_idx, f"{float_val:.4e}")
+                        else:
+                            preview_grid.SetCellValue(row_idx, col_idx, f"{float_val:.6f}")
                     else:
                         preview_grid.SetCellValue(row_idx, col_idx, str(val))
                 else:
@@ -6680,13 +6725,14 @@ class SheetConfigDialog(wx.Dialog):
             'preview_grid': preview_grid
         }
 
-        panel.SetSizer(main_sizer)  # Fixed: was 'sizer', now 'main_sizer'
+        panel.SetSizer(main_sizer)
         return panel
 
 
 def show_sheet_config_dialog(window, wb, sheet_info, file_path):
     """Show dialog and process sheets based on user configuration."""
     from openpyxl import Workbook
+    import re
 
     dialog = SheetConfigDialog(window, wb, sheet_info)
 
@@ -6713,6 +6759,9 @@ def show_sheet_config_dialog(window, wb, sheet_info, file_path):
             x_col = config['x_spin'].GetValue()
             y_col = config['y_spin'].GetValue()
 
+            # Check if this is XAS data
+            is_xas = data_type == "XAS Spectrum"
+
             # Validate and fix sheet name based on data type
             if data_type == "XPS Core Level":
                 # Check if sheet name is generic or contains spaces
@@ -6735,7 +6784,8 @@ def show_sheet_config_dialog(window, wb, sheet_info, file_path):
 
                             # Validate: no spaces, not empty
                             if not new_sheet_name:
-                                wx.MessageBox("Core level name cannot be empty!",
+                                wx.MessageBox("Core level name cannot be empty!\n"
+                                              "Examples: C1s, O1s, Fe2p",
                                               "Invalid Name", wx.OK | wx.ICON_WARNING)
                                 continue
                             elif ' ' in new_sheet_name:
@@ -6755,6 +6805,17 @@ def show_sheet_config_dialog(window, wb, sheet_info, file_path):
 
                     if not new_sheet_name:
                         continue
+
+            elif data_type == "XAS Spectrum":
+                # Ensure XAS sheets have XAS_ prefix
+                if not new_sheet_name.startswith('XAS~'):
+                    new_sheet_name = f"XAS~{new_sheet_name}"
+                # If already used, add number suffix
+                if new_sheet_name in used_sheet_names:
+                    counter = 1
+                    while f"{new_sheet_name}{counter}" in used_sheet_names:
+                        counter += 1
+                    new_sheet_name = f"{new_sheet_name}{counter}"
 
             elif data_type == "Raman Spectrum":
                 # Auto-name as Raman
@@ -6782,41 +6843,59 @@ def show_sheet_config_dialog(window, wb, sheet_info, file_path):
                               "Duplicate Name", wx.OK | wx.ICON_WARNING)
                 continue
 
-            # Convert sheet
-            converted_data = convert_sheet_to_kfitting(
-                wb[sheet_name],
-                new_sheet_name,
-                data_start_row,
-                x_col,
-                y_col,
-                data_type
-            )
+            # Create new sheet
+            new_wb.create_sheet(new_sheet_name)
+            target_sheet = new_wb[new_sheet_name]
+            used_sheet_names.append(new_sheet_name)
 
-            if converted_data:
-                new_wb.create_sheet(new_sheet_name)
-                target_sheet = new_wb[new_sheet_name]
-                used_sheet_names.append(new_sheet_name)
+            # Add headers in first row based on data type
+            if data_type == "XPS Core Level":
+                target_sheet.cell(row=1, column=1, value="Binding Energy")
+                target_sheet.cell(row=1, column=2, value="Raw Data")
+            elif data_type == "XAS Spectrum":
+                target_sheet.cell(row=1, column=1, value="Photon Energy")
+                target_sheet.cell(row=1, column=2, value="Raw Data")
+            elif data_type == "Raman Spectrum":
+                target_sheet.cell(row=1, column=1, value="Raman Shift")
+                target_sheet.cell(row=1, column=2, value="Intensity")
+            elif data_type == "zzProfile":
+                target_sheet.cell(row=1, column=1, value="Depth")
+                target_sheet.cell(row=1, column=2, value="Intensity")
 
-                # Add headers in first row based on data type
-                if data_type == "XPS Core Level":
-                    target_sheet.cell(row=1, column=1, value="Binding Energy")
-                    target_sheet.cell(row=1, column=2, value="Raw Data")
-                elif data_type == "Raman Spectrum":
-                    target_sheet.cell(row=1, column=1, value="Raman Shift")
-                    target_sheet.cell(row=1, column=2, value="Intensity")
-                elif data_type == "zzProfile":
-                    target_sheet.cell(row=1, column=1, value="Depth")
-                    target_sheet.cell(row=1, column=2, value="Intensity")
+            # Copy data rows
+            source_sheet = wb[sheet_name]
+            row_num = 2
 
-                # Copy data with .2f formatting starting from row 2
-                for row_idx, (x_val, y_val) in enumerate(converted_data, start=2):
-                    target_sheet.cell(row=row_idx, column=1, value=f"{x_val:.2f}")
-                    target_sheet.cell(row=row_idx, column=2, value=f"{y_val:.2f}")
+            # For XAS, calculate scale factor from first data point
+            xas_scale_factor = 1.0
+            if is_xas:
+                first_y_value = source_sheet.cell(row=data_start_row, column=y_col).value
+                if first_y_value and is_numeric(first_y_value):
+                    xas_scale_factor = calculate_xas_scale_factor(float(first_y_value))
 
-                # Clear columns 3-24 for all rows including header
-                for row_idx in range(1, len(converted_data) + 2):
-                    for col_idx in range(3, 25):
-                        target_sheet.cell(row=row_idx, column=col_idx, value=None)
+            for row_idx in range(data_start_row, source_sheet.max_row + 1):
+                x_val = source_sheet.cell(row=row_idx, column=x_col).value
+                y_val = source_sheet.cell(row=row_idx, column=y_col).value
+
+                # Stop if we hit empty rows
+                if not is_numeric(x_val) or not is_numeric(y_val):
+                    break
+
+                x_float = float(x_val)
+                y_float = float(y_val)
+
+                # Apply XAS transformations if needed
+                if is_xas:
+                    y_float = y_float * xas_scale_factor
+
+                target_sheet.cell(row=row_num, column=1, value=f"{x_float:.2f}")
+                target_sheet.cell(row=row_num, column=2, value=f"{y_float:.2f}")
+                row_num += 1
+
+            # Clear columns 3-24 for all rows including header
+            for row_idx in range(1, row_num):
+                for col_idx in range(3, 25):
+                    target_sheet.cell(row=row_idx, column=col_idx, value=None)
 
         dialog.Destroy()
         return new_wb

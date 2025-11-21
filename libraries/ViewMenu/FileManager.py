@@ -29,7 +29,7 @@ class FileManagerWindow(wx.Frame):
         if hasattr(parent, 'Data') and 'Core levels' in parent.Data:
             max_index = 0
             for sheet_name in parent.Data['Core levels'].keys():
-                match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)
+                match = re.match(r'[\w\-~.]+?(\d*)$', sheet_name)
                 if match:
                     index_str = match.group(1)
                     index = int(index_str) if index_str else 0
@@ -740,8 +740,9 @@ class FileManagerWindow(wx.Frame):
             if len(base_parts) > 1:
                 return '_'.join(base_parts[:-1]) if base_parts[-1].isdigit() else sheet_name
 
-        # Updated pattern to handle hyphens in core level names like "Cut-Off"
-        match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet_name)
+        # Updated pattern to handle special characters like underscores, tildes, dots
+        # Matches any non-digit characters followed by optional digits at the end
+        match = re.match(r'([\w\-~.]+?)(\d*)$', sheet_name)
         if match:
             return match.group(1)
         return sheet_name
@@ -783,7 +784,7 @@ class FileManagerWindow(wx.Frame):
         max_index = 0
         for sheet_name in self.parent.Data['Core levels'].keys():
             # match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
-            match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)  # Updated pattern
+            match = re.match(r'[\w\-~.]+?(\d*)$', sheet_name)  # Updated pattern
             if match:
                 index_str = match.group(1)
                 index = int(index_str) if index_str else 0
@@ -827,7 +828,7 @@ class FileManagerWindow(wx.Frame):
                 index = int(index_str) if index_str else 0
             else:
                 # Original pattern for typical core levels
-                match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet_name)
+                match = re.match(r'([\w\-~.]+?)(\d*)$', sheet_name)
                 if match:
                     base_name = match.group(1)
                     index_str = match.group(2)
@@ -1266,7 +1267,7 @@ class FileManagerWindow(wx.Frame):
         # Find the earliest available row
         used_rows = []
         for sheet in self.parent.Data['Core levels'].keys():
-            match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet)
+            match = re.match(r'([\w\-~.]+?)(\d*)$', sheet)
             if match:
                 sheet_base = match.group(1)
                 row_str = match.group(2)
@@ -1585,7 +1586,7 @@ class FileManagerWindow(wx.Frame):
         # Find the earliest available row
         used_rows = []
         for sheet in self.parent.Data['Core levels'].keys():
-            match = re.match(r'([A-Za-z0-9-]+?)(\d*)$', sheet)
+            match = re.match(r'([\w\-~.]+?)(\d*)$', sheet)
             if match:
                 sheet_base = match.group(1)
                 row_str = match.group(2)
@@ -4061,7 +4062,16 @@ class FileManagerWindow(wx.Frame):
         if sheet_names:
             # Extract core level name from the first sheet
             first_sheet = sheet_names[0]
-            if '_' in first_sheet:
+
+            # Handle XAS data format: "XAS~CoreLevel~Number" or "XAS~CoreLevel"
+            if first_sheet.startswith("XAS~"):
+                # Split by ~ and get the second part (core level name)
+                parts = first_sheet.split("~")
+                if len(parts) >= 2:
+                    core_level = parts[1]  # Get the core level name (e.g., CoL8MN)
+                else:
+                    core_level = first_sheet
+            elif '_' in first_sheet:
                 core_level = first_sheet.split('_')[-1]  # Get part after last underscore
             else:
                 import re
