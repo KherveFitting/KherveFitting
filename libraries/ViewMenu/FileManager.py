@@ -1751,8 +1751,9 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
-        # Check if it's a Raman file
-        is_raman = "Raman_" in sheet_name or "Ra_" in sheet_name
+        # Check if it's a Raman or XAS file
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+        is_xas = sheet_name.startswith('XAS')
 
         # Plot simple black line
         if self.parent.energy_scale == 'KE':
@@ -1762,21 +1763,29 @@ class FileManagerWindow(wx.Frame):
 
         # Add core level text - skip for Raman files
         if not is_raman:
-            base_name = self.extract_base_name(sheet_name)
-            formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
+            if is_xas:
+                # Use XAS formatting
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(sheet_name)
+            else:
+                # Use XPS formatting
+                base_name = self.extract_base_name(sheet_name)
+                formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
+
             self.parent.ax.text(0.98, 0.98, formatted_name, transform=self.parent.ax.transAxes,
                                 fontsize=self.parent.core_level_text_size, fontweight='bold',
                                 va='top', ha='right')
 
-
-
         # Set x-axis direction based on data type
         if is_raman:
-            self.parent.ax.set_xlabel("Wavenumber (cm$^{-1}$)")
-            self.parent.ax.set_ylabel("Intensity (CPS)")
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            self.parent.ax.set_ylabel("Intensity (a.u.)")
             self.parent.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for Raman
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            self.parent.ax.set_ylabel("Intensity (a.u.)")
+            self.parent.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for XAS
         else:
-            # Set axes
+            # Set axes for XPS
             self.parent.ax.set_xlabel("Binding Energy (eV)")
             self.parent.ax.set_ylabel("Intensity (CPS)")
             self.parent.ax.set_xlim(max(x_values), min(x_values))  # Reversed for XPS
@@ -1971,9 +1980,35 @@ class FileManagerWindow(wx.Frame):
                                         linewidth=linewidth)
                                         # linewidth=self.parent.line_width)
 
-        # Set labels and formatting
-        self.parent.ax.set_xlabel("Binding Energy (eV)")
-        self.parent.ax.set_ylabel("Intensity (CPS)")
+        # Check if any sheet is Raman or XAS
+        is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
+        is_xas = any(name.startswith('XAS') for name in sheet_names)
+
+        # Set labels and formatting based on data type
+        if is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Intensity")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for Raman
+            self.parent.ax.set_xlim(x_min, x_max)
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Intensity")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for XAS
+            self.parent.ax.set_xlim(x_min, x_max)
+        else:
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Intensity")
+            else:
+                self.parent.ax.set_ylabel("Intensity (CPS)")
+            # Reversed for XPS
+            self.parent.ax.set_xlim(x_max, x_min)
 
         # Apply scientific format to Y-axis
         self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
@@ -1984,19 +2019,24 @@ class FileManagerWindow(wx.Frame):
         if len(sheet_names) <= 7:
             self.parent.ax.legend(loc='upper left')
 
-        # Set labels and formatting
-        self.parent.ax.set_xlabel("Binding Energy (eV)")
-        if normalize:
-            self.parent.ax.set_ylabel("Normalized Intensity")
-        else:
-            self.parent.ax.set_ylabel("Intensity (CPS)")
+        # # Set labels and formatting
+        # self.parent.ax.set_xlabel("Binding Energy (eV)")
+        # if normalize:
+        #     self.parent.ax.set_ylabel("Normalized Intensity")
+        # else:
+        #     self.parent.ax.set_ylabel("Intensity (CPS)")
 
-        # Set x-axis limits to min/max values from all datasets
-        self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
+        # # Set x-axis limits to min/max values from all datasets
+        # self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
 
-        # If all sheets are from the same column, add core level text in top right
-        if same_column:
-            formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+        # If all sheets are from the same column, add core level text in top right (except for Raman)
+        if same_column and not is_raman:
+            # Format name based on data type
+            if is_xas:
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(column_name)
+            else:
+                formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+
             sheet_name_text = self.parent.ax.text(
                 0.98, 0.98,  # Position (top-right corner)
                 formatted_name,
@@ -3743,12 +3783,35 @@ class FileManagerWindow(wx.Frame):
                                         linewidth=linewidth)
                                         # linewidth=self.parent.line_width)
 
-        # Set labels and formatting
-        self.parent.ax.set_xlabel("Binding Energy (eV)")
-        if normalize:
-            self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+        # Check if any sheet is Raman or XAS
+        is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
+        is_xas = any(name.startswith('XAS') for name in sheet_names)
+
+        # Set labels and formatting based on data type
+        if is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for Raman
+            self.parent.ax.set_xlim(x_min, x_max)
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for XAS
+            self.parent.ax.set_xlim(x_min, x_max)
         else:
-            self.parent.ax.set_ylabel("Intensity (CPS)")
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Intensity (CPS)")
+            # Reversed for XPS
+            self.parent.ax.set_xlim(x_max, x_min)
 
         # Apply scientific format to Y-axis
         self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
@@ -3759,12 +3822,14 @@ class FileManagerWindow(wx.Frame):
             # Set legend on the left
             self.parent.ax.legend(loc='upper left')
 
-        # Set x-axis limits to min/max values from all datasets
-        self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
+        # If all sheets are from the same column, add core level text in top right (except for Raman)
+        if same_column and not is_raman:
+            # Format name based on data type
+            if is_xas:
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(column_name)
+            else:
+                formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
 
-        # If all sheets are from the same column, add core level text in top right
-        if same_column:
-            formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
             sheet_name_text = self.parent.ax.text(
                 0.98, 0.98,  # Position (top-right corner)
                 formatted_name,
@@ -3776,6 +3841,7 @@ class FileManagerWindow(wx.Frame):
                 horizontalalignment='right',
                 bbox=dict(facecolor='none', edgecolor='none', alpha=1),
             )
+            sheet_name_text.sheet_name_text = True  # Mark this text object
 
         # Apply text settings from preferences
         self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
@@ -4034,15 +4100,29 @@ class FileManagerWindow(wx.Frame):
             # Plot fitted data if available (with the SAME offset and normalization factor)
             self.plot_fitted_data_for_sheet(sheet_name, x_values, offset, base_color, i, norm_params)
 
-        # Set up the plot
-        if self.parent.energy_scale == 'KE':
+        # Check if any sheet is Raman or XAS
+        is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
+        is_xas = any(name.startswith('XAS') for name in sheet_names)
+
+        # Set up the plot based on data type
+        if is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            self.parent.ax.set_ylabel("Normalised Intensity (a.u.)")
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            self.parent.ax.set_ylabel("Normalised Intensity (a.u.)")
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_min, x_max)  # Normal direction for XAS
+        elif self.parent.energy_scale == 'KE':
             self.parent.ax.set_xlabel("Kinetic Energy (eV)")
-            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")  # Same as F3
+            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")
             if x_min != float('inf') and x_max != float('-inf'):
                 self.parent.ax.set_xlim(x_min, x_max)  # Normal for KE
         else:
             self.parent.ax.set_xlabel("Binding Energy (eV)")
-            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")  # Same as F3
+            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")
             if x_min != float('inf') and x_max != float('-inf'):
                 self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
 
@@ -4058,28 +4138,26 @@ class FileManagerWindow(wx.Frame):
         # Apply text settings from preference window
         self.parent.plot_manager.apply_text_settings(self.parent)
 
-        # Add core level name at top right using plot coordinates
-        if sheet_names:
+        # Add core level name at top right using plot coordinates (except for Raman)
+        if sheet_names and not is_raman:
             # Extract core level name from the first sheet
             first_sheet = sheet_names[0]
 
-            # Handle XAS data format: "XAS~CoreLevel~Number" or "XAS~CoreLevel"
-            if first_sheet.startswith("XAS~"):
-                # Split by ~ and get the second part (core level name)
-                parts = first_sheet.split("~")
-                if len(parts) >= 2:
-                    core_level = parts[1]  # Get the core level name (e.g., CoL8MN)
-                else:
-                    core_level = first_sheet
-            elif '_' in first_sheet:
-                core_level = first_sheet.split('_')[-1]  # Get part after last underscore
+            # Format name based on data type
+            if is_xas:
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(first_sheet)
             else:
-                import re
-                match = re.search(r'([A-Z][a-z]?\d+[a-z]+)', first_sheet)
-                core_level = match.group(1) if match else first_sheet
+                # Handle XPS data format
+                if '_' in first_sheet:
+                    core_level = first_sheet.split('_')[-1]  # Get part after last underscore
+                else:
+                    import re
+                    match = re.search(r'([A-Z][a-z]?\d+[a-z]+)', first_sheet)
+                    core_level = match.group(1) if match else first_sheet
+                formatted_name = self.parent.plot_manager.format_sheet_name(core_level)
 
             # Use plot coordinates (0-1 range) for positioning
-            self.parent.ax.text(0.98, 0.98, core_level,  # 98% from left, 98% from bottom
+            self.parent.ax.text(0.98, 0.98, formatted_name,  # 98% from left, 98% from bottom
                                 transform=self.parent.ax.transAxes,  # Use plot coordinates
                                 fontsize=getattr(self.parent, 'core_level_text_size', 12),
                                 fontweight='bold',
@@ -4192,7 +4270,21 @@ class FileManagerWindow(wx.Frame):
 
         # Add text label for this dataset (smaller and leftmost position)
         max_y_with_offset = (max(background_normalized) if len(background_normalized) > 0 else 0) + offset + 50
-        text_x = max(x_values) - (max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (high BE side)
+
+        # Check if this is XAS or Raman data
+        is_xas = sheet_name.startswith('XAS')
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
+        # Position text based on data type
+        if is_xas or is_raman:
+            # For XAS/Raman: axis goes min to max, so position at left edge (min side)
+            text_x = min(x_values) + (
+                        max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (low energy side)
+        else:
+            # For XPS: axis goes max to min, so position at left edge (high BE side)
+            text_x = max(x_values) - (
+                        max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (high BE side)
+
         display_text = self.get_display_text_for_sheet(sheet_name)
         self.parent.ax.text(text_x, max_y_with_offset, display_text,
                             fontsize=getattr(self.parent, 'label_font_size', 8),  # Use smaller font

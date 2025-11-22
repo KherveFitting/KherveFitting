@@ -2636,12 +2636,11 @@ class MouseEventHandler:
         self.window.multiplot_palette = palette
 
         # Save to preferences
-        if hasattr(self.window, 'config_manager'):
+        if hasattr(self.window, 'save_config'):
             try:
-                self.window.config_manager.set('multiplot_palette', palette)
-                self.window.config_manager.save()
-            except:
-                pass
+                self.window.save_config()
+            except Exception as e:
+                print(f"Error saving palette config: {e}")
 
         # Refresh the multiplot if file_manager exists and has a plot
         if hasattr(self.window, 'file_manager') and self.window.file_manager:
@@ -2662,12 +2661,11 @@ class MouseEventHandler:
         self.window.multiplot_linewidth = linewidth
 
         # Save to preferences
-        if hasattr(self.window, 'config_manager'):
+        if hasattr(self.window, 'save_config'):
             try:
-                self.window.config_manager.set('multiplot_linewidth', linewidth)
-                self.window.config_manager.save()
-            except:
-                pass
+                self.window.save_config()
+            except Exception as e:
+                print(f"Error saving linewidth config: {e}")
 
         # Refresh the multiplot if file_manager exists and has a plot
         if hasattr(self.window, 'file_manager') and self.window.file_manager:

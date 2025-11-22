@@ -5474,7 +5474,7 @@ def import_diamond_b07_xas_file_direct(window, file_path, ask_edge=False, edge_n
                             intensity_raw = float(parts[3])
 
                             # Transform intensity: x(-1) x(1E11) x(100)
-                            intensity = intensity_raw * (-1) * 1e11 * 100
+                            intensity = intensity_raw * (-1) * 1e11 * 100000
 
                             data.append([photon_energy, intensity])
                         except ValueError:
@@ -5633,7 +5633,7 @@ def import_multiple_diamond_b07_xas_files(window):
                                 intensity_raw = float(parts[3])
 
                                 # Transform intensity: x(-1) x(1E11) x(100)
-                                intensity = intensity_raw * (-1) * 1e11 * 100
+                                intensity = intensity_raw * (-1) * 1e11 * 100000
 
                                 data.append([photon_energy, intensity])
                             except ValueError:
@@ -6692,7 +6692,7 @@ def is_numeric(value):
 def calculate_xas_scale_factor(first_value):
     """
     Calculate scale factor for XAS data normalization.
-    For value like -5e-11, returns (-1) * (1e11) * 100
+    For value like -5e-11, returns (-1) * (1e11) * 100000
     """
     if first_value == 0 or first_value is None:
         return 1.0
@@ -6704,7 +6704,7 @@ def calculate_xas_scale_factor(first_value):
     exponent = math.floor(math.log10(abs_val))
 
     # Calculate scale: (-1) * (10^(-exponent)) * 100
-    scale_factor = (-1) * (10 ** (-exponent)) * 100
+    scale_factor = (-1) * (10 ** (-exponent)) * 100000
 
     return scale_factor
 
@@ -6884,7 +6884,7 @@ class SheetConfigDialog(wx.Dialog):
     def calculate_xas_scale_factor(first_value):
         """
         Calculate scale factor for XAS data normalization.
-        For value like -5e-11, returns (-1) * (1e11) * 100
+        For value like -5e-11, returns (-1) * (1e11) * 100000
         """
         if first_value == 0 or first_value is None:
             return 1.0
@@ -6895,8 +6895,8 @@ class SheetConfigDialog(wx.Dialog):
         abs_val = abs(first_value)
         exponent = math.floor(math.log10(abs_val))
 
-        # Calculate scale: (-1) * (10^(-exponent)) * 100
-        scale_factor = (-1) * (10 ** (-exponent)) * 100
+        # Calculate scale: (-1) * (10^(-exponent)) * 100000
+        scale_factor = (-1) * (10 ** (-exponent)) * 100000
 
         return scale_factor
 
