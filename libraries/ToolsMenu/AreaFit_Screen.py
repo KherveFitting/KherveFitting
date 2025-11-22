@@ -12,7 +12,7 @@ class BackgroundWindow(wx.Frame):
         self.SetTitle("Measure Area")
 
         if 'wxMac' in wx.PlatformInfo:
-            self.SetSize((260, 345))
+            self.SetSize((260, 355))
             # self.SetMinSize((260, 345))
             # self.SetMaxSize((260, 345))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -242,15 +242,15 @@ class BackgroundWindow(wx.Frame):
             sizer.Add(peak_label_text_label, pos=(8, 0), flag=wx.ALL | wx.EXPAND, border=1)
             sizer.Add(self.peak_label_text, pos=(8, 1), flag=wx.ALL | wx.EXPAND, border=1)
 
-            sizer.Add(core_level_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(auto_id_button, pos=(10, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
+            sizer.Add(core_level_button, pos=(10, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(auto_id_button, pos=(9, 1), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)
 
             # Seventh row: Remove peak and Export buttons
-            sizer.Add(self.tougaard_fit_btn, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(switch_vlines_button, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(self.tougaard_fit_btn, pos=(10, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(switch_vlines_button, pos=(9, 0), flag=wx.ALL | wx.EXPAND, border=1)
 
-            sizer.Add(background_only_button, pos=(12, 0), flag=wx.ALL | wx.EXPAND, border=1)
-            sizer.Add(remove_peak_button, pos=(12, 1), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(background_only_button, pos=(11, 0), flag=wx.ALL | wx.EXPAND, border=1)
+            sizer.Add(remove_peak_button, pos=(11, 1), flag=wx.ALL | wx.EXPAND, border=1)
         else:  # For Windows
             # First row: Method
             sizer.Add(method_label, pos=(0, 0), flag=wx.EXPAND | wx.BOTTOM | wx.TOP, border=0)

@@ -1795,7 +1795,7 @@ class MouseEventHandler:
 
 
                 menu.AppendSeparator()
-
+                edit_data = menu.Append(wx.ID_ANY, "Edit Data")
                 info = menu.Append(wx.ID_ANY, "Info")
 
                 peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
@@ -1813,10 +1813,27 @@ class MouseEventHandler:
                 self.window.Bind(wx.EVT_MENU, lambda evt: paste_core_level(self.window), paste)
                 self.window.Bind(wx.EVT_MENU, lambda evt: copy_all_peak_parameters(self.window), copy_peak_table)
                 self.window.Bind(wx.EVT_MENU, lambda evt: paste_all_peak_parameters(self.window), paste_peak_table)
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.open_edit_data_window(), edit_data)
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.open_experimental_description(), info)
 
             self.window.PopupMenu(menu)
             menu.Destroy()
+
+    def open_edit_data_window(self):
+        """Open the Edit Data window for the current sheet"""
+        from libraries.ViewMenu.EditDataWindow import EditDataWindow
+
+        # Check if window already exists and close it
+        if hasattr(self.window, 'edit_data_window') and self.window.edit_data_window is not None:
+            try:
+                self.window.edit_data_window.Close()
+                self.window.edit_data_window.Destroy()
+            except:
+                pass
+
+        # Create new window
+        self.window.edit_data_window = EditDataWindow(self.window)
+        self.window.edit_data_window.Show()
 
     def open_experimental_description(self):
         """Open the Experimental Description window for the current sheet"""

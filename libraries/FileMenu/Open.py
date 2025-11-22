@@ -5591,19 +5591,20 @@ def import_multiple_diamond_b07_xas_files(window):
         processed_count = 0
         sample_names_map = {}
 
-        # Find the next available row number for sheet naming
-        # Check existing sheets in window.Data if available
-        max_row_index = -1
-        if hasattr(window, 'Data') and 'Core levels' in window.Data:
-            for existing_sheet in window.Data['Core levels'].keys():
-                match = re.match(r'[A-Za-z0-9~-]+?(\d+)$', existing_sheet)
-                if match:
-                    index = int(match.group(1))
-                    max_row_index = max(max_row_index, index)
+        # # Find the next available row number for sheet naming
+        # # Check existing sheets in window.Data if available
+        # max_row_index = -1
+        # if hasattr(window, 'Data') and 'Core levels' in window.Data:
+        #     for existing_sheet in window.Data['Core levels'].keys():
+        #         match = re.match(r'[A-Za-z0-9~-]+?(\d+)$', existing_sheet)
+        #         if match:
+        #             index = int(match.group(1))
+        #             max_row_index = max(max_row_index, index)
 
-        row_number = max_row_index
+        # Start row number at -1 (will increment to 0 for first file)
+        row_number = -1
 
-        row_number = max_row_index
+        # row_number = max_row_index
 
         for data_file in data_files:
             file_path = os.path.join(dir_path, data_file)

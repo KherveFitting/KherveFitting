@@ -21,7 +21,18 @@ class PCAnalysisWindow(wx.Frame):
         Args:
             parent (wx.Window): Parent window with Data structure
         """
-        super().__init__(parent, title="Principal Component Analysis", size=(1080, 750), style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
+        # Platform-specific window sizing
+        import platform
+        system = platform.system()
+        if system == 'Windows':
+            window_size = (1080, 750)
+        elif system == 'Darwin':  # macOS
+            window_size = (1080, 830)
+        else:  # Linux
+            window_size = (1080, 800)
+
+        super().__init__(parent, title="Principal Component Analysis", size=window_size,
+                         style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
 
         # Store parent reference
         self.parent = parent

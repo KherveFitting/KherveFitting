@@ -573,9 +573,7 @@ class XASBackgroundWindow(wx.Frame):
         # Update Excel file
         df = pd.DataFrame({
             'Photon Energy': [float(f"{val:.2f}") for val in self.x_values.tolist()],
-            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
-            'Background': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
-            'Transmission': [1.00] * len(self.x_values)
+            'Intensity': [float(f"{val:.2f}") for val in subtracted_y.tolist()]
         })
 
         with pd.ExcelWriter(self.parent.parent.Data['FilePath'], engine='openpyxl', mode='a',
