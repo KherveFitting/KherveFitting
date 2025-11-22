@@ -734,11 +734,17 @@ class CropWindow(wx.Frame):
 
             # Extract base name from sheet_name
             import re
-            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
-            if match:
-                base_name = match.group(1)
+            # Check if it's a special format like XAS~Co-L4~ or Profile~
+            if '~' in sheet_name:
+                # For tilde-based names, use everything before the last digit
+                base_name = re.sub(r'\d+$', '', sheet_name)
             else:
-                base_name = sheet_name
+                # Standard XPS naming pattern
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                else:
+                    base_name = sheet_name
 
             # Find the earliest available row name
             new_name = self.get_earliest_row_name(base_name)
@@ -771,7 +777,7 @@ class CropWindow(wx.Frame):
             if pattern.match(sheet):
                 related_sheets.append(sheet)
 
-        # Sort sheets naturally (e.g., O1s, O1s1, O1s2, O1s10)
+        # Sort sheets naturally (e.g., O1s, O1s1, O1s2, O1s10 or XAS~Co-L4~, XAS~Co-L4~1)
         def natural_sort_key(s):
             match = re.search(r'\d+$', s)
             if match:
@@ -830,13 +836,23 @@ class CropWindow(wx.Frame):
         return f"{base_name}{len(all_sheets)}"
 
     def show_vlines(self):
-        if self.vline_min:
-            self.vline_min.remove()
-        if self.vline_max:
-            self.vline_max.remove()
+        ax = self.parent.ax
+        min_be = self.min_ctrl.GetValue()
+        max_be = self.max_ctrl.GetValue()
 
-        self.vline_min = self.parent.ax.axvline(self.min_ctrl.GetValue(), color='green', linestyle='--', alpha=0.5)
-        self.vline_max = self.parent.ax.axvline(self.max_ctrl.GetValue(), color='green', linestyle='--', alpha=0.5)
+        if self.vline_min:
+            try:
+                self.vline_min.remove()
+            except (ValueError, AttributeError):
+                pass
+        if self.vline_max:
+            try:
+                self.vline_max.remove()
+            except (ValueError, AttributeError):
+                pass
+
+        self.vline_min = ax.axvline(min_be, color='red', linestyle='--', linewidth=1)
+        self.vline_max = ax.axvline(max_be, color='red', linestyle='--', linewidth=1)
         self.parent.canvas.draw_idle()
 
     def on_range_change(self, event):
@@ -895,50 +911,63 @@ class CropWindow(wx.Frame):
 
         # Crop each checked sheet
         for sheet_to_crop in checked_sheets:
-            # Extract base name
-            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_to_crop)
-            if match:
-                base_name = match.group(1)
-
-                # Find earliest available name
-                existing_sheets = list(self.parent.Data['Core levels'].keys())
-                used_suffixes = set()
-
-                for s in existing_sheets:
-                    suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
-                    if suffix_match:
-                        used_suffixes.add(int(suffix_match.group(1)))
-                    elif s == base_name:
-                        used_suffixes.add(0)
-
-                # Find first unused number
-                suffix = 0
-                while suffix in used_suffixes:
-                    suffix += 1
-
-                if suffix == 0 and base_name not in existing_sheets:
-                    new_name = base_name
+            # Extract base name - handle both standard and tilde-based names
+            if '~' in sheet_to_crop:
+                # For tilde-based names like XAS~Co-L4~, remove trailing digits
+                base_name = re.sub(r'\d+$', '', sheet_to_crop)
+            else:
+                # Standard XPS naming pattern
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_to_crop)
+                if match:
+                    base_name = match.group(1)
                 else:
-                    new_name = f"{base_name}{suffix}"
+                    base_name = sheet_to_crop
 
-                # Crop this sheet
-                self.crop_single_sheet(sheet_to_crop, new_name, min_be, max_be)
+            # Find earliest available name
+            existing_sheets = list(self.parent.Data['Core levels'].keys())
+            used_suffixes = set()
 
-        # Update JSON file
-        json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-        if os.path.exists(json_file_path):
-            from libraries.FileMenu.Save import convert_to_serializable_and_round
-            json_data = convert_to_serializable_and_round(self.parent.Data)
-            with open(json_file_path, 'w') as json_file:
-                json.dump(json_data, json_file, indent=2)
+            for s in existing_sheets:
+                suffix_match = re.search(r'^' + re.escape(base_name) + r'(\d+)$', s)
+                if suffix_match:
+                    used_suffixes.add(int(suffix_match.group(1)))
+                elif s == base_name:
+                    used_suffixes.add(0)
 
-        # Update sheet list with the first cropped sheet
-        if checked_sheets:
-            # Get the name of the first cropped sheet
-            first_sheet = checked_sheets[0]
-            match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
-            if match:
-                base_name = match.group(1)
+            # Find first unused number
+            suffix = 0
+            while suffix in used_suffixes:
+                suffix += 1
+
+            if suffix == 0 and base_name not in existing_sheets:
+                new_name = base_name
+            else:
+                new_name = f"{base_name}{suffix}"
+
+            # Crop this sheet
+            self.crop_single_sheet(sheet_to_crop, new_name, min_be, max_be)
+
+            # Update JSON file
+            json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+            if os.path.exists(json_file_path):
+                from libraries.FileMenu.Save import convert_to_serializable_and_round
+                json_data = convert_to_serializable_and_round(self.parent.Data)
+                with open(json_file_path, 'w') as json_file:
+                    json.dump(json_data, json_file, indent=2)
+
+            # Update sheet list with the first cropped sheet
+            if checked_sheets:
+                # Get the name of the first cropped sheet
+                first_sheet = checked_sheets[0]
+                if '~' in first_sheet:
+                    base_name = re.sub(r'\d+$', '', first_sheet)
+                else:
+                    match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
+                    if match:
+                        base_name = match.group(1)
+                    else:
+                        base_name = first_sheet
+
                 existing_sheets = list(self.parent.Data['Core levels'].keys())
 
                 # Find what we named it
@@ -953,25 +982,35 @@ class CropWindow(wx.Frame):
                     from libraries.Sheet_Operations import on_sheet_selected
                     on_sheet_selected(self.parent, display_name)
 
-        # Close and reopen the file manager if it exists
-        if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
-            try:
-                self.parent.file_manager.Close()
-                self.parent.file_manager.Destroy()
-                self.parent.file_manager = None
+            # Refresh all plots and UI
+            from libraries.Plot_Operations import refresh_all
+            refresh_all(self.parent)
 
-                import wx
-                wx.CallAfter(self.parent.on_open_file_manager, None)
-            except Exception as e:
-                print(f"Error refreshing file manager: {e}")
+            # Close and reopen the file manager if it exists
+            if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
+                try:
+                    self.parent.file_manager.Close()
+                    self.parent.file_manager.Destroy()
+                    self.parent.file_manager = None
 
-        self.Close()
+                    import wx
+                    wx.CallAfter(self.parent.on_open_file_manager, None)
+                except Exception as e:
+                    print(f"Error refreshing file manager: {e}")
+
+            self.Close()
 
     def on_close(self, event):
         if self.vline_min:
-            self.vline_min.remove()
+            try:
+                self.vline_min.remove()
+            except (ValueError, AttributeError):
+                pass
         if self.vline_max:
-            self.vline_max.remove()
+            try:
+                self.vline_max.remove()
+            except (ValueError, AttributeError):
+                pass
         self.parent.canvas.draw_idle()
         self.Destroy()
 
