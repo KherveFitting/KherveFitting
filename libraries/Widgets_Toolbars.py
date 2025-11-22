@@ -17,6 +17,7 @@ from libraries.FileMenu.Save import export_sheet_to_txt, export_sheet_to_csv, ex
 from libraries.FileMenu.Open import import_multiple_vg_microtech_files
 from libraries.FileMenu.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
 from libraries.FileMenu.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
+from libraries.FileMenu.Open import import_diamond_b07_xas_file, import_multiple_diamond_b07_xas_files
 from libraries.FileMenu.Open import import_xps_csv_file, import_multiple_xps_csv_files
 from libraries.FileMenu.Export import export_word_report
 from libraries.Utilities import CropWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
@@ -830,6 +831,13 @@ def create_menu(window):
 
     import_multiple_raman_item = import_menu.Append(wx.NewId(), "Import Multiple Raman .txt files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_raman_files(window), import_multiple_raman_item)
+
+    # Import Diamond-B07-XAS files
+    import_diamond_b07_xas_item = import_menu.Append(wx.NewId(), "Import Diamond-B07-XAS file (.txt/.dat)")
+    window.Bind(wx.EVT_MENU, lambda event: import_diamond_b07_xas_file(window), import_diamond_b07_xas_item)
+
+    import_multiple_diamond_b07_xas_item = import_menu.Append(wx.NewId(), "Import Multiple Diamond-B07-XAS files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_diamond_b07_xas_files(window), import_multiple_diamond_b07_xas_item)
 
     # Export submenu items
     export_vamas_item = export_menu.Append(wx.ID_ANY, "Export as VAMAS (.vms)",
