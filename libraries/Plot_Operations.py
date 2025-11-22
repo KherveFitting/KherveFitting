@@ -3333,7 +3333,7 @@ class PlotManager:
                                                                                               sheet_name,
                                                                                               window)
             label = 'Background (Tougaard)'
-        elif method == "Arctan":
+        elif method == "Arctan-XAS":
             background_filtered = BackgroundCalculations.calculate_arctan_background(x_values_filtered,
                                                                                      y_values_filtered, offset_h,
                                                                                      offset_l, num_points=averaging_points)

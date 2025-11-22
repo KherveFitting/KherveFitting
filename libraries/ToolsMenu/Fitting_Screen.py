@@ -157,7 +157,7 @@ class FittingWindow(wx.Frame):
         method_label = wx.StaticText(self.background_panel, label="Method:")
         if self.normal:
             self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart", "Shirley",
-                                                "Linear","Offset", 'U4-Tougaard', 'U2-Tougaard',"ALS-Raman", "Arctan"],
+                                                "Linear","Offset", 'U4-Tougaard', 'U2-Tougaard',"ALS-Raman", "Arctan-XAS"],
                                                style=wx.CB_READONLY)
         else:
             self.method_combobox = wx.ComboBox(self.background_panel, choices=["Smart",'U2-Tougaard'],
@@ -335,7 +335,7 @@ class FittingWindow(wx.Frame):
             clear_background_only_button.SetMinSize((125, 35))
         clear_background_only_button.Bind(wx.EVT_BUTTON, self.on_clear_background_only)
 
-        self.tougaard_fit_btn = wx.Button(self.background_panel, label="Tougaard / Raman\n Model")
+        self.tougaard_fit_btn = wx.Button(self.background_panel, label="Tougaard / Raman\n / XAS Model")
         if 'wxMac' in wx.PlatformInfo:
             self.tougaard_fit_btn.SetMinSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
@@ -955,16 +955,21 @@ class FittingWindow(wx.Frame):
 
     def on_tougaard_raman_model(self, event):
         bg_method = self.method_combobox.GetValue()
-        if bg_method.startswith("U4-Tougaard") or bg_method.startswith("U2-Tougaard") or bg_method.startswith("2x U4-Tougaard") or \
+        if bg_method.startswith("U4-Tougaard") or bg_method.startswith("U2-Tougaard") or bg_method.startswith(
+                "2x U4-Tougaard") or \
                 bg_method.startswith("3x U4-Tougaard"):
             tougaard_window = TougaardFitWindow(self)
             tougaard_window.Show()
         elif bg_method == "ALS-Raman":
             raman_window = TougaardRamanFitWindow(self)
             raman_window.Show()
+        elif bg_method == "Arctan-XAS":
+            from libraries.ToolsMenu.XASBackground_Screen import XASBackgroundWindow
+            xas_window = XASBackgroundWindow(self)
+            xas_window.Show()
         else:
             self.parent.show_popup_message2("Error",
-                                            "Tougaard/Raman Model is only available for Tougaard and ALS-Raman background methods.")
+                                            "Tougaard/Raman/XAS Model is only available for Tougaard, ALS-Raman, and Arctan-XAS background methods.")
 
     def update_tougaard_controls_visibility(self, new_method):
         if new_method.startswith("U4-Tougaard"):
@@ -976,6 +981,10 @@ class FittingWindow(wx.Frame):
             self.cross_section_label.Enable(True)
             self.tougaard_fit_btn.Enable(False)
         elif new_method == "ALS-Raman":
+            self.cross_section.Enable(False)
+            self.cross_section_label.Enable(False)
+            self.tougaard_fit_btn.Enable(True)
+        elif new_method == "Arctan-XAS":
             self.cross_section.Enable(False)
             self.cross_section_label.Enable(False)
             self.tougaard_fit_btn.Enable(True)
@@ -2212,7 +2221,7 @@ class FittingWindow(wx.Frame):
                             current_background = BackgroundCalculations.calculate_adaptive_linear_background(
                                 x_values, y_values, (min_range, max_range), current_background,
                                 float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
-                        elif background_method == "Arctan":
+                        elif background_method == "Arctan-XAS":
                             current_background = BackgroundCalculations.calculate_adaptive_arctan_background(
                                 x_values, y_values, (min_range, max_range), current_background,
                                 float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))

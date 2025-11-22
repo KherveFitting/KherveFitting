@@ -1097,7 +1097,7 @@ class MouseEventHandler:
                 elif method == "Linear":
                     current_background = BackgroundCalculations.calculate_adaptive_linear_background(
                         x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
-                elif method == "Arctan":
+                elif method == "Arctan-XAS":
                     current_background = BackgroundCalculations.calculate_adaptive_arctan_background(
                         x_values, y_values, (min_range, max_range), current_background, offset_h, offset_l)
                 elif method == "Smart":

@@ -7,11 +7,15 @@ import lmfit
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scipy.ndimage import gaussian_filter
+import pandas as pd
+import openpyxl
+from copy import deepcopy
+import re
 
 
-class TougaardRamanFitWindow(wx.Frame):
+class XASBackgroundWindow(wx.Frame):
     def __init__(self, parent):
-        wx.Frame.__init__(self, parent, title="ALS-Raman Background Model", size=(1050, 600))
+        wx.Frame.__init__(self, parent, title="XAS Background Subtraction", size=(1050, 600))
 
         self.parent = parent
         self.panel = wx.Panel(self)
@@ -37,8 +41,8 @@ class TougaardRamanFitWindow(wx.Frame):
         control_panel = wx.Panel(self.panel)
         control_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # ALS Raman Controls Section
-        als_box = wx.StaticBox(control_panel, label="ALS Raman Settings")
+        # ALS XAS Controls Section
+        als_box = wx.StaticBox(control_panel, label="ALS XAS Settings")
         als_sizer = wx.StaticBoxSizer(als_box, wx.VERTICAL)
 
         # Lambda parameter
@@ -132,9 +136,9 @@ class TougaardRamanFitWindow(wx.Frame):
         self.fit_button.Bind(wx.EVT_BUTTON, self.on_fit)
         buttons_sizer.Add(self.fit_button, 1, wx.ALL, 5)
 
-        self.export_button = wx.Button(control_panel, label="Export Background")
+        self.export_button = wx.Button(control_panel, label="Create SUB Data")
         self.export_button.SetMinSize((110, 40))
-        self.export_button.Bind(wx.EVT_BUTTON, self.on_export)
+        self.export_button.Bind(wx.EVT_BUTTON, self.on_create_sub_data)
         buttons_sizer.Add(self.export_button, 1, wx.ALL, 5)
 
         control_sizer.Add(buttons_sizer, 0, wx.EXPAND | wx.ALL, 5)
@@ -211,7 +215,6 @@ class TougaardRamanFitWindow(wx.Frame):
         self.zones = []
         # Then clear the sizer, which will delete all the windows
         self.zones_panel_sizer.Clear(True)
-
 
         # Create new zones
         for i in range(num_zones):
@@ -323,7 +326,6 @@ class TougaardRamanFitWindow(wx.Frame):
         smooth_value = self.smooth_value.GetValue()
         if smooth_value > 0:
             # Apply Gaussian smoothing
-            from scipy.ndimage import gaussian_filter
             y_smooth = gaussian_filter(self.y_values, smooth_value)
         else:
             y_smooth = self.y_values.copy()
@@ -333,7 +335,7 @@ class TougaardRamanFitWindow(wx.Frame):
         if smooth_value > 0:
             self.ax.plot(self.x_values, y_smooth, 'r-', label='Smoothed Data')
 
-        self.ax.set_xlabel('Wavenumber (cm⁻¹)')
+        self.ax.set_xlabel('Photon Energy (eV)')
         self.ax.set_ylabel('Intensity')
         self.ax.legend()
         self.ax.set_xlim(min(self.x_values), max(self.x_values))
@@ -359,18 +361,13 @@ class TougaardRamanFitWindow(wx.Frame):
 
         # Get smoothed data if needed
         if smooth_value > 0:
-            from scipy.ndimage import gaussian_filter
             y_smooth = gaussian_filter(self.y_values, smooth_value)
         else:
             y_smooth = self.y_values.copy()
 
-        self.fit_als_raman(y_smooth, exclusion_zones)
+        self.fit_als_xas(y_smooth, exclusion_zones)
 
-    def fit_als_raman(self, y_data, exclusion_zones):
-        from scipy import sparse
-        from scipy.sparse.linalg import spsolve
-        import lmfit
-
+    def fit_als_xas(self, y_data, exclusion_zones):
         if not exclusion_zones:
             wx.MessageBox("No active exclusion zones defined", "Error", wx.OK | wx.ICON_ERROR)
             return
@@ -486,7 +483,6 @@ class TougaardRamanFitWindow(wx.Frame):
 
         # Get raw and smoothed data
         if smooth_value > 0:
-            from scipy.ndimage import gaussian_filter
             y_smooth = gaussian_filter(self.y_values, smooth_value)
         else:
             y_smooth = self.y_values.copy()
@@ -504,13 +500,13 @@ class TougaardRamanFitWindow(wx.Frame):
             self.ax.axvspan(zone[0], zone[1], alpha=0.2, color='red',
                             label='Excluded Zone' if zone == self.get_exclusion_zones()[0] else "")
 
-        # Save background for export
+        # Save background for creating SUB data
         self.background = baseline
 
         # Plot fitting zones
         self.plot_vlines()
 
-        self.ax.set_xlabel('Wavenumber (cm⁻¹)')
+        self.ax.set_xlabel('Photon Energy (eV)')
         self.ax.set_ylabel('Intensity')
         self.ax.legend()
         self.ax.set_ylim(self.y_min, self.y_max)
@@ -523,39 +519,76 @@ class TougaardRamanFitWindow(wx.Frame):
         self.create_zones(num)
         self.zones_panel.FitInside()
 
-    def on_export(self, event):
+    def on_create_sub_data(self, event):
         if not hasattr(self, 'background'):
             wx.MessageBox("No background calculated yet", "Error", wx.OK | wx.ICON_ERROR)
             return
 
+        # Get current sheet name
         sheet_name = self.parent.parent.sheet_combobox.GetValue()
-        if sheet_name in self.parent.parent.Data['Core levels']:
-            # First create a background in the parent's context
-            self.parent.background_method = "ALS-Raman"
-            self.parent.parent.plot_manager.plot_background(self.parent.parent)
 
-            # Then update the background with our calculated values
-            core_level_data = self.parent.parent.Data['Core levels'][sheet_name]
-            if 'Background' in core_level_data:
-                core_level_data['Background']['Bkg Y'] = self.background.tolist()
-                core_level_data['Background']['Bkg Type'] = "ALS-Raman"
+        # Create subtracted data
+        subtracted_y = self.y_values - self.background
 
-                # Store ALS parameters in the data
-                core_level_data['Background']['ALS_Lambda'] = self.lambda_value.GetValue()
-                core_level_data['Background']['ALS_P'] = self.p_value.GetValue()
-                core_level_data['Background']['ALS_Iterations'] = self.iter_value.GetValue()
+        # Generate new sheet name with SUB suffix
+        # Handle cases like "XAS~Co-L3~2" -> "XAS~Co-L3~SUB2"
+        match = re.search(r'^(.+?)(\d+)$', sheet_name)
+        if match:
+            base_part = match.group(1)
+            number_part = match.group(2)
+            new_sheet_name = f"{base_part}SUB{number_part}"
+        else:
+            # No number at end, just append SUB
+            new_sheet_name = f"{sheet_name}SUB"
 
-                # Update main window background
-                self.parent.parent.background = self.background
+        # Ensure unique name if it already exists
+        if new_sheet_name in self.parent.parent.Data['Core levels']:
+            counter = 1
+            temp_name = f"{new_sheet_name}_{counter}"
+            while temp_name in self.parent.parent.Data['Core levels']:
+                counter += 1
+                temp_name = f"{new_sheet_name}_{counter}"
+            new_sheet_name = temp_name
 
-                # Set the background min/max energy variables so peak fitting knows a background exists
-                self.parent.parent.bg_min_energy = min(self.x_values)
-                self.parent.parent.bg_max_energy = max(self.x_values)
+        # Create new core level data
+        if 'Core levels' not in self.parent.parent.Data:
+            self.parent.parent.Data['Core levels'] = {}
+            self.parent.parent.Data['Number of Core levels'] = 0
 
-                # Make sure the background is set in the parent fitting window
-                self.parent.background = self.background
+        self.parent.parent.Data['Core levels'][new_sheet_name] = {
+            'Name': new_sheet_name,
+            'B.E.': [float(f"{val:.2f}") for val in self.x_values.tolist()],
+            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Background': {
+                'Bkg Type': 'Linear',
+                'Bkg Low': float(f"{min(self.x_values):.2f}"),
+                'Bkg High': float(f"{max(self.x_values):.2f}"),
+                'Bkg Offset Low': 0.00,
+                'Bkg Offset High': 0.00,
+                'Bkg Y': [float(f"{val:.2f}") for val in subtracted_y.tolist()]
+            }
+        }
+        self.parent.parent.Data['Number of Core levels'] += 1
 
-                # Update the main window plot
-                self.parent.parent.clear_and_replot()
+        # Update Excel file
+        df = pd.DataFrame({
+            'Photon Energy': [float(f"{val:.2f}") for val in self.x_values.tolist()],
+            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Background': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Transmission': [1.00] * len(self.x_values)
+        })
 
-                wx.MessageBox("Background exported successfully", "Success", wx.OK | wx.ICON_INFORMATION)
+        with pd.ExcelWriter(self.parent.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+        # Update combobox
+        self.parent.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Select and plot new sheet
+        self.parent.parent.sheet_combobox.SetValue(new_sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent.parent, new_sheet_name)
+
+        wx.MessageBox(f"Background-subtracted data created successfully as '{new_sheet_name}'",
+                      "Success", wx.OK | wx.ICON_INFORMATION)
