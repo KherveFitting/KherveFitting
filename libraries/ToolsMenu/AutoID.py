@@ -2118,12 +2118,19 @@ class AutoIDWindow(wx.Frame):
             self.run_btn.SetLabel("▶ Run AutoID")
 
         self.run_btn.Bind(wx.EVT_BUTTON, self.on_run)
+        if 'wxMac' in wx.PlatformInfo:
+            self.run_btn.SetMinSize((125, 30))
+        elif 'wxGTK' in wx.PlatformInfo:
+            self.run_btn.SetMinSize((125, 35))
+        else:
+            self.run_btn.SetMinSize((125, 35))
         self.run_btn.SetToolTip("Run AutoID peak identification")
         row1_sizer.Add(self.run_btn, 0, wx.ALL, 3)
 
         self.edit_area_btn = wx.Button(panel, label="Edit Area")
         if 'wxMac' in wx.PlatformInfo:
             self.edit_area_btn.SetMinSize((125, 30))
+            self.edit_area_btn.SetMaxSize((125, 30))
             self.edit_area_btn.SetSize((125, 30))
         elif 'wxGTK' in wx.PlatformInfo:
             self.edit_area_btn.SetMinSize((125, 35))

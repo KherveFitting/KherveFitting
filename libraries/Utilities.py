@@ -718,10 +718,16 @@ class CropWindow(wx.Frame):
 
         self.vline_min = None
         self.vline_max = None
+        self.dragging_line = None
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.min_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
         self.max_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
+
+        # Connect matplotlib mouse events for dragging lines
+        self.cid_press = self.parent.canvas.mpl_connect('button_press_event', self.on_press)
+        self.cid_motion = self.parent.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.cid_release = self.parent.canvas.mpl_connect('button_release_event', self.on_release)
 
     def init_values(self):
         sheet_name = self.parent.sheet_combobox.GetValue()
@@ -851,12 +857,49 @@ class CropWindow(wx.Frame):
             except (ValueError, AttributeError):
                 pass
 
-        self.vline_min = ax.axvline(min_be, color='red', linestyle='--', linewidth=1)
-        self.vline_max = ax.axvline(max_be, color='red', linestyle='--', linewidth=1)
+        self.vline_min = ax.axvline(min_be, color='green', linestyle='--', linewidth=1, picker=5)
+        self.vline_max = ax.axvline(max_be, color='green', linestyle='--', linewidth=1, picker=5)
         self.parent.canvas.draw_idle()
 
     def on_range_change(self, event):
         self.show_vlines()
+
+    def on_press(self, event):
+        if event.inaxes != self.parent.ax:
+            return
+
+        # Check if we clicked on a line
+        self.dragging_line = None
+
+        if self.vline_min:
+            contains_min, _ = self.vline_min.contains(event)
+            if contains_min:
+                self.dragging_line = 'min'
+                return
+
+        if self.vline_max:
+            contains_max, _ = self.vline_max.contains(event)
+            if contains_max:
+                self.dragging_line = 'max'
+                return
+
+    def on_motion(self, event):
+        if self.dragging_line is None or event.inaxes != self.parent.ax:
+            return
+
+        new_value = event.xdata
+        if new_value is None:
+            return
+
+        if self.dragging_line == 'min':
+            self.min_ctrl.SetValue(new_value)
+        elif self.dragging_line == 'max':
+            self.max_ctrl.SetValue(new_value)
+
+        self.show_vlines()
+
+    def on_release(self, event):
+        self.dragging_line = None
 
     def crop_single_sheet(self, sheet_name, new_name, min_be, max_be):
         """
@@ -947,60 +990,73 @@ class CropWindow(wx.Frame):
             # Crop this sheet
             self.crop_single_sheet(sheet_to_crop, new_name, min_be, max_be)
 
-            # Update JSON file
-            json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
-            if os.path.exists(json_file_path):
-                from libraries.FileMenu.Save import convert_to_serializable_and_round
-                json_data = convert_to_serializable_and_round(self.parent.Data)
-                with open(json_file_path, 'w') as json_file:
-                    json.dump(json_data, json_file, indent=2)
+        # Update JSON file
+        json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+        if os.path.exists(json_file_path):
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
 
-            # Update sheet list with the first cropped sheet
-            if checked_sheets:
-                # Get the name of the first cropped sheet
-                first_sheet = checked_sheets[0]
-                if '~' in first_sheet:
-                    base_name = re.sub(r'\d+$', '', first_sheet)
+        # Update sheet list with the first cropped sheet
+        if checked_sheets:
+            # Get the name of the first cropped sheet
+            first_sheet = checked_sheets[0]
+            if '~' in first_sheet:
+                base_name = re.sub(r'\d+$', '', first_sheet)
+            else:
+                match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
+                if match:
+                    base_name = match.group(1)
                 else:
-                    match = re.match(r'([A-Za-z]+\d*[spdfg]*)', first_sheet)
-                    if match:
-                        base_name = match.group(1)
-                    else:
-                        base_name = first_sheet
+                    base_name = first_sheet
 
-                existing_sheets = list(self.parent.Data['Core levels'].keys())
+            existing_sheets = list(self.parent.Data['Core levels'].keys())
 
-                # Find what we named it
-                pattern = re.compile(f"^{re.escape(base_name)}\\d*$")
-                matching = [s for s in existing_sheets if pattern.match(s)]
-                matching.sort(key=lambda s: (s[:len(base_name)], int(s[len(base_name):]) if s[len(base_name):] else 0))
+            # Find what we named it
+            pattern = re.compile(f"^{re.escape(base_name)}\\d*$")
+            matching = [s for s in existing_sheets if pattern.match(s)]
+            matching.sort(key=lambda s: (s[:len(base_name)], int(s[len(base_name):]) if s[len(base_name):] else 0))
 
-                if matching:
-                    display_name = matching[-1]  # Get the last one added
-                    self.parent.sheet_combobox.Append(display_name)
-                    self.parent.sheet_combobox.SetValue(display_name)
-                    from libraries.Sheet_Operations import on_sheet_selected
-                    on_sheet_selected(self.parent, display_name)
+            if matching:
+                display_name = matching[-1]  # Get the last one added
+                self.parent.sheet_combobox.Append(display_name)
+                self.parent.sheet_combobox.SetValue(display_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, display_name)
 
-            # Refresh all plots and UI
-            from libraries.Plot_Operations import refresh_all
-            refresh_all(self.parent)
+        # Refresh all plots and UI
+        from libraries.FileMenu.Save import refresh_sheets
+        from libraries.Sheet_Operations import on_sheet_selected
 
-            # Close and reopen the file manager if it exists
-            if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
-                try:
-                    self.parent.file_manager.Close()
-                    self.parent.file_manager.Destroy()
-                    self.parent.file_manager = None
+        def update_console(msg):
+            print(msg)
 
-                    import wx
-                    wx.CallAfter(self.parent.on_open_file_manager, None)
-                except Exception as e:
-                    print(f"Error refreshing file manager: {e}")
+        refresh_sheets(self.parent, on_sheet_selected, update_console)
 
-            self.Close()
+        # Close and reopen the file manager if it exists
+        if hasattr(self.parent, 'file_manager') and self.parent.file_manager is not None:
+            try:
+                self.parent.file_manager.Close()
+                self.parent.file_manager.Destroy()
+                self.parent.file_manager = None
+
+                import wx
+                wx.CallAfter(self.parent.on_open_file_manager, None)
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
+
+        self.Close()
 
     def on_close(self, event):
+        # Disconnect matplotlib events
+        if hasattr(self, 'cid_press'):
+            self.parent.canvas.mpl_disconnect(self.cid_press)
+        if hasattr(self, 'cid_motion'):
+            self.parent.canvas.mpl_disconnect(self.cid_motion)
+        if hasattr(self, 'cid_release'):
+            self.parent.canvas.mpl_disconnect(self.cid_release)
+
         if self.vline_min:
             try:
                 self.vline_min.remove()
