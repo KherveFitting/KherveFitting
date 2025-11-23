@@ -4197,6 +4197,35 @@ class MyFrame(wx.Frame):
                     if not has_x or not has_y:
                         print(f"  >>> ENVELOPE DATA LOST AT {location_name} <<<")
 
+    def on_open_edx_sem(self, event):
+        from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+        open_edx_sem_window(self)
+
+    def plot_sum_spectrum_to_parent(self):
+        """Plot sum spectrum in KherveFitting main window"""
+        if self.current_data is None:
+            return
+
+        data = self.current_data.data
+        if len(data.shape) != 3:
+            return
+
+        spectrum = np.sum(data, axis=(0, 1))
+        energy = self.get_energy_axis()
+
+        if energy is None:
+            energy = np.arange(len(spectrum))
+
+        # Plot in parent KherveFitting window
+        if self.parent is not None and hasattr(self.parent, 'ax'):
+            self.parent.ax.clear()
+            self.parent.ax.plot(energy, spectrum, 'b-', linewidth=0.8)
+            self.parent.ax.set_xlabel('Energy (keV)')
+            self.parent.ax.set_ylabel('Counts')
+            self.parent.ax.set_title('EDX Sum Spectrum')
+            self.parent.ax.grid(True, alpha=0.3)
+            self.parent.canvas.draw()
+
 
 
 def set_high_priority():

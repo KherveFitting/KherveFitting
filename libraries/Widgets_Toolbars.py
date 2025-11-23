@@ -1080,6 +1080,9 @@ def create_menu(window):
     plot_mod_item = tools_menu.Append(wx.NewId(), "Plot Modifications")
     window.Bind(wx.EVT_MENU, lambda event: PlotModWindow(window).Show(), plot_mod_item)
 
+    edx_menu_item = tools_menu.Append(wx.ID_ANY, "Open EDX/SEM Analysis", "Open EDX/SEM analysis window")
+    window.Bind(wx.EVT_MENU, lambda event: on_open_edx_sem(window), edx_menu_item)
+
     # Add profiling items
     profiling_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Profiling ▬▬▬▬▬▬▬▬")
     profiling_header.Enable(False)  # Make it non-clickable
@@ -2076,6 +2079,12 @@ def create_examples_menu(window):
         error_item.Enable(False)
 
     return examples_menu
+
+def on_open_edx_sem(window):
+    """Open EDX/SEM analysis window"""
+    from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
+    edx_window = EDXSEMWindow(window)
+    edx_window.Show()
 
 
 def open_example_file(window, file_path):
