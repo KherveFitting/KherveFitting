@@ -1711,6 +1711,43 @@ class FileManagerWindow(wx.Frame):
         if sheet_name not in self.parent.Data['Core levels']:
             return
 
+        # Check if this is an EDX sheet BEFORE updating combobox to avoid event loop
+        if sheet_name in ['EDX~Plot', 'EDX~Map']:
+            # Prevent re-entry
+            if hasattr(self, '_plotting_edx') and self._plotting_edx:
+                return
+            self._plotting_edx = True
+
+            try:
+                if sheet_name == 'EDX~Plot':
+                    # Unbind the combobox event temporarily
+                    self.parent.sheet_combobox.Unbind(wx.EVT_COMBOBOX)
+                    self.parent.sheet_combobox.SetValue(sheet_name)
+                    # Rebind the event
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    self.parent.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda e: on_sheet_selected(self.parent, e))
+
+                    self.highlight_current_sheet(sheet_name)
+                    from libraries.Sheet_Operations import plot_edx_data
+                    plot_edx_data(self.parent, sheet_name)
+
+                elif sheet_name == 'EDX~Map':
+                    # Don't update combobox for map
+                    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+                    import os
+                    if hasattr(self.parent, 'current_file_path') and self.parent.current_file_path:
+                        hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.hdf5')
+                        if not os.path.exists(hdf5_path):
+                            hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.h5')
+
+                        if os.path.exists(hdf5_path):
+                            edx_window = open_edx_sem_window(self.parent)
+                            if edx_window:
+                                edx_window.load_file(hdf5_path, 'EDX Map')
+            finally:
+                self._plotting_edx = False
+            return
+
         # Update parent's combobox
         self.parent.sheet_combobox.SetValue(sheet_name)
 
@@ -1738,7 +1775,8 @@ class FileManagerWindow(wx.Frame):
             except:
                 pass
 
-        # Get data
+
+        # Get data for XPS/Raman
         x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
         y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
 
@@ -2161,7 +2199,22 @@ class FileManagerWindow(wx.Frame):
         # Check if shift or ctrl is being held down
         if not wx.GetKeyState(wx.WXK_SHIFT) and not wx.GetKeyState(wx.WXK_CONTROL):
             if cell_value and cell_value in self.parent.Data['Core levels']:
-                wx.CallAfter(self.quick_plot_sheet, cell_value)
+                # Check if it's an EDX~Map sheet
+                if cell_value == 'EDX~Map':
+                    # Open EDX/SEM window
+                    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+                    import os
+                    if hasattr(self.parent, 'current_file_path') and self.parent.current_file_path:
+                        hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.hdf5')
+                        if not os.path.exists(hdf5_path):
+                            hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.h5')
+
+                        if os.path.exists(hdf5_path):
+                            edx_window = open_edx_sem_window(self.parent)
+                            if edx_window:
+                                edx_window.load_file(hdf5_path, 'EDX Map')
+                else:
+                    wx.CallAfter(self.quick_plot_sheet, cell_value)
 
     def on_cursor_changed(self, event):
         # Process the event first to change the cursor

@@ -47,6 +47,10 @@ class EDXSEMWindow(wx.Frame):
         self.init_ui()
         self.Centre()
 
+        # Bind close event to clear parent reference
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+
 
     def init_ui(self):
         """Initialize user interface"""
@@ -213,6 +217,15 @@ class EDXSEMWindow(wx.Frame):
 
         toolbar_sizer.Add(wx.StaticLine(toolbar_panel, style=wx.LI_VERTICAL), 0, wx.EXPAND | wx.ALL, 3)
 
+        # Sensitivity/Display controls button
+        self.sensitivity_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
+        self.sensitivity_btn.SetBitmap(self.create_icon_bitmap('sensitivity'))
+        self.sensitivity_btn.SetToolTip("Display & Sensitivity Controls")
+        self.sensitivity_btn.Bind(wx.EVT_BUTTON, self.on_sensitivity_controls)
+        toolbar_sizer.Add(self.sensitivity_btn, 0, wx.ALL, 2)
+
+        toolbar_panel.SetSizer(toolbar_sizer)
+
         # Set Elements button
         self.set_elements_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
         id_path = os.path.join(icon_path, "ID-3.png")
@@ -225,20 +238,18 @@ class EDXSEMWindow(wx.Frame):
 
         # Plot Maps button
         self.plot_maps_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
-        heatmap_path = os.path.join(icon_path, "heatmap-3.png")
-        if os.path.exists(heatmap_path):
-            self.plot_maps_btn.SetBitmap(wx.Bitmap(heatmap_path, wx.BITMAP_TYPE_PNG))
-        else:
-            self.plot_maps_btn.SetBitmap(self.create_icon_bitmap('area'))
+        self.plot_maps_btn.SetBitmap(self.create_icon_bitmap('intensity'))
+        self.plot_maps_btn.SetToolTip("Plot Element Maps")
+        toolbar_sizer.Add(self.plot_maps_btn, 0, wx.ALL, 2)
 
         # Intensity Map button
         self.intensity_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
-        self.intensity_btn.SetBitmap(self.create_icon_bitmap('intensity'))
+        heatmap_path = os.path.join(icon_path, "heatmap-3.png")
+        self.intensity_btn.SetBitmap(wx.Bitmap(heatmap_path, wx.BITMAP_TYPE_PNG))
         self.intensity_btn.SetToolTip("Show Intensity Map")
         toolbar_sizer.Add(self.intensity_btn, 0, wx.ALL, 2)
 
-        self.plot_maps_btn.SetToolTip("Plot Element Maps")
-        toolbar_sizer.Add(self.plot_maps_btn, 0, wx.ALL, 2)
+
 
         toolbar_panel.SetSizer(toolbar_sizer)
 
@@ -284,12 +295,14 @@ class EDXSEMWindow(wx.Frame):
             dc.DrawLine(10, 17, 7, 14)
             dc.DrawLine(10, 17, 13, 14)
         elif icon_type == 'point':
-            dc.SetBrush(wx.Brush(wx.Colour(255, 0, 0)))
+            dc.SetBrush(wx.Brush(wx.Colour(79, 190, 159)))
             dc.DrawCircle(10, 10, 4)
         elif icon_type == 'area':
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            dc.SetPen(wx.Pen(wx.Colour(79, 190, 159), 2))
             dc.DrawRectangle(3, 3, 14, 14)
         elif icon_type == 'line':
+            dc.SetPen(wx.Pen(wx.Colour(79, 190, 159), 2))
             dc.DrawLine(3, 17, 17, 3)
         elif icon_type == 'clear':
             dc.SetPen(wx.Pen(wx.Colour(200, 50, 50), 2))
@@ -306,6 +319,17 @@ class EDXSEMWindow(wx.Frame):
             dc.DrawRectangle(2, 11, 7, 7)
             dc.SetBrush(wx.Brush(wx.Colour(255, 0, 0)))
             dc.DrawRectangle(11, 11, 7, 7)
+        elif icon_type == 'sensitivity':
+            # Slider icon
+            dc.SetPen(wx.Pen(color, 2))
+            # Horizontal line (slider track)
+            dc.DrawLine(5, 12, 20, 12)
+            # Slider knob
+            dc.SetBrush(wx.Brush(color))
+            dc.DrawCircle(12, 12, 4)
+            # Small lines above and below for adjustment
+            dc.DrawLine(12, 5, 12, 8)
+            dc.DrawLine(12, 16, 12, 19)
 
         dc.SelectObject(wx.NullBitmap)
         return bmp
@@ -313,6 +337,16 @@ class EDXSEMWindow(wx.Frame):
 
 
     # ==================== TOOLBAR HANDLERS ====================
+
+    def on_sensitivity_controls(self, event):
+        """Open sensitivity and display controls window"""
+        if hasattr(self, 'sensitivity_window') and self.sensitivity_window and not self.sensitivity_window.IsBeingDeleted():
+            # Window already exists, bring to front
+            self.sensitivity_window.Raise()
+        else:
+            # Create new window
+            self.sensitivity_window = EDXSensitivityWindow(self)
+            self.sensitivity_window.Show()
 
     def on_zoom_in(self, event):
         """Toggle zoom in mode using rectangle selector"""
@@ -629,7 +663,7 @@ class EDXSEMWindow(wx.Frame):
     # ==================== SPECTRUM PLOTTING ====================
 
     def plot_point_spectrum(self, x, y):
-        """Plot spectrum at a single point in KherveFitting main window"""
+        """Plot spectrum from single point in KherveFitting main window"""
         if self.current_data is None:
             return
 
@@ -640,7 +674,6 @@ class EDXSEMWindow(wx.Frame):
                           "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        # Extract spectrum at point (y, x order for numpy)
         spectrum = data[y, x, :]
         energy = self.get_energy_axis()
 
@@ -650,11 +683,15 @@ class EDXSEMWindow(wx.Frame):
         # Plot in parent KherveFitting window
         if self.parent is not None and hasattr(self.parent, 'ax'):
             self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'b-', linewidth=0.8)
+            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'EDX Spectrum at Point ({x}, {y})')
             self.parent.ax.grid(True, alpha=0.3)
+
+            # Add element peak labels
+            self.add_peak_labels(self.parent.ax, energy, spectrum)
+
             self.parent.canvas.draw()
 
     def plot_area_spectrum(self, x1, y1, x2, y2):
@@ -679,11 +716,15 @@ class EDXSEMWindow(wx.Frame):
         # Plot in parent KherveFitting window
         if self.parent is not None and hasattr(self.parent, 'ax'):
             self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'b-', linewidth=0.8)
+            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'Summed EDX Spectrum - Area: {(x2 - x1 + 1) * (y2 - y1 + 1)} pixels')
             self.parent.ax.grid(True, alpha=0.3)
+
+            # Add element peak labels
+            self.add_peak_labels(self.parent.ax, energy, spectrum)
+
             self.parent.canvas.draw()
 
     def plot_line_spectrum(self, x1, y1, x2, y2):
@@ -716,11 +757,15 @@ class EDXSEMWindow(wx.Frame):
         # Plot in parent KherveFitting window
         if self.parent is not None and hasattr(self.parent, 'ax'):
             self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'b-', linewidth=0.8)
+            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'EDX Line Spectrum ({x1},{y1}) to ({x2},{y2}) - {num_points} pts')
             self.parent.ax.grid(True, alpha=0.3)
+
+            # Add element peak labels
+            self.add_peak_labels(self.parent.ax, energy, spectrum)
+
             self.parent.canvas.draw()
 
     def get_energy_axis(self):
@@ -773,19 +818,122 @@ class EDXSEMWindow(wx.Frame):
         self.load_file(file_path, 'edx_spectrum')
 
     def on_import_edx_map(self, event):
-        """Import EDX map/spectrum image"""
-        with wx.FileDialog(self, "Open EDX Map/Spectrum Image",
-                          wildcard="All files (*.*)|*.*|BCF files (*.bcf)|*.bcf|"
-                                  "HDF5 files (*.hdf5;*.h5)|*.hdf5;*.h5|"
-                                  "EMSA files (*.emsa)|*.emsa|Raw files (*.raw)|*.raw",
-                          style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+        """Import EDX map or spectrum image"""
+        wildcard = "All supported files|*.hdf5;*.h5;*.bcf;*.rpl;*.raw;*.emd;*.ser|" \
+                   "HDF5 files (*.hdf5)|*.hdf5|" \
+                   "HDF5 files (*.h5)|*.h5|" \
+                   "Bruker BCF files (*.bcf)|*.bcf|" \
+                   "All files (*.*)|*.*"
 
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return
+        with wx.FileDialog(self, "Open EDX Map file",
+                           wildcard=wildcard,
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                file_path = dlg.GetPath()
+                self.load_file(file_path, 'EDX Map')
 
-            file_path = fileDialog.GetPath()
+                # Create excel file and add to window.data
+                if self.current_data is not None:
+                    self.create_edx_map_output(file_path)
 
-        self.load_file(file_path, 'edx_map')
+    def create_edx_map_output(self, file_path):
+        """Create Excel file and add EDX map data to parent window.data"""
+        import openpyxl
+        from openpyxl.drawing.image import Image as OpenpyxlImage
+        from io import BytesIO
+
+        try:
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            excel_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.xlsx")
+
+            # Create workbook
+            wb = openpyxl.Workbook()
+            wb.remove(wb.active)  # Remove default sheet
+
+            # Get energy range
+            energy_axis = self.get_energy_axis()
+            if energy_axis is not None:
+                energy_min = f"{np.min(energy_axis):.2f}"
+                energy_max = f"{np.max(energy_axis):.2f}"
+                energy_range = f"{energy_min} - {energy_max} keV"
+            else:
+                energy_range = "N/A"
+
+            # Create sum spectrum and add to Excel and window.data
+            sum_signal = self.current_data.sum()
+            spectrum_data = sum_signal.data
+
+            # EDX~Plot sheet
+            ws_plot = wb.create_sheet("EDX~Plot")
+            ws_plot.append(['Energy (keV)', 'Intensity', f'Range: {energy_range}'])
+
+            for i, intensity in enumerate(spectrum_data):
+                if energy_axis is not None:
+                    ws_plot.append([f"{energy_axis[i]:.2f}", f"{intensity:.2f}"])
+                else:
+                    ws_plot.append([f"{i:.2f}", f"{intensity:.2f}"])
+
+            # Add sum plot data to parent window.data if available
+            if self.parent is not None and hasattr(self.parent, 'data'):
+                sheet_name = "EDX~Plot"
+                if sheet_name not in self.parent.data:
+                    self.parent.data[sheet_name] = {}
+
+                self.parent.data[sheet_name]['Energy_keV'] = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
+                self.parent.data[sheet_name]['Intensity'] = spectrum_data
+                self.parent.data[sheet_name]['Range_keV'] = energy_range
+
+            # EDX~Map sheet - Get first element map or sum image
+            ws_map = wb.create_sheet("EDX~Map")
+
+            # Create sum map image
+            map_data = np.sum(self.current_data.data, axis=2)  # Sum along energy axis
+
+            # Save map data matrix
+            ws_map.append([f'EDX Intensity Map - Range: {energy_range}'])
+            ws_map.append([''] * (map_data.shape[1] + 1))
+
+            for row in map_data:
+                ws_map.append([f"{val:.2f}" for val in row])
+
+            # Create and save map image at 100 dpi
+            fig, ax = plt.subplots(figsize=(map_data.shape[1] / 100, map_data.shape[0] / 100), dpi=100)
+            im = ax.imshow(map_data, cmap=self.current_cmap)
+            ax.set_title(f'EDX Map - {energy_range}')
+            plt.colorbar(im, ax=ax)
+            ax.axis('off')
+
+            # Save to BytesIO for Excel
+            img_buffer = BytesIO()
+            fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+
+            # Add image to Excel
+            img = OpenpyxlImage(img_buffer)
+            ws_map.add_image(img, f'A{map_data.shape[0] + 5}')
+
+            # Add map data to parent window.data
+            if self.parent is not None and hasattr(self.parent, 'data'):
+                sheet_name = "EDX~Map"
+                if sheet_name not in self.parent.data:
+                    self.parent.data[sheet_name] = {}
+
+                self.parent.data[sheet_name]['Map_Intensity'] = map_data
+                self.parent.data[sheet_name]['Range_keV'] = energy_range
+
+            # Save Excel file
+            wb.save(excel_path)
+            print(f"EDX data exported to: {excel_path}")
+
+            wx.MessageBox(f"EDX data exported to:\n{excel_path}",
+                          "Export Complete", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error creating EDX output:\n{str(e)}",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
 
     def on_import_bcf(self, event):
         """Import Bruker BCF file"""
@@ -801,45 +949,32 @@ class EDXSEMWindow(wx.Frame):
         self.load_file(file_path, 'bcf')
 
     def load_file(self, file_path, data_type):
-        """Generic file loader with reader selection"""
+        """Generic file loader with automatic reader selection"""
         try:
-            # Handle HDF5 files with multiple readers
-            if file_path.lower().endswith(('.hdf5', '.h5')):
-                reader_dialog = wx.SingleChoiceDialog(
-                    self,
-                    "Multiple readers available for HDF5 file.\nSelect the appropriate reader:",
-                    "Select Reader",
-                    ['HSPY', 'USID', 'Delmic']
-                )
-                if reader_dialog.ShowModal() == wx.ID_OK:
-                    reader = reader_dialog.GetStringSelection()
+            loaded_data = None
+
+            # List of readers to try
+            readers_to_try = ['HSPY', 'USID', 'Delmic', 'EMSA', 'Bruker']
+
+            # Try each reader in order
+            for reader in readers_to_try:
+                try:
                     loaded_data = hs.load(file_path, reader=reader)
-                else:
-                    reader_dialog.Destroy()
-                    return
-                reader_dialog.Destroy()
-            else:
-                # Try to load normally
+                    print(f"Successfully loaded with {reader} reader")
+                    break
+                except Exception as e:
+                    print(f"Failed with {reader} reader: {e}")
+                    continue
+
+            # If all readers failed, try without specifying reader
+            if loaded_data is None:
                 try:
                     loaded_data = hs.load(file_path)
-                except ValueError as e:
-                    if "multiple file readers" in str(e).lower():
-                        # Extract available readers from error message
-                        reader_dialog = wx.SingleChoiceDialog(
-                            self,
-                            "Multiple readers available.\nSelect the appropriate reader:",
-                            "Select Reader",
-                            ['HSPY', 'USID', 'Delmic', 'EMSA', 'Bruker']
-                        )
-                        if reader_dialog.ShowModal() == wx.ID_OK:
-                            reader = reader_dialog.GetStringSelection()
-                            loaded_data = hs.load(file_path, reader=reader)
-                        else:
-                            reader_dialog.Destroy()
-                            return
-                        reader_dialog.Destroy()
-                    else:
-                        raise
+                    print("Successfully loaded with default reader")
+                except Exception as e:
+                    wx.MessageBox(f"Could not load file with any available reader.\nError: {str(e)}",
+                                  "Load Error", wx.OK | wx.ICON_ERROR)
+                    return
 
             # Handle list of signals
             if isinstance(loaded_data, list):
@@ -1014,8 +1149,14 @@ class EDXSEMWindow(wx.Frame):
         self.map_ax.set_ylabel('Y (pixels)')
         self.map_ax.set_title(title)
 
-        # Add colorbar for sum image
-        self.current_colorbar = self.map_figure.colorbar(im, ax=self.map_ax, fraction=0.046, pad=0.04)
+        # # Add colorbar for sum image
+        # self.current_colorbar = self.map_figure.colorbar(im, ax=self.map_ax, fraction=0.046, pad=0.04)
+
+        # Add colorbar matching heatmap style (full height on right side)
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        divider = make_axes_locatable(self.map_ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        self.current_colorbar = self.map_figure.colorbar(im, cax=cax)
 
         self.map_figure.tight_layout(pad=0.5)
         self.map_canvas.draw()
@@ -1260,7 +1401,7 @@ class EDXSEMWindow(wx.Frame):
         self.reinitialize_selectors()
 
     def plot_sum_spectrum_to_parent(self):
-        """Plot sum spectrum in KherveFitting main window"""
+        """Plot sum spectrum in KherveFitting main window with element labels"""
         if self.current_data is None:
             return
 
@@ -1277,12 +1418,157 @@ class EDXSEMWindow(wx.Frame):
         # Plot in parent KherveFitting window
         if self.parent is not None and hasattr(self.parent, 'ax'):
             self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'b-', linewidth=0.8)
+            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title('EDX Sum Spectrum')
             self.parent.ax.grid(True, alpha=0.3)
+
+            # Add element peak labels
+            self.add_peak_labels(self.parent.ax, energy, spectrum)
+
             self.parent.canvas.draw()
+
+    def add_peak_labels(self, ax, energy, spectrum):
+        """Add element peak labels above peaks using ExSpy's find_peaks1D_ohaver"""
+        try:
+            # Create a temporary HyperSpy signal from the spectrum data
+            import hyperspy.api as hs
+            from exspy.material import elements
+
+            # Create signal with proper energy axis
+            temp_signal = hs.signals.Signal1D(spectrum)
+            temp_signal.axes_manager[0].scale = energy[1] - energy[0] if len(energy) > 1 else 0.01
+            temp_signal.axes_manager[0].offset = energy[0]
+            temp_signal.axes_manager[0].units = 'keV'
+            temp_signal.axes_manager[0].name = 'Energy'
+
+            # Set signal type to EDS
+            temp_signal.set_signal_type("EDS_SEM")
+
+            # Find peaks using ExSpy's find_peaks1D_ohaver
+            from exspy.utils.eds import get_xray_lines_near_energy
+            # Lower amp_thresh to detect more peaks (default is 10% of max)
+            peak_data = temp_signal.find_peaks1D_ohaver(
+                maxpeakn=100,
+                medfilt_radius=5,
+                peakgroup=10,
+                amp_thresh=np.max(spectrum) * 0.02,  # 2% threshold instead of 10%
+                slope_thresh=0
+            )
+
+            # Get y-axis range for positioning labels
+            y_min, y_max = ax.get_ylim()
+            y_range = y_max - y_min
+
+            # For each detected peak, find possible X-ray lines
+            labeled_positions = []
+
+            # Check if peak_data is valid
+            if peak_data is not None and isinstance(peak_data, np.ndarray) and len(peak_data) > 0:
+                # Extract the actual peaks array
+                peaks = peak_data[0] if len(peak_data.shape) > 1 or peak_data.dtype == object else peak_data
+
+                for peak_tuple in peaks:
+                    try:
+                        # Each peak_tuple is (position, height, width)
+                        peak_energy = float(peak_tuple[0])
+                        peak_height_val = float(peak_tuple[1])
+                        peak_width = float(peak_tuple[2])
+
+                        # Skip if too close to already labeled position
+                        too_close = False
+                        for labeled_energy in labeled_positions:
+                            if abs(peak_energy - labeled_energy) < 0.1:
+                                too_close = True
+                                break
+
+                        if too_close:
+                            continue
+
+                        # Find X-ray lines near this energy
+                        try:
+                            lines_list = get_xray_lines_near_energy(peak_energy, only_lines=None, width=0.15)
+
+                            if not lines_list:
+                                continue
+
+                            # lines_list contains strings like 'Si_Ka', 'Fe_La', etc.
+                            # Find the closest matching line by looking up their energies
+                            closest_line = None
+                            min_diff = float('inf')
+
+                            for line_str in lines_list:
+                                # Parse the line string (e.g., 'Si_Ka' -> element='Si', line='Ka')
+                                parts = line_str.split('_')
+                                if len(parts) != 2:
+                                    continue
+
+                                element_symbol = parts[0]
+                                line_type = parts[1]
+
+                                # Get the element and look up the line energy
+                                try:
+                                    element_obj = elements[element_symbol]
+
+                                    # Get line energy from element's X-ray lines
+                                    if hasattr(element_obj, 'Atomic_properties') and \
+                                            hasattr(element_obj.Atomic_properties, 'Xray_lines'):
+                                        xray_lines = element_obj.Atomic_properties.Xray_lines
+
+                                        if line_type in xray_lines:
+                                            line_energy = xray_lines[line_type].energy_keV
+                                            diff = abs(line_energy - peak_energy)
+
+                                            if diff < min_diff:
+                                                min_diff = diff
+                                                closest_line = (element_symbol, line_type)
+                                except (KeyError, AttributeError):
+                                    continue
+
+                            if closest_line and min_diff < 0.15:
+                                element, line_type = closest_line
+
+                                # Format line type with Greek letters
+                                line_type = str(line_type)
+                                line_type = line_type.replace('Ka', 'Kα').replace('Kb', 'Kβ')
+                                line_type = line_type.replace('La', 'Lα').replace('Lb', 'Lβ')
+                                line_type = line_type.replace('Ma', 'Mα').replace('Mb', 'Mβ')
+
+                                label = f"{element}\n{line_type}"
+
+                                # Get peak height at this energy from spectrum
+                                idx = np.argmin(np.abs(energy - peak_energy))
+                                spectrum_height = spectrum[idx]
+
+                                # Position label above peak
+                                label_y = spectrum_height + (y_range * 0.05)
+
+                                # Add label
+                                ax.text(peak_energy, label_y, label,
+                                        rotation=0,
+                                        verticalalignment='bottom',
+                                        horizontalalignment='center',
+                                        fontsize=7,
+                                        color='black',
+                                        alpha=1.0)
+
+                                labeled_positions.append(peak_energy)
+
+                        except Exception as e:
+                            print(f"Could not identify line at {peak_energy:.2f} keV: {e}")
+                            continue
+
+                    except Exception as e:
+                        print(f"Error processing peak: {e}")
+                        continue
+
+        except Exception as e:
+            print(f"Error in peak labeling: {e}")
+            import traceback
+            traceback.print_exc()
+
+
 
     def reinitialize_selectors(self):
         """Reinitialize selection tools after axes change"""
@@ -1520,6 +1806,12 @@ class EDXSEMWindow(wx.Frame):
             return
         self.plot_current_map()
 
+    def on_close(self, event):
+        """Clear parent reference when closing"""
+        if hasattr(self.parent, 'edx_window'):
+            self.parent.edx_window = None
+        event.Skip()  # Allow normal close
+
 
 class DataBrowserWindow(wx.Frame):
     """Separate window for data browser"""
@@ -1718,6 +2010,157 @@ class PeriodicTableDialog(wx.Dialog):
 
     def get_selected_elements(self):
         return self.selected_elements
+
+
+class EDXSensitivityWindow(wx.Frame):
+    """Popup window for EDX sensitivity and display controls"""
+
+    def __init__(self, parent):
+        super().__init__(parent, title="EDX Display Controls",
+                         size=(300, 250),
+                         style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+
+        self.parent = parent
+        self.init_ui()
+        self.Centre()
+
+    def init_ui(self):
+        """Initialize the control interface"""
+        panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Add some padding
+        main_sizer.AddSpacer(10)
+
+        # X Max control
+        x_max_box = wx.BoxSizer(wx.HORIZONTAL)
+        x_max_label = wx.StaticText(panel, label="X Max (keV):")
+        x_max_box.Add(x_max_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+
+        self.x_max_spin = wx.SpinCtrl(panel, value="20", min=1, max=50, size=(80, -1))
+        self.x_max_spin.SetToolTip("Set maximum X-axis energy (0 to X)")
+        self.x_max_spin.Bind(wx.EVT_SPINCTRL, self.on_x_max_change)
+        x_max_box.Add(self.x_max_spin, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        main_sizer.Add(x_max_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+
+        # Y Max control
+        y_max_box = wx.BoxSizer(wx.HORIZONTAL)
+        y_max_label = wx.StaticText(panel, label="Y Max (counts):")
+        y_max_box.Add(y_max_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+
+        self.y_max_spin = wx.SpinCtrlDouble(panel, value="10000", min=100, max=1000000,
+                                            inc=1000, size=(100, -1))
+        self.y_max_spin.SetToolTip("Set maximum Y-axis intensity")
+        self.y_max_spin.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_y_max_change)
+        y_max_box.Add(self.y_max_spin, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        main_sizer.Add(y_max_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+
+        # Sensitivity slider
+        sensitivity_box = wx.BoxSizer(wx.VERTICAL)
+        sensitivity_label = wx.StaticText(panel, label="Peak Detection Sensitivity:")
+        sensitivity_box.Add(sensitivity_label, 0, wx.BOTTOM, 5)
+
+        slider_box = wx.BoxSizer(wx.HORIZONTAL)
+        low_label = wx.StaticText(panel, label="Low")
+        slider_box.Add(low_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        self.sensitivity_slider = wx.Slider(panel, value=50, minValue=1, maxValue=100,
+                                            style=wx.SL_HORIZONTAL, size=(150, -1))
+        self.sensitivity_slider.SetToolTip("Adjust peak detection sensitivity\n(Higher = more peaks detected)")
+        self.sensitivity_slider.Bind(wx.EVT_SLIDER, self.on_sensitivity_change)
+        slider_box.Add(self.sensitivity_slider, 1, wx.ALIGN_CENTER_VERTICAL)
+
+        high_label = wx.StaticText(panel, label="High")
+        slider_box.Add(high_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
+
+        sensitivity_box.Add(slider_box, 0, wx.EXPAND)
+
+        # Show current sensitivity value
+        self.sensitivity_value_label = wx.StaticText(panel, label="Value: 50")
+        sensitivity_box.Add(self.sensitivity_value_label, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
+
+        main_sizer.Add(sensitivity_box, 0, wx.ALL | wx.EXPAND, 10)
+
+        # Buttons
+        button_box = wx.BoxSizer(wx.HORIZONTAL)
+
+        reset_btn = wx.Button(panel, label="Reset to Default")
+        reset_btn.Bind(wx.EVT_BUTTON, self.on_reset)
+        button_box.Add(reset_btn, 0, wx.RIGHT, 5)
+
+        apply_btn = wx.Button(panel, label="Apply")
+        apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
+        button_box.Add(apply_btn, 0)
+
+        main_sizer.Add(button_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+
+        panel.SetSizer(main_sizer)
+
+        # Initialize values from current plot
+        self.initialize_from_plot()
+
+    def initialize_from_plot(self):
+        """Set initial values from current plot state"""
+        if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
+            # Get current X max
+            xlim = self.parent.parent.ax.get_xlim()
+            self.x_max_spin.SetValue(int(xlim[1]))
+
+            # Get current Y max
+            ylim = self.parent.parent.ax.get_ylim()
+            self.y_max_spin.SetValue(ylim[1])
+
+    def on_x_max_change(self, event):
+        """Handle X max spin control change"""
+        if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
+            x_max = self.x_max_spin.GetValue()
+            current_xlim = self.parent.parent.ax.get_xlim()
+            self.parent.parent.ax.set_xlim(current_xlim[0], x_max)
+            self.parent.parent.canvas.draw()
+
+    def on_y_max_change(self, event):
+        """Handle Y max spin control change"""
+        if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
+            y_max = self.y_max_spin.GetValue()
+            self.parent.parent.ax.set_ylim(0, y_max)
+            self.parent.parent.canvas.draw()
+
+    def on_sensitivity_change(self, event):
+        """Handle sensitivity slider change"""
+        sensitivity = self.sensitivity_slider.GetValue()
+        self.sensitivity_value_label.SetLabel(f"Value: {sensitivity}")
+
+    def on_apply(self, event):
+        """Apply sensitivity and re-plot"""
+        if self.parent.parent is not None and hasattr(self.parent.parent, 'sheet_combobox'):
+            sensitivity = self.sensitivity_slider.GetValue()
+            # Sensitivity: 1-100, where 100 = most sensitive (1% threshold)
+            # Convert to threshold: 100 -> 0.01, 50 -> 0.05, 1 -> 0.10
+            threshold = 0.11 - (sensitivity / 1000.0)
+
+            # Store threshold in parent EDX window
+            self.parent.peak_threshold = threshold
+
+            # Re-plot with new sensitivity
+            current_sheet = self.parent.parent.sheet_combobox.GetValue()
+            if current_sheet == 'EDX~Plot':
+                from libraries.Sheet_Operations import plot_edx_data
+                plot_edx_data(self.parent.parent, current_sheet)
+
+    def on_reset(self, event):
+        """Reset all values to defaults"""
+        self.x_max_spin.SetValue(20)
+        self.y_max_spin.SetValue(10000)
+        self.sensitivity_slider.SetValue(50)
+        self.sensitivity_value_label.SetLabel("Value: 50")
+
+        # Apply defaults
+        if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
+            self.parent.parent.ax.set_xlim(0, 20)
+            self.parent.parent.ax.set_ylim(0, 10000)
+            self.parent.parent.canvas.draw()
 
 def open_edx_sem_window(parent):
     """Open EDX/SEM analysis window"""

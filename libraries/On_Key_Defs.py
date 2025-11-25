@@ -473,6 +473,29 @@ class KeyEventHandlers:
     def _handle_ctrl_arrow_keys(self, keycode):
         """Handle Ctrl+Arrow keys for plot movement"""
         sheet_name = self.main_frame.sheet_combobox.GetValue()
+
+        # Handle EDX sheets - adjust X max
+        if sheet_name == 'EDX~Plot':
+            if 'Core levels' in self.main_frame.Data and sheet_name in self.main_frame.Data['Core levels']:
+                sheet_data = self.main_frame.Data['Core levels'][sheet_name]
+
+                # Get current X limits
+                current_xlim = self.main_frame.ax.get_xlim()
+                x_min = current_xlim[0]
+                x_max = current_xlim[1]
+
+                if keycode == wx.WXK_LEFT:
+                    # Decrease max by 5 keV
+                    new_x_max = max(x_max - 5, x_min + 1)  # Don't go below min + 1
+                else:  # wx.WXK_RIGHT
+                    # Increase max by 5 keV
+                    edx_max = sheet_data.get('_EDX_max', 20)
+                    new_x_max = min(x_max + 5, edx_max)
+
+                self.main_frame.ax.set_xlim(x_min, new_x_max)
+                self.main_frame.canvas.draw()
+            return
+
         limits = self.main_frame.plot_config.get_plot_limits(self.main_frame, sheet_name)
         move_factor = 0.1
 
@@ -522,6 +545,33 @@ class KeyEventHandlers:
             if hasattr(self.main_frame, 'file_manager') and self.main_frame.file_manager:
                 self.main_frame.file_manager.refresh_heatmap()
             return
+
+        # Check if current sheet is EDX first
+        current_sheet = self.main_frame.sheet_combobox.GetValue()
+        if current_sheet == 'EDX~Plot':
+            # Handle EDX Y-axis intensity adjustment (like XPS)
+            if 'Core levels' in self.main_frame.Data and current_sheet in self.main_frame.Data['Core levels']:
+                sheet_data = self.main_frame.Data['Core levels'][current_sheet]
+
+                if 'Intensity' in sheet_data:
+                    import numpy as np
+                    intensity = np.array(sheet_data['Intensity'])
+                    max_intensity = np.max(intensity)
+
+                    # Get current Y limits
+                    ymin, ymax = self.main_frame.ax.get_ylim()
+                    intensity_factor = 0.05
+
+                    if keycode == wx.WXK_DOWN:
+                        # Decrease Y max (zoom in on Y)
+                        new_ymax = max(ymax - intensity_factor * max_intensity, ymin)
+                    else:  # wx.WXK_UP
+                        # Increase Y max (zoom out on Y)
+                        new_ymax = ymax + intensity_factor * max_intensity
+
+                    self.main_frame.ax.set_ylim(ymin, new_ymax)
+                    self.main_frame.canvas.draw()
+                return
 
         # Check if FileManager exists and has multiple sheets selected
         is_multiple_plot_mode = False

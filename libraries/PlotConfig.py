@@ -58,12 +58,13 @@ class PlotConfig:
             sheet_name = window.sheet_combobox.GetValue()
             is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
             is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
+            is_edx = sheet_name == 'EDX~Plot'
 
             # Set x-axis limits based on energy scale and data type
             if window.energy_scale == 'KE':
                 window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
             else:
-                if is_raman or is_xas or sheet_name.startswith('zzProfile'):
+                if is_raman or is_xas or is_edx or sheet_name.startswith('zzProfile'):
                     window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman and zzProfile
                 else:
                     window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
@@ -82,9 +83,27 @@ class PlotConfig:
             # Redraw the canvas to show updated plot
             window.canvas.draw_idle()
 
-
     def on_zoom_out(self, window):
         """Handle zoom out for both single and multiple plot modes"""
+        # Check if current sheet is EDX first
+        sheet_name = window.sheet_combobox.GetValue()
+        if sheet_name == 'EDX~Plot':
+            # Handle EDX zoom out
+            if 'Core levels' in window.Data and sheet_name in window.Data['Core levels']:
+                sheet_data = window.Data['Core levels'][sheet_name]
+                if '_EDX_min' in sheet_data and '_EDX_max' in sheet_data:
+                    energy_min = sheet_data['_EDX_min']
+                    energy_max = sheet_data['_EDX_max']
+                    window.ax.set_xlim(energy_min, energy_max)
+
+                    # Also reset Y limits
+                    if 'Intensity' in sheet_data:
+                        intensity = sheet_data['Intensity']
+                        window.ax.set_ylim(0, np.max(intensity) * 1.1)
+
+                    window.canvas.draw()
+            return
+
         # Check if FileManager exists and has multiple sheets selected
         is_multiple_plot_mode = False
 

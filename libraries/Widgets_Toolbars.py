@@ -839,6 +839,10 @@ def create_menu(window):
     import_multiple_diamond_b07_xas_item = import_menu.Append(wx.NewId(), "Import Multiple Diamond-B07-XAS files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_diamond_b07_xas_files(window), import_multiple_diamond_b07_xas_item)
 
+    # Import EDX Map
+    import_edx_map_item = import_menu.Append(wx.NewId(), "Import EDX Map (.hdf5)")
+    window.Bind(wx.EVT_MENU, lambda event: import_edx_map_file(window), import_edx_map_item)
+
     # Export submenu items
     export_vamas_item = export_menu.Append(wx.ID_ANY, "Export as VAMAS (.vms)",
                                            "Export all data as VAMAS file")
@@ -2314,6 +2318,165 @@ def open_pca_window(window):
     from libraries.ToolsMenu.PCA_Analysis import PCAnalysisWindow
     pca_window = PCAnalysisWindow(window)
     pca_window.Show()
+
+
+def import_edx_map_file(window):
+    """Import EDX map file and open EDX/SEM analysis window"""
+    import numpy as np
+    import openpyxl
+    from openpyxl.drawing.image import Image as OpenpyxlImage
+    from io import BytesIO
+    import hyperspy.api as hs
+    import matplotlib.pyplot as plt
+    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+
+    wildcard = "HDF5 files (*.hdf5;*.h5)|*.hdf5;*.h5|All files (*.*)|*.*"
+
+    with wx.FileDialog(window, "Open EDX Map file",
+                       wildcard=wildcard,
+                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+        if dlg.ShowModal() != wx.ID_OK:
+            return
+
+        file_path = dlg.GetPath()
+
+    try:
+        # Load data with HyperSpy - try different readers automatically
+        loaded_data = None
+        readers_to_try = ['HSPY', 'USID', 'Delmic']
+
+        for reader in readers_to_try:
+            try:
+                loaded_data = hs.load(file_path, reader=reader)
+                print(f"Successfully loaded with {reader} reader")
+                break
+            except Exception as e:
+                print(f"Failed with {reader} reader: {e}")
+                continue
+
+        if loaded_data is None:
+            # Try without specifying reader as last resort
+            try:
+                loaded_data = hs.load(file_path)
+            except:
+                wx.MessageBox("Could not load file with any available reader.",
+                              "Error", wx.OK | wx.ICON_ERROR)
+                return
+
+        if isinstance(loaded_data, list):
+            if len(loaded_data) == 1:
+                loaded_data = loaded_data[0]
+            else:
+                wx.MessageBox("Multiple signals detected. Using first signal.",
+                              "Info", wx.OK | wx.ICON_INFORMATION)
+                loaded_data = loaded_data[0]
+
+        # Create Excel file with EDX data
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        excel_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.xlsx")
+
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        # Get energy axis
+        energy_axis = None
+        if hasattr(loaded_data, 'axes_manager') and len(loaded_data.axes_manager.signal_axes) > 0:
+            energy_axis = loaded_data.axes_manager.signal_axes[0].axis
+
+        if energy_axis is not None:
+            energy_min = f"{np.min(energy_axis):.2f}"
+            energy_max = f"{np.max(energy_axis):.2f}"
+            energy_range = f"{energy_min} - {energy_max} keV"
+        else:
+            energy_range = "N/A"
+
+        # EDX~Plot sheet
+        sum_signal = loaded_data.sum()
+        spectrum_data = sum_signal.data
+
+        ws_plot = wb.create_sheet("EDX~Plot")
+        ws_plot.append(['Energy (keV)', 'Intensity', f'Range: {energy_range}'])
+
+        for i, intensity in enumerate(spectrum_data):
+            if energy_axis is not None:
+                ws_plot.append([f"{energy_axis[i]:.2f}", f"{intensity:.2f}"])
+            else:
+                ws_plot.append([f"{i:.2f}", f"{intensity:.2f}"])
+
+        # EDX~Map sheet
+        ws_map = wb.create_sheet("EDX~Map")
+        map_data = np.sum(loaded_data.data, axis=2)
+
+        ws_map.append([f'EDX Intensity Map - Range: {energy_range}'])
+        ws_map.append([''] * (map_data.shape[1] + 1))
+
+        for row in map_data:
+            ws_map.append([f"{val:.2f}" for val in row])
+
+        # Create map image
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(map_data.shape[1] / 100, map_data.shape[0] / 100), dpi=100)
+        im = ax.imshow(map_data, cmap='plasma')
+        ax.set_title(f'EDX Map - {energy_range}')
+        plt.colorbar(im, ax=ax)
+        ax.axis('off')
+
+        img_buffer = BytesIO()
+        fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close(fig)
+
+        img = OpenpyxlImage(img_buffer)
+        ws_map.add_image(img, f'A{map_data.shape[0] + 5}')
+
+        # Save Excel
+        wb.save(excel_path)
+
+        # Update window.Data with EDX sheets
+        if not hasattr(window, 'Data'):
+            window.Data = {}
+
+        if 'Core levels' not in window.Data:
+            window.Data['Core levels'] = {}
+
+        # Add EDX~Plot sheet
+        window.Data['Core levels']['EDX~Plot'] = {
+            'Energy_keV': energy_axis if energy_axis is not None else np.arange(len(spectrum_data)),
+            'Intensity': spectrum_data,
+            'Range_keV': energy_range
+        }
+
+        # Add EDX~Map sheet
+        window.Data['Core levels']['EDX~Map'] = {
+            'Map_Intensity': map_data,
+            'Range_keV': energy_range
+        }
+
+        # Update file path
+        window.current_file_path = excel_path
+
+        # Update sheet selector
+        window.sheet_combobox.Append('EDX~Plot')
+        window.sheet_combobox.Append('EDX~Map')
+        window.sheet_combobox.SetValue('EDX~Plot')
+
+        # Update file location at bottom
+        if hasattr(window, 'file_path_text'):
+            window.file_path_text.SetLabel(f"File: {excel_path}")
+
+        # Open EDX/SEM analysis window
+        edx_window = open_edx_sem_window(window)
+        if edx_window:
+            edx_window.load_file(file_path, 'EDX Map')
+
+        # wx.MessageBox(f"EDX data imported successfully!\nExcel file created: {excel_path}",
+        #               "Import Complete", wx.OK | wx.ICON_INFORMATION)
+
+    except Exception as e:
+        wx.MessageBox(f"Error importing EDX map:\n{str(e)}",
+                      "Error", wx.OK | wx.ICON_ERROR)
+        import traceback
+        traceback.print_exc()
 
 
 class ToggleToolbar(wx.Frame):

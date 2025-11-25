@@ -136,7 +136,7 @@ Three saving options available:
 
 - Ensure Peak Fitting tab selected for peak manipulation
 - Left-click and drag cross marker to move peaks
-- Shift + Left-click to adjust peak width
+- Scroll wheel to adjust peak width
 - Middle mouse scroll to change sheets or core levels
 
 ## Advanced Features
