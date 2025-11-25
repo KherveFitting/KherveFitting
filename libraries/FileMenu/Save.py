@@ -1285,7 +1285,9 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
 
                 # Add citation row
                 citation_row = end_row + 1
-                citation_text = "Please cite KherveFitting software: Kerherve G. et al. Surface and Interface Analysis (2025) TBD"
+
+                citation_text = "Please cite G.Kerherve, W.Skinner, J.Hochhaus, et al., Surface and Interface Analysis (2025): 1–12, https://doi.org/10.1002/sia.70032"
+                # citation_text = "Please cite KherveFitting software: Kerherve G. et al. Surface and Interface Analysis (2025) TBD"
                 citation_cell = worksheet.cell(row=citation_row, column=start_col, value=citation_text)
                 citation_cell.font = Font(italic=True)
                 # Merge cells across the width of the peak params table

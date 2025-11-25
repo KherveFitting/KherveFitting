@@ -85,6 +85,10 @@ class PeriodicTableXPS(wx.Frame):
         # Bind close event
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
+        # Default to Carbon 1s
+        wx.CallAfter(self.select_element, 'C')
+        wx.CallAfter(self.set_line_selection, '1s')
+
     def on_close(self, event):
         """Handle window close event"""
         # Save property dialog position if it exists
@@ -182,7 +186,7 @@ This application also provide rapid access to the website XPSfitting from M. Bie
 the webite of Thermo Knowledge.
 
 Developer: Gwilherm Kerherve
-Version: 1.1"""
+Version: 2.0"""
 
         wx.MessageBox(about_text, "About My KherveDB Library",
                       wx.OK | wx.ICON_INFORMATION)
@@ -1040,12 +1044,32 @@ Version: 1.1"""
         # Show as non-modal dialog
         self.property_dialog.Show()
 
+    def set_line_selection(self, line):
+        """Set the line selection in the combo box"""
+        try:
+            if line in [self.line_combo.GetString(i) for i in range(self.line_combo.GetCount())]:
+                self.line_combo.SetStringSelection(line)
+                self.update_results()
+        except:
+            pass
+
     def show_element_properties(self, event):
         """Show element properties dialog"""
+        # Default to Carbon if no element selected
         if not self.selected_element:
-            wx.MessageBox("Please select an element from the periodic table first.",
-                          "No Element Selected", wx.OK | wx.ICON_INFORMATION)
-            return
+            self.selected_element = 'C'
+            self.element_label.SetLabel('C')
+            # Update line dropdown for Carbon
+            element_lines = ['All Lines'] + sorted(
+                self.df[self.df['Element'] == 'C']['Line'].unique().tolist()
+            )
+            self.line_combo.Set(element_lines)
+            # Set to 1s if available
+            if '1s' in element_lines:
+                self.line_combo.SetStringSelection('1s')
+            else:
+                self.line_combo.SetSelection(0)
+            self.update_results()
 
         # If dialog already exists, update it with new element
         if self.property_dialog and self.property_dialog.IsShown():

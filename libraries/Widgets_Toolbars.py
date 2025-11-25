@@ -839,9 +839,9 @@ def create_menu(window):
     import_multiple_diamond_b07_xas_item = import_menu.Append(wx.NewId(), "Import Multiple Diamond-B07-XAS files (folder)")
     window.Bind(wx.EVT_MENU, lambda event: import_multiple_diamond_b07_xas_files(window), import_multiple_diamond_b07_xas_item)
 
-    # Import EDX Map
-    import_edx_map_item = import_menu.Append(wx.NewId(), "Import EDX Map (.hdf5)")
-    window.Bind(wx.EVT_MENU, lambda event: import_edx_map_file(window), import_edx_map_item)
+    # # Import EDX Map
+    # import_edx_map_item = import_menu.Append(wx.NewId(), "Import EDX Map (.hdf5)")
+    # window.Bind(wx.EVT_MENU, lambda event: import_edx_map_file(window), import_edx_map_item)
 
     # Export submenu items
     export_vamas_item = export_menu.Append(wx.ID_ANY, "Export as VAMAS (.vms)",
@@ -1084,8 +1084,8 @@ def create_menu(window):
     plot_mod_item = tools_menu.Append(wx.NewId(), "Plot Modifications")
     window.Bind(wx.EVT_MENU, lambda event: PlotModWindow(window).Show(), plot_mod_item)
 
-    edx_menu_item = tools_menu.Append(wx.ID_ANY, "Open EDX/SEM Analysis", "Open EDX/SEM analysis window")
-    window.Bind(wx.EVT_MENU, lambda event: on_open_edx_sem(window), edx_menu_item)
+    # edx_menu_item = tools_menu.Append(wx.ID_ANY, "Open EDX/SEM Analysis", "Open EDX/SEM analysis window")
+    # window.Bind(wx.EVT_MENU, lambda event: on_open_edx_sem(window), edx_menu_item)
 
     # Add profiling items
     profiling_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Profiling ▬▬▬▬▬▬▬▬")
@@ -1124,6 +1124,9 @@ def create_menu(window):
 
     shortcuts_item = help_menu.Append(wx.NewId(), "List of Shortcuts\tCtrl+K")
     window.Bind(wx.EVT_MENU, lambda event: show_shortcuts(window), shortcuts_item)
+
+    paper_item = help_menu.Append(wx.NewId(), "KherveFitting Paper")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("http://doi.org/10.1002/sia.70032"), paper_item)
 
     manual_item = help_menu.Append(wx.NewId(), "Open Full Manual [Still v1.5]\tCtrl+M")
     window.Bind(wx.EVT_MENU, lambda event: open_manual(window), manual_item)
