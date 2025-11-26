@@ -1787,6 +1787,26 @@ class MouseEventHandler:
 
                 multiplot_menu.AppendSubMenu(width_menu, "Line Width")
 
+                # Legend columns submenu
+                legend_menu = wx.Menu()
+                legend_cols = [1, 2, 3, 4]
+
+                for ncol in legend_cols:
+                    item = legend_menu.Append(wx.ID_ANY, f"{ncol} columns")
+                    self.window.Bind(wx.EVT_MENU, lambda evt, n=ncol: self.on_change_multiplot_legend_ncol(evt, n), item)
+
+                multiplot_menu.AppendSubMenu(legend_menu, "Legend Columns")
+
+                # Max legend items submenu
+                legend_items_menu = wx.Menu()
+                legend_items = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+
+                for max_items in legend_items:
+                    item = legend_items_menu.Append(wx.ID_ANY, f"{max_items} items max")
+                    self.window.Bind(wx.EVT_MENU, lambda evt, m=max_items: self.on_change_multiplot_max_legend_items(evt, m), item)
+
+                multiplot_menu.AppendSubMenu(legend_items_menu, "Max Legend Items")
+
                 multiplot_submenu = menu.AppendSubMenu(multiplot_menu, "Multiplot Settings")
 
                 # Enable only if file_manager is open
@@ -1818,6 +1838,8 @@ class MouseEventHandler:
 
             self.window.PopupMenu(menu)
             menu.Destroy()
+
+
 
     def open_edit_data_window(self):
         """Open the Edit Data window for the current sheet"""
@@ -2698,8 +2720,55 @@ class MouseEventHandler:
                     # Default to F2 style
                     self.window.file_manager.plot_multiple_sheets(selected_sheets)
 
+    def on_change_multiplot_legend_ncol(self, event, ncol):
+        """Change number of legend columns for multiplot"""
+        self.window.multiplot_legend_ncol = ncol
 
+        # Save to preferences
+        if hasattr(self.window, 'save_config'):
+            try:
+                self.window.save_config()
+            except Exception as e:
+                print(f"Error saving legend ncol config: {e}")
 
+        # Refresh the multiplot if file_manager exists and has a plot
+        if hasattr(self.window, 'file_manager') and self.window.file_manager:
+            selected_sheets = self.window.file_manager.get_selected_sheet_names()
+            if len(selected_sheets) > 1:
+                # Determine which plot type to refresh based on last plot
+                if hasattr(self.window, 'last_multiplot_type'):
+                    if self.window.last_multiplot_type == 'F2':
+                        self.window.file_manager.plot_multiple_sheets(selected_sheets)
+                    elif self.window.last_multiplot_type == 'F3':
+                        self.window.file_manager.plot_multiple_sheets_with_offset(selected_sheets)
+                else:
+                    # Default to F2 style
+                    self.window.file_manager.plot_multiple_sheets(selected_sheets)
+
+    def on_change_multiplot_max_legend_items(self, event, max_items):
+        """Change maximum number of legend items for multiplot"""
+        self.window.multiplot_max_legend_items = max_items
+
+        # Save to preferences
+        if hasattr(self.window, 'save_config'):
+            try:
+                self.window.save_config()
+            except Exception as e:
+                print(f"Error saving max legend items config: {e}")
+
+        # Refresh the multiplot if file_manager exists and has a plot
+        if hasattr(self.window, 'file_manager') and self.window.file_manager:
+            selected_sheets = self.window.file_manager.get_selected_sheet_names()
+            if len(selected_sheets) > 1:
+                # Determine which plot type to refresh based on last plot
+                if hasattr(self.window, 'last_multiplot_type'):
+                    if self.window.last_multiplot_type == 'F2':
+                        self.window.file_manager.plot_multiple_sheets(selected_sheets)
+                    elif self.window.last_multiplot_type == 'F3':
+                        self.window.file_manager.plot_multiple_sheets_with_offset(selected_sheets)
+                else:
+                    # Default to F2 style
+                    self.window.file_manager.plot_multiple_sheets(selected_sheets)
 
 def setup_mouse_handlers(window):
     """Set up mouse event handlers for the window"""

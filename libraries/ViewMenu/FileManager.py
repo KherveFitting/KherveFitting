@@ -2052,20 +2052,12 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
-        # Set legend on the left
-        # Only show legend if 7 or fewer items
-        if len(sheet_names) <= 7:
-            self.parent.ax.legend(loc='upper left')
+        # # Only show legend if 7 or fewer items
+        max_items = getattr(self.parent, 'multiplot_max_legend_items', 10)
+        if len(sheet_names) <= max_items:
+            ncol = getattr(self.parent, 'multiplot_legend_ncol', 2)
+            self.parent.ax.legend(loc='upper left', ncol=ncol)
 
-        # # Set labels and formatting
-        # self.parent.ax.set_xlabel("Binding Energy (eV)")
-        # if normalize:
-        #     self.parent.ax.set_ylabel("Normalized Intensity")
-        # else:
-        #     self.parent.ax.set_ylabel("Intensity (CPS)")
-
-        # # Set x-axis limits to min/max values from all datasets
-        # self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
 
         # If all sheets are from the same column, add core level text in top right (except for Raman)
         if same_column and not is_raman:
@@ -3871,9 +3863,10 @@ class FileManagerWindow(wx.Frame):
         self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
         # Only show legend if 7 or fewer items
-        if len(sheet_names) <= 7:
-            # Set legend on the left
-            self.parent.ax.legend(loc='upper left')
+        max_items = getattr(self.parent, 'multiplot_max_legend_items', 10)
+        if len(sheet_names) <= max_items:
+            ncol = getattr(self.parent, 'multiplot_legend_ncol', 2)
+            self.parent.ax.legend(loc='upper left', ncol=ncol)
 
         # If all sheets are from the same column, add core level text in top right (except for Raman)
         if same_column and not is_raman:

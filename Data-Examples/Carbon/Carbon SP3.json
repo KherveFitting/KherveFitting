@@ -758,13 +758,13 @@
       "Fitting": {
         "Peaks": {
           "C1s C-C": {
-            "Position": 284.77,
-            "Height": 4925.92,
-            "FWHM": 1.1,
-            "L/G": 10.54,
-            "Area": 6057.0,
-            "Sigma": 1.1,
-            "Gamma": 1.1,
+            "Position": 284.78,
+            "Height": 4939.0,
+            "FWHM": 1.12,
+            "L/G": 9.03,
+            "Area": 6137.0,
+            "Sigma": 2.0,
+            "Gamma": 2.0,
             "Skew": 0.64,
             "Fitting Model": "SGL (Area)",
             "Constraints": {
@@ -776,21 +776,20 @@
               "Sigma": "0.3:3",
               "Gamma": "0.3:3",
               "Skew": "0.01:2"
-            },
-            "fwhm_g": 0.64
+            }
           },
           "C1s C-O": {
-            "Position": 285.74,
-            "Height": 596.93,
-            "FWHM": 1.1,
-            "L/G": 10.54,
-            "Area": 734.0,
-            "Sigma": 1.1,
-            "Gamma": 1.1,
+            "Position": 285.88,
+            "Height": 567.0,
+            "FWHM": 1.12,
+            "L/G": 9.02,
+            "Area": 705.0,
+            "Sigma": 2.0,
+            "Gamma": 2.0,
             "Skew": 0.64,
             "Fitting Model": "SGL (Area)",
             "Constraints": {
-              "Position": "279.76,291.58",
+              "Position": "A+1.2#0.1",
               "Height": "1:1e7",
               "FWHM": "A*1",
               "L/G": "A*1",
@@ -798,21 +797,20 @@
               "Sigma": "0.3:3",
               "Gamma": "0.3:3",
               "Skew": "0.01:2"
-            },
-            "fwhm_g": 0.64
+            }
           },
           "C1s O-C=O": {
-            "Position": 288.36,
-            "Height": 408.26,
-            "FWHM": 1.1,
-            "L/G": 10.54,
-            "Area": 502.0,
-            "Sigma": 1.1,
-            "Gamma": 1.1,
+            "Position": 288.37,
+            "Height": 388.0,
+            "FWHM": 1.23,
+            "L/G": 9.02,
+            "Area": 531.0,
+            "Sigma": 2.0,
+            "Gamma": 2.0,
             "Skew": 0.64,
             "Fitting Model": "SGL (Area)",
             "Constraints": {
-              "Position": "279.76,291.58",
+              "Position": "A+3.59#0.1",
               "Height": "1:1e7",
               "FWHM": "A*1#0.1",
               "L/G": "A*1",
@@ -820,21 +818,20 @@
               "Sigma": "0.3:3",
               "Gamma": "0.3:3",
               "Skew": "0.01:2"
-            },
-            "fwhm_g": 0.64
+            }
           },
           "C1s C=O": {
-            "Position": 286.67,
-            "Height": 268.38,
-            "FWHM": 1.1,
-            "L/G": 10.54,
-            "Area": 330.0,
-            "Sigma": 1.1,
-            "Gamma": 1.1,
+            "Position": 286.77,
+            "Height": 202.0,
+            "FWHM": 1.12,
+            "L/G": 9.02,
+            "Area": 251.0,
+            "Sigma": 2.0,
+            "Gamma": 2.0,
             "Skew": 0.64,
             "Fitting Model": "SGL (Area)",
             "Constraints": {
-              "Position": "279.76,291.58",
+              "Position": "A+1.99#0.1",
               "Height": "1:1e7",
               "FWHM": "A*1",
               "L/G": "A*1",
@@ -842,8 +839,7 @@
               "Sigma": "0.3:3",
               "Gamma": "0.3:3",
               "Skew": "0.01:2"
-            },
-            "fwhm_g": 0.64
+            }
           }
         },
         "Model": "SGL (Area)"

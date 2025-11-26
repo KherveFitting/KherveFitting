@@ -3487,6 +3487,8 @@ class MyFrame(wx.Frame):
 
                 self.multiplot_palette = config.get('multiplot_palette', 'Greens_r')
                 self.multiplot_linewidth = config.get('multiplot_linewidth', 1.0)
+                self.multiplot_legend_ncol = config.get('multiplot_legend_ncol', 2)
+                self.multiplot_max_legend_items = config.get('multiplot_max_legend_items', 10)
 
                 # Set registered flag
                 self.registered = config.get('registered', False)
@@ -3614,6 +3616,8 @@ class MyFrame(wx.Frame):
 
             'multiplot_palette':  self.multiplot_palette,
             'multiplot_linewidth': self.multiplot_linewidth,
+            'multiplot_legend_ncol': self.multiplot_legend_ncol,
+            'multiplot_max_legend_items': self.multiplot_max_legend_items,
 
             #Tines opened
             'times_opened': getattr(self, 'times_opened', 0),

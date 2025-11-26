@@ -6994,7 +6994,125 @@
           1143.78
         ]
       },
-      "Fitting": {}
+      "Fitting": {},
+      "experimental_description": [
+        [
+          "Sample ID",
+          "Not Specified"
+        ],
+        [
+          "Date",
+          "2010/6/25"
+        ],
+        [
+          "Time",
+          "16:7:58"
+        ],
+        [
+          "Technique",
+          "XPS"
+        ],
+        [
+          "Species & Transition",
+          "O 1s"
+        ],
+        [
+          "Number of scans",
+          "20"
+        ],
+        [
+          "Source Label",
+          "Mono(Al (Mono))"
+        ],
+        [
+          "Source Energy",
+          "1486.69"
+        ],
+        [
+          "Source width X",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Source width Y",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Pass Energy",
+          "10"
+        ],
+        [
+          "Work Function",
+          "-4.43"
+        ],
+        [
+          "Analyzer Mode",
+          "FAT"
+        ],
+        [
+          "Take-off Polar Angle",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Take-off Azimuth",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Target Bias",
+          "0"
+        ],
+        [
+          "Analysis Width X",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Analysis Width Y",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "X Label",
+          "Kinetic Energy"
+        ],
+        [
+          "X Units",
+          "eV"
+        ],
+        [
+          "X Start",
+          "950.69"
+        ],
+        [
+          "X Step",
+          "0.1"
+        ],
+        [
+          "Num Y Values",
+          "302"
+        ],
+        [
+          "Num Scans",
+          "20"
+        ],
+        [
+          "Collection Time",
+          "0.4"
+        ],
+        [
+          "Time Correction",
+          "0"
+        ],
+        [
+          "Y Unit",
+          "d"
+        ],
+        [
+          "# Comment Lines",
+          "9"
+        ],
+        [
+          "Block Comment",
+          "Casa Info Follows\n0\n0\n0\n0\nLens Mode:Field of View 1: Survey   Resolution:Pass energy 10    Iris(Aperture):slot(SPECTRUM SLIT)\nAnode:Mono(Al (Mono))(210 W)   Step(meV): 100.0    Dwell(ms): 400        Sweeps: 20       Acqn. Time(s): 1208\nAcquired On :10/06/25 16:07:58   C/N :On"
+        ]
+      ]
     },
     "C1s": {
       "Name": "C1s",
@@ -7776,7 +7894,7 @@
             "Bkg Low": 279.77,
             "Bkg High": 295.37
           },
-          "C1s p2": {
+          "C1s O-C=O": {
             "Position": 288.45,
             "Height": 413.01,
             "FWHM": 1.16,
@@ -7801,7 +7919,7 @@
             "Bkg Low": 279.77,
             "Bkg High": 295.37
           },
-          "C1s p3": {
+          "C1s C-O": {
             "Position": 286.03,
             "Height": 622.11,
             "FWHM": 1.16,
@@ -7826,7 +7944,7 @@
             "Bkg Low": 279.77,
             "Bkg High": 295.37
           },
-          "C1s p4": {
+          "C1s C=O": {
             "Position": 287.16,
             "Height": 193.93,
             "FWHM": 1.16,
@@ -7853,7 +7971,125 @@
           }
         },
         "Model": "GL (Area)"
-      }
+      },
+      "experimental_description": [
+        [
+          "Sample ID",
+          "Not Specified"
+        ],
+        [
+          "Date",
+          "2010/6/25"
+        ],
+        [
+          "Time",
+          "16:7:58"
+        ],
+        [
+          "Technique",
+          "XPS"
+        ],
+        [
+          "Species & Transition",
+          "C 1s"
+        ],
+        [
+          "Number of scans",
+          "30"
+        ],
+        [
+          "Source Label",
+          "Mono(Al (Mono))"
+        ],
+        [
+          "Source Energy",
+          "1486.69"
+        ],
+        [
+          "Source width X",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Source width Y",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Pass Energy",
+          "10"
+        ],
+        [
+          "Work Function",
+          "-4.43"
+        ],
+        [
+          "Analyzer Mode",
+          "FAT"
+        ],
+        [
+          "Take-off Polar Angle",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Take-off Azimuth",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Target Bias",
+          "0"
+        ],
+        [
+          "Analysis Width X",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "Analysis Width Y",
+          "9999999999999999538762658202121142272"
+        ],
+        [
+          "X Label",
+          "Kinetic Energy"
+        ],
+        [
+          "X Units",
+          "eV"
+        ],
+        [
+          "X Start",
+          "1193.69"
+        ],
+        [
+          "X Step",
+          "0.1"
+        ],
+        [
+          "Num Y Values",
+          "362"
+        ],
+        [
+          "Num Scans",
+          "30"
+        ],
+        [
+          "Collection Time",
+          "0.333333"
+        ],
+        [
+          "Time Correction",
+          "0"
+        ],
+        [
+          "Y Unit",
+          "d"
+        ],
+        [
+          "# Comment Lines",
+          "9"
+        ],
+        [
+          "Block Comment",
+          "Casa Info Follows\n0\n0\n0\n0\nLens Mode:Field of View 1: Survey   Resolution:Pass energy 10    Iris(Aperture):slot(SPECTRUM SLIT)\nAnode:Mono(Al (Mono))(210 W)   Step(meV): 100.0    Dwell(ms): 333        Sweeps: 30       Acqn. Time(s): 1810\nAcquired On :10/06/25 16:07:58   C/N :On"
+        ]
+      ]
     },
     "Cr2p": {
       "Name": "Cr2p",

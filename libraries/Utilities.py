@@ -24,7 +24,11 @@ def check_first_time_use(frame):
         location_data = get_user_location()
 
         # Submit usage tracking data to Google Excel
-        success = submit_usage_data(times_opened, location_data)
+        # success = submit_usage_data(times_opened, location_data)
+        success = submit_usage_data(times_opened, location_data,
+                 panel_theme=config.get('panel_theme', 'Unknown'),
+                 grid_layout=config.get('grid_layout', 'Unknown'),
+                 multiplot_palette=config.get('multiplot_palette', 'Unknown'))
         if success:
             print(f"Usage milestone {times_opened:.2f} tracked successfully")
         else:
@@ -679,12 +683,12 @@ class CropWindow(wx.Frame):
         range_sizer = wx.StaticBoxSizer(range_box, wx.VERTICAL)
 
         min_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.min_ctrl = wx.SpinCtrlDouble(self.panel, min=0, max=2000, inc=0.1)
+        self.min_ctrl = wx.SpinCtrlDouble(self.panel, min=-150, max=9000, inc=0.1)
         min_sizer.Add(wx.StaticText(self.panel, label="Min BE:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         min_sizer.Add(self.min_ctrl, 1)
 
         max_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.max_ctrl = wx.SpinCtrlDouble(self.panel, min=0, max=2000, inc=0.1)
+        self.max_ctrl = wx.SpinCtrlDouble(self.panel, min=-150, max=9000, inc=0.1)
         max_sizer.Add(wx.StaticText(self.panel, label="Max BE:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         max_sizer.Add(self.max_ctrl, 1)
 

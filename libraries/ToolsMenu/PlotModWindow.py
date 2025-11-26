@@ -3,7 +3,7 @@ import numpy as np
 import os
 from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid
 import json
 import lmfit.models  # Add this if not already present
 import pandas as pd
@@ -571,7 +571,7 @@ class PlotModWindow(wx.Frame):
         x = self.parent.Data['Core levels'][sheet_name]['B.E.']
         y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
 
-        integrated = cumtrapz(y, x, initial=0)
+        integrated = cumulative_trapezoid(y, x, initial=0)
 
         # Ensure odd window length for savgol_filter
         if width % 2 == 0:
