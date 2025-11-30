@@ -1758,7 +1758,7 @@ class BackgroundWindow(wx.Frame):
                 vline_x_values = full_x_values[vline_mask]
                 vline_raw_data = full_raw_data[vline_mask]
 
-                print(f"DEBUG: vLine data points: {len(vline_x_values)} (from {len(full_x_values)} total)")
+                # print(f"DEBUG: vLine data points: {len(vline_x_values)} (from {len(full_x_values)} total)")
 
                 # Calculate U2-Tougaard background using only vLine range data
                 vline_range = (vline1_x, vline2_x)

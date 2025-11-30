@@ -873,25 +873,6 @@ class ExcelDropTarget(wx.FileDropTarget):
 
 
 
-
-def load_library_data_WITHEXCEL():
-   wb = openpyxl.load_workbook('KherveFitting_library.xlsx')
-   sheet = wb['Library']
-   data = {}
-   for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
-       element, orbital, full_name, auger, ke_be, position, ds, rsf, instrument = row
-       key = (element, orbital)
-       if key not in data:
-           data[key] = {}
-       data[key][instrument] = {
-           'position': position,
-           'ds': ds,
-           'rsf': rsf,
-           'row': row_idx
-       }
-   return data
-
-
 def load_library_data_JSON_ONLY():
     with open('KherveFitting_library.json', 'r') as f:
         json_data = json.load(f)
@@ -904,7 +885,7 @@ def load_library_data_JSON_ONLY():
     return data
 
 
-def load_library_data():
+def load_library_data_OLD():
     """Load library data from parquet or json file"""
     import os
 
@@ -949,7 +930,69 @@ def load_library_data():
         raise FileNotFoundError("Neither parquet nor json library file found")
 
 
+def load_library_data():
+    """Load library data from parquet or json file"""
+    import os
+    import sys
+    import platform
 
+    # Determine base path based on OS and execution mode
+    if getattr(sys, 'frozen', False):
+        # Running as bundled executable
+        if platform.system() == 'Darwin':
+            # Mac: files are in _MEIPASS
+            base_path = sys._MEIPASS
+        else:
+            # Windows: files are next to executable
+            base_path = os.path.dirname(sys.executable)
+    else:
+        # Running in development - go to project root
+        current_file = os.path.abspath(__file__)
+        # If in libraries/FileMenu folder, go up two levels to project root
+        if 'libraries' in current_file:
+            base_path = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        else:
+            base_path = os.path.dirname(current_file)
+
+    parquet_file = os.path.join(base_path, 'KherveFitting_library.parquet')
+    json_file = os.path.join(base_path, 'KherveFitting_library.json')
+
+    if os.path.exists(parquet_file):
+        print("Read Parquet Database")
+        import pandas as pd
+        df = pd.read_parquet(parquet_file)
+
+        # Convert back to nested dict structure
+        data = {}
+        for _, row in df.iterrows():
+            key = (row['element'], row['orbital'])
+            if key not in data:
+                data[key] = {}
+            data[key][row['instrument']] = {
+                'position': row['position'],
+                'ds': row['ds'],
+                'rsf': row['rsf'],
+                'full_name': row['full_name'],
+                'auger': row['auger'],
+                'ke_be': row['ke_be']
+            }
+        return data
+
+    elif os.path.exists(json_file):
+        print("Convert Json Database")
+        import json
+        with open(json_file, 'r') as f:
+            json_data = json.load(f)
+
+        # Convert string keys back to tuples
+        data = {}
+        for k, v in json_data.items():
+            element, orbital = k.split('_')
+            data[(element, orbital)] = v
+        return data
+
+    else:
+        raise FileNotFoundError("Neither parquet nor json library file found")
 
 def load_library_data_NEWBUTNO():
     wb = openpyxl.load_workbook('KherveFitting_library.xlsx')

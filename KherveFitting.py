@@ -3720,7 +3720,7 @@ class MyFrame(wx.Frame):
     def on_toggle_peak_fill(self, event):
         new_state = self.plot_manager.toggle_peak_fill()
         self.clear_and_replot()
-        print(f"Peak fill toggled in main window. New state: {new_state}")  # Debugging line
+        # print(f"Peak fill toggled in main window. New state: {new_state}")  # Debugging line
 
     def on_mini_help(self, event):
         from libraries.HelpMenu.Help import show_quick_help
@@ -4197,7 +4197,7 @@ class MyFrame(wx.Frame):
                     has_x = 'x_data' in peak_data
                     has_y = 'y_data' in peak_data
                     has_orig = 'Original_Position' in peak_data
-                    print(f"DEBUG {location_name}: {peak_name} - x_data: {has_x}, y_data: {has_y}, Original_Position: {has_orig}")
+                    # print(f"DEBUG {location_name}: {peak_name} - x_data: {has_x}, y_data: {has_y}, Original_Position: {has_orig}")
                     if not has_x or not has_y:
                         print(f"  >>> ENVELOPE DATA LOST AT {location_name} <<<")
 
@@ -4248,6 +4248,14 @@ if __name__ == '__main__':
     from libraries.SplashScreen import show_splash
 
     splash = show_splash()
+
+    splash.update_message("Setting up folders...")
+    import platform
+
+    if platform.system() == 'Darwin':
+        from libraries.Utilities import setup_external_folders
+
+        setup_external_folders()
 
     # NOW import everything else with detailed progress
     splash.update_message("Loading SYS...")

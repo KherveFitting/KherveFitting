@@ -2029,9 +2029,18 @@ def create_examples_menu(window):
 
     # Get the path to Data-Examples folder (same level as executable)
     import sys
+    import platform
+
     if getattr(sys, 'frozen', False):
         # Running as executable
-        executable_dir = os.path.dirname(sys.executable)
+        if platform.system() == 'Darwin':
+            # Mac: .app bundle - go up to parent directory where Data-Examples is
+            # sys.executable is at KherveFitting.app/Contents/MacOS/KherveFitting
+            # We need to go to the directory containing KherveFitting.app
+            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        else:
+            # Windows: executable is in same directory as Data-Examples
+            executable_dir = os.path.dirname(sys.executable)
     else:
         # Running from source
         executable_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

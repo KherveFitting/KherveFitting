@@ -1156,9 +1156,16 @@ def perform_auto_backup(parent):
         return
 
     # Create backup folder in the executable directory
+    import sys
+    import platform
+
     executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+
+    # For Mac bundle, go outside the .app
+    if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+        executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
     # For development environment, fall back to current script directory
-    if not "KherveFitting" in executable_dir:
+    elif not "KherveFitting" in executable_dir:
         executable_dir = os.path.dirname(os.path.abspath(__file__))
         # Go up one level if in libraries folder
         if os.path.basename(executable_dir) == "libraries":
@@ -1366,3 +1373,31 @@ def sort_excel_sheets(window):
         update_console(f"Error during sorting: {str(e)}")
         wx.CallLater(2000, console_frame.Close)
         wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+def setup_external_folders():
+    """Copy Data-Examples and create Backup folder next to .app bundle on Mac"""
+    import sys
+    import os
+    import shutil
+    import platform
+
+    if not getattr(sys, 'frozen', False) or platform.system() != 'Darwin':
+        return  # Only run on Mac bundle
+
+    # Get bundle's parent directory (where .app is located)
+    bundle_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+
+    # Data-Examples folder
+    external_examples = os.path.join(bundle_dir, 'Data-Examples')
+    internal_examples = os.path.join(sys._MEIPASS, 'Data-Examples')
+
+    if not os.path.exists(external_examples) and os.path.exists(internal_examples):
+        print(f"Copying Data-Examples to {external_examples}")
+        shutil.copytree(internal_examples, external_examples)
+
+    # Backup folder
+    backup_folder = os.path.join(bundle_dir, 'Backup')
+    if not os.path.exists(backup_folder):
+        print(f"Creating Backup folder at {backup_folder}")
+        os.makedirs(backup_folder)

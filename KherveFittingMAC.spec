@@ -17,15 +17,26 @@ a = Analysis(['KherveFitting.py'],
              datas=[
                  ('KherveFitting_library.json', '.'),
                  ('KherveFitting_library.xlsx', '.'),
+                 ('KherveFitting_library.parquet', '.'),
+                 ('config.json', '.'),
                  ('NIST_BE.parquet', '.'),
                  ('Manual.pdf', '.'),
                  (os.path.join('libraries', 'Images'), os.path.join('libraries', 'Images')),
                  (os.path.join('libraries', 'Icons'), os.path.join('libraries', 'Icons')),
                  (os.path.join('libraries', 'ViewMenu','Icons'), os.path.join('libraries', 'ViewMenu','Icons')),
+                 (os.path.join('libraries', 'HelpMenu','Images'), os.path.join('libraries', 'ViewMenu','Images')),
                  ('Icons', 'Icons'),
-             ] + library_files + wxwidgets[0],  # Add wx datas
+                 ('Data-Examples', 'Data-Examples'),
+                 ('Backup', 'Backup'),
+             ] + library_files + wxwidgets[0],
              hiddenimports=['wx', 'numpy', 'matplotlib', 'pandas', 'openpyxl', 'lmfit', 'scipy',
-                           'docx', 'vamas', 'yadg.extractors.phi.spe', 'psutil'] + wxwidgets[2],  # Add wx hiddenimports
+                          'docx', 'vamas', 'yadg.extractors.phi.spe', 'psutil',
+                          'sklearn', 'sklearn.utils._cython_blas', 'sklearn.neighbors.typedefs',
+                          'sklearn.neighbors.quad_tree', 'sklearn.tree._utils', 'sklearn.utils._weight_vector',
+                          'sklearn.externals', 'sklearn.externals.array_api_compat',
+                          'sklearn.externals.array_api_compat.numpy', 'sklearn.externals.array_api_compat.numpy.fft',
+                          'sklearn.decomposition', 'sklearn.preprocessing',
+                          'sklearn.__check_build', 'sklearn._cyutility', 'sklearn.utils._isfinite'] + wxwidgets[2],
              hookspath=[],
              hooksconfig={},
              runtime_hooks=[],
@@ -40,21 +51,25 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 # For Mac, we need to use COLLECT and BUNDLE
 exe = EXE(pyz,
           a.scripts,
-          [],  # No binaries here for Mac bundle
-          exclude_binaries=True,  # Exclude binaries for Mac
+          [],
+          exclude_binaries=True,
           name='KherveFitting',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
           console=False,
-          argv_emulation=True,  # Important for Mac
-          icon='Icons/Icon.ico')  # Will work but .icns would be better
+          disable_windowed_traceback=False,
+          argv_emulation=True,
+          target_arch=None,
+          codesign_identity=None,
+          entitlements_file=None,
+          icon='icons/Icon.icns')
 
 # COLLECT gathers all the pieces
 coll = COLLECT(exe,
                a.binaries,
-               a.zipfiles,
+               #a.zipfiles,
                a.datas,
                strip=False,
                upx=True,
@@ -69,8 +84,8 @@ app = BUNDLE(coll,
              info_plist={
                  'CFBundleName': 'KherveFitting',
                  'CFBundleDisplayName': 'KherveFitting',
-                 'CFBundleVersion': '1.4',
-                 'CFBundleShortVersionString': '1.4',
+                 'CFBundleVersion': '1.7',
+                 'CFBundleShortVersionString': '1.7',
                  'NSHumanReadableCopyright': '© 2025',
                  'CFBundleDocumentTypes': [
                      {

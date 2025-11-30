@@ -67,7 +67,7 @@ def copy_all_peak_parameters(window):
     with open(peak_clipboard_file, 'w') as f:
         json.dump(clipboard_data, f, indent=2)
 
-    print(f"DEBUG: Copied peak table with {len(recorded_ranges)} recorded ranges from {sheet_name}")
+    # print(f"DEBUG: Copied peak table with {len(recorded_ranges)} recorded ranges from {sheet_name}")
 
 def paste_all_peak_parameters(window):
     """Paste all peak parameters and background data including recorded ranges"""
@@ -135,7 +135,7 @@ def paste_all_peak_parameters(window):
         # CRUCIAL: Restore recorded ranges - use correct capitalization
         if 'Recorded_Ranges' in background_info and background_info['Recorded_Ranges']:
             bg_data['Recorded_Ranges'] = background_info['Recorded_Ranges'][:]
-            print(f"DEBUG: Restored {len(background_info['Recorded_Ranges'])} recorded ranges to {sheet_name}")
+            # print(f"DEBUG: Restored {len(background_info['Recorded_Ranges'])} recorded ranges to {sheet_name}")
 
             # Update window background values from recorded ranges
             all_mins = [r[2] for r in background_info['Recorded_Ranges']]  # min_range at index 2
@@ -147,7 +147,7 @@ def paste_all_peak_parameters(window):
             bg_data['Bkg Low'] = f"{window.bg_min_energy:.2f}"
             bg_data['Bkg High'] = f"{window.bg_max_energy:.2f}"
         else:
-            print("DEBUG: No Recorded_Ranges found in clipboard data")
+            print("No Recorded_Ranges found in clipboard data")
 
     # Apply model choice editors
     if hasattr(window, 'set_model_choice_editors'):
@@ -160,7 +160,7 @@ def paste_all_peak_parameters(window):
             hasattr(window.mouse_handler, 'redraw_all_regions_background')):
         wx.CallAfter(window.mouse_handler.redraw_all_regions_background)
 
-    print(f"DEBUG: Pasted peak table with background data to {sheet_name}")
+    # print(f"DEBUG: Pasted peak table with background data to {sheet_name}")
 
 def save_json_only(window):
     """Save only the JSON file with console updates"""
@@ -1489,7 +1489,7 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None, reopen_f
         # RESTORE SampleNames data (NEW CODE - this was missing!)
         if sample_names:
             window.Data['SampleNames'] = sample_names
-            print(f"DEBUG---: Restored SampleNames after refresh: {window.Data['SampleNames']}")
+            # print(f"DEBUG---: Restored SampleNames after refresh: {window.Data['SampleNames']}")
 
         # Add experimental description if missing in window.Data but available in Excel
         update_console("Checking for experimental description data...")
@@ -3623,29 +3623,29 @@ def get_rsf_for_core_level(peak_name, library_data, current_instrument):
         core_level = ''.join(filter(str.isalnum, peak_name.split()[0]))
         element, orbital, suborbital = core_level, '', None
 
-    print(f"DEBUG: Parsed - Element: {element}, Orbital: {orbital}, Suborbital: {suborbital}")
+    # print(f"DEBUG: Parsed - Element: {element}, Orbital: {orbital}, Suborbital: {suborbital}")
 
     # Get RSF directly using complete orbital designation - EXACT same logic as _extract_peak_parameters
     key = (element, orbital + (suborbital or ''))
-    print(f"DEBUG: Looking for key: {key}")
-    print(f"DEBUG: Available keys: {list(library_data.keys())[:10]}...")  # Show first 10 keys
+    # print(f"DEBUG: Looking for key: {key}")
+    # print(f"DEBUG: Available keys: {list(library_data.keys())[:10]}...")  # Show first 10 keys
 
     if key in library_data and current_instrument in library_data[key]:
         rsf = library_data[key][current_instrument]['rsf']
-        print(f"DEBUG: Found RSF: {rsf}")
+        # print(f"DEBUG: Found RSF: {rsf}")
         return rsf
     else:
-        print(f"DEBUG: Key {key} not found or instrument {current_instrument} not available")
+        # print(f"DEBUG: Key {key} not found or instrument {current_instrument} not available")
         if key in library_data:
-            print(f"DEBUG: Available instruments for {key}: {list(library_data[key].keys())}")
+            # print(f"DEBUG: Available instruments for {key}: {list(library_data[key].keys())}")
             # Fallback to first available instrument
             available_instruments = list(library_data[key].keys())
             if available_instruments:
                 fallback_instrument = available_instruments[0]
                 rsf = library_data[key][fallback_instrument]['rsf']
-                print(f"DEBUG: Using fallback instrument {fallback_instrument}, RSF: {rsf}")
+                # print(f"DEBUG: Using fallback instrument {fallback_instrument}, RSF: {rsf}")
                 return rsf
-        print(f"DEBUG: No RSF found, returning 1.0")
+        # print(f"DEBUG: No RSF found, returning 1.0")
         return 1.0
 
 
@@ -3668,8 +3668,8 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
     library_data = load_library_data()
     current_instrument = window.current_instrument
 
-    print(f"DEBUG: Current instrument: {current_instrument}")
-    print(f"DEBUG: Core level name: {core_level_name}")
+    # print(f"DEBUG: Current instrument: {current_instrument}")
+    # print(f"DEBUG: Core level name: {core_level_name}")
 
     # Prepare all comment lines first to count them
     comment_lines = []
@@ -3717,7 +3717,7 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
         element_symbol = extract_element_symbol(core_level_name)
         atomic_mass = ATOMIC_MASSES.get(element_symbol, 1.0)
 
-        print(f"DEBUG: Background RSF: {rsf}, Atomic mass: {atomic_mass}")
+        # print(f"DEBUG: Background RSF: {rsf}, Atomic mass: {atomic_mass}")
 
         # Write CASA region line
         casa_region = (f"CASA region (*{core_level_name}*) (*{casa_bg_type}*) "
@@ -3743,12 +3743,12 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
 
         # Map KherveFitting model to CASA model - UPDATED FOR LA MODELS WITH GAMMA MAPPING
         fitting_model = peak_data.get('Fitting Model', 'GL (Area)')
-        print(f"DEBUG: Processing peak {peak_name} with model: {fitting_model}")
+        # print(f"DEBUG: Processing peak {peak_name} with model: {fitting_model}")
 
         if 'LA*G' in fitting_model:
             # LA*G model: use format LA(sigma, gamma, >100)
             casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 150)"
-            print(f"DEBUG: LA*G model - sigma: {sigma}, gamma: {gamma}")
+            # print(f"DEBUG: LA*G model - sigma: {sigma}, gamma: {gamma}")
         elif 'LA (Area, σ/γ, γ)' in fitting_model:
             # LA with sigma/gamma ratio: check if sigma/gamma ≈ 50% (sigma ≈ gamma)
             sigma_gamma_ratio = sigma / (sigma + gamma) * 100 if (sigma + gamma) > 0 else 50
@@ -3769,14 +3769,14 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
 
                 if matching_ratio:
                     casa_model = f"LA({matching_ratio})"
-                    print(f"DEBUG: LA σ/γ model matches 50% split with gamma mapping - ratio: {matching_ratio}")
+                    # print(f"DEBUG: LA σ/γ model matches 50% split with gamma mapping - ratio: {matching_ratio}")
                 else:
                     casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 5)"
-                    print(f"DEBUG: LA σ/γ model 50% split but no gamma mapping match - using 3-param format")
+                    # print(f"DEBUG: LA σ/γ model 50% split but no gamma mapping match - using 3-param format")
             else:
                 # Not 50/50 split, use 3-parameter format
                 casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 5)"
-                print(f"DEBUG: LA σ/γ model not 50% split ({sigma_gamma_ratio:.1f}%) - using 3-param format")
+                # print(f"DEBUG: LA σ/γ model not 50% split ({sigma_gamma_ratio:.1f}%) - using 3-param format")
         elif 'LA (Area, σ, γ)' in fitting_model:
             # Standard LA model: Check if it matches the gamma mapping pattern
             # Gamma mapping from Open.py
@@ -3793,25 +3793,25 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
                 if abs(gamma - mapped_gamma) < 0.1 and abs(sigma - gamma) < 0.1:
                     casa_model = f"LA({ratio_val})"
                     matches_mapping = True
-                    print(f"DEBUG: LA σ,γ model matches mapping - ratio: {ratio_val}")
+                    # print(f"DEBUG: LA σ,γ model matches mapping - ratio: {ratio_val}")
                     break
 
             if not matches_mapping:
                 # Use 3-parameter format if it doesn't match the mapping
                 casa_model = f"LA({sigma:.2f}, {gamma:.2f}, 0.5)"
-                print(f"DEBUG: LA σ,γ model - sigma: {sigma}, gamma: {gamma}")
+                # print(f"DEBUG: LA σ,γ model - sigma: {sigma}, gamma: {gamma}")
         elif 'SGL' in fitting_model:
             casa_model = f"SGL({int(lg_ratio)})"
         elif 'Voigt' in fitting_model:
             # Convert Voigt to SGL as closest CASA equivalent
             # Voigt FWHM becomes SGL MFWHM, L/G ratio becomes SGL parameter
             casa_model = f"SGL({int(lg_ratio)})"
-            print(f"DEBUG: Voigt model converted to SGL - L/G: {lg_ratio} -> SGL({int(lg_ratio)})")
+            # print(f"DEBUG: Voigt model converted to SGL - L/G: {lg_ratio} -> SGL({int(lg_ratio)})")
         else:
             # Default GL model
             casa_model = f"GL({int(lg_ratio)})"
 
-        print(f"DEBUG: Final CASA model: {casa_model}")
+        # print(f"DEBUG: Final CASA model: {casa_model}")
 
         # Get background limits in KE
         if background_data:
@@ -3828,7 +3828,7 @@ def write_casa_fitting_info(f, core_level_name, core_level_data, window):
         element_symbol = extract_element_symbol(peak_name)
         atomic_mass = ATOMIC_MASSES.get(element_symbol, 1.0)
 
-        print(f"DEBUG: Peak {peak_name} RSF: {rsf}, Atomic mass: {atomic_mass}")
+        # print(f"DEBUG: Peak {peak_name} RSF: {rsf}, Atomic mass: {atomic_mass}")
 
         # Get constraints from peak data
         constraints = peak_data.get('Constraints', {})
@@ -4664,9 +4664,15 @@ def on_backup_main(window):
 
     # Create backup folder in the executable directory
     import sys
+    import platform
+
     executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+
+    # For Mac bundle, go outside the .app
+    if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+        executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
     # For development environment, fall back to current script directory
-    if not "KherveFitting" in executable_dir:
+    elif not "KherveFitting" in executable_dir:
         executable_dir = os.path.dirname(os.path.abspath(__file__))
         # Go up one level if in libraries folder
         if os.path.basename(executable_dir) == "libraries":

@@ -345,8 +345,8 @@ class ExportResultsWindow(wx.Frame):
         self.parent.sheet_combobox.SetValue(original_sheet)
         on_sheet_selected(self.parent, None)
 
-        wx.MessageBox(f"Exported {len(sheet_names)} core levels to Results Grid",
-                      "Export Complete", wx.OK | wx.ICON_INFORMATION)
+        # wx.MessageBox(f"Exported {len(sheet_names)} core levels to Results Grid",
+        #               "Export Complete", wx.OK | wx.ICON_INFORMATION)
 
     def on_close(self, event):
         """Handle window close"""

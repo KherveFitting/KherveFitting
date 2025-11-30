@@ -1437,12 +1437,17 @@ class PreferenceWindow(wx.Frame):
         dlg.Destroy()
 
     def on_clear_backup(self, event):
+        # Create backup folder in the executable directory
         import sys
-        """Handle clearing all files from the backup folder"""
-        # Get backup folder path
+        import platform
+
         executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+
+        # For Mac bundle, go outside the .app
+        if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
         # For development environment, fall back to current script directory
-        if not "KherveFitting" in executable_dir:
+        elif not "KherveFitting" in executable_dir:
             executable_dir = os.path.dirname(os.path.abspath(__file__))
             # Go up one level if in libraries folder
             if os.path.basename(executable_dir) == "libraries":
