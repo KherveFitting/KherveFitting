@@ -510,11 +510,15 @@ def plot_edx_data(window, sheet_name):
                 window.ax.set_xlabel('Energy (keV)')
                 window.ax.set_ylabel('Counts')
                 window.ax.set_title('EDX Sum Spectrum')
-                window.ax.grid(True, alpha=1.0, linewidth=0.5, color='gray', linestyle=':')
 
                 # Set data range for zoom
                 window.Data['Core levels'][sheet_name]['_EDX_min'] = np.min(energy)
                 window.Data['Core levels'][sheet_name]['_EDX_max'] = np.max(energy)
+
+                # Set initial display range
+                display_x_max = sheet_data.get('_EDX_display_max', 20)  # Default to 20 if not set
+                window.ax.set_xlim(0, display_x_max)
+                window.ax.set_ylim(np.min(intensity)*0.95, np.max(intensity) * 1.1)
                 print(f"Set EDX range: {np.min(energy):.2f} to {np.max(energy):.2f} keV")
 
                 # Add peak labels if HDF5 file exists

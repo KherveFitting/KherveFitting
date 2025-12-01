@@ -87,6 +87,8 @@ class EDXSEMWindow(wx.Frame):
 
         # Bind canvas events
         self.map_canvas.mpl_connect('button_press_event', self.on_map_click)
+        self.map_canvas.mpl_connect('motion_notify_event', self.on_map_motion)
+        self._line_preview = None
 
         # Right-click menu
         self.map_canvas.Bind(wx.EVT_RIGHT_DOWN, self.on_right_click)
@@ -321,15 +323,15 @@ class EDXSEMWindow(wx.Frame):
             dc.DrawRectangle(11, 11, 7, 7)
         elif icon_type == 'sensitivity':
             # Slider icon
-            dc.SetPen(wx.Pen(color, 2))
+            dc.SetPen(wx.Pen(wx.Colour(79, 190, 159), 2))
             # Horizontal line (slider track)
-            dc.DrawLine(5, 12, 20, 12)
+            dc.DrawLine(5, 10, 15, 10)
             # Slider knob
-            dc.SetBrush(wx.Brush(color))
-            dc.DrawCircle(12, 12, 4)
+            dc.SetBrush(wx.Brush(wx.Colour(79, 190, 159)))
+            dc.DrawCircle(10, 10, 3)
             # Small lines above and below for adjustment
-            dc.DrawLine(12, 5, 12, 8)
-            dc.DrawLine(12, 16, 12, 19)
+            dc.DrawLine(10, 4, 10, 7)
+            dc.DrawLine(10, 13, 10, 16)
 
         dc.SelectObject(wx.NullBitmap)
         return bmp
@@ -473,7 +475,7 @@ class EDXSEMWindow(wx.Frame):
             self.selection_mode = None
 
     def on_area_mode(self, event):
-        """Toggle area selection mode"""
+        """Toggle area selection mode with rotatable rectangle"""
         if self.area_btn.GetValue():
             self.zoom_in_btn.SetValue(False)
             self.pan_btn.SetValue(False)
@@ -488,25 +490,104 @@ class EDXSEMWindow(wx.Frame):
             self.clear_selection_markers()
             self.map_canvas.draw()
 
-            # Create rectangle selector
-            if self.rect_selector is None:
-                self.rect_selector = RectangleSelector(
-                    self.map_ax,
-                    self.on_area_select,
-                    useblit=True,
-                    props=dict(facecolor='red', edgecolor='white', alpha=0.3, fill=True),
-                    button=[1],
-                    minspanx=5,
-                    minspany=5,
-                    spancoords='pixels',
-                    interactive=True
-                )
-            else:
-                self.rect_selector.set_active(True)
+            # Deactivate old rectangle selector
+            if self.rect_selector:
+                self.rect_selector.set_active(False)
+
+            # Create or activate rotatable rectangle
+            if not hasattr(self, 'rotatable_rect') or self.rotatable_rect is None:
+                self.rotatable_rect = RotatableRectangle(self.map_ax, self.on_rotated_area_complete)
+
+            # Connect click event to start new selection
+            if not hasattr(self, '_area_click_cid'):
+                self._area_click_cid = self.map_canvas.mpl_connect('button_press_event',
+                                                                   lambda e: self.rotatable_rect.start_selection(e) if self.area_btn.GetValue() and e.button == 1 else None)
         else:
             self.selection_mode = None
             if self.rect_selector:
                 self.rect_selector.set_active(False)
+            if hasattr(self, 'rotatable_rect') and self.rotatable_rect:
+                self.rotatable_rect.clear()
+            if hasattr(self, '_area_click_cid'):
+                self.map_canvas.mpl_disconnect(self._area_click_cid)
+                self._area_click_cid = None
+
+    def on_rotated_area_complete(self, center, width, height, angle):
+        """Handle completion of rotated area selection with proper pixel extraction"""
+        if self.current_data is None:
+            return
+
+        data = self.current_data.data
+        if len(data.shape) != 3:
+            return
+
+        # Get dimensions
+        map_height, map_width = data.shape[0], data.shape[1]
+        cx, cy = center
+        hw, hh = width / 2, height / 2
+
+        # Create rotation matrix
+        angle_rad = np.radians(-angle)  # Negative for inverse transform
+        cos_a = np.cos(angle_rad)
+        sin_a = np.sin(angle_rad)
+
+        # Create mask for pixels inside rotated rectangle
+        y_indices, x_indices = np.meshgrid(np.arange(map_height), np.arange(map_width), indexing='ij')
+
+        # Transform all pixels to rectangle's local coordinate system
+        local_x = (x_indices - cx) * cos_a - (y_indices - cy) * sin_a
+        local_y = (x_indices - cx) * sin_a + (y_indices - cy) * cos_a
+
+        # Create mask for pixels inside rectangle
+        mask = (np.abs(local_x) <= hw) & (np.abs(local_y) <= hh)
+
+        # Extract spectra from masked pixels
+        masked_spectra = data[mask]
+
+        if len(masked_spectra) == 0:
+            print("No pixels in selected area")
+            return
+
+        # Sum spectra
+        summed_spectrum = np.sum(masked_spectra, axis=0)
+
+        # Get energy axis
+        energy_axis = self.current_data.axes_manager[-1]
+        energy = energy_axis.axis
+
+        # Plot to parent window
+        if self.parent is not None:
+            # Create EDX~Plot sheet if it doesn't exist
+            if 'EDX~Plot' not in self.parent.Data['Core levels']:
+                self.parent.Data['Core levels']['EDX~Plot'] = {}
+
+            # Store data
+            self.parent.Data['Core levels']['EDX~Plot']['Energy_keV'] = energy.tolist()
+            self.parent.Data['Core levels']['EDX~Plot']['Intensity'] = summed_spectrum.tolist()
+
+            # Update sheet combobox
+            self.parent.sheet_combobox.SetValue('EDX~Plot')
+
+            # Plot
+            self.parent.ax.clear()
+            self.parent.ax.plot(energy, summed_spectrum, 'k-', linewidth=0.8)
+            self.parent.ax.set_xlabel('Energy (keV)')
+            self.parent.ax.set_ylabel('Counts')
+            self.parent.ax.set_title(f'EDX Area Spectrum (Rotated, {len(masked_spectra)} pixels)')
+            self.parent.ax.grid(False)
+
+            # Add peak labels
+            self.add_peak_labels(self.parent.ax, energy, summed_spectrum)
+
+            # Get stored X max or default to 20
+            display_x_max = self.parent.Data['Core levels']['EDX~Plot'].get('_EDX_display_max', 20)
+            self.parent.ax.set_xlim(0, display_x_max)
+            self.parent.ax.set_ylim(0, np.max(summed_spectrum) * 1.1)
+
+            self.parent.canvas.draw()
+
+        print(f"Rotated area: center=({cx:.0f},{cy:.0f}), size=({width:.0f}x{height:.0f}), angle={angle:.1f}°")
+        print(f"Extracted {len(masked_spectra)} pixels")
 
     def on_line_mode(self, event):
         """Toggle line selection mode"""
@@ -537,6 +618,10 @@ class EDXSEMWindow(wx.Frame):
         self.selected_lines = []
         self.line_start = None
         self.line_end = None
+
+        # Clear rotatable rectangle if it exists
+        if hasattr(self, 'rotatable_rect') and self.rotatable_rect:
+            self.rotatable_rect.clear()
 
         # Clear selection markers
         self.clear_selection_markers()
@@ -586,6 +671,10 @@ class EDXSEMWindow(wx.Frame):
         elif self.selection_mode == 'line':
             if self.line_start is None:
                 # First click - start of line
+                # Clear any previous line markers first (for starting a new line)
+                self.clear_selection_markers()
+                self._clear_line_preview()
+
                 self.line_start = (x, y)
                 # Draw start marker
                 marker, = self.map_ax.plot(x, y, 'wo', markersize=8, markeredgecolor='black', markeredgewidth=2)
@@ -595,13 +684,16 @@ class EDXSEMWindow(wx.Frame):
                 # Second click - end of line
                 self.line_end = (x, y)
 
-                # Clear previous markers
+                # Clear preview line
+                self._clear_line_preview()
+
+                # Clear previous markers and redraw final line
                 self.clear_selection_markers()
 
-                # Draw line
+                # Draw final line
                 line, = self.map_ax.plot([self.line_start[0], self.line_end[0]],
                                          [self.line_start[1], self.line_end[1]],
-                                         'w-', linewidth=2, markeredgecolor='black')
+                                         'w-', linewidth=2)
                 line._is_selection_marker = True
 
                 # Draw end points
@@ -621,6 +713,34 @@ class EDXSEMWindow(wx.Frame):
                 # Reset for next line
                 self.line_start = None
                 self.line_end = None
+
+    def on_map_motion(self, event):
+        """Handle mouse motion on map for line preview"""
+        if self.selection_mode != 'line' or self.line_start is None:
+            return
+        if event.inaxes != self.map_ax:
+            return
+        if event.xdata is None or event.ydata is None:
+            return
+
+        x, y = int(event.xdata), int(event.ydata)
+
+        # Update line preview
+        self._clear_line_preview()
+        self._line_preview, = self.map_ax.plot([self.line_start[0], x],
+                                                [self.line_start[1], y],
+                                                'w--', linewidth=1.5, alpha=0.7)
+        self._line_preview._is_selection_marker = True
+        self.map_canvas.draw_idle()
+
+    def _clear_line_preview(self):
+        """Clear the line preview"""
+        if self._line_preview is not None:
+            try:
+                self._line_preview.remove()
+            except (ValueError, AttributeError):
+                pass
+            self._line_preview = None
 
     def clear_selection_markers(self):
         """Clear all selection markers from map"""
@@ -687,10 +807,23 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'EDX Spectrum at Point ({x}, {y})')
-            self.parent.ax.grid(True, alpha=0.3)
+
 
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
+
+            # Get stored X max or default to 20
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
+                if current_sheet in self.parent.Data['Core levels']:
+                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
+                else:
+                    display_x_max = 20
+            else:
+                display_x_max = 20
+
+            self.parent.ax.set_xlim(0, display_x_max)
+            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
 
@@ -720,10 +853,22 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'Summed EDX Spectrum - Area: {(x2 - x1 + 1) * (y2 - y1 + 1)} pixels')
-            self.parent.ax.grid(True, alpha=0.3)
 
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
+
+            # Get stored X max or default to 20
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
+                if current_sheet in self.parent.Data['Core levels']:
+                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
+                else:
+                    display_x_max = 20
+            else:
+                display_x_max = 20
+
+            self.parent.ax.set_xlim(0, display_x_max)
+            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
 
@@ -761,10 +906,22 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'EDX Line Spectrum ({x1},{y1}) to ({x2},{y2}) - {num_points} pts')
-            self.parent.ax.grid(True, alpha=0.3)
 
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
+
+            # Get stored X max or default to 20
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
+                if current_sheet in self.parent.Data['Core levels']:
+                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
+                else:
+                    display_x_max = 20
+            else:
+                display_x_max = 20
+
+            self.parent.ax.set_xlim(0, display_x_max)
+            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
 
@@ -1422,10 +1579,22 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title('EDX Sum Spectrum')
-            self.parent.ax.grid(True, alpha=0.3)
 
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
+
+            # Get stored X max or default to 20
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
+                if current_sheet in self.parent.Data['Core levels']:
+                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
+                else:
+                    display_x_max = 20
+            else:
+                display_x_max = 20
+
+            self.parent.ax.set_xlim(0, display_x_max)
+            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
 
@@ -1448,12 +1617,34 @@ class EDXSEMWindow(wx.Frame):
 
             # Find peaks using ExSpy's find_peaks1D_ohaver
             from exspy.utils.eds import get_xray_lines_near_energy
-            # Lower amp_thresh to detect more peaks (default is 10% of max)
+
+            # Get threshold from multiple sources (priority order)
+            threshold = 0.02  # Default 2%
+
+            # 1. Check if stored in parent's Data structure
+            if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'Data'):
+                current_sheet = self.parent.sheet_combobox.GetValue()
+                if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
+                    if current_sheet in self.parent.Data['Core levels']:
+                        stored_threshold = self.parent.Data['Core levels'][current_sheet].get('_EDX_sensitivity')
+                        if stored_threshold is not None:
+                            threshold = stored_threshold
+                            print(f"Using stored threshold from Data: {threshold:.4f}")
+
+            # 2. Check if set directly on self (overrides stored value)
+            if hasattr(self, 'peak_threshold'):
+                threshold = self.peak_threshold
+                print(f"Using direct threshold from self: {threshold:.4f}")
+
+            # Calculate amp_thresh from sensitivity threshold
+            amp_thresh = np.max(spectrum) * threshold
+            print(f"Peak detection with threshold: {threshold:.4f}, amp_thresh: {amp_thresh:.2f}")
+
             peak_data = temp_signal.find_peaks1D_ohaver(
                 maxpeakn=100,
                 medfilt_radius=5,
                 peakgroup=10,
-                amp_thresh=np.max(spectrum) * 0.02,  # 2% threshold instead of 10%
+                amp_thresh=amp_thresh,
                 slope_thresh=0
             )
 
@@ -1468,6 +1659,8 @@ class EDXSEMWindow(wx.Frame):
             if peak_data is not None and isinstance(peak_data, np.ndarray) and len(peak_data) > 0:
                 # Extract the actual peaks array
                 peaks = peak_data[0] if len(peak_data.shape) > 1 or peak_data.dtype == object else peak_data
+
+                print(f"Found {len(peaks)} peaks")
 
                 for peak_tuple in peaks:
                     try:
@@ -1541,8 +1734,11 @@ class EDXSEMWindow(wx.Frame):
                                 idx = np.argmin(np.abs(energy - peak_energy))
                                 spectrum_height = spectrum[idx]
 
-                                # Position label above peak
-                                label_y = spectrum_height + (y_range * 0.05)
+                                # Position label as percentage of Y-axis (closer to peak top)
+                                # Calculate peak position as percentage of plot range
+                                peak_pct = (spectrum_height - y_min) / y_range
+                                # Place label at peak percentage + 2% of plot height
+                                label_y = y_min + (peak_pct + 0.02) * y_range
 
                                 # Add label
                                 ax.text(peak_energy, label_y, label,
@@ -1554,6 +1750,7 @@ class EDXSEMWindow(wx.Frame):
                                         alpha=1.0)
 
                                 labeled_positions.append(peak_energy)
+                                print(f"Labeled peak: {element} {line_type} at {peak_energy:.2f} keV")
 
                         except Exception as e:
                             print(f"Could not identify line at {peak_energy:.2f} keV: {e}")
@@ -1562,6 +1759,8 @@ class EDXSEMWindow(wx.Frame):
                     except Exception as e:
                         print(f"Error processing peak: {e}")
                         continue
+
+                print(f"Total peaks labeled: {len(labeled_positions)}")
 
         except Exception as e:
             print(f"Error in peak labeling: {e}")
@@ -2103,21 +2302,37 @@ class EDXSensitivityWindow(wx.Frame):
 
     def initialize_from_plot(self):
         """Set initial values from current plot state"""
-        if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
-            # Get current X max
-            xlim = self.parent.parent.ax.get_xlim()
-            self.x_max_spin.SetValue(int(xlim[1]))
+        # Set default to 20 keV
+        self.x_max_spin.SetValue(20)
+        self.y_max_spin.SetValue(10000)
 
-            # Get current Y max
-            ylim = self.parent.parent.ax.get_ylim()
-            self.y_max_spin.SetValue(ylim[1])
+        if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
+            # Get current X max if plot exists
+            try:
+                xlim = self.parent.parent.ax.get_xlim()
+                if xlim[1] > 0:
+                    self.x_max_spin.SetValue(int(xlim[1]))
+
+                # Get current Y max
+                ylim = self.parent.parent.ax.get_ylim()
+                if ylim[1] > 0:
+                    self.y_max_spin.SetValue(ylim[1])
+            except:
+                pass
 
     def on_x_max_change(self, event):
         """Handle X max spin control change"""
         if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
             x_max = self.x_max_spin.GetValue()
             current_xlim = self.parent.parent.ax.get_xlim()
-            self.parent.parent.ax.set_xlim(current_xlim[0], x_max)
+            self.parent.parent.ax.set_xlim(0, x_max)  # Always start from 0
+
+            # Store the X max preference
+            current_sheet = self.parent.parent.sheet_combobox.GetValue()
+            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.parent.Data:
+                if current_sheet in self.parent.parent.Data['Core levels']:
+                    self.parent.parent.Data['Core levels'][current_sheet]['_EDX_display_max'] = x_max
+
             self.parent.parent.canvas.draw()
 
     def on_y_max_change(self, event):
@@ -2137,16 +2352,26 @@ class EDXSensitivityWindow(wx.Frame):
         if self.parent.parent is not None and hasattr(self.parent.parent, 'sheet_combobox'):
             sensitivity = self.sensitivity_slider.GetValue()
             # Sensitivity: 1-100, where 100 = most sensitive (1% threshold)
-            # Convert to threshold: 100 -> 0.01, 50 -> 0.05, 1 -> 0.10
+            # Convert to threshold: 100 -> 0.01, 1 -> 0.10
             threshold = 0.11 - (sensitivity / 1000.0)
+
+            print(f"Applying sensitivity: {sensitivity}, threshold: {threshold:.4f}")
 
             # Store threshold in parent EDX window
             self.parent.peak_threshold = threshold
+
+            # Clear current plot
+            self.parent.parent.ax.clear()
 
             # Re-plot with new sensitivity
             current_sheet = self.parent.parent.sheet_combobox.GetValue()
             if current_sheet == 'EDX~Plot':
                 from libraries.Sheet_Operations import plot_edx_data
+                # Make sure the threshold is used
+                if 'Core levels' in self.parent.parent.Data and current_sheet in self.parent.parent.Data['Core levels']:
+                    sheet_data = self.parent.parent.Data['Core levels'][current_sheet]
+                    sheet_data['_EDX_sensitivity'] = threshold
+
                 plot_edx_data(self.parent.parent, current_sheet)
 
     def on_reset(self, event):
@@ -2161,6 +2386,317 @@ class EDXSensitivityWindow(wx.Frame):
             self.parent.parent.ax.set_xlim(0, 20)
             self.parent.parent.ax.set_ylim(0, 10000)
             self.parent.parent.canvas.draw()
+
+
+class RotatableRectangle:
+    """Custom rotatable rectangle selector for area selection"""
+
+    def __init__(self, ax, callback):
+        self.ax = ax
+        self.callback = callback
+        self.active = False
+        self.angle = 0
+
+        self.center = None
+        self.width = None
+        self.height = None
+
+        self.rectangle = None
+        self.rotation_handle = None
+        self.resize_handles = []
+
+        self.dragging = False
+        self.rotating = False
+        self.resizing = False
+        self.drag_start = None
+        self.resize_corner = None
+        self.angle_text = None
+
+        self._stored_xlim = None
+        self._stored_ylim = None
+
+        self.cid_press = ax.figure.canvas.mpl_connect('button_press_event', self.on_press)
+        self.cid_release = ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
+        self.cid_motion = ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+
+    def start_selection(self, event):
+        """Start creating a new rectangle"""
+        if event.inaxes != self.ax or event.button != 1:
+            return
+
+        # If not active, create new rectangle at click position
+        if not self.active:
+            # Store axis limits BEFORE any drawing
+            self._stored_xlim = self.ax.get_xlim()
+            self._stored_ylim = self.ax.get_ylim()
+
+            self.center = (event.xdata, event.ydata)
+            self.width = 10
+            self.height = 10
+            self.angle = 0
+            self.active = True
+            self.draw_rectangle()
+
+    def draw_rectangle(self):
+        """Draw the rotatable rectangle and handles"""
+        # Clear existing elements safely
+        if self.rectangle:
+            try:
+                self.rectangle.remove()
+            except (ValueError, AttributeError):
+                pass
+            self.rectangle = None
+
+        for handle in self.resize_handles:
+            try:
+                handle.remove()
+            except (ValueError, AttributeError):
+                pass
+        self.resize_handles = []
+
+        if self.rotation_handle:
+            try:
+                self.rotation_handle.remove()
+            except (ValueError, AttributeError):
+                pass
+            self.rotation_handle = None
+
+        if self.angle_text:
+            try:
+                self.angle_text.remove()
+            except (ValueError, AttributeError):
+                pass
+            self.angle_text = None
+
+        if self.center is None:
+            self.ax.figure.canvas.draw_idle()
+            return
+
+        from matplotlib.patches import Rectangle
+        from matplotlib.transforms import Affine2D
+
+        rect = Rectangle((-self.width / 2, -self.height / 2), self.width, self.height,
+                         linewidth=2, edgecolor='white', facecolor='red', alpha=0.3)
+
+        t = Affine2D().rotate_deg(self.angle).translate(*self.center) + self.ax.transData
+        rect.set_transform(t)
+        rect._is_selection_marker = True
+
+        self.rectangle = self.ax.add_patch(rect)
+
+        # Rotation handle
+        handle_dist = max(self.width, self.height) / 2 + 10
+        angle_rad = np.radians(self.angle)
+        handle_x = self.center[0] + handle_dist * np.sin(angle_rad)
+        handle_y = self.center[1] + handle_dist * np.cos(angle_rad)
+
+        self.rotation_handle = self.ax.plot(handle_x, handle_y, 'wo', markersize=10,
+                                            markeredgecolor='red', markeredgewidth=2)[0]
+        self.rotation_handle._is_selection_marker = True
+
+        # Show angle text when rotating
+        if self.rotating:
+            self.angle_text = self.ax.text(handle_x, handle_y + 5, f'{self.angle:.1f}°',
+                                           fontsize=9, color='white', fontweight='bold',
+                                           ha='center', va='bottom',
+                                           bbox=dict(boxstyle='round,pad=0.2', facecolor='red', alpha=0.7))
+            self.angle_text._is_selection_marker = True
+
+        # Resize handles at corners
+        corners = self.get_corners()
+        for corner in corners:
+            handle = self.ax.plot(corner[0], corner[1], 'ws', markersize=8,
+                                  markeredgecolor='black', markeredgewidth=1)[0]
+            handle._is_selection_marker = True
+            self.resize_handles.append(handle)
+
+        # ALWAYS restore stored axis limits to prevent expansion
+        if self._stored_xlim is not None and self._stored_ylim is not None:
+            self.ax.set_xlim(self._stored_xlim)
+            self.ax.set_ylim(self._stored_ylim)
+
+        self.ax.figure.canvas.draw_idle()
+
+    def get_corners(self):
+        """Get the four corners of the rotated rectangle"""
+        angle_rad = np.radians(self.angle)
+        cos_a = np.cos(angle_rad)
+        sin_a = np.sin(angle_rad)
+
+        hw = self.width / 2
+        hh = self.height / 2
+        corners_local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
+
+        corners = []
+        for x, y in corners_local:
+            rx = x * cos_a - y * sin_a + self.center[0]
+            ry = x * sin_a + y * cos_a + self.center[1]
+            corners.append((rx, ry))
+
+        return corners
+
+    def on_press(self, event):
+        """Handle mouse press"""
+        if not self.active or event.inaxes != self.ax or event.button != 1:
+            return
+
+        # Store current limits at start of any interaction
+        if self._stored_xlim is None:
+            self._stored_xlim = self.ax.get_xlim()
+            self._stored_ylim = self.ax.get_ylim()
+
+        # Check rotation handle first
+        if self.rotation_handle:
+            handle_data = self.rotation_handle.get_data()
+            dist = np.sqrt((event.xdata - handle_data[0][0]) ** 2 + (event.ydata - handle_data[1][0]) ** 2)
+            if dist < 12:
+                self.rotating = True
+                self.drag_start = (event.xdata, event.ydata)
+                return
+
+        # Check resize handles
+        for i, handle in enumerate(self.resize_handles):
+            handle_data = handle.get_data()
+            dist = np.sqrt((event.xdata - handle_data[0][0]) ** 2 + (event.ydata - handle_data[1][0]) ** 2)
+            if dist < 10:
+                self.resizing = True
+                self.resize_corner = i
+                self.drag_start = (event.xdata, event.ydata)
+                return
+
+        # Check if inside rectangle for dragging
+        if self.point_in_rectangle(event.xdata, event.ydata):
+            self.dragging = True
+            self.drag_start = (event.xdata, event.ydata)
+
+    def on_release(self, event):
+        """Handle mouse release"""
+        was_interacting = self.dragging or self.resizing or self.rotating
+
+        self.dragging = False
+        self.rotating = False
+        self.resizing = False
+        self.drag_start = None
+
+        # Restore limits after any operation
+        if self._stored_xlim is not None and self._stored_ylim is not None:
+            self.ax.set_xlim(self._stored_xlim)
+            self.ax.set_ylim(self._stored_ylim)
+
+        # Trigger callback after interaction
+        if was_interacting and self.callback and self.center:
+            self.callback(self.center, self.width, self.height, self.angle)
+
+    def on_motion(self, event):
+        """Handle mouse motion"""
+        if event.inaxes != self.ax or self.drag_start is None:
+            return
+
+        if event.xdata is None or event.ydata is None:
+            return
+
+        dx = event.xdata - self.drag_start[0]
+        dy = event.ydata - self.drag_start[1]
+
+        if self.dragging:
+            new_x = self.center[0] + dx
+            new_y = self.center[1] + dy
+
+            # Clamp to stored bounds
+            if self._stored_xlim is not None:
+                new_x = max(self._stored_xlim[0], min(self._stored_xlim[1], new_x))
+            if self._stored_ylim is not None:
+                y_min = min(self._stored_ylim[0], self._stored_ylim[1])
+                y_max = max(self._stored_ylim[0], self._stored_ylim[1])
+                new_y = max(y_min, min(y_max, new_y))
+
+            self.center = (new_x, new_y)
+            self.drag_start = (event.xdata, event.ydata)
+            self.draw_rectangle()
+
+        elif self.rotating:
+            angle_to_center = np.arctan2(event.xdata - self.center[0], event.ydata - self.center[1])
+            self.angle = np.degrees(angle_to_center)
+            self.draw_rectangle()
+
+        elif self.resizing:
+            angle_rad = np.radians(-self.angle)
+            cos_a = np.cos(angle_rad)
+            sin_a = np.sin(angle_rad)
+
+            local_x = (event.xdata - self.center[0]) * cos_a - (event.ydata - self.center[1]) * sin_a
+            local_y = (event.xdata - self.center[0]) * sin_a + (event.ydata - self.center[1]) * cos_a
+
+            # Allow minimum size of 1 pixel
+            self.width = max(1, abs(local_x) * 2)
+            self.height = max(1, abs(local_y) * 2)
+            self.draw_rectangle()
+
+    def point_in_rectangle(self, x, y):
+        """Check if point is inside the rotated rectangle"""
+        if self.center is None:
+            return False
+
+        angle_rad = np.radians(-self.angle)
+        cos_a = np.cos(angle_rad)
+        sin_a = np.sin(angle_rad)
+
+        local_x = (x - self.center[0]) * cos_a - (y - self.center[1]) * sin_a
+        local_y = (x - self.center[0]) * sin_a + (y - self.center[1]) * cos_a
+
+        return abs(local_x) <= self.width / 2 and abs(local_y) <= self.height / 2
+
+    def clear(self):
+        """Clear the rectangle and handles, allow new selection"""
+        if self.rectangle:
+            try:
+                self.rectangle.remove()
+            except (ValueError, AttributeError):
+                pass
+            self.rectangle = None
+
+        for handle in self.resize_handles:
+            try:
+                handle.remove()
+            except (ValueError, AttributeError):
+                pass
+        self.resize_handles = []
+
+        if self.rotation_handle:
+            try:
+                self.rotation_handle.remove()
+            except (ValueError, AttributeError):
+                pass
+            self.rotation_handle = None
+
+        if self.angle_text:
+            try:
+                self.angle_text.remove()
+            except (ValueError, AttributeError):
+                pass
+            self.angle_text = None
+
+        # Reset state to allow new selection
+        self.center = None
+        self.width = None
+        self.height = None
+        self.angle = 0
+        self.active = False
+        self.dragging = False
+        self.rotating = False
+        self.resizing = False
+        self.drag_start = None
+
+        self.ax.figure.canvas.draw_idle()
+
+    def disconnect(self):
+        """Disconnect event handlers"""
+        try:
+            self.ax.figure.canvas.mpl_disconnect(self.cid_press)
+            self.ax.figure.canvas.mpl_disconnect(self.cid_release)
+            self.ax.figure.canvas.mpl_disconnect(self.cid_motion)
+        except (ValueError, AttributeError):
+            pass
 
 def open_edx_sem_window(parent):
     """Open EDX/SEM analysis window"""

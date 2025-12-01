@@ -350,6 +350,12 @@ class PlotConfig:
         # Normal plot mode - original behavior
 
         sheet_name = window.sheet_combobox.GetValue()
+
+        # Handle EDX~Plot specially - uses different data structure
+        if sheet_name == 'EDX~Plot':
+            self._adjust_edx_plot_limits(window, axis, direction)
+            return
+
         if sheet_name not in self.plot_limits:
             self.update_plot_limits(window, sheet_name)
 
@@ -387,6 +393,50 @@ class PlotConfig:
             window.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
         window.ax.set_ylim(limits['Ymin'], limits['Ymax'])
         window.canvas.draw_idle()
+
+    def _adjust_edx_plot_limits(self, window, axis, direction):
+        """Handle plot limit adjustments for EDX~Plot sheet"""
+        import numpy as np
+
+        xlim = window.ax.get_xlim()
+        ylim = window.ax.get_ylim()
+
+        sheet_data = window.Data.get('Core levels', {}).get('EDX~Plot', {})
+        if 'Intensity' in sheet_data:
+            max_intensity = np.max(np.array(sheet_data['Intensity']))
+        else:
+            max_intensity = ylim[1]
+
+        if axis in ['high_be', 'low_be']:
+            increment = 0.5  # 0.5 keV for EDX
+            if axis == 'high_be':
+                if direction == 'increase':
+                    xlim = (xlim[0], xlim[1] + increment)
+                elif direction == 'decrease':
+                    xlim = (xlim[0], max(xlim[1] - increment, xlim[0] + 1))
+            elif axis == 'low_be':
+                if direction == 'increase':
+                    xlim = (max(xlim[0] - increment, 0), xlim[1])
+                elif direction == 'decrease':
+                    xlim = (min(xlim[0] + increment, xlim[1] - 1), xlim[1])
+        elif axis in ['high_int', 'low_int']:
+            if axis == 'high_int':
+                increment = 0.05 * max_intensity
+                if direction == 'increase':
+                    ylim = (ylim[0], ylim[1] + increment)
+                elif direction == 'decrease':
+                    ylim = (ylim[0], max(ylim[1] - increment, ylim[0] + 100))
+            elif axis == 'low_int':
+                increment = 0.02 * max_intensity
+                if direction == 'increase':
+                    ylim = (min(ylim[0] + increment, ylim[1] - 100), ylim[1])
+                elif direction == 'decrease':
+                    ylim = (max(ylim[0] - increment, 0), ylim[1])
+
+        window.ax.set_xlim(xlim[0], xlim[1])
+        window.ax.set_ylim(ylim[0], ylim[1])
+        window.canvas.draw_idle()
+
 
     # This def is also in PLotManager
     def resize_plot(self, window):
