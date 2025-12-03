@@ -42,8 +42,8 @@ def on_sheet_selected(window, event):
                     window.be_correction_spinbox.SetValue(correction)
 
     if selected_sheet:
-        # Check if this is an EDX sheet
-        if selected_sheet in ['EDX~Plot', 'EDX~Map']:
+        # Check if this is an EDX sheet (EDX~Plot, EDX~Plot1, EDX~Plot2, etc., or EDX~Map)
+        if selected_sheet == 'EDX~Map' or selected_sheet.startswith('EDX~Plot'):
             # Prevent re-entry loop
             if hasattr(window, '_processing_edx_sheet') and window._processing_edx_sheet:
                 return
@@ -498,7 +498,8 @@ def plot_edx_data(window, sheet_name):
 
         sheet_data = window.Data['Core levels'][sheet_name]
 
-        if sheet_name == 'EDX~Plot':
+        # Handle EDX~Plot and EDX~Plot1, EDX~Plot2, etc.
+        if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
             # Plot EDX spectrum
             if 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
                 energy = np.array(sheet_data['Energy_keV'])
@@ -509,17 +510,41 @@ def plot_edx_data(window, sheet_name):
                 window.ax.plot(energy, intensity, 'k-', linewidth=0.8)
                 window.ax.set_xlabel('Energy (keV)')
                 window.ax.set_ylabel('Counts')
-                window.ax.set_title('EDX Sum Spectrum')
+
+                # Set title based on selection info if available
+                selection_info = sheet_data.get('_EDX_selection')
+                if selection_info:
+                    sel_type = selection_info.get('type', 'unknown')
+                    if sel_type == 'point':
+                        x, y = selection_info.get('x', 0), selection_info.get('y', 0)
+                        size = selection_info.get('size', 1)
+                        if size == 1:
+                            window.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
+                        else:
+                            window.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+                    elif sel_type == 'line':
+                        window.ax.set_title('EDX Spectrum - Line Profile')
+                    elif sel_type == 'rectangle':
+                        angle = selection_info.get('angle', 0)
+                        window.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
+                    elif sel_type == 'area':
+                        window.ax.set_title('EDX Spectrum - Area')
+                    else:
+                        window.ax.set_title(f'EDX Spectrum ({sel_type})')
+                else:
+                    window.ax.set_title('EDX Sum Spectrum')
+
+                # Set Y-axis to scientific format
+                window.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
 
                 # Set data range for zoom
                 window.Data['Core levels'][sheet_name]['_EDX_min'] = np.min(energy)
                 window.Data['Core levels'][sheet_name]['_EDX_max'] = np.max(energy)
 
                 # Set initial display range
-                display_x_max = sheet_data.get('_EDX_display_max', 20)  # Default to 20 if not set
+                display_x_max = sheet_data.get('_EDX_display_max', 20)
                 window.ax.set_xlim(0, display_x_max)
-                window.ax.set_ylim(np.min(intensity)*0.95, np.max(intensity) * 1.1)
-                print(f"Set EDX range: {np.min(energy):.2f} to {np.max(energy):.2f} keV")
+                window.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
 
                 # Add peak labels if HDF5 file exists
                 if hasattr(window, 'current_file_path') and window.current_file_path:
@@ -529,7 +554,6 @@ def plot_edx_data(window, sheet_name):
 
                     if os.path.exists(hdf5_path):
                         try:
-                            # Load HDF5 and add labels
                             readers = ['HSPY', 'USID', 'Delmic']
                             loaded_data = None
                             for reader in readers:
@@ -543,8 +567,6 @@ def plot_edx_data(window, sheet_name):
                                 if isinstance(loaded_data, list):
                                     loaded_data = loaded_data[0]
 
-                                # Add peak labels using the EDX_SEM_Analysis method
-                                # We'll call it through a temporary instance
                                 from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
                                 temp_edx = EDXSEMWindow(window)
                                 temp_edx.current_data = loaded_data
@@ -554,13 +576,29 @@ def plot_edx_data(window, sheet_name):
                             print(f"Could not add EDX labels: {e}")
 
                 window.canvas.draw()
-                return True
 
+                # Draw saved selection on EDX map window if open
+                if hasattr(window, 'edx_window') and window.edx_window:
+                    try:
+                        if not window.edx_window.IsBeingDeleted():
+                            # Clear any previous saved selection
+                            window.edx_window._clear_saved_selection()
+                            # Draw the selection for this plot if available
+                            if selection_info:
+                                window.edx_window.draw_saved_selection(selection_info)
+                    except:
+                        pass
+
+                # Restore grid data if available
+                grid_data = sheet_data.get('_EDX_grid_data')
+                if grid_data and hasattr(window, 'peak_params_grid'):
+                    _restore_grid_data(window, grid_data)
+
+                return True
 
         elif sheet_name == 'EDX~Map':
             # Check if EDX/SEM window is already open
             if hasattr(window, 'edx_window') and window.edx_window and not window.edx_window.IsBeingDeleted():
-                # Window already exists, just bring it to front
                 window.edx_window.Raise()
                 return True
 
@@ -573,9 +611,10 @@ def plot_edx_data(window, sheet_name):
                 if os.path.exists(hdf5_path):
                     edx_window = open_edx_sem_window(window)
                     if edx_window:
-                        window.edx_window = edx_window  # Store reference
+                        window.edx_window = edx_window
                         edx_window.load_file(hdf5_path, 'EDX Map')
                     return True
+
         return False
 
     except Exception as e:
@@ -583,6 +622,50 @@ def plot_edx_data(window, sheet_name):
         import traceback
         traceback.print_exc()
         return False
+
+
+def _restore_grid_data(window, grid_data):
+    """Restore peak fitting grid data from saved EDX plot"""
+    import wx
+
+    grid = window.peak_params_grid
+
+    # Clear existing grid
+    if grid.GetNumberRows() > 0:
+        grid.DeleteRows(0, grid.GetNumberRows())
+
+    # Add saved data
+    for i, row_data in enumerate(grid_data):
+        grid.AppendRows(2)  # Data row + constraint row
+        row = i * 2
+        constraint_row = row + 1
+
+        # Set values
+        grid.SetCellValue(row, 0, row_data.get('id', ''))
+        grid.SetCellValue(row, 1, row_data.get('label', ''))
+        grid.SetCellValue(row, 2, row_data.get('position', ''))
+        grid.SetCellValue(row, 3, row_data.get('height', ''))
+        grid.SetCellValue(row, 4, row_data.get('fwhm', ''))
+        grid.SetCellValue(row, 6, row_data.get('area', ''))
+        grid.SetCellValue(row, 10, row_data.get('concentration', ''))
+
+        # Set constraint row
+        grid.SetCellValue(constraint_row, 2, "fixed")
+        grid.SetCellValue(constraint_row, 3, "fixed")
+        grid.SetCellValue(constraint_row, 4, "fixed")
+        grid.SetCellValue(constraint_row, 6, "fixed")
+
+        # Apply formatting - Data row white background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(row, col, wx.WHITE)
+            grid.SetReadOnly(row, col, True)
+
+        # Constraint row - light green background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(constraint_row, col, wx.Colour(200, 245, 228))
+            grid.SetReadOnly(constraint_row, col, True)
+
+    grid.ForceRefresh()
 
 class CheckboxRenderer(wx.grid.GridCellRenderer):
     def __init__(self):

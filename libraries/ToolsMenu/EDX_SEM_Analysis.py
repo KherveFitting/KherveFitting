@@ -19,7 +19,7 @@ class EDXSEMWindow(wx.Frame):
     """Main window for EDX/SEM data analysis"""
 
     def __init__(self, parent, title="EDX/SEM Analysis"):
-        super().__init__(parent, title=title, size=(500, 600), style = wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+        super().__init__(parent, title=title, size=(590, 700), style = wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
 
 
 
@@ -36,6 +36,8 @@ class EDXSEMWindow(wx.Frame):
         self.selected_areas = []
         self.selected_lines = []
         self.selected_elements = []
+
+        self.point_size = 1  # Size in pixels (1 = single pixel)
 
         self.loaded_signals = []
         self.data_browser_window = None
@@ -88,6 +90,7 @@ class EDXSEMWindow(wx.Frame):
         # Bind canvas events
         self.map_canvas.mpl_connect('button_press_event', self.on_map_click)
         self.map_canvas.mpl_connect('motion_notify_event', self.on_map_motion)
+        self.map_canvas.mpl_connect('scroll_event', self.on_map_scroll)
         self._line_preview = None
 
         # Right-click menu
@@ -150,6 +153,7 @@ class EDXSEMWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_export_hdf5, export_hdf5)
         self.Bind(wx.EVT_MENU, self.on_export_map_image, export_map_image)
         self.Bind(wx.EVT_MENU, lambda e: self.Close(), close_item)
+        self.Bind(wx.EVT_MENU, self.on_quantification, quantify_item)
 
     def create_toolbar(self, parent):
         """Create toolbar with icon buttons only"""
@@ -219,24 +223,7 @@ class EDXSEMWindow(wx.Frame):
 
         toolbar_sizer.Add(wx.StaticLine(toolbar_panel, style=wx.LI_VERTICAL), 0, wx.EXPAND | wx.ALL, 3)
 
-        # Sensitivity/Display controls button
-        self.sensitivity_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
-        self.sensitivity_btn.SetBitmap(self.create_icon_bitmap('sensitivity'))
-        self.sensitivity_btn.SetToolTip("Display & Sensitivity Controls")
-        self.sensitivity_btn.Bind(wx.EVT_BUTTON, self.on_sensitivity_controls)
-        toolbar_sizer.Add(self.sensitivity_btn, 0, wx.ALL, 2)
-
         toolbar_panel.SetSizer(toolbar_sizer)
-
-        # Set Elements button
-        self.set_elements_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
-        id_path = os.path.join(icon_path, "ID-3.png")
-        if os.path.exists(id_path):
-            self.set_elements_btn.SetBitmap(wx.Bitmap(id_path, wx.BITMAP_TYPE_PNG))
-        else:
-            self.set_elements_btn.SetBitmap(self.create_icon_bitmap('point'))
-        self.set_elements_btn.SetToolTip("Set Elements")
-        toolbar_sizer.Add(self.set_elements_btn, 0, wx.ALL, 2)
 
         # Plot Maps button
         self.plot_maps_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
@@ -250,6 +237,26 @@ class EDXSEMWindow(wx.Frame):
         self.intensity_btn.SetBitmap(wx.Bitmap(heatmap_path, wx.BITMAP_TYPE_PNG))
         self.intensity_btn.SetToolTip("Show Intensity Map")
         toolbar_sizer.Add(self.intensity_btn, 0, wx.ALL, 2)
+
+        # Add spacer to push remaining buttons to the right
+        toolbar_sizer.AddStretchSpacer()
+
+        # Set Elements button
+        self.set_elements_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
+        id_path = os.path.join(icon_path, "ID-3.png")
+        if os.path.exists(id_path):
+            self.set_elements_btn.SetBitmap(wx.Bitmap(id_path, wx.BITMAP_TYPE_PNG))
+        else:
+            self.set_elements_btn.SetBitmap(self.create_icon_bitmap('point'))
+        self.set_elements_btn.SetToolTip("Set Elements")
+        toolbar_sizer.Add(self.set_elements_btn, 0, wx.ALL, 2)
+
+        # Sensitivity/Display controls button
+        self.sensitivity_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
+        self.sensitivity_btn.SetBitmap(self.create_icon_bitmap('sensitivity'))
+        self.sensitivity_btn.SetToolTip("Display & Sensitivity Controls")
+        self.sensitivity_btn.Bind(wx.EVT_BUTTON, self.on_sensitivity_controls)
+        toolbar_sizer.Add(self.sensitivity_btn, 0, wx.ALL, 2)
 
 
 
@@ -387,10 +394,21 @@ class EDXSEMWindow(wx.Frame):
         self.map_ax.set_ylim(y_max, y_min)  # Inverted for image
         self.map_canvas.draw()
 
+        # Deselect zoom button after use
+        self.zoom_in_btn.SetValue(False)
+        if hasattr(self, 'zoom_selector') and self.zoom_selector:
+            self.zoom_selector.set_active(False)
+
     def on_zoom_out(self, event):
         """Zoom out / reset view"""
         self.map_ax.autoscale()
         self.map_canvas.draw()
+
+        # Deselect buttons
+        self.zoom_in_btn.SetValue(False)
+        self.pan_btn.SetValue(False)
+        if hasattr(self, 'zoom_selector') and self.zoom_selector:
+            self.zoom_selector.set_active(False)
 
     def on_pan(self, event):
         """Toggle pan mode"""
@@ -421,6 +439,8 @@ class EDXSEMWindow(wx.Frame):
 
     def _on_pan_release(self, event):
         self._pan_start = None
+        self._add_scale_bar()
+        self.map_canvas.draw_idle()
 
     def _on_pan_motion(self, event):
         if self._pan_start is None or event.inaxes != self.map_ax:
@@ -586,6 +606,9 @@ class EDXSEMWindow(wx.Frame):
 
             self.parent.canvas.draw()
 
+            # Populate peak fitting grid with quantification
+            self._populate_edx_grid(energy, summed_spectrum, f"Rotated Area ({len(masked_spectra)} px)")
+
         print(f"Rotated area: center=({cx:.0f},{cy:.0f}), size=({width:.0f}x{height:.0f}), angle={angle:.1f}°")
         print(f"Extracted {len(masked_spectra)} pixels")
 
@@ -633,7 +656,277 @@ class EDXSEMWindow(wx.Frame):
         if self.current_data is not None:
             self.plot_current_map()
 
+
+    # =================== RIGHT CLICK HANDLERS ===================
+
+    def on_map_right_click(self, event):
+        """Handle right-click on map for context menu"""
+        if event.button != 3:  # Right click
+            return
+        if event.inaxes != self.map_ax:
+            return
+
+        # Create popup menu
+        menu = wx.Menu()
+
+        save_plot_item = menu.Append(wx.ID_ANY, "Save Current EDX Plot...")
+        self.Bind(wx.EVT_MENU, self.on_save_edx_plot, save_plot_item)
+
+        # Show menu at mouse position
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_save_edx_plot(self, event):
+        """Save current EDX plot to a numbered sheet"""
+        if self.parent is None:
+            return
+
+        # Find next available EDX~Plot number
+        existing_sheets = list(self.parent.Data.get('Core levels', {}).keys())
+        plot_num = 1
+        while f'EDX~Plot{plot_num}' in existing_sheets:
+            plot_num += 1
+
+        sheet_name = f'EDX~Plot{plot_num}'
+
+        # Gather current selection info
+        selection_info = self._get_current_selection_info()
+
+        if selection_info is None:
+            wx.MessageBox("No selection to save. Please select a point, line, or area first.",
+                          "No Selection", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get current spectrum data from parent
+        if not hasattr(self.parent, 'ax') or len(self.parent.ax.lines) == 0:
+            wx.MessageBox("No EDX plot data to save.", "No Data", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get spectrum data from plot
+        line = self.parent.ax.lines[0]
+        energy = line.get_xdata()
+        intensity = line.get_ydata()
+
+        # Get grid data
+        grid_data = self._get_grid_data()
+
+        # Create sheet data
+        import datetime
+        sheet_data = {
+            'Energy_keV': list(energy),
+            'Intensity': list(intensity),
+            '_EDX_display_max': 20,
+            '_EDX_selection': selection_info,
+            '_EDX_grid_data': grid_data,
+            '_EDX_save_time': datetime.datetime.now().isoformat(),
+        }
+
+        # Save to parent Data
+        if 'Core levels' not in self.parent.Data:
+            self.parent.Data['Core levels'] = {}
+
+        self.parent.Data['Core levels'][sheet_name] = sheet_data
+
+        # Update sheet combobox
+        if sheet_name not in [self.parent.sheet_combobox.GetString(i)
+                              for i in range(self.parent.sheet_combobox.GetCount())]:
+            self.parent.sheet_combobox.Append(sheet_name)
+
+        wx.MessageBox(f"EDX plot saved as '{sheet_name}'", "Saved", wx.OK | wx.ICON_INFORMATION)
+
+    def _get_current_selection_info(self):
+        """Get information about current selection"""
+        info = {}
+
+        # Check for point selection
+        if self.selected_points:
+            point = self.selected_points[-1]
+            info['type'] = 'point'
+            info['x'] = point[0]
+            info['y'] = point[1]
+            info['size'] = point[2] if len(point) > 2 else 1
+            return info
+
+        # Check for line selection
+        if hasattr(self, 'line_start') and self.line_start and hasattr(self, 'line_end') and self.line_end:
+            info['type'] = 'line'
+            info['x1'] = self.line_start[0]
+            info['y1'] = self.line_start[1]
+            info['x2'] = self.line_end[0]
+            info['y2'] = self.line_end[1]
+            return info
+
+        # Check for rotatable rectangle
+        if hasattr(self, 'rotatable_rect') and self.rotatable_rect and self.rotatable_rect.active:
+            rect = self.rotatable_rect
+            info['type'] = 'rectangle'
+            info['center_x'] = rect.center[0]
+            info['center_y'] = rect.center[1]
+            info['width'] = rect.width
+            info['height'] = rect.height
+            info['angle'] = rect.angle
+            return info
+
+        # Check for area selection
+        if self.selected_areas:
+            area = self.selected_areas[-1]
+            info['type'] = 'area'
+            info['x1'] = area[0]
+            info['y1'] = area[1]
+            info['x2'] = area[2]
+            info['y2'] = area[3]
+            return info
+
+        return None
+
+    def _get_grid_data(self):
+        """Get current peak fitting grid data"""
+        if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
+            return []
+
+        grid = self.parent.peak_params_grid
+        data = []
+
+        for row in range(0, grid.GetNumberRows(), 2):  # Only data rows, skip constraint rows
+            row_data = {
+                'id': grid.GetCellValue(row, 0),
+                'label': grid.GetCellValue(row, 1),
+                'position': grid.GetCellValue(row, 2),
+                'height': grid.GetCellValue(row, 3),
+                'fwhm': grid.GetCellValue(row, 4),
+                'area': grid.GetCellValue(row, 6),
+                'concentration': grid.GetCellValue(row, 10),
+            }
+            data.append(row_data)
+
+        return data
+
+    def draw_saved_selection(self, selection_info):
+        """Draw a saved selection on the map"""
+        # Clear previous saved selection markers
+        self._clear_saved_selection()
+
+        if selection_info is None:
+            return
+
+        sel_type = selection_info.get('type')
+
+        if sel_type == 'point':
+            x, y = selection_info['x'], selection_info['y']
+            size = selection_info.get('size', 1)
+
+            if size == 1:
+                marker, = self.map_ax.plot(x, y, 'k+', markersize=15, markeredgewidth=2)
+                marker._is_saved_selection = True
+            else:
+                from matplotlib.patches import Rectangle
+                half_size = size / 2
+                rect = Rectangle((x - half_size, y - half_size), size, size,
+                                 linewidth=2, edgecolor='black', facecolor='none')
+                rect._is_saved_selection = True
+                self.map_ax.add_patch(rect)
+
+        elif sel_type == 'line':
+            line, = self.map_ax.plot([selection_info['x1'], selection_info['x2']],
+                                     [selection_info['y1'], selection_info['y2']],
+                                     'k-', linewidth=2)
+            line._is_saved_selection = True
+
+        elif sel_type == 'rectangle':
+            from matplotlib.patches import Rectangle
+            from matplotlib.transforms import Affine2D
+
+            cx, cy = selection_info['center_x'], selection_info['center_y']
+            w, h = selection_info['width'], selection_info['height']
+            angle = selection_info['angle']
+
+            rect = Rectangle((-w / 2, -h / 2), w, h,
+                             linewidth=2, edgecolor='black', facecolor='none')
+            t = Affine2D().rotate_deg(angle).translate(cx, cy) + self.map_ax.transData
+            rect.set_transform(t)
+            rect._is_saved_selection = True
+            self.map_ax.add_patch(rect)
+
+        elif sel_type == 'area':
+            from matplotlib.patches import Rectangle
+            x1, y1 = selection_info['x1'], selection_info['y1']
+            x2, y2 = selection_info['x2'], selection_info['y2']
+            rect = Rectangle((x1, y1), x2 - x1, y2 - y1,
+                             linewidth=2, edgecolor='black', facecolor='none')
+            rect._is_saved_selection = True
+            self.map_ax.add_patch(rect)
+
+        self.map_canvas.draw_idle()
+
+    def _clear_saved_selection(self):
+        """Clear saved selection markers"""
+        for artist in self.map_ax.patches[:]:
+            if hasattr(artist, '_is_saved_selection') and artist._is_saved_selection:
+                try:
+                    artist.remove()
+                except:
+                    pass
+        for artist in self.map_ax.lines[:]:
+            if hasattr(artist, '_is_saved_selection') and artist._is_saved_selection:
+                try:
+                    artist.remove()
+                except:
+                    pass
+
     # ==================== SELECTION HANDLERS ====================
+
+    def on_map_scroll(self, event):
+        """Handle mouse scroll on map"""
+        if event.inaxes != self.map_ax:
+            return
+
+        if self.selection_mode == 'point':
+            # Adjust point size with scroll wheel
+            if event.button == 'up':
+                self.point_size = min(50, self.point_size + 1)
+            elif event.button == 'down':
+                self.point_size = max(1, self.point_size - 1)
+
+            # Update point preview if we have a position
+            self._update_point_preview(event.xdata, event.ydata)
+
+    def _update_point_preview(self, x, y):
+        """Update point size preview rectangle"""
+        # Remove existing preview
+        self._clear_point_preview()
+
+        if x is None or y is None:
+            return
+
+        if self.point_size == 1:
+            # Single pixel - show as cross
+            marker, = self.map_ax.plot(x, y, 'g+', markersize=15, markeredgewidth=2, alpha=0.5)
+            marker._is_point_preview = True
+        else:
+            # Show rectangle preview
+            from matplotlib.patches import Rectangle
+            half_size = self.point_size / 2
+            rect = Rectangle((x - half_size, y - half_size), self.point_size, self.point_size,
+                             linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+            rect._is_point_preview = True
+            self.map_ax.add_patch(rect)
+
+        self.map_canvas.draw_idle()
+
+    def _clear_point_preview(self):
+        """Clear point preview"""
+        for artist in self.map_ax.patches[:]:
+            if hasattr(artist, '_is_point_preview') and artist._is_point_preview:
+                try:
+                    artist.remove()
+                except:
+                    pass
+        for artist in self.map_ax.lines[:]:
+            if hasattr(artist, '_is_point_preview') and artist._is_point_preview:
+                try:
+                    artist.remove()
+                except:
+                    pass
 
     def on_map_click(self, event):
         """Handle click on map"""
@@ -656,16 +949,29 @@ class EDXSEMWindow(wx.Frame):
             return
 
         if self.selection_mode == 'point':
-            # Clear previous point markers
+            # Clear previous markers and preview
             self.clear_selection_markers()
-            self.selected_points = [(x, y)]
+            self._clear_point_preview()
 
-            # Draw marker
-            marker, = self.map_ax.plot(x, y, 'r+', markersize=15, markeredgewidth=2)
-            marker._is_selection_marker = True
+            # Store point info with size
+            self.selected_points = [(x, y, self.point_size)]
+
+            if self.point_size == 1:
+                # Single pixel - show as cross
+                marker, = self.map_ax.plot(x, y, 'g+', markersize=15, markeredgewidth=2)
+                marker._is_selection_marker = True
+            else:
+                # Show rectangle for multi-pixel selection
+                from matplotlib.patches import Rectangle
+                half_size = self.point_size / 2
+                rect = Rectangle((x - half_size, y - half_size), self.point_size, self.point_size,
+                                 linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+                rect._is_selection_marker = True
+                self.map_ax.add_patch(rect)
+
             self.map_canvas.draw()
 
-            # Extract and plot spectrum at point
+            # Extract and plot spectrum
             self.plot_point_spectrum(x, y)
 
         elif self.selection_mode == 'line':
@@ -677,7 +983,7 @@ class EDXSEMWindow(wx.Frame):
 
                 self.line_start = (x, y)
                 # Draw start marker
-                marker, = self.map_ax.plot(x, y, 'wo', markersize=8, markeredgecolor='black', markeredgewidth=2)
+                marker, = self.map_ax.plot(x, y, 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
                 marker._is_selection_marker = True
                 self.map_canvas.draw()
             else:
@@ -693,15 +999,15 @@ class EDXSEMWindow(wx.Frame):
                 # Draw final line
                 line, = self.map_ax.plot([self.line_start[0], self.line_end[0]],
                                          [self.line_start[1], self.line_end[1]],
-                                         'w-', linewidth=2)
+                                         'g-', linewidth=2)
                 line._is_selection_marker = True
 
                 # Draw end points
-                marker1, = self.map_ax.plot(self.line_start[0], self.line_start[1], 'wo',
-                                            markersize=8, markeredgecolor='black', markeredgewidth=2)
+                marker1, = self.map_ax.plot(self.line_start[0], self.line_start[1], 'go',
+                                            markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
                 marker1._is_selection_marker = True
-                marker2, = self.map_ax.plot(self.line_end[0], self.line_end[1], 'wo',
-                                            markersize=8, markeredgecolor='black', markeredgewidth=2)
+                marker2, = self.map_ax.plot(self.line_end[0], self.line_end[1], 'go',
+                                            markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
                 marker2._is_selection_marker = True
 
                 self.map_canvas.draw()
@@ -728,8 +1034,8 @@ class EDXSEMWindow(wx.Frame):
         # Update line preview
         self._clear_line_preview()
         self._line_preview, = self.map_ax.plot([self.line_start[0], x],
-                                                [self.line_start[1], y],
-                                                'w--', linewidth=1.5, alpha=0.7)
+                                               [self.line_start[1], y],
+                                               'g--', linewidth=1.5, alpha=0.7)
         self._line_preview._is_selection_marker = True
         self.map_canvas.draw_idle()
 
@@ -783,7 +1089,7 @@ class EDXSEMWindow(wx.Frame):
     # ==================== SPECTRUM PLOTTING ====================
 
     def plot_point_spectrum(self, x, y):
-        """Plot spectrum from single point in KherveFitting main window"""
+        """Plot spectrum from point or area around point"""
         if self.current_data is None:
             return
 
@@ -794,7 +1100,24 @@ class EDXSEMWindow(wx.Frame):
                           "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        spectrum = data[y, x, :]
+        # Get point size
+        point_size = getattr(self, 'point_size', 1)
+
+        if point_size == 1:
+            # Single pixel
+            spectrum = data[y, x, :]
+            title = f'EDX Spectrum at Point ({x}, {y})'
+        else:
+            # Average over area
+            half_size = point_size // 2
+            y1 = max(0, y - half_size)
+            y2 = min(data.shape[0], y + half_size + 1)
+            x1 = max(0, x - half_size)
+            x2 = min(data.shape[1], x + half_size + 1)
+
+            spectrum = np.mean(data[y1:y2, x1:x2, :], axis=(0, 1))
+            title = f'EDX Spectrum at Point ({x}, {y}) [{point_size}×{point_size} px]'
+
         energy = self.get_energy_axis()
 
         if energy is None:
@@ -806,8 +1129,8 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
             self.parent.ax.set_xlabel('Energy (keV)')
             self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title(f'EDX Spectrum at Point ({x}, {y})')
-
+            self.parent.ax.set_title(title)
+            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
 
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
@@ -826,6 +1149,9 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
+
+            # Populate peak fitting grid with quantification
+            self._populate_edx_grid(energy, spectrum, title)
 
     def plot_area_spectrum(self, x1, y1, x2, y2):
         """Plot summed spectrum from area in KherveFitting main window"""
@@ -854,6 +1180,9 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'Summed EDX Spectrum - Area: {(x2 - x1 + 1) * (y2 - y1 + 1)} pixels')
 
+            # Set Y-axis to scientific format
+            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
@@ -871,6 +1200,9 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
+
+            # Populate peak fitting grid with quantification
+            self._populate_edx_grid(energy, spectrum, f"Area ({x2 - x1 + 1}×{y2 - y1 + 1})")
 
     def plot_line_spectrum(self, x1, y1, x2, y2):
         """Plot summed spectrum along line from (x1,y1) to (x2,y2) in KherveFitting main window"""
@@ -907,6 +1239,9 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title(f'EDX Line Spectrum ({x1},{y1}) to ({x2},{y2}) - {num_points} pts')
 
+            # Set Y-axis to scientific format
+            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
@@ -924,6 +1259,108 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
+
+            # Populate peak fitting grid with quantification
+            self._populate_edx_grid(energy, spectrum, f"Line ({num_points} pts)")
+
+    def _add_scale_bar(self):
+        """Add scale bar to the map based on current view and axes scale information"""
+        if self.current_data is None:
+            return
+
+        # Remove existing scale bar elements
+        self._remove_scale_bar()
+
+        # Get scale from navigation axes
+        scale_per_pixel = None
+        scale_unit = 'nm'
+
+        if hasattr(self.current_data, 'axes_manager'):
+            nav_axes = self.current_data.axes_manager.navigation_axes
+            if len(nav_axes) > 0:
+                axis = nav_axes[0]
+                scale_per_pixel = axis.scale
+                scale_unit = axis.units if hasattr(axis, 'units') and axis.units else 'nm'
+
+        if scale_per_pixel is None or scale_per_pixel <= 0:
+            return
+
+        # Get current view limits (for zoomed view)
+        xlim = self.map_ax.get_xlim()
+        ylim = self.map_ax.get_ylim()
+
+        # Calculate visible width in pixels and nm
+        visible_width_pixels = abs(xlim[1] - xlim[0])
+        visible_height_pixels = abs(ylim[1] - ylim[0])
+        visible_width_nm = visible_width_pixels * scale_per_pixel
+
+        # Choose a nice round number for scale bar (~20% of visible width)
+        target_length_nm = visible_width_nm * 0.2
+        nice_lengths = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
+        scale_bar_nm = min(nice_lengths, key=lambda x: abs(x - target_length_nm))
+
+        # Convert to pixels
+        scale_bar_pixels = scale_bar_nm / scale_per_pixel
+
+        # Position: bottom right corner of current view with margin
+        margin_x = visible_width_pixels * 0.05
+        margin_y = visible_height_pixels * 0.05
+
+        # Handle inverted Y axis
+        y_min, y_max = min(ylim), max(ylim)
+        x_min, x_max = min(xlim), max(xlim)
+
+        x_start = x_max - margin_x - scale_bar_pixels
+        y_pos = y_max - margin_y  # Bottom of view
+
+        # Draw scale bar
+        bar_height = visible_height_pixels * 0.02
+        from matplotlib.patches import Rectangle
+        import matplotlib.patheffects as path_effects
+
+        # Black outline
+        outline = Rectangle((x_start - 1, y_pos - bar_height / 2 - 1),
+                            scale_bar_pixels + 2, bar_height + 2,
+                            facecolor='black', edgecolor='none', zorder=100)
+        outline._is_scale_bar = True
+        self.map_ax.add_patch(outline)
+
+        # White bar
+        bar = Rectangle((x_start, y_pos - bar_height / 2),
+                        scale_bar_pixels, bar_height,
+                        facecolor='white', edgecolor='none', zorder=101)
+        bar._is_scale_bar = True
+        self.map_ax.add_patch(bar)
+
+        # Format scale label
+        if scale_bar_nm >= 1000:
+            label = f'{scale_bar_nm / 1000:.0f} µm'
+        else:
+            label = f'{scale_bar_nm:.0f} {scale_unit}'
+
+        # Add label above scale bar
+        text = self.map_ax.text(x_start + scale_bar_pixels / 2, y_pos - bar_height - margin_y * 0.5,
+                                label, ha='center', va='top', fontsize=9, fontweight='bold',
+                                color='white', zorder=102,
+                                path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
+        text._is_scale_bar = True
+
+    def _remove_scale_bar(self):
+        """Remove existing scale bar elements"""
+        # Remove patches
+        for artist in self.map_ax.patches[:]:
+            if hasattr(artist, '_is_scale_bar') and artist._is_scale_bar:
+                artist.remove()
+        # Remove texts
+        for artist in self.map_ax.texts[:]:
+            if hasattr(artist, '_is_scale_bar') and artist._is_scale_bar:
+                artist.remove()
+
+    def _update_scale_bar(self):
+        """Update scale bar after view change"""
+        self._add_scale_bar()
+        self.map_canvas.draw_idle()
+
 
     def get_energy_axis(self):
         """Get energy axis from current data"""
@@ -1302,12 +1739,17 @@ class EDXSEMWindow(wx.Frame):
             return
 
         im = self.map_ax.imshow(sum_image, cmap=cmap, origin='upper')
-        self.map_ax.set_xlabel('X (pixels)')
-        self.map_ax.set_ylabel('Y (pixels)')
-        self.map_ax.set_title(title)
 
-        # # Add colorbar for sum image
-        # self.current_colorbar = self.map_figure.colorbar(im, ax=self.map_ax, fraction=0.046, pad=0.04)
+        # Remove axis labels and title - use scale bar instead
+        self.map_ax.set_xlabel('')
+        self.map_ax.set_ylabel('')
+        self.map_ax.set_title('')
+        self.map_ax.set_xticks([])
+        self.map_ax.set_yticks([])
+
+        # Add scale bar if scale information is available
+        # self._add_scale_bar(sum_image.shape)
+        self._add_scale_bar()
 
         # Add colorbar matching heatmap style (full height on right side)
         from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -1316,10 +1758,17 @@ class EDXSEMWindow(wx.Frame):
         self.current_colorbar = self.map_figure.colorbar(im, cax=cax)
 
         self.map_figure.tight_layout(pad=0.5)
+
+        # Add scale bar
+        self._add_scale_bar()
+
         self.map_canvas.draw()
 
         # Plot sum spectrum in parent KherveFitting window
         self.plot_sum_spectrum_to_parent()
+
+        # # Populate peak fitting grid with quantification
+        # self._populate_edx_grid(energy, spectrum, "Sum Spectrum")
 
         self.reinitialize_selectors()
 
@@ -1540,8 +1989,15 @@ class EDXSEMWindow(wx.Frame):
 
         self.map_ax.clear()
         self.map_ax.imshow(rgb_image, origin='upper')
-        self.map_ax.set_xlabel('X (pixels)')
-        self.map_ax.set_ylabel('Y (pixels)')
+
+        # Remove axis labels and title - use scale bar instead
+        self.map_ax.set_xlabel('')
+        self.map_ax.set_ylabel('')
+        self.map_ax.set_xticks([])
+        self.map_ax.set_yticks([])
+
+        # Add scale bar
+        self._add_scale_bar(rgb_image.shape[:2])
 
         # Legend only - no colorbar for composite
         legend_elements = []
@@ -1580,6 +2036,9 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylabel('Counts')
             self.parent.ax.set_title('EDX Sum Spectrum')
 
+            # Set Y-axis to scientific format
+            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
@@ -1597,6 +2056,9 @@ class EDXSEMWindow(wx.Frame):
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
 
             self.parent.canvas.draw()
+
+            # Populate peak fitting grid with quantification
+            self._populate_edx_grid(energy, spectrum, "Sum Spectrum")
 
     def add_peak_labels(self, ax, energy, spectrum):
         """Add element peak labels above peaks using ExSpy's find_peaks1D_ohaver"""
@@ -1766,6 +2228,8 @@ class EDXSEMWindow(wx.Frame):
             print(f"Error in peak labeling: {e}")
             import traceback
             traceback.print_exc()
+
+
 
 
 
@@ -1947,6 +2411,12 @@ class EDXSEMWindow(wx.Frame):
         """Show right-click context menu"""
         menu = wx.Menu()
 
+        # Save EDX Plot option at top
+        save_plot_item = menu.Append(wx.ID_ANY, "Save Current EDX Plot...")
+        self.Bind(wx.EVT_MENU, self.on_save_edx_plot, save_plot_item)
+
+        menu.AppendSeparator()
+
         # HeatMap submenu
         heatmap_menu = wx.Menu()
         colormaps = ['plasma', 'viridis', 'inferno', 'magma', 'hot', 'cool', 'gray', 'jet',
@@ -1973,6 +2443,441 @@ class EDXSEMWindow(wx.Frame):
 
         self.PopupMenu(menu)
         menu.Destroy()
+
+    def on_quantification(self, event):
+        """Perform EDX quantification and display atomic percentages"""
+        if self.current_data is None:
+            wx.MessageBox("No EDX data loaded.", "Quantification Error", wx.OK | wx.ICON_WARNING)
+            return
+
+        if not self.selected_elements:
+            wx.MessageBox("Please select elements first using the periodic table.",
+                          "Quantification Error", wx.OK | wx.ICON_WARNING)
+            return
+
+        try:
+            # Get sum spectrum
+            data = self.current_data.data
+            if len(data.shape) == 3:
+                spectrum = np.sum(data, axis=(0, 1))
+            elif len(data.shape) == 1:
+                spectrum = data
+            else:
+                wx.MessageBox("Unsupported data shape for quantification.",
+                              "Quantification Error", wx.OK | wx.ICON_WARNING)
+                return
+
+            energy = self.get_energy_axis()
+            if energy is None:
+                wx.MessageBox("Could not get energy axis.",
+                              "Quantification Error", wx.OK | wx.ICON_WARNING)
+                return
+
+            # Calculate atomic percentages using peak intensities
+            results = self._calculate_atomic_percent(energy, spectrum, self.selected_elements)
+
+            if results:
+                # Display results in a dialog
+                self._show_quantification_results(results)
+
+                # Add to peak fitting grid in parent window if available
+                if self.parent is not None and hasattr(self.parent, 'peak_params_grid'):
+                    self._add_results_to_grid(results)
+
+        except Exception as e:
+            wx.MessageBox(f"Quantification error: {str(e)}",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            import traceback
+            traceback.print_exc()
+
+    def _calculate_atomic_percent(self, energy, spectrum, elements):
+        """Calculate atomic percentages from peak intensities"""
+        from exspy.material import elements as exspy_elements
+
+        results = []
+        total_intensity = 0
+        element_intensities = {}
+
+        for element in elements:
+            try:
+                elem_obj = exspy_elements[element]
+                if hasattr(elem_obj, 'Atomic_properties') and hasattr(elem_obj.Atomic_properties, 'Xray_lines'):
+                    xray_lines = elem_obj.Atomic_properties.Xray_lines
+
+                    # Find the strongest line (Ka preferred, then La)
+                    best_line = None
+                    best_energy = None
+                    for line_type in ['Ka', 'La', 'Ma']:
+                        if line_type in xray_lines:
+                            best_line = line_type
+                            best_energy = xray_lines[line_type].energy_keV
+                            break
+
+                    if best_energy is not None:
+                        # Find peak intensity at this energy
+                        idx = np.argmin(np.abs(energy - best_energy))
+
+                        # Integrate around peak (simple approach)
+                        window = 5  # channels
+                        start_idx = max(0, idx - window)
+                        end_idx = min(len(spectrum), idx + window)
+                        peak_intensity = np.sum(spectrum[start_idx:end_idx])
+
+                        # Get atomic weight for normalization
+                        atomic_weight = elem_obj.General_properties.atomic_weight
+
+                        element_intensities[element] = {
+                            'intensity': peak_intensity,
+                            'line': best_line,
+                            'energy': best_energy,
+                            'atomic_weight': atomic_weight
+                        }
+                        total_intensity += peak_intensity
+
+            except (KeyError, AttributeError) as e:
+                print(f"Could not process element {element}: {e}")
+                continue
+
+        # Calculate atomic percentages (simplified - without k-factors)
+        if total_intensity > 0:
+            for element, data in element_intensities.items():
+                # Simple normalized intensity (not true atomic %)
+                # For accurate results, k-factors would be needed
+                normalized = (data['intensity'] / total_intensity) * 100
+                results.append({
+                    'element': element,
+                    'line': data['line'],
+                    'energy': data['energy'],
+                    'intensity': data['intensity'],
+                    'atomic_percent': normalized,
+                    'atomic_weight': data['atomic_weight']
+                })
+
+        return results
+
+    def _show_quantification_results(self, results):
+        """Display quantification results in a dialog"""
+        dlg = wx.Dialog(self, title="EDX Quantification Results", size=(400, 300))
+        panel = wx.Panel(dlg)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Header
+        header = wx.StaticText(panel, label="Element Composition (Relative %)")
+        header.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        sizer.Add(header, 0, wx.ALL | wx.ALIGN_CENTER, 10)
+
+        # Note about simplified calculation
+        note = wx.StaticText(panel, label="Note: Simplified calculation without k-factors.\nFor accurate results, use instrument-specific k-factors.")
+        note.SetForegroundColour(wx.Colour(100, 100, 100))
+        sizer.Add(note, 0, wx.ALL, 5)
+
+        # Results list
+        list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_HRULES)
+        list_ctrl.InsertColumn(0, "Element", width=80)
+        list_ctrl.InsertColumn(1, "Line", width=60)
+        list_ctrl.InsertColumn(2, "Energy (keV)", width=100)
+        list_ctrl.InsertColumn(3, "Rel. At.%", width=80)
+
+        for i, res in enumerate(results):
+            list_ctrl.InsertItem(i, res['element'])
+            list_ctrl.SetItem(i, 1, res['line'])
+            list_ctrl.SetItem(i, 2, f"{res['energy']:.2f}")
+            list_ctrl.SetItem(i, 3, f"{res['atomic_percent']:.2f}")
+
+        sizer.Add(list_ctrl, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Close button
+        close_btn = wx.Button(panel, wx.ID_OK, "Close")
+        sizer.Add(close_btn, 0, wx.ALL | wx.ALIGN_CENTER, 10)
+
+        panel.SetSizer(sizer)
+        dlg.ShowModal()
+        dlg.Destroy()
+
+    def _add_results_to_grid(self, results):
+        """Add quantification results to the peak fitting grid"""
+        if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        grid = self.parent.peak_params_grid
+
+        # Clear existing grid
+        if grid.GetNumberRows() > 0:
+            grid.DeleteRows(0, grid.GetNumberRows())
+
+        # Add results
+        for i, res in enumerate(results):
+            grid.AppendRows(2)  # Data row + constraint row
+            row = i * 2
+
+            # Format line name with Greek letters
+            line_type = res['line']
+            line_type = line_type.replace('Ka', 'Kα').replace('Kb', 'Kβ')
+            line_type = line_type.replace('La', 'Lα').replace('Lb', 'Lβ')
+            line_type = line_type.replace('Ma', 'Mα').replace('Mb', 'Mβ')
+
+            # Peak label
+            label = f"{res['element']} {line_type}"
+            grid.SetCellValue(row, 1, label)
+
+            # Position (energy)
+            grid.SetCellValue(row, 2, f"{res['energy']:.2f}")
+
+            # Intensity
+            grid.SetCellValue(row, 3, f"{res['intensity']:.2f}")
+
+            # Atomic percent in a relevant column (using column 6 for Area or similar)
+            grid.SetCellValue(row, 6, f"{res['atomic_percent']:.2f}")
+
+        self.parent.canvas.draw()
+
+    def _populate_edx_grid(self, energy, spectrum, title="EDX"):
+        """Calculate quantification and populate peak fitting grid"""
+        if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        # Always detect elements fresh from the current spectrum
+        elements = self._detect_elements_from_spectrum(energy, spectrum)
+
+        # If no elements detected, try using selected elements
+        if not elements and self.selected_elements:
+            elements = self.selected_elements
+
+        if not elements:
+            # Clear grid if no elements
+            grid = self.parent.peak_params_grid
+            if grid.GetNumberRows() > 0:
+                grid.DeleteRows(0, grid.GetNumberRows())
+            grid.ForceRefresh()
+            return
+
+        # Calculate quantification results
+        results = self._calculate_quantification(energy, spectrum, elements)
+
+        if not results:
+            # Clear grid if no results
+            grid = self.parent.peak_params_grid
+            if grid.GetNumberRows() > 0:
+                grid.DeleteRows(0, grid.GetNumberRows())
+            grid.ForceRefresh()
+            return
+
+        # Populate grid
+        self._update_peak_params_grid(results, title)
+
+    def _detect_elements_from_spectrum(self, energy, spectrum):
+        """Auto-detect elements from spectrum peaks"""
+        try:
+            from exspy.utils.eds import get_xray_lines_near_energy
+            from scipy.signal import find_peaks
+
+            detected_elements = []
+            detected_energies = {}
+
+            # Find peaks in spectrum
+            threshold = np.max(spectrum) * 0.03  # 3% threshold
+            peaks, properties = find_peaks(spectrum, height=threshold, distance=10, prominence=threshold * 0.5)
+
+            for peak_idx in peaks:
+                if peak_idx >= len(energy):
+                    continue
+                peak_energy = energy[peak_idx]
+                peak_height = spectrum[peak_idx]
+
+                try:
+                    lines_list = get_xray_lines_near_energy(peak_energy, width=0.12)
+                    if lines_list:
+                        # Get the first (best) match
+                        line_str = lines_list[0]
+                        parts = line_str.split('_')
+                        if len(parts) == 2:
+                            element = parts[0]
+                            # Only add if not already detected or if this peak is stronger
+                            if element not in detected_elements:
+                                detected_elements.append(element)
+                                detected_energies[element] = (peak_energy, peak_height)
+                            elif peak_height > detected_energies[element][1]:
+                                detected_energies[element] = (peak_energy, peak_height)
+                except Exception:
+                    continue
+
+            # Limit to top 15 elements by peak height
+            if len(detected_elements) > 15:
+                sorted_elements = sorted(detected_elements,
+                                         key=lambda e: detected_energies.get(e, (0, 0))[1],
+                                         reverse=True)
+                detected_elements = sorted_elements[:15]
+
+            return detected_elements
+
+        except Exception as e:
+            print(f"Element detection error: {e}")
+            return []
+
+    def _calculate_quantification(self, energy, spectrum, elements):
+        """Calculate quantification with peak fitting parameters"""
+        try:
+            from exspy.material import elements as exspy_elements
+
+            results = []
+            total_intensity = 0
+
+            for element in elements:
+                try:
+                    elem_obj = exspy_elements[element]
+                    if not hasattr(elem_obj, 'Atomic_properties'):
+                        continue
+                    if not hasattr(elem_obj.Atomic_properties, 'Xray_lines'):
+                        continue
+
+                    xray_lines = elem_obj.Atomic_properties.Xray_lines
+
+                    # Find the strongest line (Ka preferred, then La, Ma)
+                    best_line = None
+                    best_energy_val = None
+                    for line_type in ['Ka', 'La', 'Ma']:
+                        if line_type in xray_lines:
+                            best_line = line_type
+                            best_energy_val = xray_lines[line_type].energy_keV
+                            break
+
+                    if best_energy_val is None:
+                        continue
+
+                    # Find peak in spectrum near this energy
+                    idx = np.argmin(np.abs(energy - best_energy_val))
+
+                    # Define integration window (±0.15 keV typical for EDX)
+                    energy_window = 0.15  # keV
+                    mask = (energy >= best_energy_val - energy_window) & (energy <= best_energy_val + energy_window)
+
+                    if not np.any(mask):
+                        continue
+
+                    # Extract peak region
+                    peak_energy = energy[mask]
+                    peak_spectrum = spectrum[mask]
+
+                    if len(peak_spectrum) == 0:
+                        continue
+
+                    # Calculate peak parameters
+                    peak_height = float(np.max(peak_spectrum))
+
+                    # Estimate background as minimum in the window
+                    background = float(np.min(peak_spectrum))
+
+                    # Net peak height
+                    net_height = peak_height - background
+
+                    # Estimate FWHM from the peak shape
+                    half_max = background + net_height / 2
+                    above_half = peak_spectrum >= half_max
+                    if np.any(above_half):
+                        indices = np.where(above_half)[0]
+                        if len(indices) > 1:
+                            fwhm_kev = peak_energy[indices[-1]] - peak_energy[indices[0]]
+                        else:
+                            fwhm_kev = 0.1  # Default 100 eV
+                    else:
+                        fwhm_kev = 0.1
+
+                    # Calculate area using Gaussian approximation: Area ≈ Height × FWHM × 1.064
+                    # This is more accurate than trapezoid integration for peaks
+                    peak_area = net_height * (fwhm_kev * 1000) * 1.064  # Convert FWHM to eV for area calc
+
+                    # Get atomic weight
+                    atomic_weight = elem_obj.General_properties.atomic_weight
+
+                    results.append({
+                        'element': element,
+                        'line': best_line,
+                        'energy': best_energy_val,
+                        'height': net_height,
+                        'area': peak_area,
+                        'fwhm': fwhm_kev * 1000,  # Store in eV
+                        'atomic_weight': atomic_weight
+                    })
+                    total_intensity += peak_area
+
+                except (KeyError, AttributeError) as e:
+                    print(f"Could not process element {element}: {e}")
+                    continue
+
+            # Calculate atomic percentages
+            if total_intensity > 0:
+                for res in results:
+                    res['concentration'] = (res['area'] / total_intensity) * 100
+
+            return results
+
+        except Exception as e:
+            print(f"Quantification error: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def _update_peak_params_grid(self, results, title="EDX"):
+        """Update peak fitting grid with EDX results"""
+        if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        grid = self.parent.peak_params_grid
+
+        # Clear existing grid completely
+        if grid.GetNumberRows() > 0:
+            grid.DeleteRows(0, grid.GetNumberRows())
+
+        # Add results
+        for i, res in enumerate(results):
+            grid.AppendRows(2)  # Data row + constraint row
+            row = i * 2
+            constraint_row = row + 1
+
+            # Format line name with Greek letters
+            line_type = res['line']
+            line_display = line_type.replace('Ka', 'Kα').replace('Kb', 'Kβ')
+            line_display = line_display.replace('La', 'Lα').replace('Lb', 'Lβ')
+            line_display = line_display.replace('Ma', 'Mα').replace('Mb', 'Mβ')
+
+            # Column 0: ID (letter)
+            letter_id = chr(65 + i)  # A, B, C, ...
+            grid.SetCellValue(row, 0, letter_id)
+
+            # Column 1: Peak label
+            label = f"{res['element']} {line_display}"
+            grid.SetCellValue(row, 1, label)
+
+            # Column 2: Position (energy in keV displayed as eV * 1000)
+            grid.SetCellValue(row, 2, f"{res['energy'] * 1000:.2f}")
+            grid.SetCellValue(constraint_row, 2, "fixed")
+
+            # Column 3: Height
+            grid.SetCellValue(row, 3, f"{res['height']:.2f}")
+            grid.SetCellValue(constraint_row, 3, "fixed")
+
+            # Column 4: FWHM (in eV)
+            grid.SetCellValue(row, 4, f"{res['fwhm']:.2f}")
+            grid.SetCellValue(constraint_row, 4, "fixed")
+
+            # Column 6: Area
+            grid.SetCellValue(row, 6, f"{res['area']:.2f}")
+            grid.SetCellValue(constraint_row, 6, "fixed")
+
+            # Column 10: Concentration (%)
+            grid.SetCellValue(row, 10, f"{res.get('concentration', 0):.2f}")
+
+            # Apply formatting - Data row (white background, read-only)
+            for col in range(grid.GetNumberCols()):
+                grid.SetCellBackgroundColour(row, col, wx.WHITE)
+                grid.SetReadOnly(row, col, True)
+
+            # Constraint row - light green background, read-only
+            for col in range(grid.GetNumberCols()):
+                grid.SetCellBackgroundColour(constraint_row, col, wx.Colour(200, 245, 228))
+                grid.SetReadOnly(constraint_row, col, True)
+
+        grid.ForceRefresh()
 
     def on_change_colormap(self, cmap):
         """Change colormap and replot"""
@@ -2418,6 +3323,7 @@ class RotatableRectangle:
         self.cid_press = ax.figure.canvas.mpl_connect('button_press_event', self.on_press)
         self.cid_release = ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
         self.cid_motion = ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.cid_scroll = ax.figure.canvas.mpl_connect('scroll_event', self.on_scroll)
 
     def start_selection(self, event):
         """Start creating a new rectangle"""
@@ -2476,7 +3382,7 @@ class RotatableRectangle:
         from matplotlib.transforms import Affine2D
 
         rect = Rectangle((-self.width / 2, -self.height / 2), self.width, self.height,
-                         linewidth=2, edgecolor='white', facecolor='red', alpha=0.3)
+                         linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
 
         t = Affine2D().rotate_deg(self.angle).translate(*self.center) + self.ax.transData
         rect.set_transform(t)
@@ -2490,8 +3396,8 @@ class RotatableRectangle:
         handle_x = self.center[0] + handle_dist * np.sin(angle_rad)
         handle_y = self.center[1] + handle_dist * np.cos(angle_rad)
 
-        self.rotation_handle = self.ax.plot(handle_x, handle_y, 'wo', markersize=10,
-                                            markeredgecolor='red', markeredgewidth=2)[0]
+        self.rotation_handle = self.ax.plot(handle_x, handle_y, 'go', markersize=10,
+                                            markeredgecolor='darkgreen', markeredgewidth=2)[0]
         self.rotation_handle._is_selection_marker = True
 
         # Show angle text when rotating
@@ -2499,14 +3405,14 @@ class RotatableRectangle:
             self.angle_text = self.ax.text(handle_x, handle_y + 5, f'{self.angle:.1f}°',
                                            fontsize=9, color='white', fontweight='bold',
                                            ha='center', va='bottom',
-                                           bbox=dict(boxstyle='round,pad=0.2', facecolor='red', alpha=0.7))
+                                           bbox=dict(boxstyle='round,pad=0.2', facecolor='green', alpha=0.7))
             self.angle_text._is_selection_marker = True
 
         # Resize handles at corners
         corners = self.get_corners()
         for corner in corners:
-            handle = self.ax.plot(corner[0], corner[1], 'ws', markersize=8,
-                                  markeredgecolor='black', markeredgewidth=1)[0]
+            handle = self.ax.plot(corner[0], corner[1], 'gs', markersize=8,
+                                  markeredgecolor='darkgreen', markeredgewidth=1)[0]
             handle._is_selection_marker = True
             self.resize_handles.append(handle)
 
@@ -2535,38 +3441,76 @@ class RotatableRectangle:
 
         return corners
 
+    def on_scroll(self, event):
+        """Handle mouse scroll to rotate rectangle"""
+        if not self.active or event.inaxes != self.ax:
+            return
+
+        # Check if mouse is near the rectangle
+        if self.center is None:
+            return
+
+        # Rotate by 5 degrees per scroll step
+        if event.button == 'up':
+            self.angle += 5
+        elif event.button == 'down':
+            self.angle -= 5
+
+        # Normalize angle to -180 to 180
+        self.angle = ((self.angle + 180) % 360) - 180
+
+        self.draw_rectangle()
+
+        # Trigger callback
+        if self.callback:
+            self.callback(self.center, self.width, self.height, self.angle)
+
     def on_press(self, event):
         """Handle mouse press"""
         if not self.active or event.inaxes != self.ax or event.button != 1:
             return
 
-        # Store current limits at start of any interaction
+        # Store current limits
         if self._stored_xlim is None:
             self._stored_xlim = self.ax.get_xlim()
             self._stored_ylim = self.ax.get_ylim()
 
-        # Check rotation handle first
+        # Check rotation handle first (highest priority)
         if self.rotation_handle:
             handle_data = self.rotation_handle.get_data()
             dist = np.sqrt((event.xdata - handle_data[0][0]) ** 2 + (event.ydata - handle_data[1][0]) ** 2)
-            if dist < 12:
+            if dist < 8:
                 self.rotating = True
                 self.drag_start = (event.xdata, event.ydata)
                 return
 
-        # Check resize handles
+        # Check resize handles - but only if very close (within 5 pixels)
+        closest_handle_dist = float('inf')
+        closest_handle_idx = None
         for i, handle in enumerate(self.resize_handles):
             handle_data = handle.get_data()
             dist = np.sqrt((event.xdata - handle_data[0][0]) ** 2 + (event.ydata - handle_data[1][0]) ** 2)
-            if dist < 10:
-                self.resizing = True
-                self.resize_corner = i
-                self.drag_start = (event.xdata, event.ydata)
-                return
+            if dist < closest_handle_dist:
+                closest_handle_dist = dist
+                closest_handle_idx = i
 
-        # Check if inside rectangle for dragging
+        # Only resize if very close to handle (< 5 pixels)
+        if closest_handle_dist < 5:
+            self.resizing = True
+            self.resize_corner = closest_handle_idx
+            self.drag_start = (event.xdata, event.ydata)
+            return
+
+        # Check if inside rectangle for dragging (most common operation)
         if self.point_in_rectangle(event.xdata, event.ydata):
             self.dragging = True
+            self.drag_start = (event.xdata, event.ydata)
+            return
+
+        # If not inside but close to resize handle (< 10 pixels), allow resize
+        if closest_handle_dist < 10:
+            self.resizing = True
+            self.resize_corner = closest_handle_idx
             self.drag_start = (event.xdata, event.ydata)
 
     def on_release(self, event):
@@ -2695,6 +3639,7 @@ class RotatableRectangle:
             self.ax.figure.canvas.mpl_disconnect(self.cid_press)
             self.ax.figure.canvas.mpl_disconnect(self.cid_release)
             self.ax.figure.canvas.mpl_disconnect(self.cid_motion)
+            self.ax.figure.canvas.mpl_disconnect(self.cid_scroll)
         except (ValueError, AttributeError):
             pass
 
