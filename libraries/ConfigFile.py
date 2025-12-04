@@ -22,8 +22,6 @@ def Init_Measurement_Data(window):
     return Data
 
 
-
-
 def add_core_level_Data(Data, window, file_path, sheet_name):
     """
     Add core level data from Excel sheet to Data structure, including experimental info
@@ -35,6 +33,79 @@ def add_core_level_Data(Data, window, file_path, sheet_name):
     try:
         # Read the Excel file
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+
+        # ========== Handle EDX~Plot sheets ==========
+        if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+            be_values = []
+            raw_data = []
+
+            for index, row in df.iterrows():
+                if index == 0:
+                    continue
+
+                be_val = row.iloc[0]
+                raw_val = row.iloc[1]
+
+                if pd.isna(be_val) or pd.isna(raw_val):
+                    continue
+
+                try:
+                    be_values.append(float(be_val))
+                    raw_data.append(float(raw_val))
+                except (ValueError, TypeError):
+                    continue
+
+            core_level = {
+                'Name': sheet_name,
+                'B.E.': be_values,
+                'Raw Data': raw_data,
+                '_EDX_display_max': 20,
+                '_EDX_type': 'plot',
+                'Background': {}
+            }
+
+            Data['Core levels'][sheet_name] = core_level
+            return Data
+
+        # ========== Handle EDX~Map sheets ==========
+        if sheet_name == 'EDX~Map':
+            map_data = []
+            energy_range = None
+
+            for index, row in df.iterrows():
+                if index == 0:
+                    header_text = str(row.iloc[0])
+                    if 'Range:' in header_text:
+                        energy_range = header_text.split('Range:')[1].strip()
+                    continue
+                if index == 1:
+                    continue
+
+                row_data = []
+                for val in row:
+                    if pd.isna(val):
+                        break
+                    try:
+                        row_data.append(float(val))
+                    except (ValueError, TypeError):
+                        break
+
+                if row_data:
+                    map_data.append(row_data)
+
+            if map_data:
+                map_array = np.array(map_data)
+
+                core_level = {
+                    'Name': sheet_name,
+                    'Map_Intensity': map_array.tolist(),
+                    'Map_Shape': list(map_array.shape),
+                    'Energy_Range': energy_range if energy_range else 'N/A',
+                    '_EDX_type': 'map'
+                }
+
+                Data['Core levels'][sheet_name] = core_level
+                return Data
 
         # Extract B.E. and Raw Data columns
         be_values = []

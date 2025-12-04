@@ -677,8 +677,14 @@ class EDXSEMWindow(wx.Frame):
         menu.Destroy()
 
     def on_save_edx_plot(self, event):
-        """Save current EDX plot to a numbered sheet"""
+        """Save current EDX plot to a numbered sheet in Excel and window.Data"""
         if self.parent is None:
+            return
+
+        # Check if Excel file exists
+        if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+            wx.MessageBox("No Excel file found. Please ensure the EDX data was imported correctly.",
+                          "No File", wx.OK | wx.ICON_WARNING)
             return
 
         # Find next available EDX~Plot number
@@ -710,15 +716,19 @@ class EDXSEMWindow(wx.Frame):
         # Get grid data
         grid_data = self._get_grid_data()
 
-        # Create sheet data
+        # Create sheet data - USE SAME STRUCTURE AS XPS SHEETS
         import datetime
+        import json
         sheet_data = {
-            'Energy_keV': list(energy),
-            'Intensity': list(intensity),
+            'Name': sheet_name,
+            'B.E.': list(energy),
+            'Raw Data': list(intensity),
             '_EDX_display_max': 20,
+            '_EDX_type': 'plot',
             '_EDX_selection': selection_info,
             '_EDX_grid_data': grid_data,
             '_EDX_save_time': datetime.datetime.now().isoformat(),
+            'Background': {}
         }
 
         # Save to parent Data
@@ -732,7 +742,57 @@ class EDXSEMWindow(wx.Frame):
                               for i in range(self.parent.sheet_combobox.GetCount())]:
             self.parent.sheet_combobox.Append(sheet_name)
 
-        wx.MessageBox(f"EDX plot saved as '{sheet_name}'", "Saved", wx.OK | wx.ICON_INFORMATION)
+        # ========== Save to Excel file ==========
+        try:
+            import pandas as pd
+            import openpyxl
+
+            file_path = self.parent.Data['FilePath']
+
+            # Create DataFrame for this plot
+            edx_df = pd.DataFrame({
+                'Energy (keV)': [f"{v:.2f}" for v in energy],
+                'Intensity': [f"{v:.2f}" for v in intensity]
+            })
+
+            # Append to Excel file
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                edx_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+            print(f"Saved {sheet_name} to Excel: {file_path}")
+
+            # Also update JSON
+            json_path = file_path.replace('.xlsx', '.json')
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    json_data = json.load(f)
+
+                if 'Core levels' not in json_data:
+                    json_data['Core levels'] = {}
+
+                json_data['Core levels'][sheet_name] = {
+                    'Name': sheet_name,
+                    'B.E.': [float(f"{v:.2f}") for v in energy],
+                    'Raw Data': [float(f"{v:.2f}") for v in intensity],
+                    '_EDX_display_max': 20,
+                    '_EDX_type': 'plot',
+                    '_EDX_selection': selection_info,
+                    '_EDX_save_time': datetime.datetime.now().isoformat()
+                }
+
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=2)
+
+                print(f"Updated JSON: {json_path}")
+
+            wx.MessageBox(f"EDX plot saved as '{sheet_name}'\n\nSaved to Excel and JSON files.",
+                          "Saved", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Saved to memory but error saving to Excel:\n{str(e)}\n\nUse 'Save' from toolbar to save all data.",
+                          "Partial Save", wx.OK | wx.ICON_WARNING)
+            import traceback
+            traceback.print_exc()
 
     def _get_current_selection_info(self):
         """Get information about current selection"""
@@ -1431,18 +1491,48 @@ class EDXSEMWindow(wx.Frame):
                     self.create_edx_map_output(file_path)
 
     def create_edx_map_output(self, file_path):
-        """Create Excel file and add EDX map data to parent window.data"""
+        """Create JSON and HDF5 files, and add EDX map data to parent window.Data"""
         import openpyxl
         from openpyxl.drawing.image import Image as OpenpyxlImage
         from io import BytesIO
+        import shutil
+        import json
 
         try:
+            # ========== Initialize parent Data structure if needed ==========
+            if self.parent is not None:
+                if not hasattr(self.parent, 'Data'):
+                    from libraries.ConfigFile import Init_Measurement_Data
+                    self.parent.Data = Init_Measurement_Data(self.parent)
+
+                if 'Core levels' not in self.parent.Data:
+                    self.parent.Data['Core levels'] = {}
+
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             excel_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.xlsx")
+            json_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.json")
+            hdf5_copy_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.hdf5")
+
+            # Set FilePath EARLY so it's available for other operations
+            if self.parent is not None and hasattr(self.parent, 'Data'):
+                self.parent.Data['FilePath'] = excel_path
+
+                # Update current_file_path
+                if hasattr(self.parent, 'current_file_path'):
+                    self.parent.current_file_path = excel_path
+
+                # Update Working_directory
+                if hasattr(self.parent, 'Working_directory'):
+                    self.parent.Working_directory = os.path.dirname(excel_path)
+
+            # Copy original HDF5 file
+            if file_path.lower().endswith(('.hdf5', '.h5')):
+                shutil.copy2(file_path, hdf5_copy_path)
+                print(f"HDF5 copy saved to: {hdf5_copy_path}")
 
             # Create workbook
             wb = openpyxl.Workbook()
-            wb.remove(wb.active)  # Remove default sheet
+            wb.remove(wb.active)
 
             # Get energy range
             energy_axis = self.get_energy_axis()
@@ -1453,7 +1543,7 @@ class EDXSEMWindow(wx.Frame):
             else:
                 energy_range = "N/A"
 
-            # Create sum spectrum and add to Excel and window.data
+            # Create sum spectrum
             sum_signal = self.current_data.sum()
             spectrum_data = sum_signal.data
 
@@ -1467,23 +1557,10 @@ class EDXSEMWindow(wx.Frame):
                 else:
                     ws_plot.append([f"{i:.2f}", f"{intensity:.2f}"])
 
-            # Add sum plot data to parent window.data if available
-            if self.parent is not None and hasattr(self.parent, 'data'):
-                sheet_name = "EDX~Plot"
-                if sheet_name not in self.parent.data:
-                    self.parent.data[sheet_name] = {}
-
-                self.parent.data[sheet_name]['Energy_keV'] = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
-                self.parent.data[sheet_name]['Intensity'] = spectrum_data
-                self.parent.data[sheet_name]['Range_keV'] = energy_range
-
-            # EDX~Map sheet - Get first element map or sum image
+            # EDX~Map sheet
             ws_map = wb.create_sheet("EDX~Map")
+            map_data = np.sum(self.current_data.data, axis=2)
 
-            # Create sum map image
-            map_data = np.sum(self.current_data.data, axis=2)  # Sum along energy axis
-
-            # Save map data matrix
             ws_map.append([f'EDX Intensity Map - Range: {energy_range}'])
             ws_map.append([''] * (map_data.shape[1] + 1))
 
@@ -1497,30 +1574,93 @@ class EDXSEMWindow(wx.Frame):
             plt.colorbar(im, ax=ax)
             ax.axis('off')
 
-            # Save to BytesIO for Excel
             img_buffer = BytesIO()
             fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
             img_buffer.seek(0)
             plt.close(fig)
 
-            # Add image to Excel
             img = OpenpyxlImage(img_buffer)
             ws_map.add_image(img, f'A{map_data.shape[0] + 5}')
-
-            # Add map data to parent window.data
-            if self.parent is not None and hasattr(self.parent, 'data'):
-                sheet_name = "EDX~Map"
-                if sheet_name not in self.parent.data:
-                    self.parent.data[sheet_name] = {}
-
-                self.parent.data[sheet_name]['Map_Intensity'] = map_data
-                self.parent.data[sheet_name]['Range_keV'] = energy_range
 
             # Save Excel file
             wb.save(excel_path)
             print(f"EDX data exported to: {excel_path}")
 
-            wx.MessageBox(f"EDX data exported to:\n{excel_path}",
+            # ========== Add to parent window.Data['Core levels'] ==========
+            if self.parent is not None and hasattr(self.parent, 'Data'):
+                if 'Core levels' not in self.parent.Data:
+                    self.parent.Data['Core levels'] = {}
+
+                energy_values = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
+
+                # Add EDX~Plot
+                self.parent.Data['Core levels']['EDX~Plot'] = {
+                    'Name': 'EDX~Plot',
+                    'B.E.': list(energy_values),
+                    'Raw Data': list(spectrum_data),
+                    '_EDX_display_max': 20,
+                    '_EDX_type': 'plot',
+                    'Background': {}
+                }
+
+                # Add EDX~Map
+                self.parent.Data['Core levels']['EDX~Map'] = {
+                    'Name': 'EDX~Map',
+                    'Map_Intensity': map_data.tolist(),
+                    'Map_Shape': list(map_data.shape),
+                    'Energy_Range': energy_range,
+                    '_EDX_type': 'map',
+                    '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path
+                }
+
+                # FilePath was already set at the beginning, now update UI
+                # Update status bar
+                if hasattr(self.parent, 'SetStatusText'):
+                    self.parent.SetStatusText(f"Working Directory: {os.path.dirname(excel_path)}", 0)
+
+                # Update window title
+                if hasattr(self.parent, 'SetTitle'):
+                    self.parent.SetTitle(f"KherveFitting - {os.path.basename(excel_path)}")
+
+                # Add sheets to combobox
+                for sheet_name in ['EDX~Plot', 'EDX~Map']:
+                    if sheet_name not in [self.parent.sheet_combobox.GetString(i)
+                                          for i in range(self.parent.sheet_combobox.GetCount())]:
+                        self.parent.sheet_combobox.Append(sheet_name)
+
+
+
+            # ========== Create JSON file ==========
+            json_data = {
+                'FilePath': excel_path,
+                'Core levels': {}
+            }
+
+            # Add EDX~Plot to JSON
+            json_data['Core levels']['EDX~Plot'] = {
+                'Name': 'EDX~Plot',
+                'B.E.': [float(f"{v:.2f}") for v in energy_values],
+                'Raw Data': [float(f"{v:.2f}") for v in spectrum_data],
+                '_EDX_display_max': 20,
+                '_EDX_type': 'plot'
+            }
+
+            # Add EDX~Map to JSON
+            json_data['Core levels']['EDX~Map'] = {
+                'Name': 'EDX~Map',
+                'Map_Intensity': [[float(f"{val:.2f}") for val in row] for row in map_data],
+                'Map_Shape': list(map_data.shape),
+                'Energy_Range': energy_range,
+                '_EDX_type': 'map',
+                '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path
+            }
+
+            with open(json_path, 'w') as jf:
+                json.dump(json_data, jf, indent=2)
+            print(f"JSON data saved to: {json_path}")
+
+            wx.MessageBox(f"EDX data exported to:\n{excel_path}\n\nJSON: {json_path}\n" +
+                          (f"HDF5: {hdf5_copy_path}" if os.path.exists(hdf5_copy_path) else ""),
                           "Export Complete", wx.OK | wx.ICON_INFORMATION)
 
         except Exception as e:

@@ -500,101 +500,115 @@ def plot_edx_data(window, sheet_name):
 
         # Handle EDX~Plot and EDX~Plot1, EDX~Plot2, etc.
         if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
-            # Plot EDX spectrum
-            if 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
+            # Plot EDX spectrum - support both old and new key names
+            if 'B.E.' in sheet_data and 'Raw Data' in sheet_data:
+                energy = np.array(sheet_data['B.E.'])
+                intensity = np.array(sheet_data['Raw Data'])
+            elif 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
+                # OLD FORMAT - still support it
                 energy = np.array(sheet_data['Energy_keV'])
                 intensity = np.array(sheet_data['Intensity'])
+            else:
+                print(f"ERROR: {sheet_name} missing required data keys")
+                return False
 
-                # Clear and plot
-                window.ax.clear()
-                window.ax.plot(energy, intensity, 'k-', linewidth=0.8)
-                window.ax.set_xlabel('Energy (keV)')
-                window.ax.set_ylabel('Counts')
+            # ALL THE CODE BELOW STAYS THE SAME (moved outside the if/elif)
+            # Clear and plot
+            window.ax.clear()
+            window.ax.plot(energy, intensity, 'k-', linewidth=0.8)
+            window.ax.set_xlabel('Energy (keV)')
+            window.ax.set_ylabel('Counts')
 
-                # Set title based on selection info if available
-                selection_info = sheet_data.get('_EDX_selection')
-                if selection_info:
-                    sel_type = selection_info.get('type', 'unknown')
-                    if sel_type == 'point':
-                        x, y = selection_info.get('x', 0), selection_info.get('y', 0)
-                        size = selection_info.get('size', 1)
-                        if size == 1:
-                            window.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
-                        else:
-                            window.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
-                    elif sel_type == 'line':
-                        window.ax.set_title('EDX Spectrum - Line Profile')
-                    elif sel_type == 'rectangle':
-                        angle = selection_info.get('angle', 0)
-                        window.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
-                    elif sel_type == 'area':
-                        window.ax.set_title('EDX Spectrum - Area')
+            # Set title based on selection info if available
+            selection_info = sheet_data.get('_EDX_selection')
+            if selection_info:
+                sel_type = selection_info.get('type', 'unknown')
+                if sel_type == 'point':
+                    x, y = selection_info.get('x', 0), selection_info.get('y', 0)
+                    size = selection_info.get('size', 1)
+                    if size == 1:
+                        window.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
                     else:
-                        window.ax.set_title(f'EDX Spectrum ({sel_type})')
+                        window.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+                elif sel_type == 'line':
+                    window.ax.set_title('EDX Spectrum - Line Profile')
+                elif sel_type == 'rectangle':
+                    angle = selection_info.get('angle', 0)
+                    window.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
+                elif sel_type == 'area':
+                    window.ax.set_title('EDX Spectrum - Area')
                 else:
-                    window.ax.set_title('EDX Sum Spectrum')
+                    window.ax.set_title(f'EDX Spectrum ({sel_type})')
+            else:
+                window.ax.set_title('EDX Sum Spectrum')
 
-                # Set Y-axis to scientific format
-                window.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+            # Set Y-axis to scientific format
+            window.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
 
-                # Set data range for zoom
+            # Set data range for zoom and store in window for later use
+            if sheet_name in window.Data['Core levels']:
                 window.Data['Core levels'][sheet_name]['_EDX_min'] = np.min(energy)
                 window.Data['Core levels'][sheet_name]['_EDX_max'] = np.max(energy)
 
-                # Set initial display range
-                display_x_max = sheet_data.get('_EDX_display_max', 20)
-                window.ax.set_xlim(0, display_x_max)
-                window.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
+            # Store as window attributes for plotting
+            window.x_values = energy
+            window.y_values = intensity
 
-                # Add peak labels if HDF5 file exists
-                if hasattr(window, 'current_file_path') and window.current_file_path:
-                    hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.hdf5')
-                    if not os.path.exists(hdf5_path):
-                        hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.h5')
+            # Set initial display range
+            display_x_max = sheet_data.get('_EDX_display_max', 20)
+            window.ax.set_xlim(0, display_x_max)
+            window.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
 
-                    if os.path.exists(hdf5_path):
-                        try:
-                            readers = ['HSPY', 'USID', 'Delmic']
-                            loaded_data = None
-                            for reader in readers:
-                                try:
-                                    loaded_data = hs.load(hdf5_path, reader=reader)
-                                    break
-                                except:
-                                    continue
+            # Add peak labels if HDF5 file exists
+            if hasattr(window, 'current_file_path') and window.current_file_path:
+                hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.hdf5')
+                if not os.path.exists(hdf5_path):
+                    hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.h5')
 
-                            if loaded_data:
-                                if isinstance(loaded_data, list):
-                                    loaded_data = loaded_data[0]
-
-                                from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
-                                temp_edx = EDXSEMWindow(window)
-                                temp_edx.current_data = loaded_data
-                                temp_edx.add_peak_labels(window.ax, energy, intensity)
-                                temp_edx.Destroy()
-                        except Exception as e:
-                            print(f"Could not add EDX labels: {e}")
-
-                window.canvas.draw()
-
-                # Draw saved selection on EDX map window if open
-                if hasattr(window, 'edx_window') and window.edx_window:
+                if os.path.exists(hdf5_path):
                     try:
-                        if not window.edx_window.IsBeingDeleted():
-                            # Clear any previous saved selection
-                            window.edx_window._clear_saved_selection()
-                            # Draw the selection for this plot if available
-                            if selection_info:
-                                window.edx_window.draw_saved_selection(selection_info)
-                    except:
-                        pass
+                        readers = ['HSPY', 'USID', 'Delmic']
+                        loaded_data = None
+                        for reader in readers:
+                            try:
+                                loaded_data = hs.load(hdf5_path, reader=reader)
+                                break
+                            except:
+                                continue
 
-                # Restore grid data if available
-                grid_data = sheet_data.get('_EDX_grid_data')
-                if grid_data and hasattr(window, 'peak_params_grid'):
-                    _restore_grid_data(window, grid_data)
+                        if loaded_data:
+                            if isinstance(loaded_data, list):
+                                loaded_data = loaded_data[0]
 
-                return True
+                            from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
+                            temp_edx = EDXSEMWindow(window)
+                            temp_edx.current_data = loaded_data
+                            temp_edx.add_peak_labels(window.ax, energy, intensity)
+                            temp_edx.Destroy()
+                    except Exception as e:
+                        print(f"Could not add EDX labels: {e}")
+
+            window.canvas.draw()
+
+            # Draw saved selection on EDX map window if open
+            if hasattr(window, 'edx_window') and window.edx_window:
+                try:
+                    if not window.edx_window.IsBeingDeleted():
+                        # Clear any previous saved selection
+                        window.edx_window._clear_saved_selection()
+                        # Draw the selection for this plot if available
+                        if selection_info:
+                            window.edx_window.draw_saved_selection(selection_info)
+                            window.edx_window.map_canvas.draw_idle()
+                except Exception as e:
+                    print(f"Could not draw saved selection: {e}")
+
+            # Restore grid data if available
+            grid_data = sheet_data.get('_EDX_grid_data')
+            if grid_data and hasattr(window, 'peak_params_grid'):
+                _restore_grid_data(window, grid_data)
+
+            return True
 
         elif sheet_name == 'EDX~Map':
             # Check if EDX/SEM window is already open

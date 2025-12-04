@@ -666,38 +666,6 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
             return obj[key]
         return default
 
-    # # Handle zzProfile sheets differently - just replace them completely
-    # if sheet_name.startswith('zzProfile'):
-    #     if update_console:
-    #         update_console(f"Saving Profile sheet {sheet_name} (complete replacement)...")
-    #
-    #     # Get profile data from window.Data
-    #     if sheet_name in window.Data['Core levels']:
-    #         profile_info = window.Data['Core levels'][sheet_name]
-    #         if 'Profile Data' in profile_info:
-    #             profile_df = pd.DataFrame(profile_info['Profile Data'])
-    #
-    #             # # Format all numeric columns to .2f
-    #             # for col in profile_df.columns:
-    #             #     if col != 'Number':
-    #             #         try:
-    #             #             profile_df[col] = profile_df[col].apply(lambda x: f"{float(x):.2f}" if pd.notna(x) else x)
-    #             #         except:
-    #             #             pass
-    #
-    #             # Save to Excel
-    #             with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-    #                 profile_df.to_excel(writer, sheet_name=sheet_name, index=False)
-    #
-    #             if update_console:
-    #                 update_console(f"Profile sheet {sheet_name} saved successfully")
-    #             return
-    #
-    #     # If we get here, something went wrong
-    #     if update_console:
-    #         update_console(f"Warning: Could not find profile data for {sheet_name}")
-    #     return
-
     # Handle zzProfile sheets differently - just replace them completely
     if sheet_name.startswith('zzProfile'):
         if update_console:
@@ -762,6 +730,71 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
         # If we get here, something went wrong
         if update_console:
             update_console(f"Warning: Could not find profile data for {sheet_name}")
+        return
+
+
+    # Handle EDX~Plot sheets
+    if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+        if update_console:
+            update_console(f"Saving EDX Plot sheet {sheet_name}...")
+
+        if sheet_name in window.Data['Core levels']:
+            edx_data = window.Data['Core levels'][sheet_name]
+
+            if 'B.E.' in edx_data and 'Raw Data' in edx_data:
+                energy = edx_data['B.E.']
+                intensity = edx_data['Raw Data']
+
+                edx_df = pd.DataFrame({
+                    'Energy (keV)': [f"{v:.2f}" for v in energy],
+                    'Intensity': [f"{v:.2f}" for v in intensity]
+                })
+
+                with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                    edx_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                if update_console:
+                    update_console(f"EDX Plot sheet {sheet_name} saved successfully")
+                return
+
+        if update_console:
+            update_console(f"Warning: Could not find data for {sheet_name}")
+        return
+
+    # Handle EDX~Map sheets
+    if sheet_name == 'EDX~Map':
+        if update_console:
+            update_console(f"Saving EDX Map sheet {sheet_name}...")
+
+        if sheet_name in window.Data['Core levels']:
+            edx_data = window.Data['Core levels'][sheet_name]
+
+            if 'Map_Intensity' in edx_data:
+                map_data = np.array(edx_data['Map_Intensity'])
+                energy_range = edx_data.get('Energy_Range', 'N/A')
+
+                # Recreate Excel sheet with map data
+                import openpyxl
+                wb = openpyxl.load_workbook(file_path)
+
+                if sheet_name in wb.sheetnames:
+                    del wb[sheet_name]
+
+                ws = wb.create_sheet(sheet_name)
+                ws.append([f'EDX Intensity Map - Range: {energy_range}'])
+                ws.append([''] * (map_data.shape[1] + 1))
+
+                for row in map_data:
+                    ws.append([f"{val:.2f}" for val in row])
+
+                wb.save(file_path)
+
+                if update_console:
+                    update_console(f"EDX Map sheet {sheet_name} saved successfully")
+                return
+
+        if update_console:
+            update_console(f"Warning: Could not find data for {sheet_name}")
         return
 
     # Normal sheet handling (non-profile)

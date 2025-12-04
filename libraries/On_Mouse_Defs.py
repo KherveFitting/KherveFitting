@@ -1858,8 +1858,14 @@ class MouseEventHandler:
         self.window.edit_data_window.Show()
 
     def open_experimental_description(self):
-        """Open the Experimental Description window for the current sheet"""
+        """Open the Experimental Description window or EDX Info for the current sheet"""
         sheet_name = self.window.sheet_combobox.GetValue()
+
+        # Check if this is an EDX plot sheet
+        if sheet_name.startswith('EDX~Plot'):
+            self.show_edx_info(sheet_name)
+            return
+
         from libraries.ViewMenu.FileManager import ExperimentalDescriptionWindow
 
         # Check if window already exists and close it
@@ -1870,9 +1876,127 @@ class MouseEventHandler:
             except:
                 pass
 
-        # Create new window
+        # Create and show the window
         self.window.experimental_description_window = ExperimentalDescriptionWindow(self.window, sheet_name)
         self.window.experimental_description_window.Show()
+
+    def show_edx_info(self, sheet_name):
+        """Show EDX plot information in a dialog"""
+        import wx
+
+        if sheet_name not in self.window.Data.get('Core levels', {}):
+            wx.MessageBox("No data available for this sheet.", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        sheet_data = self.window.Data['Core levels'][sheet_name]
+
+        # Build info text
+        info_lines = []
+        info_lines.append(f"Sheet: {sheet_name}")
+        info_lines.append("=" * 40)
+
+        # Save time
+        save_time = sheet_data.get('_EDX_save_time', 'Unknown')
+        if save_time != 'Unknown':
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(save_time)
+                save_time = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except:
+                pass
+        info_lines.append(f"Saved: {save_time}")
+        info_lines.append("")
+
+        # Selection info
+        selection_info = sheet_data.get('_EDX_selection')
+        if selection_info:
+            sel_type = selection_info.get('type', 'Unknown')
+            info_lines.append(f"Selection Type: {sel_type.capitalize()}")
+            info_lines.append("-" * 30)
+
+            if sel_type == 'point':
+                x = selection_info.get('x', 0)
+                y = selection_info.get('y', 0)
+                size = selection_info.get('size', 1)
+                info_lines.append(f"Location: ({x}, {y})")
+                info_lines.append(f"Size: {size}×{size} pixels")
+
+            elif sel_type == 'line':
+                x1, y1 = selection_info.get('x1', 0), selection_info.get('y1', 0)
+                x2, y2 = selection_info.get('x2', 0), selection_info.get('y2', 0)
+                length = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+                info_lines.append(f"Start: ({x1}, {y1})")
+                info_lines.append(f"End: ({x2}, {y2})")
+                info_lines.append(f"Length: {length:.1f} pixels")
+
+            elif sel_type == 'rectangle':
+                cx = selection_info.get('center_x', 0)
+                cy = selection_info.get('center_y', 0)
+                w = selection_info.get('width', 0)
+                h = selection_info.get('height', 0)
+                angle = selection_info.get('angle', 0)
+                info_lines.append(f"Center: ({cx:.1f}, {cy:.1f})")
+                info_lines.append(f"Size: {w:.1f} × {h:.1f} pixels")
+                info_lines.append(f"Rotation: {angle:.1f}°")
+                info_lines.append(f"Area: {w * h:.1f} pixels²")
+
+            elif sel_type == 'area':
+                x1, y1 = selection_info.get('x1', 0), selection_info.get('y1', 0)
+                x2, y2 = selection_info.get('x2', 0), selection_info.get('y2', 0)
+                w, h = abs(x2 - x1), abs(y2 - y1)
+                info_lines.append(f"Top-Left: ({min(x1, x2)}, {min(y1, y2)})")
+                info_lines.append(f"Bottom-Right: ({max(x1, x2)}, {max(y1, y2)})")
+                info_lines.append(f"Size: {w} × {h} pixels")
+                info_lines.append(f"Area: {w * h} pixels²")
+
+        info_lines.append("")
+
+        # Grid data (quantification)
+        grid_data = sheet_data.get('_EDX_grid_data', [])
+        if grid_data:
+            info_lines.append("Quantification Results:")
+            info_lines.append("-" * 30)
+            info_lines.append(f"{'Element':<12} {'Energy (eV)':<12} {'Height':<10} {'Area':<12} {'Conc.(%)':<10}")
+            info_lines.append("-" * 56)
+
+            for row in grid_data:
+                label = row.get('label', '')
+                position = row.get('position', '')
+                height = row.get('height', '')
+                area = row.get('area', '')
+                conc = row.get('concentration', '')
+                info_lines.append(f"{label:<12} {position:<12} {height:<10} {area:<12} {conc:<10}")
+
+        info_lines.append("")
+
+        # Spectrum info
+        energy = sheet_data.get('Energy_keV', [])
+        intensity = sheet_data.get('Intensity', [])
+        if len(energy) > 0 and len(intensity) > 0:
+            info_lines.append("Spectrum Info:")
+            info_lines.append("-" * 30)
+            info_lines.append(f"Energy Range: {min(energy):.2f} - {max(energy):.2f} keV")
+            info_lines.append(f"Data Points: {len(energy)}")
+            info_lines.append(f"Max Intensity: {max(intensity):.2f}")
+
+        # Create dialog
+        dlg = wx.Dialog(self.window, title=f"EDX Info - {sheet_name}", size=(450, 500))
+        panel = wx.Panel(dlg)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Text control with info
+        text_ctrl = wx.TextCtrl(panel, value="\n".join(info_lines),
+                                style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
+        text_ctrl.SetFont(wx.Font(10, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        sizer.Add(text_ctrl, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Close button
+        close_btn = wx.Button(panel, wx.ID_OK, "Close")
+        sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.ALL, 10)
+
+        panel.SetSizer(sizer)
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def change_profile_linewidth(self, delta):
         """Change linewidth of profile lines"""

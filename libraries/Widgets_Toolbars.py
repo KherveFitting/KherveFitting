@@ -2334,6 +2334,8 @@ def import_edx_map_file(window):
     import hyperspy.api as hs
     import matplotlib.pyplot as plt
     from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+    import shutil
+    import json
 
     wildcard = "HDF5 files (*.hdf5;*.h5)|*.hdf5;*.h5|All files (*.*)|*.*"
 
@@ -2346,6 +2348,14 @@ def import_edx_map_file(window):
         file_path = dlg.GetPath()
 
     try:
+        # Initialize window.Data if needed
+        if not hasattr(window, 'Data'):
+            from libraries.ConfigFile import Init_Measurement_Data
+            window.Data = Init_Measurement_Data(window)
+
+        if 'Core levels' not in window.Data:
+            window.Data['Core levels'] = {}
+
         # Load data with HyperSpy - try different readers automatically
         loaded_data = None
         readers_to_try = ['HSPY', 'USID', 'Delmic']
@@ -2376,10 +2386,26 @@ def import_edx_map_file(window):
                               "Info", wx.OK | wx.ICON_INFORMATION)
                 loaded_data = loaded_data[0]
 
-        # Create Excel file with EDX data
+        # Create file paths
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         excel_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.xlsx")
+        json_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.json")
+        hdf5_copy_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.hdf5")
 
+        # SET FILEPATH EARLY
+        window.Data['FilePath'] = excel_path
+        window.current_file_path = excel_path
+
+        # Update Working_directory
+        if hasattr(window, 'Working_directory'):
+            window.Working_directory = os.path.dirname(excel_path)
+
+        # Copy HDF5 file
+        if file_path.lower().endswith(('.hdf5', '.h5')):
+            shutil.copy2(file_path, hdf5_copy_path)
+            print(f"HDF5 copy saved to: {hdf5_copy_path}")
+
+        # Create workbook
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
 
@@ -2419,7 +2445,6 @@ def import_edx_map_file(window):
             ws_map.append([f"{val:.2f}" for val in row])
 
         # Create map image
-        import matplotlib.pyplot as plt
         fig, ax = plt.subplots(figsize=(map_data.shape[1] / 100, map_data.shape[0] / 100), dpi=100)
         im = ax.imshow(map_data, cmap='plasma')
         ax.set_title(f'EDX Map - {energy_range}')
@@ -2436,29 +2461,65 @@ def import_edx_map_file(window):
 
         # Save Excel
         wb.save(excel_path)
+        print(f"EDX data exported to: {excel_path}")
 
-        # Update window.Data with EDX sheets
-        if not hasattr(window, 'Data'):
-            window.Data = {}
+        # ========== Add to window.Data - USE SAME STRUCTURE AS XPS ==========
+        energy_values = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
 
-        if 'Core levels' not in window.Data:
-            window.Data['Core levels'] = {}
-
-        # Add EDX~Plot sheet
+        # Add EDX~Plot sheet - SAME STRUCTURE AS XPS
         window.Data['Core levels']['EDX~Plot'] = {
-            'Energy_keV': energy_axis if energy_axis is not None else np.arange(len(spectrum_data)),
-            'Intensity': spectrum_data,
-            'Range_keV': energy_range
+            'Name': 'EDX~Plot',
+            'B.E.': list(energy_values),
+            'Raw Data': list(spectrum_data),
+            '_EDX_display_max': 20,
+            '_EDX_type': 'plot',
+            'Background': {}
         }
 
         # Add EDX~Map sheet
         window.Data['Core levels']['EDX~Map'] = {
-            'Map_Intensity': map_data,
-            'Range_keV': energy_range
+            'Name': 'EDX~Map',
+            'Map_Intensity': map_data.tolist(),
+            'Map_Shape': list(map_data.shape),
+            'Energy_Range': energy_range,
+            '_EDX_type': 'map',
+            '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path
         }
 
-        # Update file path
-        window.current_file_path = excel_path
+        # ========== Create JSON file ==========
+        json_data = {
+            'FilePath': excel_path,
+            'Core levels': {}
+        }
+
+        json_data['Core levels']['EDX~Plot'] = {
+            'Name': 'EDX~Plot',
+            'B.E.': [float(f"{v:.2f}") for v in energy_values],
+            'Raw Data': [float(f"{v:.2f}") for v in spectrum_data],
+            '_EDX_display_max': 20,
+            '_EDX_type': 'plot'
+        }
+
+        json_data['Core levels']['EDX~Map'] = {
+            'Name': 'EDX~Map',
+            'Map_Intensity': [[float(f"{val:.2f}") for val in row] for row in map_data],
+            'Map_Shape': list(map_data.shape),
+            'Energy_Range': energy_range,
+            '_EDX_type': 'map',
+            '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path
+        }
+
+        with open(json_path, 'w') as jf:
+            json.dump(json_data, jf, indent=2)
+        print(f"JSON data saved to: {json_path}")
+
+        # Update status bar
+        if hasattr(window, 'SetStatusText'):
+            window.SetStatusText(f"Working Directory: {os.path.dirname(excel_path)}", 0)
+
+        # Update window title
+        if hasattr(window, 'SetTitle'):
+            window.SetTitle(f"KherveFitting - {os.path.basename(excel_path)}")
 
         # Update sheet selector
         window.sheet_combobox.Append('EDX~Plot')
@@ -2472,9 +2533,11 @@ def import_edx_map_file(window):
         # Open EDX/SEM analysis window
         edx_window = open_edx_sem_window(window)
         if edx_window:
+            window.edx_window = edx_window
             edx_window.load_file(file_path, 'EDX Map')
 
-        # wx.MessageBox(f"EDX data imported successfully!\nExcel file created: {excel_path}",
+        # wx.MessageBox(f"EDX data imported successfully!\n\nExcel: {excel_path}\nJSON: {json_path}\n" +
+        #               (f"HDF5: {hdf5_copy_path}" if os.path.exists(hdf5_copy_path) else ""),
         #               "Import Complete", wx.OK | wx.ICON_INFORMATION)
 
     except Exception as e:
