@@ -18,7 +18,7 @@ import hyperspy.api as hs
 class EDXSEMWindow(wx.Frame):
     """Main window for EDX/SEM data analysis"""
 
-    def __init__(self, parent, title="EDX/SEM Analysis"):
+    def __init__(self, parent, title="EDX HeatMap"):
         super().__init__(parent, title=title, size=(590, 700), style = wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
 
 
@@ -3411,13 +3411,12 @@ class EDXSensitivityWindow(wx.Frame):
             # Re-plot with new sensitivity
             current_sheet = self.parent.parent.sheet_combobox.GetValue()
             if current_sheet == 'EDX~Plot':
-                from libraries.Sheet_Operations import plot_edx_data
                 # Make sure the threshold is used
                 if 'Core levels' in self.parent.parent.Data and current_sheet in self.parent.parent.Data['Core levels']:
                     sheet_data = self.parent.parent.Data['Core levels'][current_sheet]
                     sheet_data['_EDX_sensitivity'] = threshold
 
-                plot_edx_data(self.parent.parent, current_sheet)
+                window.plot_manager.plot_edx_data(self.parent.parent, current_sheet)
 
     def on_reset(self, event):
         """Reset all values to defaults"""

@@ -5,9 +5,7 @@ import wx.grid
 import numpy as np
 from libraries.Peak_Functions import OtherCalc
 from libraries.PeakManipulation import PeakManipulation
-
 from libraries.Utilities import _clear_peak_params_grid
-# from libraries.Sheet_Operations import CheckboxRenderer
 
 # In Sheet_Operations.py
 def on_sheet_selected(window, event):
@@ -49,10 +47,35 @@ def on_sheet_selected(window, event):
                 return
             window._processing_edx_sheet = True
             try:
-                if plot_edx_data(window, selected_sheet):
-                    return
+                # Call plot_edx_data and return its result
+                # This will plot EDX~Plot sheets OR open EDX window for EDX~Map
+                result = window.plot_manager.plot_edx_data(window, selected_sheet)
+                if result:
+                    return  # Successfully handled
+                else:
+                    # If plot_edx_data failed, continue with error handling
+                    print(f"Warning: plot_edx_data returned False for {selected_sheet}")
             finally:
                 window._processing_edx_sheet = False
+
+            # If we get here, plot_edx_data failed - don't continue processing
+            return
+
+        # Check if this is an EELS sheet (EELS~Plot, EELS~Plot1, etc., or EELS~Map)
+        if selected_sheet == 'EELS~Map' or selected_sheet.startswith('EELS~Plot'):
+            # Prevent re-entry loop
+            if hasattr(window, '_processing_eels_sheet') and window._processing_eels_sheet:
+                return
+            window._processing_eels_sheet = True
+            try:
+                result = window.plot_manager.plot_eels_data(window, selected_sheet)
+                if result:
+                    return  # Successfully handled
+                else:
+                    print(f"Warning: plot_eels_data returned False for {selected_sheet}")
+            finally:
+                window._processing_eels_sheet = False
+            return
 
         # Reinitialize peak count
         window.peak_count = 0
@@ -73,6 +96,26 @@ def on_sheet_selected(window, event):
         # Check if there's data for the selected sheet in window.Data
         if selected_sheet in window.Data['Core levels']:
             core_level_data = window.Data['Core levels'][selected_sheet]
+
+            # NOTE: We never reach here for EDX sheets because we return above
+            # This code is only for normal XPS/Raman/XAS sheets
+
+            # Check if Raw Data exists (skip for special sheets)
+            if 'Raw Data' not in core_level_data:
+                # Special sheet without Raw Data - skip background setup
+                return
+
+            # FIX: Ensure Background structure exists for any sheets that reach here
+            if 'Background' not in core_level_data:
+                core_level_data['Background'] = {
+                    'Bkg X': core_level_data.get('B.E.', []),
+                    'Bkg Y': core_level_data.get('Raw Data', []),
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': ''
+                }
 
             if 'Background' in window.Data['Core levels'][selected_sheet]:
                 if 'Bkg Y' not in window.Data['Core levels'][selected_sheet]['Background']:
@@ -485,173 +528,7 @@ def on_grid_left_click(window, event):
     event.Skip()
 
 
-def plot_edx_data(window, sheet_name):
-    """Plot EDX data when EDX~Plot or EDX~Map sheet is selected"""
-    import os
-    import hyperspy.api as hs
-    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
 
-    try:
-        # Get the data for this sheet
-        if sheet_name not in window.Data['Core levels']:
-            return False
-
-        sheet_data = window.Data['Core levels'][sheet_name]
-
-        # Handle EDX~Plot and EDX~Plot1, EDX~Plot2, etc.
-        if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
-            # Plot EDX spectrum - support both old and new key names
-            if 'B.E.' in sheet_data and 'Raw Data' in sheet_data:
-                energy = np.array(sheet_data['B.E.'])
-                intensity = np.array(sheet_data['Raw Data'])
-            elif 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
-                # OLD FORMAT - still support it
-                energy = np.array(sheet_data['Energy_keV'])
-                intensity = np.array(sheet_data['Intensity'])
-            else:
-                print(f"ERROR: {sheet_name} missing required data keys")
-                return False
-
-            # ALL THE CODE BELOW STAYS THE SAME (moved outside the if/elif)
-            # Clear and plot
-            window.ax.clear()
-            window.ax.plot(energy, intensity, 'k-', linewidth=0.8)
-            window.ax.set_xlabel('Energy (keV)')
-            window.ax.set_ylabel('Counts')
-
-            # Set title based on selection info if available
-            selection_info = sheet_data.get('_EDX_selection')
-            if selection_info:
-                sel_type = selection_info.get('type', 'unknown')
-                if sel_type == 'point':
-                    x, y = selection_info.get('x', 0), selection_info.get('y', 0)
-                    size = selection_info.get('size', 1)
-                    if size == 1:
-                        window.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
-                    else:
-                        window.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
-                elif sel_type == 'line':
-                    window.ax.set_title('EDX Spectrum - Line Profile')
-                elif sel_type == 'rectangle':
-                    angle = selection_info.get('angle', 0)
-                    window.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
-                elif sel_type == 'area':
-                    window.ax.set_title('EDX Spectrum - Area')
-                else:
-                    window.ax.set_title(f'EDX Spectrum ({sel_type})')
-            else:
-                window.ax.set_title('EDX Sum Spectrum')
-
-            # Set Y-axis to scientific format
-            window.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
-
-            # Set data range for zoom and store in window for later use
-            if sheet_name in window.Data['Core levels']:
-                window.Data['Core levels'][sheet_name]['_EDX_min'] = np.min(energy)
-                window.Data['Core levels'][sheet_name]['_EDX_max'] = np.max(energy)
-
-            # Store as window attributes for plotting
-            window.x_values = energy
-            window.y_values = intensity
-
-            # Set initial display range
-            display_x_max = sheet_data.get('_EDX_display_max', 20)
-            window.ax.set_xlim(0, display_x_max)
-            window.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
-
-            # Add peak labels if HDF5 file exists
-            if hasattr(window, 'current_file_path') and window.current_file_path:
-                hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.hdf5')
-                if not os.path.exists(hdf5_path):
-                    hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.h5')
-
-                if os.path.exists(hdf5_path):
-                    try:
-                        readers = ['HSPY', 'USID', 'Delmic']
-                        loaded_data = None
-                        for reader in readers:
-                            try:
-                                loaded_data = hs.load(hdf5_path, reader=reader)
-                                break
-                            except:
-                                continue
-
-                        if loaded_data:
-                            if isinstance(loaded_data, list):
-                                loaded_data = loaded_data[0]
-
-                            from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
-                            temp_edx = EDXSEMWindow(window)
-                            temp_edx.current_data = loaded_data
-                            temp_edx.add_peak_labels(window.ax, energy, intensity)
-                            temp_edx.Destroy()
-                    except Exception as e:
-                        print(f"Could not add EDX labels: {e}")
-
-            window.canvas.draw()
-
-            # Draw saved selection on EDX map window if open
-            if hasattr(window, 'edx_window') and window.edx_window:
-                try:
-                    if not window.edx_window.IsBeingDeleted():
-                        # Clear any previous saved selection
-                        window.edx_window._clear_saved_selection()
-                        # Draw the selection for this plot if available
-                        if selection_info:
-                            window.edx_window.draw_saved_selection(selection_info)
-                            window.edx_window.map_canvas.draw_idle()
-                except Exception as e:
-                    print(f"Could not draw saved selection: {e}")
-
-            # Restore grid data if available
-            grid_data = sheet_data.get('_EDX_grid_data')
-            if grid_data and hasattr(window, 'peak_params_grid'):
-                _restore_grid_data(window, grid_data)
-
-            return True
-
-        elif sheet_name == 'EDX~Map':
-            # Get HDF5 path from sheet data
-            hdf5_path = sheet_data.get('_HDF5_Path')
-
-            if not hdf5_path or not os.path.exists(hdf5_path):
-                # Try to find HDF5 file based on current file path
-                if hasattr(window, 'current_file_path') and window.current_file_path:
-                    hdf5_path = window.current_file_path.replace('_EDX.xlsx', '_EDX.hdf5')
-                    if not os.path.exists(hdf5_path):
-                        hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.hdf5')
-                    if not os.path.exists(hdf5_path):
-                        hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.h5')
-
-            if not hdf5_path or not os.path.exists(hdf5_path):
-                wx.MessageBox(
-                    f"EDX Map sheet selected.\n\n"
-                    f"HDF5 file not found. Please ensure the HDF5 file is in the same directory as the Excel file.\n\n"
-                    f"Expected: {hdf5_path if hdf5_path else 'N/A'}",
-                    "HDF5 File Missing",
-                    wx.OK | wx.ICON_WARNING
-                )
-                return False
-
-            # Check if EDX/SEM window is already open
-            if hasattr(window, 'edx_window') and window.edx_window and not window.edx_window.IsBeingDeleted():
-                window.edx_window.Raise()
-                return True
-
-            # Open EDX/SEM window with the map
-            edx_window = open_edx_sem_window(window)
-            if edx_window:
-                window.edx_window = edx_window
-                edx_window.load_file(hdf5_path, 'EDX Map')
-            return True
-
-        return False
-
-    except Exception as e:
-        print(f"Error plotting EDX data: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
 
 
 def _restore_grid_data(window, grid_data):

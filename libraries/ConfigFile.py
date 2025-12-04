@@ -61,11 +61,21 @@ def add_core_level_Data(Data, window, file_path, sheet_name):
                 'Raw Data': raw_data,
                 '_EDX_display_max': 20,
                 '_EDX_type': 'plot',
-                'Background': {}
+                'Background': {
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': '',
+                    'Bkg X': be_values.copy(),
+                    'Bkg Y': raw_data.copy()
+                }
             }
 
             Data['Core levels'][sheet_name] = core_level
             return Data
+
+
 
         # ========== Handle EDX~Map sheets ==========
         if sheet_name == 'EDX~Map':

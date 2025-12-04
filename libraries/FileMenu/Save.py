@@ -1592,8 +1592,11 @@ def refresh_sheets(window, on_sheet_selected_func, update_console=None, reopen_f
 
         # Refresh the plot only if not reopening file
         if not reopen_file:
-            window.plot_manager.plot_data(window)
-            window.clear_and_replot()
+            # Refresh the plot (skip for EDX sheets - they're handled by plot_edx_data)
+            current_sheet = window.sheet_combobox.GetValue()
+            if not (current_sheet == 'EDX~Map' or current_sheet.startswith('EDX~Plot')):
+                window.plot_manager.plot_data(window)
+                window.clear_and_replot()
 
         # Show completion message in console
         if name_changes:

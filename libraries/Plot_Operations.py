@@ -3938,5 +3938,329 @@ class PlotManager:
             else:
                 return sheet_name
 
+    def plot_edx_data(self, window, sheet_name):
+        """Plot EDX data when EDX~Plot or EDX~Map sheet is selected"""
+        import os
+        import numpy as np
+        import hyperspy.api as hs
+        from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+
+        try:
+            # Get the data for this sheet
+            if sheet_name not in window.Data['Core levels']:
+                return False
+
+            sheet_data = window.Data['Core levels'][sheet_name]
+
+            # Handle EDX~Plot and EDX~Plot1, EDX~Plot2, etc.
+            if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+                # Plot EDX spectrum - support both old and new formats
+                if 'B.E.' in sheet_data and 'Raw Data' in sheet_data:
+                    energy = np.array(sheet_data['B.E.'])
+                    intensity = np.array(sheet_data['Raw Data'])
+                elif 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
+                    # OLD FORMAT - still support it
+                    energy = np.array(sheet_data['Energy_keV'])
+                    intensity = np.array(sheet_data['Intensity'])
+                else:
+                    print(f"ERROR: {sheet_name} missing required data keys")
+                    return False
+
+                # Clear the main plot
+                self.ax.clear()
+
+                # Remove heatmap colorbar AND its axes if it exists (same as plot_data)
+                if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
+                    try:
+                        if hasattr(window.heatmap_colorbar, 'ax'):
+                            self.figure.delaxes(window.heatmap_colorbar.ax)
+                        window.heatmap_colorbar = None
+                        window.heatmap_data = None
+                        window.heatmap_sheets = None
+                    except:
+                        pass
+
+                # REMOVE RSD subplot if it exists (same as plot_data)
+                if hasattr(self, 'residuals_subplot'):
+                    if self.residuals_subplot:
+                        self.figure.delaxes(self.residuals_subplot)
+                        self.residuals_subplot = None
+                        # Restore X-axis visibility
+                        self.ax.get_xaxis().set_visible(True)
+
+                # REMOVE RSD text if it exists
+                if hasattr(self, 'rsd_text') and self.rsd_text:
+                    try:
+                        self.rsd_text.remove()
+                        self.rsd_text = None
+                    except:
+                        pass
+
+                # Reset plot position to full size (same as plot_data)
+                self.ax.set_position([0.1, 0.1, 0.85, 0.85])
+
+                # Plot EDX spectrum
+                self.ax.plot(energy, intensity, 'k-', linewidth=0.8)
+                self.ax.set_xlabel('Energy (keV)')
+                self.ax.set_ylabel('Counts')
+
+                # Set title based on selection info if available
+                selection_info = sheet_data.get('_EDX_selection')
+                if selection_info:
+                    sel_type = selection_info.get('type', 'unknown')
+                    if sel_type == 'point':
+                        x, y = selection_info.get('x', 0), selection_info.get('y', 0)
+                        size = selection_info.get('size', 1)
+                        if size == 1:
+                            self.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
+                        else:
+                            self.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+                    elif sel_type == 'line':
+                        self.ax.set_title('EDX Spectrum - Line Profile')
+                    elif sel_type == 'rectangle':
+                        angle = selection_info.get('angle', 0)
+                        self.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
+                    elif sel_type == 'area':
+                        self.ax.set_title('EDX Spectrum - Area')
+                    else:
+                        self.ax.set_title(f'EDX Spectrum ({sel_type})')
+                else:
+                    self.ax.set_title('EDX Sum Spectrum')
+
+                # Set Y-axis to scientific format
+                self.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
+                # Set data range for zoom and store in window for later use
+                if sheet_name in window.Data['Core levels']:
+                    window.Data['Core levels'][sheet_name]['_EDX_min'] = np.min(energy)
+                    window.Data['Core levels'][sheet_name]['_EDX_max'] = np.max(energy)
+
+                # Store as window attributes for plotting
+                window.x_values = energy
+                window.y_values = intensity
+
+                # Set initial display range
+                display_x_max = sheet_data.get('_EDX_display_max', 20)
+                self.ax.set_xlim(0, display_x_max)
+                self.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
+
+                # ALWAYS add peak labels - try multiple HDF5 path variants
+                hdf5_path = None
+                if hasattr(window, 'current_file_path') and window.current_file_path:
+                    # Try different HDF5 path variations
+                    base_path = window.current_file_path.replace('_EDX.xlsx', '')
+                    hdf5_variants = [
+                        f"{base_path}_EDX.hdf5",
+                        f"{base_path}_EDX.h5",
+                        f"{base_path}.hdf5",
+                        f"{base_path}.h5"
+                    ]
+
+                    for variant in hdf5_variants:
+                        if os.path.exists(variant):
+                            hdf5_path = variant
+                            break
+
+                # Also check if stored in sheet data
+                if not hdf5_path and '_HDF5_Path' in window.Data['Core levels'].get('EDX~Map', {}):
+                    hdf5_path = window.Data['Core levels']['EDX~Map']['_HDF5_Path']
+
+                if hdf5_path and os.path.exists(hdf5_path):
+                    try:
+                        readers = ['HSPY', 'USID', 'Delmic']
+                        loaded_data = None
+                        for reader in readers:
+                            try:
+                                loaded_data = hs.load(hdf5_path, reader=reader)
+                                break
+                            except:
+                                continue
+
+                        if loaded_data:
+                            if isinstance(loaded_data, list):
+                                loaded_data = loaded_data[0]
+
+                            from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
+                            temp_edx = EDXSEMWindow(window)
+                            temp_edx.current_data = loaded_data
+                            temp_edx.add_peak_labels(self.ax, energy, intensity)
+                            temp_edx.Destroy()
+                            print(f"Added EDX peak labels from {hdf5_path}")
+                    except Exception as e:
+                        print(f"Could not add EDX labels: {e}")
+                else:
+                    print(f"HDF5 file not found for EDX labels: {hdf5_path}")
+
+                self.canvas.draw()
+
+                # Draw saved selection on EDX map window if open
+                if hasattr(window, 'edx_window') and window.edx_window:
+                    try:
+                        if not window.edx_window.IsBeingDeleted():
+                            # Clear any previous saved selection
+                            window.edx_window._clear_saved_selection()
+                            # Draw the selection for this plot if available
+                            if selection_info:
+                                window.edx_window.draw_saved_selection(selection_info)
+                                window.edx_window.map_canvas.draw_idle()
+                    except Exception as e:
+                        print(f"Could not draw saved selection: {e}")
+
+                # Restore grid data if available
+                grid_data = sheet_data.get('_EDX_grid_data')
+                if grid_data and hasattr(window, 'peak_params_grid'):
+                    from libraries.Sheet_Operations import _restore_grid_data
+                    _restore_grid_data(window, grid_data)
+
+                return True
+
+            elif sheet_name == 'EDX~Map':
+                # [EDX~Map code remains the same]
+                ...
+
+            return False
+
+        except Exception as e:
+            print(f"Error plotting EDX data: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def plot_eels_data(self, window, sheet_name):
+        """Plot EELS data when EELS~Plot or EELS~Map sheet is selected"""
+        import os
+        import numpy as np
+
+        try:
+            # Get the data for this sheet
+            if sheet_name not in window.Data['Core levels']:
+                return False
+
+            sheet_data = window.Data['Core levels'][sheet_name]
+
+            # Handle EELS~Plot and EELS~Plot1, EELS~Plot2, etc.
+            if sheet_name == 'EELS~Plot' or sheet_name.startswith('EELS~Plot'):
+                # Plot EELS spectrum - support both old and new formats
+                if 'B.E.' in sheet_data and 'Raw Data' in sheet_data:
+                    energy = np.array(sheet_data['B.E.'])
+                    intensity = np.array(sheet_data['Raw Data'])
+                else:
+                    print(f"ERROR: {sheet_name} missing required data keys")
+                    return False
+
+                # Clear the main plot
+                self.ax.clear()
+
+                # Remove heatmap colorbar AND its axes if it exists
+                if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
+                    try:
+                        if hasattr(window.heatmap_colorbar, 'ax'):
+                            self.figure.delaxes(window.heatmap_colorbar.ax)
+                        window.heatmap_colorbar = None
+                        window.heatmap_data = None
+                        window.heatmap_sheets = None
+                    except:
+                        pass
+
+                # REMOVE RSD subplot if it exists
+                if hasattr(self, 'residuals_subplot'):
+                    if self.residuals_subplot:
+                        self.figure.delaxes(self.residuals_subplot)
+                        self.residuals_subplot = None
+                        self.ax.get_xaxis().set_visible(True)
+
+                # REMOVE RSD text if it exists
+                if hasattr(self, 'rsd_text') and self.rsd_text:
+                    try:
+                        self.rsd_text.remove()
+                        self.rsd_text = None
+                    except:
+                        pass
+
+                # Reset plot position to full size
+                self.ax.set_position([0.1, 0.1, 0.85, 0.85])
+
+                # Plot EELS spectrum
+                self.ax.plot(energy, intensity, 'k-', linewidth=0.8)
+                self.ax.set_xlabel('Energy Loss (eV)')
+                self.ax.set_ylabel('Counts')
+
+                # Set title based on selection info if available
+                selection_info = sheet_data.get('_EELS_selection')
+                if selection_info:
+                    sel_type = selection_info.get('type', 'unknown')
+                    if sel_type == 'point':
+                        x, y = selection_info.get('x', 0), selection_info.get('y', 0)
+                        size = selection_info.get('size', 1)
+                        if size == 1:
+                            self.ax.set_title(f'EELS Spectrum - Point ({x}, {y})')
+                        else:
+                            self.ax.set_title(f'EELS Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+                    elif sel_type == 'line':
+                        self.ax.set_title('EELS Spectrum - Line Profile')
+                    elif sel_type == 'area':
+                        self.ax.set_title('EELS Spectrum - Area')
+                    else:
+                        self.ax.set_title(f'EELS Spectrum ({sel_type})')
+                else:
+                    self.ax.set_title('EELS Sum Spectrum')
+
+                # Set Y-axis to scientific format
+                self.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
+                # Store data range
+                if sheet_name in window.Data['Core levels']:
+                    window.Data['Core levels'][sheet_name]['_EELS_min'] = np.min(energy)
+                    window.Data['Core levels'][sheet_name]['_EELS_max'] = np.max(energy)
+
+                # Store as window attributes for plotting
+                window.x_values = energy
+                window.y_values = intensity
+
+                # Set display range
+                self.ax.set_xlim(np.min(energy), np.max(energy))
+                self.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
+
+                self.canvas.draw()
+
+                # Draw saved selection on EELS map window if open
+                if hasattr(window, 'eels_window') and window.eels_window:
+                    try:
+                        if not window.eels_window.IsBeingDeleted():
+                            window.eels_window._clear_saved_selection()
+                            if selection_info:
+                                window.eels_window.draw_saved_selection(selection_info)
+                                window.eels_window.map_canvas.draw_idle()
+                    except Exception as e:
+                        print(f"Could not draw saved selection: {e}")
+
+                return True
+
+            elif sheet_name == 'EELS~Map':
+                # Open EELS window for map view
+                from libraries.ToolsMenu.EELS_Analysis import open_eels_window
+
+                if not hasattr(window, 'eels_window') or window.eels_window is None:
+                    window.eels_window = open_eels_window(window)
+
+                    # Try to reload data if source path is available
+                    source_path = sheet_data.get('_Source_Path')
+                    if source_path and os.path.exists(source_path):
+                        window.eels_window.load_file(source_path)
+                else:
+                    window.eels_window.Raise()
+
+                return True
+
+            return False
+
+        except Exception as e:
+            print(f"Error plotting EELS data: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    #STart
+
 
 

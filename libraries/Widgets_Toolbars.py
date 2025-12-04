@@ -1077,8 +1077,11 @@ def create_menu(window):
     plot_mod_item = tools_menu.Append(wx.NewId(), "Plot Modifications")
     window.Bind(wx.EVT_MENU, lambda event: PlotModWindow(window).Show(), plot_mod_item)
 
-    edx_menu_item = tools_menu.Append(wx.ID_ANY, "Open EDX/SEM Analysis", "Open EDX/SEM analysis window")
+    edx_menu_item = tools_menu.Append(wx.ID_ANY, "EDX HeatMap", "Open EDX HeatMap window")
     window.Bind(wx.EVT_MENU, lambda event: on_open_edx_sem(window), edx_menu_item)
+
+    eels_item = tools_menu.Append(wx.ID_ANY, "EELS~Map", "Open EELS Analysis Window")
+    window.Bind(wx.EVT_MENU, lambda event, w=window: on_open_eels_window(w, event), eels_item)
 
     # Add profiling items
     profiling_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Profiling ▬▬▬▬▬▬▬▬")
@@ -1333,6 +1336,14 @@ def launch_new_instance():
         # Running as script
         script_path = sys.argv[0]
         subprocess.Popen([sys.executable, script_path])
+
+
+def on_open_eels_window(window, event):
+    from libraries.ToolsMenu.EELS_Analysis import open_eels_window
+    if not hasattr(window, 'eels_window') or window.eels_window is None:
+        window.eels_window = open_eels_window(window)
+    else:
+        window.eels_window.Raise()
 
 def open_profile_creator(event):
     from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow
@@ -2089,10 +2100,63 @@ def create_examples_menu(window):
 
     return examples_menu
 
-def on_open_edx_sem(window):
+def on_open_edx_sem_OLD(window):
     """Open EDX/SEM analysis window"""
     from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
     edx_window = EDXSEMWindow(window)
+    edx_window.Show()
+
+
+def on_open_edx_sem(window):
+    """Open EDX/SEM analysis window"""
+    from libraries.ToolsMenu.EDX_SEM_Analysis import EDXSEMWindow
+
+    # Check if EDX window is already open
+    if hasattr(window, 'edx_window') and window.edx_window and not window.edx_window.IsBeingDeleted():
+        window.edx_window.Raise()
+        return
+
+    # Create new EDX window
+    edx_window = EDXSEMWindow(window)
+    window.edx_window = edx_window
+
+    # Check if there's EDX data already loaded
+    if (hasattr(window, 'Data') and
+            'Core levels' in window.Data and
+            'EDX~Map' in window.Data['Core levels']):
+
+        # Try to find and load the HDF5 file
+        edx_map_data = window.Data['Core levels']['EDX~Map']
+        hdf5_path = edx_map_data.get('_HDF5_Path')
+
+        # Try multiple path variations if stored path doesn't exist
+        if not hdf5_path or not os.path.exists(hdf5_path):
+            if hasattr(window, 'current_file_path') and window.current_file_path:
+                base_path = window.current_file_path.replace('_EDX.xlsx', '')
+                hdf5_variants = [
+                    f"{base_path}_EDX.hdf5",
+                    f"{base_path}_EDX.h5",
+                    f"{base_path}.hdf5",
+                    f"{base_path}.h5"
+                ]
+
+                for variant in hdf5_variants:
+                    if os.path.exists(variant):
+                        hdf5_path = variant
+                        break
+
+        # Load the HDF5 file if found
+        if hdf5_path and os.path.exists(hdf5_path):
+            try:
+                edx_window.load_file(hdf5_path, 'EDX Map')
+                print(f"Loaded EDX data from: {hdf5_path}")
+            except Exception as e:
+                print(f"Error loading EDX data: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("No EDX data found to load. Import HDF5 file using File > Import > EDX Map")
+
     edx_window.Show()
 
 

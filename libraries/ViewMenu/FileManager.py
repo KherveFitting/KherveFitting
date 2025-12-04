@@ -616,7 +616,7 @@ class FileManagerWindow(wx.Frame):
 
         # Set column sizes and row heights
         for i in range(num_levels):
-            self.grid.SetColSize(i+1, default_col_width)
+            self.grid.SetColSize(i + 1, default_col_width)
         for i in range(num_rows):
             self.grid.SetRowSize(i, default_row_height)
 
@@ -856,9 +856,16 @@ class FileManagerWindow(wx.Frame):
 
         # Set column width and row height
         default_col_width = 50
+        # # Set column sizes and row heights
+        # for i in range(len(self.core_levels)):
+        #     if i + 1 < self.grid.GetNumberCols():
+        #         self.grid.SetColSize(i + 1, default_col_width)
         # Set column sizes and row heights
         for i in range(len(self.core_levels)):
-            if i + 1 < self.grid.GetNumberCols():
+            col_label = self.grid.GetColLabelValue(i + 1)
+            if col_label.startswith(("EDX~", "XAS~", "EELS~", "RAM~")):
+                self.grid.SetColSize(i + 1, default_col_width + 20)
+            else:
                 self.grid.SetColSize(i + 1, default_col_width)
 
         # Make sure grid has enough columns (core levels + sample name column)
@@ -1712,38 +1719,62 @@ class FileManagerWindow(wx.Frame):
             return
 
         # Check if this is an EDX sheet BEFORE updating combobox to avoid event loop
-        if sheet_name in ['EDX~Plot', 'EDX~Map']:
+        if sheet_name == 'EDX~Map' or sheet_name.startswith('EDX~Plot'):
             # Prevent re-entry
             if hasattr(self, '_plotting_edx') and self._plotting_edx:
                 return
             self._plotting_edx = True
 
             try:
-                if sheet_name == 'EDX~Plot':
-                    # Unbind the combobox event temporarily
-                    self.parent.sheet_combobox.Unbind(wx.EVT_COMBOBOX)
-                    self.parent.sheet_combobox.SetValue(sheet_name)
-                    # Rebind the event
-                    from libraries.Sheet_Operations import on_sheet_selected
-                    self.parent.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda e: on_sheet_selected(self.parent, e))
+                if sheet_name.startswith('EDX~Plot') or sheet_name == 'EDX~Plot':
+                    # EDX~Plot, EDX~Plot1, EDX~Plot2, etc.
+                    # Update combobox WITHOUT triggering event
+                    self.parent.sheet_combobox.SetStringSelection(sheet_name)
 
                     self.highlight_current_sheet(sheet_name)
-                    from libraries.Sheet_Operations import plot_edx_data
-                    plot_edx_data(self.parent, sheet_name)
+
+                    # Directly call plot_edx_data WITHOUT going through on_sheet_selected
+                    self.quick_plot_edx(sheet_name)
 
                 elif sheet_name == 'EDX~Map':
                     # Don't update combobox for map
                     from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
                     import os
-                    if hasattr(self.parent, 'current_file_path') and self.parent.current_file_path:
-                        hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.hdf5')
-                        if not os.path.exists(hdf5_path):
-                            hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.h5')
 
-                        if os.path.exists(hdf5_path):
+                    # Get HDF5 path from sheet data or try to find it
+                    sheet_data = self.parent.Data['Core levels'].get('EDX~Map', {})
+                    hdf5_path = sheet_data.get('_HDF5_Path')
+
+                    if not hdf5_path or not os.path.exists(hdf5_path):
+                        if hasattr(self.parent, 'current_file_path') and self.parent.current_file_path:
+                            base_path = self.parent.current_file_path.replace('_EDX.xlsx', '')
+                            hdf5_variants = [
+                                f"{base_path}_EDX.hdf5",
+                                f"{base_path}_EDX.h5",
+                                f"{base_path}.hdf5",
+                                f"{base_path}.h5"
+                            ]
+
+                            for variant in hdf5_variants:
+                                if os.path.exists(variant):
+                                    hdf5_path = variant
+                                    break
+
+                    if hdf5_path and os.path.exists(hdf5_path):
+                        # Check if window already open
+                        if hasattr(self.parent, 'edx_window') and self.parent.edx_window and not self.parent.edx_window.IsBeingDeleted():
+                            self.parent.edx_window.Raise()
+                        else:
                             edx_window = open_edx_sem_window(self.parent)
                             if edx_window:
+                                self.parent.edx_window = edx_window
                                 edx_window.load_file(hdf5_path, 'EDX Map')
+                    else:
+                        wx.MessageBox(
+                            f"HDF5 file not found for EDX Map.\n\nExpected: {hdf5_path}",
+                            "File Not Found",
+                            wx.OK | wx.ICON_WARNING
+                        )
             finally:
                 self._plotting_edx = False
             return
@@ -1774,7 +1805,6 @@ class FileManagerWindow(wx.Frame):
                 self.parent.heatmap_colorbar = None
             except:
                 pass
-
 
         # Get data for XPS/Raman
         x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
@@ -1844,6 +1874,102 @@ class FileManagerWindow(wx.Frame):
         # Restore the original residuals state in the manager
         self.parent.plot_manager.residuals_state = original_residuals_state
 
+    def quick_plot_edx(self, sheet_name):
+        """Quick plot EDX spectrum without labels or quantification"""
+        import numpy as np
+        from matplotlib.ticker import ScalarFormatter
+
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        sheet_data = self.parent.Data['Core levels'][sheet_name]
+
+        # Get energy and intensity data
+        if 'B.E.' in sheet_data and 'Raw Data' in sheet_data:
+            energy = np.array(sheet_data['B.E.'])
+            intensity = np.array(sheet_data['Raw Data'])
+        elif 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
+            # Old format compatibility
+            energy = np.array(sheet_data['Energy_keV'])
+            intensity = np.array(sheet_data['Intensity'])
+        else:
+            print(f"ERROR: {sheet_name} missing required data keys")
+            return
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove heatmap colorbar if exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Remove RSD subplot if exists
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Remove RSD text if exists
+        if hasattr(self.parent.plot_manager, 'rsd_text') and self.parent.plot_manager.rsd_text:
+            try:
+                self.parent.plot_manager.rsd_text.remove()
+                self.parent.plot_manager.rsd_text = None
+            except:
+                pass
+
+        # Reset plot position to full size
+        self.parent.ax.set_position([0.1, 0.1, 0.85, 0.85])
+
+        # Plot EDX spectrum - simple black line
+        self.parent.ax.plot(energy, intensity, 'k-', linewidth=1)
+
+        # Set EDX-specific labels
+        self.parent.ax.set_xlabel('Energy (keV)')
+        self.parent.ax.set_ylabel('Counts')
+
+        # Set title based on selection info if available
+        selection_info = sheet_data.get('_EDX_selection')
+        if selection_info:
+            sel_type = selection_info.get('type', 'unknown')
+            if sel_type == 'point':
+                x, y = selection_info.get('x', 0), selection_info.get('y', 0)
+                size = selection_info.get('size', 1)
+                if size == 1:
+                    self.parent.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
+                else:
+                    self.parent.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+            elif sel_type == 'line':
+                self.parent.ax.set_title('EDX Spectrum - Line Profile')
+            elif sel_type == 'rectangle':
+                angle = selection_info.get('angle', 0)
+                self.parent.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
+            elif sel_type == 'area':
+                self.parent.ax.set_title('EDX Spectrum - Area')
+            else:
+                self.parent.ax.set_title(f'EDX Spectrum ({sel_type})')
+        else:
+            self.parent.ax.set_title('EDX Sum Spectrum')
+
+        # Set Y-axis to scientific format
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
+        # Update parent's data arrays
+        self.parent.x_values = energy
+        self.parent.y_values = intensity
+
+        # Set display range
+        display_x_max = sheet_data.get('_EDX_display_max', 20)
+        self.parent.ax.set_xlim(0, display_x_max)
+        self.parent.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
+
+        # Draw
+        self.parent.canvas.draw_idle()
 
 
     def plot_multiple_sheets(self, sheet_names):
@@ -2021,9 +2147,18 @@ class FileManagerWindow(wx.Frame):
         # Check if any sheet is Raman or XAS
         is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
         is_xas = any(name.startswith('XAS') for name in sheet_names)
+        is_edx = any(name == 'EDX~Plot' or name.startswith('EDX~Plot') for name in sheet_names)
 
         # Set labels and formatting based on data type
-        if is_raman:
+        if is_edx:
+            self.parent.ax.set_xlabel("Energy (keV)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Counts")
+            else:
+                self.parent.ax.set_ylabel("Counts")
+            # Normal direction for EDX
+            self.parent.ax.set_xlim(0, x_max)
+        elif is_raman:
             self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
             if normalize:
                 self.parent.ax.set_ylabel("Normalized Intensity")
@@ -2060,7 +2195,7 @@ class FileManagerWindow(wx.Frame):
 
 
         # If all sheets are from the same column, add core level text in top right (except for Raman)
-        if same_column and not is_raman:
+        if same_column and not is_raman and not is_edx:
             # Format name based on data type
             if is_xas:
                 formatted_name = self.parent.plot_manager.format_xas_sheet_name(column_name)
@@ -3838,9 +3973,18 @@ class FileManagerWindow(wx.Frame):
         # Check if any sheet is Raman or XAS
         is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
         is_xas = any(name.startswith('XAS') for name in sheet_names)
+        is_edx = any(name == 'EDX~Plot' or name.startswith('EDX~Plot') for name in sheet_names)
 
         # Set labels and formatting based on data type
-        if is_raman:
+        if is_edx:
+            self.parent.ax.set_xlabel("Energy (keV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Counts (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Counts")
+            # Normal direction for EDX (0 to max)
+            self.parent.ax.set_xlim(0, x_max)
+        elif is_raman:
             self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
             if normalize:
                 self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
@@ -3876,7 +4020,7 @@ class FileManagerWindow(wx.Frame):
             self.parent.ax.legend(loc='upper left', ncol=ncol)
 
         # If all sheets are from the same column, add core level text in top right (except for Raman)
-        if same_column and not is_raman:
+        if same_column and not is_raman and not is_edx:
             # Format name based on data type
             if is_xas:
                 formatted_name = self.parent.plot_manager.format_xas_sheet_name(column_name)
@@ -4156,9 +4300,18 @@ class FileManagerWindow(wx.Frame):
         # Check if any sheet is Raman or XAS
         is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
         is_xas = any(name.startswith('XAS') for name in sheet_names)
+        is_edx = any(name == 'EDX~Plot' or name.startswith('EDX~Plot') for name in sheet_names)
 
         # Set up the plot based on data type
-        if is_raman:
+        if is_edx:
+            self.parent.ax.set_xlabel("Energy (keV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Counts (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Counts")
+            # Normal direction for EDX (0 to max)
+            self.parent.ax.set_xlim(0, x_max)
+        elif is_raman:
             self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
             self.parent.ax.set_ylabel("Normalised Intensity (a.u.)")
             if x_min != float('inf') and x_max != float('-inf'):
