@@ -611,23 +611,39 @@ def plot_edx_data(window, sheet_name):
             return True
 
         elif sheet_name == 'EDX~Map':
+            # Get HDF5 path from sheet data
+            hdf5_path = sheet_data.get('_HDF5_Path')
+
+            if not hdf5_path or not os.path.exists(hdf5_path):
+                # Try to find HDF5 file based on current file path
+                if hasattr(window, 'current_file_path') and window.current_file_path:
+                    hdf5_path = window.current_file_path.replace('_EDX.xlsx', '_EDX.hdf5')
+                    if not os.path.exists(hdf5_path):
+                        hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.hdf5')
+                    if not os.path.exists(hdf5_path):
+                        hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.h5')
+
+            if not hdf5_path or not os.path.exists(hdf5_path):
+                wx.MessageBox(
+                    f"EDX Map sheet selected.\n\n"
+                    f"HDF5 file not found. Please ensure the HDF5 file is in the same directory as the Excel file.\n\n"
+                    f"Expected: {hdf5_path if hdf5_path else 'N/A'}",
+                    "HDF5 File Missing",
+                    wx.OK | wx.ICON_WARNING
+                )
+                return False
+
             # Check if EDX/SEM window is already open
             if hasattr(window, 'edx_window') and window.edx_window and not window.edx_window.IsBeingDeleted():
                 window.edx_window.Raise()
                 return True
 
             # Open EDX/SEM window with the map
-            if hasattr(window, 'current_file_path') and window.current_file_path:
-                hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.hdf5')
-                if not os.path.exists(hdf5_path):
-                    hdf5_path = window.current_file_path.replace('_EDX.xlsx', '.h5')
-
-                if os.path.exists(hdf5_path):
-                    edx_window = open_edx_sem_window(window)
-                    if edx_window:
-                        window.edx_window = edx_window
-                        edx_window.load_file(hdf5_path, 'EDX Map')
-                    return True
+            edx_window = open_edx_sem_window(window)
+            if edx_window:
+                window.edx_window = edx_window
+                edx_window.load_file(hdf5_path, 'EDX Map')
+            return True
 
         return False
 

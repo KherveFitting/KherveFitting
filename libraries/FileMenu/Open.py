@@ -3902,6 +3902,10 @@ def open_xlsx_file(window, file_path=None):
             if sheet_name.startswith('zzProfile'):
                 continue
 
+            # Skip validation for EDX sheets - they have different structures
+            if sheet_name == 'EDX~Map' or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+                continue
+
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
             col1_value = str(df.iloc[0, 0]).strip().upper()
             col2_value = str(df.iloc[0, 1]).strip().upper()
@@ -3912,11 +3916,15 @@ def open_xlsx_file(window, file_path=None):
                           ('RAW DATA' in col2_value or 'INTENSITY' in col2_value)
             xas_valid = ('ENERGY' in col1_value or 'PHOTON ENERGY' in col1_value) and ('INTENSITY' in col2_value or 'RAW DATA' in col2_value)
 
-            if not (xps_valid or raman_valid or xas_valid):
+            # Also accept EDX-style headers (ENERGY (KEV))
+            edx_valid = ('ENERGY' in col1_value and 'KEV' in col1_value) and 'INTENSITY' in col2_value
+
+            if not (xps_valid or raman_valid or xas_valid or edx_valid):
                 console_frame.Close()
                 wx.MessageBox(f"Sheet '{sheet_name}' has invalid column labels", "Invalid Column Labels",
                               wx.OK | wx.ICON_WARNING)
                 return
+
 
         window.Data['FilePath'] = file_path
         update_console(f"Found {len(sheet_names)} sheets to process...")

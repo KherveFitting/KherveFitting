@@ -69,7 +69,7 @@ def add_core_level_Data(Data, window, file_path, sheet_name):
 
         # ========== Handle EDX~Map sheets ==========
         if sheet_name == 'EDX~Map':
-            map_data = []
+            # For EDX~Map, just store metadata - actual map will be loaded from HDF5
             energy_range = None
 
             for index, row in df.iterrows():
@@ -77,35 +77,24 @@ def add_core_level_Data(Data, window, file_path, sheet_name):
                     header_text = str(row.iloc[0])
                     if 'Range:' in header_text:
                         energy_range = header_text.split('Range:')[1].strip()
-                    continue
-                if index == 1:
-                    continue
+                    break  # Only need the header
 
-                row_data = []
-                for val in row:
-                    if pd.isna(val):
-                        break
-                    try:
-                        row_data.append(float(val))
-                    except (ValueError, TypeError):
-                        break
+            # Determine HDF5 file path
+            hdf5_path = file_path.replace('_EDX.xlsx', '_EDX.hdf5')
+            if not os.path.exists(hdf5_path):
+                hdf5_path = file_path.replace('_EDX.xlsx', '.hdf5')
+            if not os.path.exists(hdf5_path):
+                hdf5_path = file_path.replace('_EDX.xlsx', '.h5')
 
-                if row_data:
-                    map_data.append(row_data)
+            core_level = {
+                'Name': sheet_name,
+                'Energy_Range': energy_range if energy_range else 'N/A',
+                '_EDX_type': 'map',
+                '_HDF5_Path': hdf5_path if os.path.exists(hdf5_path) else None
+            }
 
-            if map_data:
-                map_array = np.array(map_data)
-
-                core_level = {
-                    'Name': sheet_name,
-                    'Map_Intensity': map_array.tolist(),
-                    'Map_Shape': list(map_array.shape),
-                    'Energy_Range': energy_range if energy_range else 'N/A',
-                    '_EDX_type': 'map'
-                }
-
-                Data['Core levels'][sheet_name] = core_level
-                return Data
+            Data['Core levels'][sheet_name] = core_level
+            return Data
 
         # Extract B.E. and Raw Data columns
         be_values = []
