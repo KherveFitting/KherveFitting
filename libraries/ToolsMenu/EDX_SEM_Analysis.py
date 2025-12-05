@@ -2200,7 +2200,7 @@ class EDXSEMWindow(wx.Frame):
             # Populate peak fitting grid with quantification
             self._populate_edx_grid(energy, spectrum, "Sum Spectrum")
 
-    def add_peak_labels(self, ax, energy, spectrum):
+    def add_peak_labels_OLD(self, ax, energy, spectrum):
         """Add element peak labels above peaks using ExSpy's find_peaks1D_ohaver"""
         try:
             # Create a temporary HyperSpy signal from the spectrum data
@@ -2369,7 +2369,336 @@ class EDXSEMWindow(wx.Frame):
             import traceback
             traceback.print_exc()
 
+    def add_peak_labels(self, ax, energy, spectrum):
+        """Add element peak labels above peaks with improved identification"""
+        try:
+            import hyperspy.api as hs
+            from exspy.material import elements
+            from exspy.utils.eds import get_xray_lines_near_energy
 
+            # Create signal with proper energy axis
+            temp_signal = hs.signals.Signal1D(spectrum)
+            temp_signal.axes_manager[0].scale = energy[1] - energy[0] if len(energy) > 1 else 0.01
+            temp_signal.axes_manager[0].offset = energy[0]
+            temp_signal.axes_manager[0].units = 'keV'
+            temp_signal.axes_manager[0].name = 'Energy'
+            temp_signal.set_signal_type("EDS_SEM")
+
+            # Get threshold
+            threshold = 0.02  # Default 2%
+            if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'Data'):
+                current_sheet = self.parent.sheet_combobox.GetValue()
+                if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
+                    if current_sheet in self.parent.Data['Core levels']:
+                        stored_threshold = self.parent.Data['Core levels'][current_sheet].get('_EDX_sensitivity')
+                        if stored_threshold is not None:
+                            threshold = stored_threshold
+
+            if hasattr(self, 'peak_threshold'):
+                threshold = self.peak_threshold
+
+            amp_thresh = np.max(spectrum) * threshold
+            print(f"Peak detection with threshold: {threshold:.4f}, amp_thresh: {amp_thresh:.2f}")
+
+            peak_data = temp_signal.find_peaks1D_ohaver(
+                maxpeakn=100,
+                medfilt_radius=5,
+                peakgroup=10,
+                amp_thresh=amp_thresh,
+                slope_thresh=0
+            )
+
+            y_min, y_max = ax.get_ylim()
+            y_range = y_max - y_min
+
+            if peak_data is None or not isinstance(peak_data, np.ndarray) or len(peak_data) == 0:
+                return
+
+            peaks = peak_data[0] if len(peak_data.shape) > 1 or peak_data.dtype == object else peak_data
+            print(f"Found {len(peaks)} peaks")
+
+            # Build peak database with energies and heights
+            peak_list = []
+            for peak_tuple in peaks:
+                try:
+                    peak_energy = float(peak_tuple[0])
+                    peak_height = float(peak_tuple[1])
+                    peak_list.append((peak_energy, peak_height))
+                except (TypeError, ValueError, IndexError):
+                    continue
+
+            # Sort by intensity (highest first)
+            peak_list.sort(key=lambda x: x[1], reverse=True)
+
+            # Identify peaks using intensity-aware matching
+            identified_peaks = self._identify_peaks_with_ratios(peak_list, elements)
+
+            # Add labels to plot
+            for peak_energy, element, line_type in identified_peaks:
+                # Format line type with Greek letters
+                line_display = str(line_type)
+                line_display = line_display.replace('Ka', 'Kα').replace('Kb', 'Kβ')
+                line_display = line_display.replace('La', 'Lα').replace('Lb', 'Lβ')
+                line_display = line_display.replace('Ma', 'Mα').replace('Mb', 'Mβ')
+
+                label = f"{element}\n{line_display}"
+
+                # Get peak height at this energy
+                idx = np.argmin(np.abs(energy - peak_energy))
+                spectrum_height = spectrum[idx]
+
+                # Position label
+                peak_pct = (spectrum_height - y_min) / y_range
+                label_y = y_min + (peak_pct + 0.02) * y_range
+
+                ax.text(peak_energy, label_y, label,
+                        rotation=0,
+                        verticalalignment='bottom',
+                        horizontalalignment='center',
+                        fontsize=7,
+                        color='black',
+                        fontweight='bold')
+
+        except Exception as e:
+            print(f"Error adding peak labels: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _identify_peaks_with_ratios(self, peak_list, elements):
+        """Identify peaks considering expected intensity ratios and common elements"""
+        from exspy.utils.eds import get_xray_lines_near_energy
+
+        identified = []
+        used_energies = set()
+
+        # Common elements in EDX analysis - prioritize these heavily
+        common_elements = ['O', 'C', 'N', 'F', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca',
+                           'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As',
+                           'Se', 'Br', 'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ag', 'Cd', 'In', 'Sn',
+                           'Sb', 'Te', 'I', 'Ba', 'W', 'Pt', 'Au', 'Pb', 'Bi']
+
+        # Expected K alpha/beta intensity ratios by atomic number range
+        k_ratios = {
+            'light': 8.0,  # Z < 20
+            'medium': 7.0,  # 20 <= Z < 50
+            'heavy': 5.0  # Z >= 50
+        }
+
+        # Expected L alpha/beta ratio
+        l_ratio = 3.0
+
+        # For each peak, find ALL possible element matches
+        peak_candidates = {}  # peak_energy -> [(element, line, score), ...]
+
+        for peak_energy, peak_height in peak_list:
+            peak_candidates[peak_energy] = []
+
+            try:
+                lines_list = get_xray_lines_near_energy(peak_energy, only_lines=None, width=0.15)
+                if not lines_list:
+                    continue
+
+                for line_str in lines_list:
+                    parts = line_str.split('_')
+                    if len(parts) != 2:
+                        continue
+
+                    element_symbol = parts[0]
+                    line_type = parts[1]
+
+                    try:
+                        element_obj = elements[element_symbol]
+                        if not (hasattr(element_obj, 'Atomic_properties') and
+                                hasattr(element_obj.Atomic_properties, 'Xray_lines')):
+                            continue
+
+                        xray_lines = element_obj.Atomic_properties.Xray_lines
+                        if line_type not in xray_lines:
+                            continue
+
+                        line_energy = xray_lines[line_type].energy_keV
+                        energy_diff = abs(line_energy - peak_energy)
+
+                        if energy_diff < 0.15:
+                            # Base score on energy match
+                            energy_score = 1.0 - (energy_diff / 0.15)
+
+                            # Bonus for common elements
+                            if element_symbol in common_elements:
+                                energy_score *= 1.5  # 50% bonus
+
+                            peak_candidates[peak_energy].append({
+                                'element': element_symbol,
+                                'line': line_type,
+                                'energy': line_energy,
+                                'score': energy_score,
+                                'Z': element_obj.General_properties.Z
+                            })
+
+                    except (KeyError, AttributeError):
+                        continue
+            except:
+                continue
+
+        # Now find element pairs (alpha + beta)
+        element_pairs = {}  # element -> {Ka: peak_energy, Kb: peak_energy, ...}
+
+        for element_symbol in set([cand['element'] for peak_cands in peak_candidates.values() for cand in peak_cands]):
+            element_pairs[element_symbol] = {'Ka': None, 'Kb': None, 'La': None, 'Lb': None}
+
+            # Find Ka and Kb
+            for peak_energy, peak_cands in peak_candidates.items():
+                for cand in peak_cands:
+                    if cand['element'] == element_symbol:
+                        line = cand['line']
+                        if line in ['Ka', 'Kb', 'La', 'Lb']:
+                            if element_pairs[element_symbol][line] is None:
+                                element_pairs[element_symbol][line] = {
+                                    'peak_energy': peak_energy,
+                                    'peak_height': next(h for e, h in peak_list if abs(e - peak_energy) < 0.001),
+                                    'expected_energy': cand['energy'],
+                                    'score': cand['score'],
+                                    'Z': cand['Z']
+                                }
+
+        # Score element pairs
+        pair_scores = []
+
+        for element_symbol, lines in element_pairs.items():
+            # Check K pair
+            if lines['Ka'] and lines['Kb']:
+                ka = lines['Ka']
+                kb = lines['Kb']
+
+                Z = ka['Z']
+                if Z < 20:
+                    expected_ratio = k_ratios['light']
+                elif Z < 50:
+                    expected_ratio = k_ratios['medium']
+                else:
+                    expected_ratio = k_ratios['heavy']
+
+                measured_ratio = ka['peak_height'] / kb['peak_height']
+                ratio_error = abs(measured_ratio - expected_ratio) / expected_ratio
+
+                # Ratio match score (most important - 60%)
+                ratio_score = max(0, 1.0 - ratio_error)
+
+                # Energy match scores (40%)
+                energy_score = (ka['score'] + kb['score']) / 2.0
+
+                # Total score
+                total_score = 0.6 * ratio_score + 0.4 * energy_score
+
+                # Extra bonus if common element
+                if element_symbol in common_elements:
+                    total_score *= 1.3
+
+                pair_scores.append({
+                    'element': element_symbol,
+                    'type': 'K',
+                    'score': total_score,
+                    'alpha': ka,
+                    'beta': kb,
+                    'ratio': measured_ratio,
+                    'expected_ratio': expected_ratio
+                })
+
+                print(f"{element_symbol} K-pair: measured_ratio={measured_ratio:.2f}, expected={expected_ratio:.1f}, score={total_score:.3f}")
+
+            # Check L pair
+            if lines['La'] and lines['Lb']:
+                la = lines['La']
+                lb = lines['Lb']
+
+                measured_ratio = la['peak_height'] / lb['peak_height']
+                ratio_error = abs(measured_ratio - l_ratio) / l_ratio
+
+                ratio_score = max(0, 1.0 - ratio_error)
+                energy_score = (la['score'] + lb['score']) / 2.0
+                total_score = 0.6 * ratio_score + 0.4 * energy_score
+
+                if element_symbol in common_elements:
+                    total_score *= 1.3
+
+                pair_scores.append({
+                    'element': element_symbol,
+                    'type': 'L',
+                    'score': total_score,
+                    'alpha': la,
+                    'beta': lb,
+                    'ratio': measured_ratio,
+                    'expected_ratio': l_ratio
+                })
+
+                print(f"{element_symbol} L-pair: measured_ratio={measured_ratio:.2f}, expected={l_ratio:.1f}, score={total_score:.3f}")
+
+        # Sort pairs by score and add best matches
+        pair_scores.sort(key=lambda x: x['score'], reverse=True)
+
+        for pair in pair_scores:
+            if pair['score'] < 0.4:  # Minimum threshold
+                continue
+
+            alpha_peak = pair['alpha']['peak_energy']
+            beta_peak = pair['beta']['peak_energy']
+
+            # Check if these peaks are already used
+            if alpha_peak in used_energies or beta_peak in used_energies:
+                continue
+
+            # Add this pair
+            element = pair['element']
+            if pair['type'] == 'K':
+                identified.append((alpha_peak, element, 'Ka'))
+                identified.append((beta_peak, element, 'Kb'))
+            else:
+                identified.append((alpha_peak, element, 'La'))
+                identified.append((beta_peak, element, 'Lb'))
+
+            used_energies.add(alpha_peak)
+            used_energies.add(beta_peak)
+
+            print(f"Identified {element} {pair['type']}-pair with score {pair['score']:.3f}")
+
+        # Second pass: unpaired significant peaks
+        for peak_energy, peak_height in peak_list:
+            if peak_energy in used_energies:
+                continue
+
+            # Only significant peaks
+            if peak_height < 0.1 * peak_list[0][1]:
+                continue
+
+            # Find best candidate (prefer alpha lines and common elements)
+            best_candidate = None
+            best_score = 0
+
+            if peak_energy in peak_candidates:
+                for cand in peak_candidates[peak_energy]:
+                    # Skip beta lines - they should have alphas
+                    if cand['line'] in ['Kb', 'Lb', 'Mb']:
+                        continue
+
+                    score = cand['score']
+
+                    # Strong preference for alpha lines
+                    if cand['line'] in ['Ka', 'La', 'Ma']:
+                        score *= 1.2
+
+                    if score > best_score:
+                        best_score = score
+                        best_candidate = cand
+
+            if best_candidate and best_score > 0.6:
+                identified.append((peak_energy, best_candidate['element'], best_candidate['line']))
+                used_energies.add(peak_energy)
+                print(f"Second pass: {best_candidate['element']} {best_candidate['line']} at {peak_energy:.2f} keV")
+
+        # Sort by energy
+        identified.sort(key=lambda x: x[0])
+
+        return identified
 
 
 
