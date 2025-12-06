@@ -454,6 +454,10 @@ class EDXSEMWindow(wx.Frame):
 
         self.map_ax.set_xlim(x_min, x_max)
         self.map_ax.set_ylim(y_max, y_min)  # Inverted for image
+
+        # Update scale bar for new zoom level
+        self._update_scale_bar()
+
         self.map_canvas.draw()
 
         # Deselect zoom button after use
@@ -464,6 +468,10 @@ class EDXSEMWindow(wx.Frame):
     def on_zoom_out(self, event):
         """Zoom out / reset view"""
         self.map_ax.autoscale()
+
+        # Update scale bar for full view
+        self._update_scale_bar()
+
         self.map_canvas.draw()
 
         # Deselect buttons
@@ -1257,14 +1265,71 @@ class EDXSEMWindow(wx.Frame):
         # Plot in parent KherveFitting window
         if self.parent is not None and hasattr(self.parent, 'ax'):
             self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
-            self.parent.ax.set_xlabel('Energy (keV)')
-            self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title(title)
+
+            # Get stored style preference from window config
+            style = getattr(self.parent, 'edx_plot_style', 'black')
+            label_color = 'black'
+
+            # Apply style
+            if style == 'black':
+                self.parent.figure.patch.set_facecolor('white')
+                self.parent.ax.set_facecolor('white')
+                self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
+                self.parent.ax.set_xlabel('Energy (keV)', color='black')
+                self.parent.ax.set_ylabel('Counts', color='black')
+                self.parent.ax.tick_params(colors='black', labelcolor='black')
+                for spine in self.parent.ax.spines.values():
+                    spine.set_edgecolor('black')
+                label_color = 'black'
+
+            elif style == 'blue_yellow':
+                self.parent.figure.patch.set_facecolor('#1e3a5f')
+                self.parent.ax.set_facecolor('#1e3a5f')
+                self.parent.ax.fill_between(energy, spectrum, color='yellow', alpha=0.8)
+                self.parent.ax.plot(energy, spectrum, 'yellow', linewidth=1.2)
+                self.parent.ax.set_xlabel('Energy (keV)', color='yellow')
+                self.parent.ax.set_ylabel('Counts', color='yellow')
+                self.parent.ax.tick_params(colors='yellow', labelcolor='yellow')
+                for spine in self.parent.ax.spines.values():
+                    spine.set_edgecolor('yellow')
+                label_color = 'yellow'
+
+            elif style == 'white_red':
+                self.parent.figure.patch.set_facecolor('white')
+                self.parent.ax.set_facecolor('white')
+                self.parent.ax.fill_between(energy, spectrum, color='red', alpha=0.6)
+                self.parent.ax.plot(energy, spectrum, 'red', linewidth=1.0)
+                self.parent.ax.set_xlabel('Energy (keV)', color='black')
+                self.parent.ax.set_ylabel('Counts', color='black')
+                self.parent.ax.tick_params(colors='black', labelcolor='black')
+                for spine in self.parent.ax.spines.values():
+                    spine.set_edgecolor('black')
+                label_color = 'black'
+
+            elif style == 'white_blue':
+                self.parent.figure.patch.set_facecolor('white')
+                self.parent.ax.set_facecolor('white')
+                self.parent.ax.fill_between(energy, spectrum, color='blue', alpha=0.6)
+                self.parent.ax.plot(energy, spectrum, 'blue', linewidth=1.0)
+                self.parent.ax.set_xlabel('Energy (keV)', color='black')
+                self.parent.ax.set_ylabel('Counts', color='black')
+                self.parent.ax.tick_params(colors='black', labelcolor='black')
+                for spine in self.parent.ax.spines.values():
+                    spine.set_edgecolor('black')
+                label_color = 'black'
+
+            self.parent.ax.set_title('EDX Sum Spectrum', color=label_color)
+
+            # Set Y-axis to scientific format
             self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
 
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
+
+            # Apply label color
+            for text in self.parent.ax.texts:
+                text.set_color(label_color)
+                text.set_fontweight('bold')
 
             # Get stored X max from any EDX~Plot sheet or default to 20
             display_x_max = 20
@@ -2677,7 +2742,7 @@ class EDXSEMWindow(wx.Frame):
                     'expected_ratio': expected_ratio
                 })
 
-                print(f"{element_symbol} K-pair: measured_ratio={measured_ratio:.2f}, expected={expected_ratio:.1f}, score={total_score:.3f}")
+                # print(f"{element_symbol} K-pair: measured_ratio={measured_ratio:.2f}, expected={expected_ratio:.1f}, score={total_score:.3f}")
 
             # Check L pair
             if lines['La'] and lines['Lb']:
@@ -2704,7 +2769,7 @@ class EDXSEMWindow(wx.Frame):
                     'expected_ratio': l_ratio
                 })
 
-                print(f"{element_symbol} L-pair: measured_ratio={measured_ratio:.2f}, expected={l_ratio:.1f}, score={total_score:.3f}")
+                # print(f"{element_symbol} L-pair: measured_ratio={measured_ratio:.2f}, expected={l_ratio:.1f}, score={total_score:.3f}")
 
         # Sort pairs by score and add best matches
         pair_scores.sort(key=lambda x: x['score'], reverse=True)
@@ -2732,7 +2797,7 @@ class EDXSEMWindow(wx.Frame):
             used_energies.add(alpha_peak)
             used_energies.add(beta_peak)
 
-            print(f"Identified {element} {pair['type']}-pair with score {pair['score']:.3f}")
+            # print(f"Identified {element} {pair['type']}-pair with score {pair['score']:.3f}")
 
         # Second pass: unpaired significant peaks
         for peak_energy, peak_height in peak_list:
@@ -2766,7 +2831,7 @@ class EDXSEMWindow(wx.Frame):
             if best_candidate and best_score > 0.6:
                 identified.append((peak_energy, best_candidate['element'], best_candidate['line']))
                 used_energies.add(peak_energy)
-                print(f"Second pass: {best_candidate['element']} {best_candidate['line']} at {peak_energy:.2f} keV")
+                # print(f"Second pass: {best_candidate['element']} {best_candidate['line']} at {peak_energy:.2f} keV")
 
         # Sort by energy
         identified.sort(key=lambda x: x[0])
@@ -3212,12 +3277,16 @@ class EDXSEMWindow(wx.Frame):
         if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
             return
 
-        # Always detect elements fresh from the current spectrum
-        elements = self._detect_elements_from_spectrum(energy, spectrum)
+        # Use identified Ka peaks if available (from add_peak_labels)
+        if hasattr(self, 'identified_ka_peaks') and self.identified_ka_peaks:
+            elements = [elem for _, elem, _ in self.identified_ka_peaks]
+        else:
+            # Fallback: detect elements fresh from the current spectrum
+            elements = self._detect_elements_from_spectrum(energy, spectrum)
 
-        # If no elements detected, try using selected elements
-        if not elements and self.selected_elements:
-            elements = self.selected_elements
+            # If no elements detected, try using selected elements
+            if not elements and self.selected_elements:
+                elements = self.selected_elements
 
         if not elements:
             # Clear grid if no elements
@@ -4027,7 +4096,7 @@ class EDXSensitivityWindow(wx.Frame):
     """Popup window for EDX sensitivity and display controls"""
 
     def __init__(self, parent):
-        super().__init__(parent, title="EDX Display Controls",
+        super().__init__(parent, title="EDX Properties",
                          size=(300, 350),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
 

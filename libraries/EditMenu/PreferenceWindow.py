@@ -44,12 +44,14 @@ class PreferenceWindow(wx.Frame):
 
         # Create tabs
         self.plot_tab = wx.Panel(self.notebook)
+        self.other_plot_tab = wx.Panel(self.notebook)
         self.text_tab = wx.Panel(self.notebook)
         self.save_tab = wx.Panel(self.notebook)
         self.instrument_tab = wx.Panel(self.notebook)
 
         # Add tabs to notebook
         self.notebook.AddPage(self.plot_tab, "Plot Settings")
+        self.notebook.AddPage(self.other_plot_tab, "Other Plot Settings")
         self.notebook.AddPage(self.text_tab, "Text/Axis Settings")
         self.notebook.AddPage(self.save_tab, "Save Settings")
         self.notebook.AddPage(self.instrument_tab, "Instrument Settings")
@@ -83,6 +85,7 @@ class PreferenceWindow(wx.Frame):
         self.init_instrument_tab()
         self.init_text_tab()
         self.init_save_settings_tab()
+        self.init_other_plot_settings_tab()
         self.LoadSettings()
 
         # # Test for MAC to see why preference window does not change
@@ -91,6 +94,125 @@ class PreferenceWindow(wx.Frame):
 
         from libraries.ConfigFile import set_consistent_fonts
         set_consistent_fonts(self)
+
+    def init_other_plot_settings_tab(self):
+        """Initialize the Other Plot Settings tab with EDX, Multiplot, and HeatMap settings"""
+        # Create scrolled window
+        scrolled = wx.ScrolledWindow(self.other_plot_tab)
+        scrolled.SetScrollRate(5, 5)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # ========== EDX Plot Settings ==========
+        edx_box = wx.StaticBox(scrolled, label="EDX Plot Style")
+        edx_sizer = wx.StaticBoxSizer(edx_box, wx.VERTICAL)
+
+        self.edx_style_radio = wx.RadioBox(
+            scrolled,
+            label="",
+            choices=["Default (Black)", "Blue/Yellow", "White/Red", "White/Blue"],
+            majorDimension=1,
+            style=wx.RA_SPECIFY_COLS
+        )
+
+        # Set current value
+        current_style = getattr(self.parent, 'edx_plot_style', 'black')
+        style_map = {'black': 0, 'blue_yellow': 1, 'white_red': 2, 'white_blue': 3}
+        self.edx_style_radio.SetSelection(style_map.get(current_style, 0))
+
+        edx_sizer.Add(self.edx_style_radio, 0, wx.ALL | wx.EXPAND, 5)
+        main_sizer.Add(edx_sizer, 0, wx.ALL | wx.EXPAND, 10)
+
+        # ========== Multiplot Settings ==========
+        multiplot_box = wx.StaticBox(scrolled, label="Multiplot Settings")
+        multiplot_sizer = wx.StaticBoxSizer(multiplot_box, wx.VERTICAL)
+
+        # Color palette
+        palette_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        palette_label = wx.StaticText(scrolled, label="Color Palette:")
+        palette_sizer.Add(palette_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        palettes = ['Greens_r', 'Blues_r', 'Reds_r', 'Purples_r', 'Oranges_r',
+                    'viridis', 'plasma', 'inferno', 'magma', 'tab10', 'Set1', 'Set2']
+        self.multiplot_palette_choice = wx.Choice(scrolled, choices=palettes)
+        current_palette = getattr(self.parent, 'multiplot_palette', 'Greens_r')
+        if current_palette in palettes:
+            self.multiplot_palette_choice.SetSelection(palettes.index(current_palette))
+        else:
+            self.multiplot_palette_choice.SetSelection(0)
+        palette_sizer.Add(self.multiplot_palette_choice, 1, wx.EXPAND)
+        multiplot_sizer.Add(palette_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Line width
+        linewidth_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        linewidth_label = wx.StaticText(scrolled, label="Line Width:")
+        linewidth_sizer.Add(linewidth_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        self.multiplot_linewidth_spin = wx.SpinCtrlDouble(scrolled, value="1.0",
+                                                          min=0.5, max=5.0, inc=0.5)
+        self.multiplot_linewidth_spin.SetValue(getattr(self.parent, 'multiplot_linewidth', 1.0))
+        linewidth_sizer.Add(self.multiplot_linewidth_spin, 0)
+        multiplot_sizer.Add(linewidth_sizer, 0, wx.ALL, 5)
+
+        # Legend columns
+        legend_cols_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        legend_cols_label = wx.StaticText(scrolled, label="Legend Columns:")
+        legend_cols_sizer.Add(legend_cols_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        self.multiplot_legend_cols_spin = wx.SpinCtrl(scrolled, value="2", min=1, max=4)
+        self.multiplot_legend_cols_spin.SetValue(getattr(self.parent, 'multiplot_legend_ncol', 2))
+        legend_cols_sizer.Add(self.multiplot_legend_cols_spin, 0)
+        multiplot_sizer.Add(legend_cols_sizer, 0, wx.ALL, 5)
+
+        # Max legend items
+        legend_items_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        legend_items_label = wx.StaticText(scrolled, label="Max Legend Items:")
+        legend_items_sizer.Add(legend_items_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        self.multiplot_max_items_spin = wx.SpinCtrl(scrolled, value="30", min=5, max=100)
+        self.multiplot_max_items_spin.SetValue(getattr(self.parent, 'multiplot_max_legend_items', 30))
+        legend_items_sizer.Add(self.multiplot_max_items_spin, 0)
+        multiplot_sizer.Add(legend_items_sizer, 0, wx.ALL, 5)
+
+        main_sizer.Add(multiplot_sizer, 0, wx.ALL | wx.EXPAND, 10)
+
+        # ========== HeatMap Settings ==========
+        heatmap_box = wx.StaticBox(scrolled, label="HeatMap Settings")
+        heatmap_sizer = wx.StaticBoxSizer(heatmap_box, wx.VERTICAL)
+
+        # Colormap
+        colormap_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        colormap_label = wx.StaticText(scrolled, label="Default Colormap:")
+        colormap_sizer.Add(colormap_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        colormaps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis',
+                     'hot', 'cool', 'jet', 'gray', 'RdBu', 'coolwarm']
+        self.heatmap_colormap_choice = wx.Choice(scrolled, choices=colormaps)
+        current_cmap = getattr(self.parent, 'heatmap_default_colormap', 'viridis')
+        if current_cmap in colormaps:
+            self.heatmap_colormap_choice.SetSelection(colormaps.index(current_cmap))
+        else:
+            self.heatmap_colormap_choice.SetSelection(0)
+        colormap_sizer.Add(self.heatmap_colormap_choice, 1, wx.EXPAND)
+        heatmap_sizer.Add(colormap_sizer, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Smoothing
+        smooth_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        smooth_label = wx.StaticText(scrolled, label="Default Smoothing (sigma):")
+        smooth_sizer.Add(smooth_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        self.heatmap_smooth_spin = wx.SpinCtrlDouble(scrolled, value="0.0",
+                                                     min=0.0, max=5.0, inc=0.5)
+        self.heatmap_smooth_spin.SetValue(getattr(self.parent, 'heatmap_default_smooth', 0.0))
+        smooth_sizer.Add(self.heatmap_smooth_spin, 0)
+        heatmap_sizer.Add(smooth_sizer, 0, wx.ALL, 5)
+
+        main_sizer.Add(heatmap_sizer, 0, wx.ALL | wx.EXPAND, 10)
+
+        scrolled.SetSizer(main_sizer)
+
+        tab_sizer = wx.BoxSizer(wx.VERTICAL)
+        tab_sizer.Add(scrolled, 1, wx.EXPAND)
+        self.other_plot_tab.SetSizer(tab_sizer)
 
     def init_text_tab(self):
         text_sizer = wx.GridBagSizer(5, 5)
@@ -1185,6 +1307,40 @@ class PreferenceWindow(wx.Frame):
         self.parent.survey_table_state = selection
         self.parent.plot_manager.survey_table_state = selection
 
+        # Save Other Plot Settings
+        if hasattr(self, 'edx_style_radio'):
+            style_map = {0: 'black', 1: 'blue_yellow', 2: 'white_red', 3: 'white_blue'}
+            selected_style = style_map.get(self.edx_style_radio.GetSelection(), 'black')
+            self.parent.edx_plot_style = selected_style
+
+            # Apply to all EDX~Plot sheets
+            if 'Core levels' in self.parent.Data:
+                for sheet_name in self.parent.Data['Core levels']:
+                    if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+                        self.parent.Data['Core levels'][sheet_name]['_EDX_style'] = selected_style
+
+        if hasattr(self, 'multiplot_palette_choice'):
+            palettes = ['Greens_r', 'Blues_r', 'Reds_r', 'Purples_r', 'Oranges_r',
+                        'viridis', 'plasma', 'inferno', 'magma', 'tab10', 'Set1', 'Set2']
+            self.parent.multiplot_palette = palettes[self.multiplot_palette_choice.GetSelection()]
+
+        if hasattr(self, 'multiplot_linewidth_spin'):
+            self.parent.multiplot_linewidth = self.multiplot_linewidth_spin.GetValue()
+
+        if hasattr(self, 'multiplot_legend_cols_spin'):
+            self.parent.multiplot_legend_ncol = self.multiplot_legend_cols_spin.GetValue()
+
+        if hasattr(self, 'multiplot_max_items_spin'):
+            self.parent.multiplot_max_legend_items = self.multiplot_max_items_spin.GetValue()
+
+        if hasattr(self, 'heatmap_colormap_choice'):
+            colormaps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis',
+                         'hot', 'cool', 'jet', 'gray', 'RdBu', 'coolwarm']
+            self.parent.heatmap_default_colormap = colormaps[self.heatmap_colormap_choice.GetSelection()]
+
+        if hasattr(self, 'heatmap_smooth_spin'):
+            self.parent.heatmap_default_smooth = self.heatmap_smooth_spin.GetValue()
+
         # Save text settings
         self.parent.plot_font = self.font_combo.GetValue()
         self.parent.axis_title_size = self.axis_title_spin.GetValue()
@@ -1252,6 +1408,12 @@ class PreferenceWindow(wx.Frame):
 
         # Save the configuration
         self.parent.save_config()
+
+        # Replot if on EDX sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if current_sheet == 'EDX~Plot' or current_sheet.startswith('EDX~Plot'):
+            if hasattr(self.parent, 'plot_manager'):
+                self.parent.plot_manager.plot_edx_data(self.parent, current_sheet)
 
         # Update the plot preferences
         self.parent.update_plot_preferences()

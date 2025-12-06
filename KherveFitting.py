@@ -271,6 +271,8 @@ class MyFrame(wx.Frame):
         self.peak_fill_types = ["Solid Fill" for _ in range(15)]  # List of types for each peak
         self.peak_hatch_patterns = ["/", "\\", "|", "-", "+", "x", "o", "O", ".", "*"] * 2
 
+        self.edx_plot_style = 'black'  # Default EDX plot style
+
         # Add to plot preferences section
         self.excel_width = 5.2
         self.excel_height = 5.2
@@ -3490,6 +3492,8 @@ class MyFrame(wx.Frame):
                 self.multiplot_legend_ncol = config.get('multiplot_legend_ncol', 2)
                 self.multiplot_max_legend_items = config.get('multiplot_max_legend_items', 10)
 
+                self.edx_plot_style = config.get('edx_plot_style', 'black')
+
                 # Set registered flag
                 self.registered = config.get('registered', False)
 
@@ -3618,6 +3622,8 @@ class MyFrame(wx.Frame):
             'multiplot_linewidth': self.multiplot_linewidth,
             'multiplot_legend_ncol': self.multiplot_legend_ncol,
             'multiplot_max_legend_items': self.multiplot_max_legend_items,
+
+            'edx_plot_style': self.edx_plot_style,
 
             #Tines opened
             'times_opened': getattr(self, 'times_opened', 0),

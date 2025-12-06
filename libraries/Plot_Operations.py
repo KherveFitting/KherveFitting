@@ -1126,6 +1126,16 @@ class PlotManager:
         try:
             self.ax.clear()
 
+            # Reset background to white for non-EDX plots
+            if not (sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
+                self.figure.patch.set_facecolor('white')
+                self.ax.set_facecolor('white')
+                # Reset spines to black
+                for spine in self.ax.spines.values():
+                    spine.set_edgecolor('black')
+                # Reset tick colors to black
+                self.ax.tick_params(colors='black', labelcolor='black')
+
             # Remove heatmap colorbar AND its axes if it exists
             if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
                 try:
@@ -3969,6 +3979,16 @@ class PlotManager:
                 # Clear the main plot
                 self.ax.clear()
 
+                # Reset background to white for non-EDX plots
+                if not (sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
+                    self.figure.patch.set_facecolor('white')
+                    self.ax.set_facecolor('white')
+                    # Reset spines to black
+                    for spine in self.ax.spines.values():
+                        spine.set_edgecolor('black')
+                    # Reset tick colors to black
+                    self.ax.tick_params(colors='black', labelcolor='black')
+
                 # Remove heatmap colorbar AND its axes if it exists (same as plot_data)
                 if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
                     try:
@@ -3996,36 +4016,40 @@ class PlotManager:
                     except:
                         pass
 
-                # Reset plot position to full size (same as plot_data)
+                # Reset plot position to full size
                 self.ax.set_position([0.1, 0.1, 0.85, 0.85])
 
-                # Plot EDX spectrum
-                self.ax.plot(energy, intensity, 'k-', linewidth=0.8)
-                self.ax.set_xlabel('Energy (keV)')
-                self.ax.set_ylabel('Counts')
+                # Get stored style preference from window config or sheet data
+                style = getattr(window, 'edx_plot_style', 'black')
+                if '_EDX_style' in sheet_data:
+                    style = sheet_data['_EDX_style']
+
+                # Apply EDX plot style
+                label_color = self.apply_edx_plot_style(self.ax, self.figure, energy, intensity, style)
 
                 # Set title based on selection info if available
                 selection_info = sheet_data.get('_EDX_selection')
+                title_color = label_color
                 if selection_info:
                     sel_type = selection_info.get('type', 'unknown')
                     if sel_type == 'point':
                         x, y = selection_info.get('x', 0), selection_info.get('y', 0)
                         size = selection_info.get('size', 1)
                         if size == 1:
-                            self.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
+                            self.ax.set_title(f'EDX Spectrum - Point ({x}, {y})', color=title_color)
                         else:
-                            self.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+                            self.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]', color=title_color)
                     elif sel_type == 'line':
-                        self.ax.set_title('EDX Spectrum - Line Profile')
+                        self.ax.set_title('EDX Spectrum - Line Profile', color=title_color)
                     elif sel_type == 'rectangle':
                         angle = selection_info.get('angle', 0)
-                        self.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
+                        self.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)', color=title_color)
                     elif sel_type == 'area':
-                        self.ax.set_title('EDX Spectrum - Area')
+                        self.ax.set_title('EDX Spectrum - Area', color=title_color)
                     else:
-                        self.ax.set_title(f'EDX Spectrum ({sel_type})')
+                        self.ax.set_title(f'EDX Spectrum ({sel_type})', color=title_color)
                 else:
-                    self.ax.set_title('EDX Sum Spectrum')
+                    self.ax.set_title('EDX Sum Spectrum', color=title_color)
 
                 # Set Y-axis to scientific format
                 self.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
@@ -4091,6 +4115,12 @@ class PlotManager:
                             temp_edx = EDXSEMWindow(window)
                             temp_edx.current_data = loaded_data
                             temp_edx.add_peak_labels(self.ax, energy, intensity)
+
+                            # Apply label color based on style
+                            for text in self.ax.texts:
+                                text.set_color(label_color)
+                                text.set_fontweight('bold')
+
                             temp_edx.Destroy()
                             print(f"Added EDX peak labels from {hdf5_path}")
                     except Exception as e:
@@ -4133,6 +4163,71 @@ class PlotManager:
             traceback.print_exc()
             return False
 
+    def apply_edx_plot_style(self, ax, figure, energy, intensity, style='black', label_color='black'):
+        """Apply EDX plot style to axes
+
+        Args:
+            ax: matplotlib axes
+            figure: matplotlib figure
+            energy: energy array
+            intensity: intensity array
+            style: 'black', 'blue_yellow', 'white_red', or 'white_blue'
+            label_color: color for peak labels (used after add_peak_labels is called)
+        """
+        if style == 'black':
+            # Default style: Black line, black labels, white background
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.plot(energy, intensity, 'k-', linewidth=0.8)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'blue_yellow':
+            # Blue background with yellow filled line and yellow labels
+            figure.patch.set_facecolor('#1e3a5f')
+            ax.set_facecolor('#1e3a5f')
+            ax.fill_between(energy, intensity, color='yellow', alpha=0.8)
+            ax.plot(energy, intensity, 'yellow', linewidth=1.2)
+            ax.set_xlabel('Energy (keV)', color='yellow')
+            ax.set_ylabel('Counts', color='yellow')
+            ax.tick_params(colors='yellow', labelcolor='yellow')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('yellow')
+            return 'yellow'
+
+        elif style == 'white_red':
+            # White background with red filled line and black labels
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, intensity, color='red', alpha=0.6)
+            ax.plot(energy, intensity, 'red', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_blue':
+            # White background with blue filled line and black labels
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, intensity, color='blue', alpha=0.6)
+            ax.plot(energy, intensity, 'blue', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        # Default fallback
+        return 'black'
+
     def plot_eels_data(self, window, sheet_name):
         """Plot EELS data when EELS~Plot or EELS~Map sheet is selected"""
         import os
@@ -4157,6 +4252,16 @@ class PlotManager:
 
                 # Clear the main plot
                 self.ax.clear()
+
+                # Reset background to white for non-EDX plots
+                if not (sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
+                    self.figure.patch.set_facecolor('white')
+                    self.ax.set_facecolor('white')
+                    # Reset spines to black
+                    for spine in self.ax.spines.values():
+                        spine.set_edgecolor('black')
+                    # Reset tick colors to black
+                    self.ax.tick_params(colors='black', labelcolor='black')
 
                 # Remove heatmap colorbar AND its axes if it exists
                 if hasattr(window, 'heatmap_colorbar') and window.heatmap_colorbar is not None:
