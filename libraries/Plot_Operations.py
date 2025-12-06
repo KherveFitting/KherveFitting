@@ -4039,8 +4039,15 @@ class PlotManager:
                 window.x_values = energy
                 window.y_values = intensity
 
-                # Set initial display range
-                display_x_max = sheet_data.get('_EDX_display_max', 20)
+                # Set initial display range - check all EDX~Plot sheets for global max
+                display_x_max = 20  # default
+                for sname in window.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        if '_EDX_display_max' in window.Data['Core levels'][sname]:
+                            display_x_max = window.Data['Core levels'][sname]['_EDX_display_max']
+                            break
+                # Store in current sheet too
+                sheet_data['_EDX_display_max'] = display_x_max
                 self.ax.set_xlim(0, display_x_max)
                 self.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
 

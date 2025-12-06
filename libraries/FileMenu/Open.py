@@ -2672,7 +2672,10 @@ def import_avantage_file_direct(window, file_path):
     # Group sheets by sample based on letter suffix
     sample_groups = {}
     for sheet_name in wb.sheetnames:
-        if "Survey" in sheet_name or "Scan" in sheet_name:
+        if "Survey" in sheet_name or "Scan" in sheet_name or any(term in sheet_name.lower() for term in
+                                                                 ['valence', 'valence band', 'valence scan', 'vb scan',
+                                                                  'vb', 'valence band scan', 'val', 'fermi', 'fermi scan',
+                                                                  'cut-off', 'cutoff', 'cut off']):
             # Detect sample suffix (single letter at the end after space)
             parts = sheet_name.split()
             if len(parts) >= 2 and len(parts[-1]) == 1 and parts[-1].isalpha():
@@ -3398,7 +3401,10 @@ def process_avantage_xlsx_with_sample_number(wb, combined_wb, sample_idx):
 
     sheets_to_process = []
     for sheet_name in wb.sheetnames:
-        if "Survey" in sheet_name or "Scan" in sheet_name:
+        if "Survey" in sheet_name or "Scan" in sheet_name or any(term in sheet_name.lower() for term in
+                                                                 ['valence', 'valence band', 'valence scan', 'vb scan',
+                                                                  'vb', 'valence band scan', 'val', 'fermi', 'fermi scan',
+                                                                  'cut-off', 'cutoff', 'cut off']):
             sheets_to_process.append(sheet_name)
 
     for sheet_name in sheets_to_process:
@@ -3498,7 +3504,10 @@ def process_avantage_xls_with_sample_number(wb_xls, combined_wb, sample_idx):
     from openpyxl.utils import get_column_letter
 
     for sheet_name in wb_xls.sheet_names():
-        if "Survey" in sheet_name or "Scan" in sheet_name:
+        if "Survey" in sheet_name or "Scan" in sheet_name or any(term in sheet_name.lower() for term in
+                                                                 ['valence', 'valence band', 'valence scan', 'vb scan',
+                                                                  'vb', 'valence band scan', 'val', 'fermi', 'fermi scan',
+                                                                  'cut-off', 'cutoff', 'cut off']):
             sheet = wb_xls.sheet_by_name(sheet_name)
 
             # Create temporary openpyxl sheet for parameter extraction

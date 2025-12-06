@@ -44,7 +44,7 @@ class PlotConfig:
         # Redraw the canvas
         window.canvas.draw_idle()
 
-    def on_zoom_select(self, window, eclick, erelease):
+    def on_zoom_select_OLD(self, window, eclick, erelease):
         if window.zoom_mode:
             # Extract click and release coordinates
             x1, y1 = eclick.xdata, eclick.ydata
@@ -83,7 +83,51 @@ class PlotConfig:
             # Redraw the canvas to show updated plot
             window.canvas.draw_idle()
 
-    def on_zoom_out(self, window):
+    def on_zoom_select(self, window, eclick, erelease):
+        if window.zoom_mode:
+            # Extract click and release coordinates
+            x1, y1 = eclick.xdata, eclick.ydata
+            x2, y2 = erelease.xdata, erelease.ydata
+
+            # Determine the selected range
+            x_min, x_max = min(x1, x2), max(x1, x2)
+            y_min, y_max = min(y1, y2), max(y1, y2)
+
+            # Get current sheet name
+            sheet_name = window.sheet_combobox.GetValue()
+            is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
+            is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
+            is_edx = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+
+            # Set x-axis limits based on energy scale and data type
+            if window.energy_scale == 'KE':
+                window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
+            else:
+                if is_raman or is_xas or is_edx or sheet_name.startswith('zzProfile'):
+                    window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman, XAS, EDX and zzProfile
+                else:
+                    window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
+
+            # For EDX plots, store the new X-max for all EDX sheets
+            if is_edx and 'Core levels' in window.Data:
+                for sname in window.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        window.Data['Core levels'][sname]['_EDX_display_max'] = x_max
+
+            # Set y-axis limits
+            window.ax.set_ylim(y_min, y_max)
+
+            # Deactivate zoom mode
+            window.zoom_mode = False
+
+            # Remove zoom rectangle if it exists
+            if window.zoom_rect:
+                window.zoom_rect.set_active(False)
+                window.zoom_rect = None
+
+            # Redraw the canvas to show updated plot
+            window.canvas.draw_idle()
+    def on_zoom_out_OLD(self, window):
         """Handle zoom out for both single and multiple plot modes"""
         # Check if current sheet is EDX first
         sheet_name = window.sheet_combobox.GetValue()
@@ -126,7 +170,121 @@ class PlotConfig:
             # For single plots: use standard zoom out
             sheet_name = window.sheet_combobox.GetValue()
 
-            # Reset plot limits to original values
+            # Check if EDX plot
+            is_edx_plot = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+
+            if is_edx_plot:
+                # For EDX plots, set to 0-20 keV and full intensity range
+                if hasattr(window, 'y_values') and len(window.y_values) > 0:
+                    window.ax.set_xlim(0, 20)
+                    window.ax.set_ylim(np.min(window.y_values) * 0.95, np.max(window.y_values) * 1.1)
+                else:
+                    window.ax.set_xlim(0, 20)
+                    window.ax.set_ylim(auto=True)
+
+                # Store the reset X-max for all EDX~Plot sheets
+                if 'Core levels' in window.Data:
+                    for sname in window.Data['Core levels']:
+                        if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                            window.Data['Core levels'][sname]['_EDX_display_max'] = 20
+            else:
+                # Reset plot limits to original values for non-EDX
+                self.reset_plot_limits(window, sheet_name)
+
+                # Resize plot with reset limits
+                self.resize_plot(window)
+
+        # Deactivate and remove zoom rectangle if it exists
+        if window.zoom_rect:
+            window.zoom_rect.set_active(False)
+            window.zoom_rect = None
+
+        # Disable zoom mode
+        window.zoom_mode = False
+
+        # Redraw the canvas
+        window.canvas.draw_idle()
+
+        # Disable drag mode if active
+        if window.drag_mode:
+            window.disable_drag()
+            window.drag_mode = False
+
+    def on_zoom_out(self, window):
+        """Handle zoom out for both single and multiple plot modes"""
+        # Get current sheet name
+        sheet_name = window.sheet_combobox.GetValue()
+
+        # Check if EDX plot (including EDX~Plot1, EDX~Plot2, etc.)
+        is_edx_plot = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+
+        if is_edx_plot:
+            # For EDX plots, zoom out to 0-20 keV and full intensity range
+            if 'Core levels' in window.Data and sheet_name in window.Data['Core levels']:
+                sheet_data = window.Data['Core levels'][sheet_name]
+
+                # Get intensity data
+                if 'Intensity' in sheet_data:
+                    intensity = np.array(sheet_data['Intensity'])
+                    y_min = np.min(intensity) * 0.95
+                    y_max = np.max(intensity) * 1.1
+                elif hasattr(window, 'y_values') and len(window.y_values) > 0:
+                    intensity = np.array(window.y_values)
+                    y_min = np.min(intensity) * 0.95
+                    y_max = np.max(intensity) * 1.1
+                else:
+                    y_min = 0
+                    y_max = 1000
+
+                # Set limits
+                window.ax.set_xlim(0, 20)
+                window.ax.set_ylim(y_min, y_max)
+
+                # Store the reset X-max for all EDX~Plot sheets
+                for sname in window.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        window.Data['Core levels'][sname]['_EDX_display_max'] = 20.00
+
+                print(f"EDX zoom out: X=0.00-20.00 keV, Y={y_min:.2f}-{y_max:.2f}")
+
+                window.canvas.draw_idle()
+
+                # Deactivate and remove zoom rectangle if it exists
+                if window.zoom_rect:
+                    window.zoom_rect.set_active(False)
+                    window.zoom_rect = None
+
+                # Disable zoom mode
+                window.zoom_mode = False
+
+                # Disable drag mode if active
+                if window.drag_mode:
+                    window.disable_drag()
+                    window.drag_mode = False
+
+                return
+
+        # Check if FileManager exists and has multiple sheets selected
+        is_multiple_plot_mode = False
+
+        if hasattr(window, 'file_manager') and window.file_manager:
+            try:
+                # Check if FileManager has multiple selected sheets
+                selected_sheets = window.file_manager.get_selected_sheet_names()
+                is_multiple_plot_mode = len(selected_sheets) > 1
+            except:
+                is_multiple_plot_mode = False
+
+        # Alternative check: see if we have a flag set for multiple plot mode
+        if hasattr(window, 'multiple_plot_mode'):
+            is_multiple_plot_mode = window.multiple_plot_mode
+
+        if is_multiple_plot_mode:
+            # For multiple plots: zoom out to show all data properly
+            self._zoom_out_multiple_plots(window)
+        else:
+            # For single plots: use standard zoom out
+            # Reset plot limits to original values for non-EDX
             self.reset_plot_limits(window, sheet_name)
 
             # Resize plot with reset limits
@@ -362,17 +520,39 @@ class PlotConfig:
         limits = self.plot_limits[sheet_name]
 
         if axis in ['high_be', 'low_be']:
-            increment = 0.2  # Fixed BE increment of 0.2 eV
-            if axis == 'high_be':
+            # Check if we're on an EDX~Plot sheet
+            is_edx_plot = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+
+            if is_edx_plot and axis == 'high_be':
+                # For EDX plots, high_be controls X-max (energy range)
                 if direction == 'increase':
-                    limits['Xmax'] -= increment
-                elif direction == 'decrease':
-                    limits['Xmax'] += increment
-            elif axis == 'low_be':
-                if direction == 'increase':
-                    limits['Xmin'] += increment
-                elif direction == 'decrease':
-                    limits['Xmin'] -= increment
+                    new_xmax = min(50, limits['Xmax'] + 1)
+                else:  # decrease
+                    new_xmax = max(1, limits['Xmax'] - 1)
+
+                # Store for all EDX~Plot sheets
+                if 'Core levels' in window.Data:
+                    for sname in window.Data['Core levels']:
+                        if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                            window.Data['Core levels'][sname]['_EDX_display_max'] = new_xmax
+
+                limits['Xmax'] = new_xmax
+                limits['Xmin'] = 0
+                print(f"EDX X-max set to {new_xmax:.2f} keV for all EDX~Plot sheets")
+
+            elif not is_edx_plot:
+                # Normal XPS behavior for non-EDX plots
+                increment = 0.2  # Fixed BE increment of 0.2 eV
+                if axis == 'high_be':
+                    if direction == 'increase':
+                        limits['Xmax'] -= increment
+                    elif direction == 'decrease':
+                        limits['Xmax'] += increment
+                elif axis == 'low_be':
+                    if direction == 'increase':
+                        limits['Xmin'] += increment
+                    elif direction == 'decrease':
+                        limits['Xmin'] -= increment
         elif axis in ['high_int', 'low_int']:
             max_intensity = max(window.y_values)
             if axis == 'high_int':
@@ -388,9 +568,14 @@ class PlotConfig:
                 elif direction == 'decrease':
                     limits['Ymin'] = max(limits['Ymin'] - increment, 0)
 
-        window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
-        if window.energy_scale == 'KE':
-            window.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
+        # Check if EDX plot to use normal axis
+        is_edx_plot = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+        if is_edx_plot:
+            window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal X-axis for EDX
+        else:
+            window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
+            if window.energy_scale == 'KE':
+                window.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
         window.ax.set_ylim(limits['Ymin'], limits['Ymax'])
         window.canvas.draw_idle()
 
@@ -443,6 +628,7 @@ class PlotConfig:
         sheet_name = window.sheet_combobox.GetValue()
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
         is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
+        is_edx = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
 
         if sheet_name not in self.plot_limits:
             self.update_plot_limits(window, sheet_name)
@@ -451,9 +637,7 @@ class PlotConfig:
         if window.energy_scale == 'KE':
             window.ax.set_xlim(window.photons - limits['Xmax'], window.photons - limits['Xmin'])
         else:
-            if is_raman:
-                window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
-            elif is_xas:
+            if is_raman or is_xas or is_edx or sheet_name.startswith('zzProfile'):
                 window.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal direction for Raman
             else:
                 window.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis for XPS
@@ -523,6 +707,8 @@ class PlotConfig:
 
         is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper() or "Ra_" in sheet_name
         is_xas = sheet_name.startswith('XAS') or sheet_name.startswith('XAS_')
+        is_edx = sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+        is_eels = sheet_name.startswith('EELS~')
 
         if sheet_name not in self.plot_limits:
             self.plot_limits[sheet_name] = {}
@@ -533,12 +719,14 @@ class PlotConfig:
         limits['Ymin'] = y_min
         limits['Ymax'] = y_max
 
-        # Set x-axis limits based on energy scale and data type
+
+
+
         if window.energy_scale == 'KE':
             window.ax.set_xlim(min(x_max, x_min), max(x_max, x_min))
         else:
-            if is_raman or is_xas:
-                window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
+            if is_raman or is_eels or sheet_name.startswith('zzProfile') or is_edx:
+                window.ax.set_xlim(x_min, x_max)  # Normal direction for Raman, zzProfile, and EDX
             else:
                 window.ax.set_xlim(max(x_max, x_min), min(x_max, x_min))  # Reverse X-axis for XPS
         window.ax.set_ylim(y_min, y_max)

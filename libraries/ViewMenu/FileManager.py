@@ -233,7 +233,7 @@ class FileManagerWindow(wx.Frame):
         else:
             del_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
         del_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Last Row", del_rows_bmp,
-                                             "Delete the last 2 rows from the grid")
+                                             "Delete the last row from the grid")
         self.Bind(wx.EVT_TOOL, lambda evt: self.delete_single_row(), del_rows_tool)
 
         # Add Files button (NEW)
@@ -3516,27 +3516,9 @@ class FileManagerWindow(wx.Frame):
         # Add standard menu items
         copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
         paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
+        delete_item = menu.Append(wx.ID_ANY, "Delete Core Level(s)")
 
-        # menu.AppendSeparator()
-        #
-        # # Add peak table copy/paste functionality
-        # copy_peak_table = menu.Append(wx.ID_ANY, "Copy Peak Table")
-        # paste_peak_table = menu.Append(wx.ID_ANY, "Paste Peak Table (Single)")
-        # paste_peak_table_column = menu.Append(wx.ID_ANY, "Paste Peak Table (Multi)")
-        #
-        # menu.AppendSeparator()
-        #
-        # # Add background copy/paste functionality
-        # copy_background = menu.Append(wx.ID_ANY, "Copy Background")
-        # paste_background = menu.Append(wx.ID_ANY, "Paste Background (Single)")
-        # paste_background_select = menu.Append(wx.ID_ANY, "Paste Background (Multi)")
-        #
-        # menu.AppendSeparator()
-        #
-        # # Add combined peak table + background functionality
-        # copy_peak_bkg = menu.Append(wx.ID_ANY, "Copy Peak Table + Bkg")
-        # paste_peak_bkg_single = menu.Append(wx.ID_ANY, "Paste Peak Table + Bkg (Single)")
-        # paste_peak_bkg_multi = menu.Append(wx.ID_ANY, "Paste Peak Table + Bkg (Multi)")
+
 
         menu.AppendSeparator()
 
@@ -3604,6 +3586,7 @@ class FileManagerWindow(wx.Frame):
         # Bind events
         self.Bind(wx.EVT_MENU, self.on_copy, copy_item)
         self.Bind(wx.EVT_MENU, self.on_paste, paste_item)
+        self.Bind(wx.EVT_MENU, self.on_delete, delete_item)
         # self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_from_filemanager(row, col), copy_peak_table)
         # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_from_filemanager(row, col), paste_peak_table)
         # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_to_column_from_filemanager(row, col), paste_peak_table_column)

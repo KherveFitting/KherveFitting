@@ -263,6 +263,10 @@ class KeyEventHandlers:
             self._handle_zoom_keys(keycode)
             return True
         elif keycode in [wx.WXK_LEFT, wx.WXK_RIGHT]:
+            # Try EDX X-max adjustment first
+            if self._handle_edx_xmax_keys(keycode):
+                return True
+            # Otherwise use normal arrow handling
             self._handle_ctrl_arrow_keys(keycode)
             return True
         elif keycode in [wx.WXK_UP, wx.WXK_DOWN]:
@@ -446,20 +450,27 @@ class KeyEventHandlers:
                                                            x_max=limits['Xmax'])
 
             # Update the plot - zzProfile uses normal X-axis, others reverse
-            if sheet_name.startswith('zzProfile'):
+            # if sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+            if (sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+                        or sheet_name.startswith('Raman') or sheet_name.startswith('EELS~Plot')
+                        or sheet_name.startswith('XAS~')):
                 self.main_frame.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal X-axis for zzProfile
             else:
                 self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
 
             # Update subplot limits if it exists
             if hasattr(self.main_frame, 'residuals_subplot') and self.main_frame.residuals_subplot:
-                if sheet_name.startswith('zzProfile'):
+                # if sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+                if (sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')
+                        or sheet_name.startswith('Raman') or sheet_name.startswith('EELS~Plot')
+                        or sheet_name.startswith('XAS~')):
                     self.main_frame.residuals_subplot.set_xlim(limits['Xmin'], limits['Xmax'])
                 else:
                     self.main_frame.residuals_subplot.set_xlim(limits['Xmax'], limits['Xmin'])
 
             # After zooming, update residuals
-            self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
+            if not (sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
+                self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
 
             self.main_frame.canvas.draw_idle()
 
@@ -512,11 +523,15 @@ class KeyEventHandlers:
                                                        x_max=limits['Xmax'])
 
         # Update the plot - zzProfile uses normal X-axis, others reverse
-        if sheet_name.startswith('zzProfile'):
+        if (sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')\
+                or sheet_name.startswith('Raman') or sheet_name.startswith('EELS~Plot')
+                or sheet_name.startswith('XAS~')):
             self.main_frame.ax.set_xlim(limits['Xmin'], limits['Xmax'])  # Normal X-axis for zzProfile
         else:
             self.main_frame.ax.set_xlim(limits['Xmax'], limits['Xmin'])  # Reverse X-axis
-        self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
+
+        if not (sheet_name.startswith('zzProfile') or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
+            self.main_frame.plot_manager.update_overall_fit_and_residuals(self.main_frame)
 
         self.main_frame.canvas.draw_idle()
 
@@ -680,6 +695,41 @@ class KeyEventHandlers:
 
         # Refresh vline text labels after intensity adjustment
         self.main_frame.refresh_vline_text_labels()
+
+    def _handle_edx_xmax_keys(self, keycode):
+        """Handle Ctrl+Left/Right for EDX X-max adjustment"""
+        sheet_name = self.main_frame.sheet_combobox.GetValue()
+
+        # Only work on EDX~Plot sheets
+        if not (sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
+            return False
+
+        if 'Core levels' not in self.main_frame.Data:
+            return False
+
+        if sheet_name not in self.main_frame.Data['Core levels']:
+            return False
+
+        # Get current X max
+        current_xmax = self.main_frame.Data['Core levels'][sheet_name].get('_EDX_display_max', 20)
+
+        # Adjust by 1 keV
+        if keycode == wx.WXK_LEFT:
+            new_xmax = max(1, current_xmax - 1)
+        else:  # Right
+            new_xmax = min(50, current_xmax + 1)
+
+        # Store for all EDX~Plot sheets
+        for sname in self.main_frame.Data['Core levels']:
+            if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                self.main_frame.Data['Core levels'][sname]['_EDX_display_max'] = new_xmax
+
+        # Update the plot
+        self.main_frame.ax.set_xlim(0, new_xmax)
+        self.main_frame.canvas.draw_idle()
+
+        print(f"EDX X-max set to {new_xmax:.2f} keV for all EDX~Plot sheets")
+        return True
 
 
 def setup_key_handlers(main_frame):

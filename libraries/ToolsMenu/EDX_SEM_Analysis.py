@@ -39,6 +39,10 @@ class EDXSEMWindow(wx.Frame):
 
         self.point_size = 1  # Size in pixels (1 = single pixel)
 
+        # Store last positions for arrow button movement
+        self.last_line_start = None
+        self.last_line_end = None
+
         self.loaded_signals = []
         self.data_browser_window = None
         self.info_window = None
@@ -78,7 +82,61 @@ class EDXSEMWindow(wx.Frame):
         self.map_canvas = FigureCanvas(map_panel, -1, self.map_figure)
         self.map_ax = self.map_figure.add_subplot(111)
 
+        # Connect to matplotlib draw event to keep buttons visible
+        self.map_figure.canvas.mpl_connect('draw_event', self._on_mpl_draw)
+
+        # Add canvas to sizer
         map_sizer.Add(self.map_canvas, 1, wx.EXPAND)
+        map_panel.SetSizer(map_sizer)
+
+        # Create arrow button panel that will be positioned on bottom-left
+        arrow_panel = wx.Panel(map_panel)
+        arrow_panel.SetBackgroundColour(wx.Colour(240, 240, 240, 220))  # Semi-transparent gray
+        arrow_sizer = wx.GridBagSizer(0, 0)  # 2px spacing
+
+        btn_size = (30, 30)
+        btn_size_wide = (60, 30)  # Width for 2 columns
+
+        # Row 0: Up button spanning 2 columns
+        self.arrow_up_btn = wx.Button(arrow_panel, label="↑", size=btn_size_wide)
+        self.arrow_up_btn.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        arrow_sizer.Add(self.arrow_up_btn, pos=(0, 0), span=(1, 2), flag=wx.ALIGN_CENTER)
+
+        # Row 1: Left and Right buttons
+        self.arrow_left_btn = wx.Button(arrow_panel, label="←", size=btn_size)
+        self.arrow_left_btn.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        arrow_sizer.Add(self.arrow_left_btn, pos=(1, 0), flag=wx.ALIGN_CENTER)
+
+        self.arrow_right_btn = wx.Button(arrow_panel, label="→", size=btn_size)
+        self.arrow_right_btn.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        arrow_sizer.Add(self.arrow_right_btn, pos=(1, 1), flag=wx.ALIGN_CENTER)
+
+        # Row 2: Down button spanning 2 columns
+        self.arrow_down_btn = wx.Button(arrow_panel, label="↓", size=btn_size_wide)
+        self.arrow_down_btn.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        arrow_sizer.Add(self.arrow_down_btn, pos=(2, 0), span=(1, 2), flag=wx.ALIGN_CENTER)
+
+        arrow_panel.SetSizer(arrow_sizer)
+        arrow_panel.Fit()
+
+        # Store reference for positioning later
+        self.arrow_control_panel = arrow_panel
+
+        # Set map panel sizer
+        map_panel.SetSizer(map_sizer)
+
+        # Bind arrow button events
+        self.arrow_up_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_arrow_move('up'))
+        self.arrow_down_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_arrow_move('down'))
+        self.arrow_left_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_arrow_move('left'))
+        self.arrow_right_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_arrow_move('right'))
+
+        # Bind size event to reposition arrow panel
+        map_panel.Bind(wx.EVT_SIZE, self.on_map_panel_resize)
+
+        # Bind paint event to keep buttons visible
+        self.map_canvas.Bind(wx.EVT_PAINT, self.on_canvas_paint)
+
         map_panel.SetSizer(map_sizer)
 
         main_sizer.Add(map_panel, 1, wx.EXPAND)
@@ -253,7 +311,11 @@ class EDXSEMWindow(wx.Frame):
 
         # Sensitivity/Display controls button
         self.sensitivity_btn = wx.BitmapButton(toolbar_panel, size=btn_size)
-        self.sensitivity_btn.SetBitmap(self.create_icon_bitmap('sensitivity'))
+        settings_path = os.path.join(icon_path, "Settings-3.png")
+        if os.path.exists(settings_path):
+            self.sensitivity_btn.SetBitmap(wx.Bitmap(settings_path, wx.BITMAP_TYPE_PNG))
+        else:
+            self.sensitivity_btn.SetBitmap(self.create_icon_bitmap('sensitivity'))
         self.sensitivity_btn.SetToolTip("Display & Sensitivity Controls")
         self.sensitivity_btn.Bind(wx.EVT_BUTTON, self.on_sensitivity_controls)
         toolbar_sizer.Add(self.sensitivity_btn, 0, wx.ALL, 2)
@@ -641,6 +703,8 @@ class EDXSEMWindow(wx.Frame):
         self.selected_lines = []
         self.line_start = None
         self.line_end = None
+        self.last_line_start = None
+        self.last_line_end = None
 
         # Clear rotatable rectangle if it exists
         if hasattr(self, 'rotatable_rect') and self.rotatable_rect:
@@ -648,6 +712,9 @@ class EDXSEMWindow(wx.Frame):
 
         # Clear selection markers
         self.clear_selection_markers()
+
+        # Clear saved selection markers (black elements on heatmap)
+        self._clear_saved_selection()
 
         self.map_canvas.draw()
 
@@ -1076,6 +1143,10 @@ class EDXSEMWindow(wx.Frame):
                 self.plot_line_spectrum(self.line_start[0], self.line_start[1],
                                         self.line_end[0], self.line_end[1])
 
+                # Store positions for arrow button movement
+                self.last_line_start = self.line_start
+                self.last_line_end = self.line_end
+
                 # Reset for next line
                 self.line_start = None
                 self.line_end = None
@@ -1195,15 +1266,14 @@ class EDXSEMWindow(wx.Frame):
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
-            # Get stored X max or default to 20
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
-                if current_sheet in self.parent.Data['Core levels']:
-                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
-                else:
-                    display_x_max = 20
-            else:
-                display_x_max = 20
+            # Get stored X max from any EDX~Plot sheet or default to 20
+            display_x_max = 20
+            if 'Core levels' in self.parent.Data:
+                for sname in self.parent.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
+                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
+                            break
 
             self.parent.ax.set_xlim(0, display_x_max)
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
@@ -1246,15 +1316,14 @@ class EDXSEMWindow(wx.Frame):
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
-            # Get stored X max or default to 20
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
-                if current_sheet in self.parent.Data['Core levels']:
-                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
-                else:
-                    display_x_max = 20
-            else:
-                display_x_max = 20
+            # Get stored X max from any EDX~Plot sheet or default to 20
+            display_x_max = 20
+            if 'Core levels' in self.parent.Data:
+                for sname in self.parent.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
+                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
+                            break
 
             self.parent.ax.set_xlim(0, display_x_max)
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
@@ -1305,15 +1374,14 @@ class EDXSEMWindow(wx.Frame):
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
-            # Get stored X max or default to 20
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
-                if current_sheet in self.parent.Data['Core levels']:
-                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
-                else:
-                    display_x_max = 20
-            else:
-                display_x_max = 20
+            # Get stored X max from any EDX~Plot sheet or default to 20
+            display_x_max = 20
+            if 'Core levels' in self.parent.Data:
+                for sname in self.parent.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
+                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
+                            break
 
             self.parent.ax.set_xlim(0, display_x_max)
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
@@ -2182,15 +2250,14 @@ class EDXSEMWindow(wx.Frame):
             # Add element peak labels
             self.add_peak_labels(self.parent.ax, energy, spectrum)
 
-            # Get stored X max or default to 20
-            current_sheet = self.parent.sheet_combobox.GetValue()
-            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
-                if current_sheet in self.parent.Data['Core levels']:
-                    display_x_max = self.parent.Data['Core levels'][current_sheet].get('_EDX_display_max', 20)
-                else:
-                    display_x_max = 20
-            else:
-                display_x_max = 20
+            # Get stored X max from any EDX~Plot sheet or default to 20
+            display_x_max = 20
+            if 'Core levels' in self.parent.Data:
+                for sname in self.parent.Data['Core levels']:
+                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
+                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
+                            break
 
             self.parent.ax.set_xlim(0, display_x_max)
             self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
@@ -2432,6 +2499,12 @@ class EDXSEMWindow(wx.Frame):
 
             # Identify peaks using intensity-aware matching
             identified_peaks = self._identify_peaks_with_ratios(peak_list, elements)
+
+            # Store identified peaks for quantification - only Ka lines
+            self.identified_ka_peaks = []
+            for peak_energy, element, line_type in identified_peaks:
+                if 'Ka' in line_type or 'Kα' in line_type:
+                    self.identified_ka_peaks.append((peak_energy, element, line_type))
 
             # Add labels to plot
             for peak_energy, element, line_type in identified_peaks:
@@ -2960,52 +3033,86 @@ class EDXSEMWindow(wx.Frame):
             traceback.print_exc()
 
     def _calculate_atomic_percent(self, energy, spectrum, elements):
-        """Calculate atomic percentages from peak intensities"""
+        """Calculate atomic percentages from peak intensities using identified Ka peaks"""
         from exspy.material import elements as exspy_elements
 
         results = []
         total_intensity = 0
         element_intensities = {}
 
-        for element in elements:
-            try:
-                elem_obj = exspy_elements[element]
-                if hasattr(elem_obj, 'Atomic_properties') and hasattr(elem_obj.Atomic_properties, 'Xray_lines'):
-                    xray_lines = elem_obj.Atomic_properties.Xray_lines
+        # Use identified Ka peaks if available
+        if hasattr(self, 'identified_ka_peaks') and self.identified_ka_peaks:
+            print(f"Using {len(self.identified_ka_peaks)} identified Ka peaks for quantification")
 
-                    # Find the strongest line (Ka preferred, then La)
-                    best_line = None
-                    best_energy = None
-                    for line_type in ['Ka', 'La', 'Ma']:
-                        if line_type in xray_lines:
-                            best_line = line_type
-                            best_energy = xray_lines[line_type].energy_keV
-                            break
+            for peak_energy, element, line_type in self.identified_ka_peaks:
+                try:
+                    elem_obj = exspy_elements[element]
 
-                    if best_energy is not None:
-                        # Find peak intensity at this energy
-                        idx = np.argmin(np.abs(energy - best_energy))
+                    # Find peak intensity at this energy
+                    idx = np.argmin(np.abs(energy - peak_energy))
 
-                        # Integrate around peak (simple approach)
-                        window = 5  # channels
-                        start_idx = max(0, idx - window)
-                        end_idx = min(len(spectrum), idx + window)
-                        peak_intensity = np.sum(spectrum[start_idx:end_idx])
+                    # Integrate around peak
+                    window = 5  # channels
+                    start_idx = max(0, idx - window)
+                    end_idx = min(len(spectrum), idx + window)
+                    peak_intensity = np.sum(spectrum[start_idx:end_idx])
 
-                        # Get atomic weight for normalization
-                        atomic_weight = elem_obj.General_properties.atomic_weight
+                    # Get atomic weight for normalization
+                    atomic_weight = elem_obj.General_properties.atomic_weight
 
-                        element_intensities[element] = {
-                            'intensity': peak_intensity,
-                            'line': best_line,
-                            'energy': best_energy,
-                            'atomic_weight': atomic_weight
-                        }
-                        total_intensity += peak_intensity
+                    element_intensities[element] = {
+                        'intensity': peak_intensity,
+                        'line': line_type,
+                        'energy': peak_energy,
+                        'atomic_weight': atomic_weight
+                    }
+                    total_intensity += peak_intensity
 
-            except (KeyError, AttributeError) as e:
-                print(f"Could not process element {element}: {e}")
-                continue
+                except (KeyError, AttributeError) as e:
+                    print(f"Could not process element {element}: {e}")
+                    continue
+        else:
+            # Fallback to old method using selected elements
+            print("No identified Ka peaks found, using selected elements")
+            for element in elements:
+                try:
+                    elem_obj = exspy_elements[element]
+                    if hasattr(elem_obj, 'Atomic_properties') and hasattr(elem_obj.Atomic_properties, 'Xray_lines'):
+                        xray_lines = elem_obj.Atomic_properties.Xray_lines
+
+                        # Find the strongest line (Ka preferred, then La)
+                        best_line = None
+                        best_energy = None
+                        for line_type in ['Ka', 'La', 'Ma']:
+                            if line_type in xray_lines:
+                                best_line = line_type
+                                best_energy = xray_lines[line_type].energy_keV
+                                break
+
+                        if best_energy is not None:
+                            # Find peak intensity at this energy
+                            idx = np.argmin(np.abs(energy - best_energy))
+
+                            # Integrate around peak (simple approach)
+                            window = 5  # channels
+                            start_idx = max(0, idx - window)
+                            end_idx = min(len(spectrum), idx + window)
+                            peak_intensity = np.sum(spectrum[start_idx:end_idx])
+
+                            # Get atomic weight for normalization
+                            atomic_weight = elem_obj.General_properties.atomic_weight
+
+                            element_intensities[element] = {
+                                'intensity': peak_intensity,
+                                'line': best_line,
+                                'energy': best_energy,
+                                'atomic_weight': atomic_weight
+                            }
+                            total_intensity += peak_intensity
+
+                except (KeyError, AttributeError) as e:
+                    print(f"Could not process element {element}: {e}")
+                    continue
 
         # Calculate atomic percentages (simplified - without k-factors)
         if total_intensity > 0:
@@ -3379,6 +3486,337 @@ class EDXSEMWindow(wx.Frame):
             return
         self.plot_current_map()
 
+    def on_map_panel_resize(self, event):
+        """Position arrow control panel on bottom-left of map canvas"""
+        if hasattr(self, 'arrow_control_panel') and self.arrow_control_panel:
+            # Get canvas size and position
+            canvas_rect = self.map_canvas.GetRect()
+
+            # Get arrow panel size
+            arrow_size = self.arrow_control_panel.GetBestSize()
+
+            # Position on bottom-left with 10px margins
+            x = canvas_rect.x
+            y = canvas_rect.y + canvas_rect.height - arrow_size.height
+
+            self.arrow_control_panel.SetPosition((x, y))
+            self.arrow_control_panel.SetSize(arrow_size)
+            self.arrow_control_panel.Raise()  # Bring to front
+            self.arrow_control_panel.Show()
+
+        event.Skip()
+
+    def on_canvas_paint(self, event):
+        """Keep arrow buttons visible when canvas redraws"""
+        event.Skip()  # Let the paint event continue
+
+        # Re-raise the arrow panel to keep it on top after a short delay
+        if hasattr(self, 'arrow_control_panel') and self.arrow_control_panel:
+            wx.CallLater(10, self._reposition_arrow_panel)
+
+    def _reposition_arrow_panel(self):
+        """Helper to reposition arrow panel"""
+        if hasattr(self, 'arrow_control_panel') and self.arrow_control_panel:
+            canvas_rect = self.map_canvas.GetRect()
+            arrow_size = self.arrow_control_panel.GetBestSize()
+
+            x = canvas_rect.x
+            y = canvas_rect.y + canvas_rect.height - arrow_size.height
+
+            self.arrow_control_panel.SetPosition((x, y))
+            self.arrow_control_panel.Show()
+            self.arrow_control_panel.Raise()
+            self.arrow_control_panel.Refresh()
+            self.arrow_control_panel.Update()
+
+    def _on_mpl_draw(self, event):
+        """Called after matplotlib draws - keep buttons on top"""
+        if hasattr(self, 'arrow_control_panel') and self.arrow_control_panel:
+            wx.CallLater(5, self._reposition_arrow_panel)
+
+    def on_arrow_move(self, direction):
+        """Handle arrow button clicks to move selected elements"""
+        if self.current_data is None:
+            return
+
+        # Get the actual data array from HyperSpy signal
+        if hasattr(self.current_data, 'data'):
+            data_array = self.current_data.data
+        else:
+            data_array = self.current_data
+
+        # If nothing is selected, clear saved selections and return
+        if (not self.selected_points and
+            not self.last_line_start and
+            not (hasattr(self, 'rotatable_rect') and self.rotatable_rect and self.rotatable_rect.center is not None) and
+            not self.selected_areas):
+            self._clear_saved_selection()
+            self.map_canvas.draw()
+            return
+
+        # Get plot dimensions for calculating movement step
+        # Use 0.5% of plot dimension as movement step
+        height, width = data_array.shape[:2]
+        step_x = int(width * 0.005)
+        step_y = int(height * 0.005)
+
+        # Ensure minimum movement of 1 pixel
+        step_x = max(1, step_x)
+        step_y = max(1, step_y)
+
+        # Determine movement direction
+        dx, dy = 0, 0
+        if direction == 'left':
+            dx = -step_x
+        elif direction == 'right':
+            dx = step_x
+        elif direction == 'up':
+            dy = -step_y
+        elif direction == 'down':
+            dy = step_y
+
+        moved = False
+
+        # Move selected points
+        if self.selected_points:
+            moved = self._move_and_replot_point(dx, dy, width, height)
+
+        # Move selected lines (use last positions)
+        elif self.last_line_start and self.last_line_end:
+            moved = self._move_and_replot_line(dx, dy, width, height)
+
+        # Move rotatable rectangle if it exists (priority over selected_areas)
+        elif hasattr(self, 'rotatable_rect') and self.rotatable_rect and self.rotatable_rect.center is not None:
+            moved = self._move_and_replot_rotated(dx, dy, width, height)
+
+        # Move selected areas (rectangles)
+        elif self.selected_areas:
+            moved = self._move_and_replot_area(dx, dy, width, height)
+
+        if moved:
+            print(f"Moved selection by ({dx}, {dy})")
+
+    def _move_and_replot_point(self, dx, dy, width, height):
+        """Move point and replot"""
+        if not self.selected_points:
+            return False
+
+        new_points = []
+        for point in self.selected_points:
+            if len(point) == 3:
+                x, y, size = point
+            else:
+                x, y = point
+                size = 1
+
+            new_x = int(np.clip(x + dx, 0, width - 1))
+            new_y = int(np.clip(y + dy, 0, height - 1))
+            new_points.append((new_x, new_y, size))
+
+        self.selected_points = new_points
+
+        # Redraw marker
+        self.clear_selection_markers()
+        point = self.selected_points[-1]
+        x, y, size = point
+
+        if size == 1:
+            marker, = self.map_ax.plot(x, y, 'g+', markersize=15, markeredgewidth=2)
+            marker._is_selection_marker = True
+        else:
+            from matplotlib.patches import Rectangle
+            half_size = size / 2
+            rect = Rectangle((x - half_size, y - half_size), size, size,
+                             linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+            rect._is_selection_marker = True
+            self.map_ax.add_patch(rect)
+
+        self.map_canvas.draw()
+        self.map_canvas.Refresh()
+
+        # Replot spectrum
+        self.plot_point_spectrum(x, y)
+
+        # Keep arrow buttons visible
+        wx.CallLater(10, self._reposition_arrow_panel)
+
+        return True
+
+    def _move_and_replot_line(self, dx, dy, width, height):
+        """Move line and replot"""
+        if not self.last_line_start or not self.last_line_end:
+            return False
+
+        x1, y1 = self.last_line_start
+        x2, y2 = self.last_line_end
+
+        # Move both endpoints
+        new_x1 = int(np.clip(x1 + dx, 0, width - 1))
+        new_y1 = int(np.clip(y1 + dy, 0, height - 1))
+        new_x2 = int(np.clip(x2 + dx, 0, width - 1))
+        new_y2 = int(np.clip(y2 + dy, 0, height - 1))
+
+        self.last_line_start = (new_x1, new_y1)
+        self.last_line_end = (new_x2, new_y2)
+
+        # Redraw markers
+        self.clear_selection_markers()
+
+        # Draw line
+        line, = self.map_ax.plot([new_x1, new_x2], [new_y1, new_y2], 'g-', linewidth=2)
+        line._is_selection_marker = True
+
+        # Draw end points
+        marker1, = self.map_ax.plot(new_x1, new_y1, 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
+        marker1._is_selection_marker = True
+        marker2, = self.map_ax.plot(new_x2, new_y2, 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
+        marker2._is_selection_marker = True
+
+        self.map_canvas.draw()
+
+        # Keep arrow buttons visible
+        if hasattr(self, 'arrow_control_panel'):
+            self.arrow_control_panel.Raise()
+
+        # Replot spectrum
+        self.plot_line_spectrum(new_x1, new_y1, new_x2, new_y2)
+
+        return True
+
+    def _move_and_replot_area(self, dx, dy, width, height):
+        """Move area and replot"""
+        if not self.selected_areas:
+            return False
+
+        x1, y1, x2, y2 = self.selected_areas[-1]
+
+        # Calculate rectangle dimensions
+        rect_width = x2 - x1
+        rect_height = y2 - y1
+
+        # Move and clip to boundaries
+        new_x1 = int(np.clip(x1 + dx, 0, width - rect_width))
+        new_y1 = int(np.clip(y1 + dy, 0, height - rect_height))
+        new_x2 = new_x1 + rect_width
+        new_y2 = new_y1 + rect_height
+
+        self.selected_areas[-1] = (new_x1, new_y1, new_x2, new_y2)
+
+        # Redraw marker
+        self.clear_selection_markers()
+
+        from matplotlib.patches import Rectangle
+        rect = Rectangle((new_x1, new_y1), rect_width, rect_height,
+                         linewidth=2, edgecolor='lime', facecolor='none')
+        rect._is_selection_marker = True
+        self.map_ax.add_patch(rect)
+
+        self.map_canvas.draw()
+
+        # Keep arrow buttons visible
+        if hasattr(self, 'arrow_control_panel'):
+            self.arrow_control_panel.Raise()
+
+        # Replot spectrum
+        self.plot_area_spectrum(new_x1, new_y1, new_x2, new_y2)
+
+        return True
+
+    def _move_and_replot_rotated(self, dx, dy, width, height):
+        """Move rotatable rectangle and replot"""
+        if not hasattr(self, 'rotatable_rect') or not self.rotatable_rect:
+            return False
+
+        if self.rotatable_rect.center is None:
+            return False
+
+        # Get current center
+        cx, cy = self.rotatable_rect.center
+
+        # Calculate new center with boundary checking
+        new_cx = float(np.clip(cx + dx, 0, width - 1))
+        new_cy = float(np.clip(cy + dy, 0, height - 1))
+
+        # Update center
+        self.rotatable_rect.center = (new_cx, new_cy)
+
+        # Redraw the rectangle using the RotatableRectangle's draw method
+        self.rotatable_rect.draw_rectangle()
+
+        self.map_canvas.draw()
+
+        # Keep arrow buttons visible
+        if hasattr(self, 'arrow_control_panel'):
+            self.arrow_control_panel.Raise()
+
+        # Replot spectrum for rotated area using SAME method as on_rotated_area_complete
+        data = self.current_data.data
+        if len(data.shape) != 3:
+            return False
+
+        # Get dimensions
+        map_height, map_width = data.shape[0], data.shape[1]
+        w = self.rotatable_rect.width
+        h = self.rotatable_rect.height
+        angle = self.rotatable_rect.angle
+        hw, hh = w / 2, h / 2
+
+        # Create rotation matrix
+        angle_rad = np.radians(-angle)  # Negative for inverse transform
+        cos_a = np.cos(angle_rad)
+        sin_a = np.sin(angle_rad)
+
+        # Create mask for pixels inside rotated rectangle
+        y_indices, x_indices = np.meshgrid(np.arange(map_height), np.arange(map_width), indexing='ij')
+
+        # Transform all pixels to rectangle's local coordinate system
+        local_x = (x_indices - new_cx) * cos_a - (y_indices - new_cy) * sin_a
+        local_y = (x_indices - new_cx) * sin_a + (y_indices - new_cy) * cos_a
+
+        # Create mask for pixels inside rectangle
+        mask = (np.abs(local_x) <= hw) & (np.abs(local_y) <= hh)
+
+        # Extract spectra from masked pixels
+        masked_spectra = data[mask]
+
+        if len(masked_spectra) == 0:
+            print("No pixels in selected area")
+            return False
+
+        # Sum spectra
+        summed_spectrum = np.sum(masked_spectra, axis=0)
+
+        # Get energy axis
+        energy_axis = self.current_data.axes_manager[-1]
+        energy = energy_axis.axis
+
+        # Plot to parent window
+        if self.parent is not None:
+            self.parent.ax.clear()
+            self.parent.ax.plot(energy, summed_spectrum, 'k-', linewidth=0.8)
+            self.parent.ax.set_xlabel('Energy (keV)')
+            self.parent.ax.set_ylabel('Counts')
+            self.parent.ax.set_title(f'EDX Area Spectrum (Rotated, {len(masked_spectra)} pixels)')
+            self.parent.ax.grid(False)
+
+            # Add peak labels
+            self.add_peak_labels(self.parent.ax, energy, summed_spectrum)
+
+            # Get stored X max or default to 20
+            display_x_max = self.parent.Data['Core levels']['EDX~Plot'].get('_EDX_display_max', 20)
+            self.parent.ax.set_xlim(0, display_x_max)
+            self.parent.ax.set_ylim(0, np.max(summed_spectrum) * 1.1)
+
+            self.parent.canvas.draw()
+
+            # Populate peak fitting grid with quantification
+            self._populate_edx_grid(energy, summed_spectrum, f"Rotated Area ({len(masked_spectra)} px)")
+
+        print(f"Moved rotated area: center=({new_cx:.0f},{new_cy:.0f}), size=({w:.0f}x{h:.0f}), angle={angle:.1f}°")
+        print(f"Extracted {len(masked_spectra)} pixels")
+
+        return True
+
     def on_close(self, event):
         """Clear parent reference when closing"""
         if hasattr(self.parent, 'edx_window'):
@@ -3590,7 +4028,7 @@ class EDXSensitivityWindow(wx.Frame):
 
     def __init__(self, parent):
         super().__init__(parent, title="EDX Display Controls",
-                         size=(300, 250),
+                         size=(300, 350),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
 
         self.parent = parent
@@ -3701,11 +4139,12 @@ class EDXSensitivityWindow(wx.Frame):
             current_xlim = self.parent.parent.ax.get_xlim()
             self.parent.parent.ax.set_xlim(0, x_max)  # Always start from 0
 
-            # Store the X max preference
-            current_sheet = self.parent.parent.sheet_combobox.GetValue()
-            if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.parent.Data:
-                if current_sheet in self.parent.parent.Data['Core levels']:
-                    self.parent.parent.Data['Core levels'][current_sheet]['_EDX_display_max'] = x_max
+            # Store the X max preference for ALL EDX~Plot sheets
+            if 'Core levels' in self.parent.parent.Data:
+                for sheet_name in self.parent.parent.Data['Core levels']:
+                    if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+                        self.parent.parent.Data['Core levels'][sheet_name]['_EDX_display_max'] = x_max
+                print(f"Stored _EDX_display_max={x_max:.2f} for all EDX~Plot sheets")
 
             self.parent.parent.canvas.draw()
 
@@ -3745,7 +4184,7 @@ class EDXSensitivityWindow(wx.Frame):
                     sheet_data = self.parent.parent.Data['Core levels'][current_sheet]
                     sheet_data['_EDX_sensitivity'] = threshold
 
-                window.plot_manager.plot_edx_data(self.parent.parent, current_sheet)
+                self.parent.plot_manager.plot_edx_data(self.parent.parent, current_sheet)
 
     def on_reset(self, event):
         """Reset all values to defaults"""
