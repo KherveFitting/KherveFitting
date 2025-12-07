@@ -1266,6 +1266,9 @@ class EDXSEMWindow(wx.Frame):
         if self.parent is not None and hasattr(self.parent, 'ax'):
             self.parent.ax.clear()
 
+            # Use saved plot style
+            self._plot_spectrum_with_style(self.parent.ax, energy, spectrum)
+
             # Get stored style preference from window config
             style = getattr(self.parent, 'edx_plot_style', 'black')
             label_color = 'black'
@@ -1347,6 +1350,52 @@ class EDXSEMWindow(wx.Frame):
 
             # Populate peak fitting grid with quantification
             self._populate_edx_grid(energy, spectrum, title)
+
+    def _plot_spectrum_with_style(self, ax, energy, spectrum):
+        """Plot spectrum using saved style settings from parent window"""
+        if self.parent is None:
+            ax.plot(energy, spectrum, 'k-', linewidth=0.8)
+            return
+
+        # Get style from parent window (loaded from config.json)
+        plot_style = getattr(self.parent, 'plot_style', 'scatter')
+        line_color = getattr(self.parent, 'line_color', 'black')
+        line_width = getattr(self.parent, 'line_width', 1.0)
+        line_alpha = getattr(self.parent, 'line_alpha', 1.0)
+        scatter_color = getattr(self.parent, 'scatter_color', 'black')
+        scatter_size = getattr(self.parent, 'scatter_size', 10)
+        scatter_marker = getattr(self.parent, 'scatter_marker', 'o')
+        raw_data_linestyle = getattr(self.parent, 'raw_data_linestyle', '-')
+
+        if plot_style == 'scatter':
+            ax.scatter(energy, spectrum,
+                       c=scatter_color,
+                       s=scatter_size,
+                       marker=scatter_marker,
+                       alpha=line_alpha)
+        elif plot_style == 'line':
+            ax.plot(energy, spectrum,
+                    color=line_color,
+                    linewidth=line_width,
+                    linestyle=raw_data_linestyle,
+                    alpha=line_alpha)
+        elif plot_style == 'both':
+            ax.plot(energy, spectrum,
+                    color=line_color,
+                    linewidth=line_width,
+                    linestyle=raw_data_linestyle,
+                    alpha=line_alpha)
+            ax.scatter(energy, spectrum,
+                       c=scatter_color,
+                       s=scatter_size,
+                       marker=scatter_marker,
+                       alpha=line_alpha)
+        else:
+            # Default fallback
+            ax.plot(energy, spectrum,
+                    color=line_color,
+                    linewidth=line_width,
+                    alpha=line_alpha)
 
     def plot_area_spectrum(self, x1, y1, x2, y2):
         """Plot summed spectrum from area in KherveFitting main window"""
@@ -2086,14 +2135,21 @@ class EDXSEMWindow(wx.Frame):
             self.extract_elements(signal)
 
     def on_set_elements(self, event):
-        """Set elements using periodic table dialog"""
-        # Get currently selected elements
-        current_elements = getattr(self, 'selected_elements', [])
+        """Set elements using periodic table dialog with three states"""
+        # Get current element preferences
+        include_elements = getattr(self, 'include_elements', set())
+        exclude_elements = getattr(self, 'exclude_elements', set())
 
-        dlg = PeriodicTableDialog(self, current_elements)
+        dlg = PeriodicTableDialog(self, include_elements, exclude_elements)
 
         if dlg.ShowModal() == wx.ID_OK:
-            self.selected_elements = dlg.get_selected_elements()
+            self.include_elements = dlg.get_include_elements()
+            self.exclude_elements = dlg.get_exclude_elements()
+            # Legacy compatibility
+            self.selected_elements = list(self.include_elements)
+
+            print(f"Include elements: {self.include_elements}")
+            print(f"Exclude elements: {self.exclude_elements}")
 
         dlg.Destroy()
 
@@ -2502,7 +2558,11 @@ class EDXSEMWindow(wx.Frame):
             traceback.print_exc()
 
     def add_peak_labels(self, ax, energy, spectrum):
-        """Add element peak labels above peaks with improved identification"""
+        """
+        Add element peak labels above peaks with improved identification.
+        Stores identified peaks for use by quantification.
+        Respects user element selections (green=include, red=exclude).
+        """
         try:
             import hyperspy.api as hs
             from exspy.material import elements
@@ -2544,6 +2604,7 @@ class EDXSEMWindow(wx.Frame):
             y_range = y_max - y_min
 
             if peak_data is None or not isinstance(peak_data, np.ndarray) or len(peak_data) == 0:
+                self.identified_peaks = []
                 return
 
             peaks = peak_data[0] if len(peak_data.shape) > 1 or peak_data.dtype == object else peak_data
@@ -2562,14 +2623,17 @@ class EDXSEMWindow(wx.Frame):
             # Sort by intensity (highest first)
             peak_list.sort(key=lambda x: x[1], reverse=True)
 
-            # Identify peaks using intensity-aware matching
-            identified_peaks = self._identify_peaks_with_ratios(peak_list, elements)
+            # Get user element preferences (green=include, red=exclude, grey=neutral)
+            include_elements = getattr(self, 'include_elements', set())
+            exclude_elements = getattr(self, 'exclude_elements', set())
 
-            # Store identified peaks for quantification - only Ka lines
-            self.identified_ka_peaks = []
-            for peak_energy, element, line_type in identified_peaks:
-                if 'Ka' in line_type or 'Kα' in line_type:
-                    self.identified_ka_peaks.append((peak_energy, element, line_type))
+            # Identify peaks using intensity-aware matching with element preferences
+            identified_peaks = self._identify_peaks_with_ratios(
+                peak_list, elements, include_elements, exclude_elements
+            )
+
+            # Store ALL identified peaks for quantification (not just Ka)
+            self.identified_peaks = identified_peaks
 
             # Add labels to plot
             for peak_energy, element, line_type in identified_peaks:
@@ -2589,252 +2653,354 @@ class EDXSEMWindow(wx.Frame):
                 peak_pct = (spectrum_height - y_min) / y_range
                 label_y = y_min + (peak_pct + 0.02) * y_range
 
+                # Use plot style color if available
+                label_color = 'black'
+                if hasattr(self, 'parent') and self.parent:
+                    label_color = getattr(self.parent, 'line_color', 'black')
+                    if label_color in ['white', '#FFFFFF', (1, 1, 1), (255, 255, 255)]:
+                        label_color = 'black'  # Ensure visibility
+
                 ax.text(peak_energy, label_y, label,
                         rotation=0,
                         verticalalignment='bottom',
                         horizontalalignment='center',
                         fontsize=7,
-                        color='black',
+                        color=label_color,
                         fontweight='bold')
 
         except Exception as e:
             print(f"Error adding peak labels: {e}")
             import traceback
             traceback.print_exc()
+            self.identified_peaks = []
 
-    def _identify_peaks_with_ratios(self, peak_list, elements):
-        """Identify peaks considering expected intensity ratios and common elements"""
+    def _identify_peaks_with_ratios(self, peak_list, elements, include_elements=None, exclude_elements=None):
+        """
+        Identify peaks considering expected intensity ratios and ALL X-ray lines for each element.
+
+        Parameters:
+        -----------
+        peak_list : list of (energy, height) tuples
+        elements : exspy elements database
+        include_elements : set of element symbols to prioritize (green in periodic table)
+        exclude_elements : set of element symbols to exclude (red in periodic table)
+
+        For each element, we check:
+        - K-series: Ka, Kb (with expected Ka/Kb ratio ~7-8 for light, ~5-7 for heavy)
+        - L-series: La, Lb, Lg (with expected ratios)
+        - M-series: Ma, Mb (for very heavy elements)
+
+        An element is confirmed only if MULTIPLE lines are found with correct ratios.
+        """
         from exspy.utils.eds import get_xray_lines_near_energy
+
+        include_elements = include_elements or set()
+        exclude_elements = exclude_elements or set()
 
         identified = []
         used_energies = set()
 
-        # Common elements in EDX analysis - prioritize these heavily
-        common_elements = ['O', 'C', 'N', 'F', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca',
-                           'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As',
-                           'Se', 'Br', 'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ag', 'Cd', 'In', 'Sn',
-                           'Sb', 'Te', 'I', 'Ba', 'W', 'Pt', 'Au', 'Pb', 'Bi']
-
-        # Expected K alpha/beta intensity ratios by atomic number range
-        k_ratios = {
-            'light': 8.0,  # Z < 20
-            'medium': 7.0,  # 20 <= Z < 50
-            'heavy': 5.0  # Z >= 50
+        # Complete X-ray line energies database
+        XRAY_ENERGIES = {
+            # Light elements (Z=3-10)
+            'Li_Ka': 0.054, 'Be_Ka': 0.109, 'B_Ka': 0.183, 'C_Ka': 0.277,
+            'N_Ka': 0.392, 'O_Ka': 0.525, 'F_Ka': 0.677, 'Ne_Ka': 0.849,
+            # Period 3 (Z=11-18)
+            'Na_Ka': 1.041, 'Na_Kb': 1.071, 'Mg_Ka': 1.254, 'Mg_Kb': 1.302,
+            'Al_Ka': 1.487, 'Al_Kb': 1.557, 'Si_Ka': 1.740, 'Si_Kb': 1.836,
+            'P_Ka': 2.013, 'P_Kb': 2.139, 'S_Ka': 2.307, 'S_Kb': 2.464,
+            'Cl_Ka': 2.622, 'Cl_Kb': 2.816, 'Ar_Ka': 2.957, 'Ar_Kb': 3.190,
+            # Period 4 K-lines (Z=19-36)
+            'K_Ka': 3.313, 'K_Kb': 3.590, 'Ca_Ka': 3.691, 'Ca_Kb': 4.012,
+            'Sc_Ka': 4.090, 'Sc_Kb': 4.460, 'Ti_Ka': 4.510, 'Ti_Kb': 4.931,
+            'V_Ka': 4.952, 'V_Kb': 5.427, 'Cr_Ka': 5.414, 'Cr_Kb': 5.947,
+            'Mn_Ka': 5.898, 'Mn_Kb': 6.490, 'Fe_Ka': 6.403, 'Fe_Kb': 7.058,
+            'Co_Ka': 6.930, 'Co_Kb': 7.649, 'Ni_Ka': 7.478, 'Ni_Kb': 8.265,
+            'Cu_Ka': 8.048, 'Cu_Kb': 8.905, 'Zn_Ka': 8.638, 'Zn_Kb': 9.572,
+            'Ga_Ka': 9.251, 'Ga_Kb': 10.264, 'Ge_Ka': 9.886, 'Ge_Kb': 10.982,
+            'As_Ka': 10.543, 'As_Kb': 11.726, 'Se_Ka': 11.222, 'Se_Kb': 12.496,
+            'Br_Ka': 11.924, 'Br_Kb': 13.291, 'Kr_Ka': 12.649, 'Kr_Kb': 14.112,
+            # Period 4 L-lines
+            'Sc_La': 0.395, 'Ti_La': 0.452, 'Ti_Lb': 0.458,
+            'V_La': 0.511, 'V_Lb': 0.519, 'Cr_La': 0.573, 'Cr_Lb': 0.583,
+            'Mn_La': 0.637, 'Mn_Lb': 0.649, 'Fe_La': 0.705, 'Fe_Lb': 0.718,
+            'Co_La': 0.776, 'Co_Lb': 0.791, 'Ni_La': 0.851, 'Ni_Lb': 0.869,
+            'Cu_La': 0.930, 'Cu_Lb': 0.950, 'Zn_La': 1.012, 'Zn_Lb': 1.035,
+            'Ga_La': 1.098, 'Ga_Lb': 1.125, 'Ge_La': 1.188, 'Ge_Lb': 1.218,
+            'As_La': 1.282, 'As_Lb': 1.317, 'Se_La': 1.379, 'Se_Lb': 1.419,
+            'Br_La': 1.480, 'Br_Lb': 1.526,
+            # Period 5 (Z=37-54)
+            'Rb_Ka': 13.395, 'Rb_Kb': 14.961, 'Rb_La': 1.694, 'Rb_Lb': 1.752,
+            'Sr_Ka': 14.165, 'Sr_Kb': 15.835, 'Sr_La': 1.806, 'Sr_Lb': 1.872,
+            'Y_Ka': 14.958, 'Y_Kb': 16.737, 'Y_La': 1.922, 'Y_Lb': 1.996,
+            'Zr_Ka': 15.775, 'Zr_Kb': 17.667, 'Zr_La': 2.042, 'Zr_Lb': 2.124,
+            'Nb_Ka': 16.615, 'Nb_Kb': 18.622, 'Nb_La': 2.166, 'Nb_Lb': 2.257,
+            'Mo_Ka': 17.479, 'Mo_Kb': 19.608, 'Mo_La': 2.293, 'Mo_Lb': 2.395,
+            'Tc_Ka': 18.367, 'Tc_Kb': 20.619, 'Tc_La': 2.424, 'Tc_Lb': 2.538,
+            'Ru_Ka': 19.279, 'Ru_Kb': 21.657, 'Ru_La': 2.558, 'Ru_Lb': 2.683,
+            'Rh_Ka': 20.216, 'Rh_Kb': 22.724, 'Rh_La': 2.696, 'Rh_Lb': 2.834,
+            'Pd_Ka': 21.177, 'Pd_Kb': 23.819, 'Pd_La': 2.838, 'Pd_Lb': 2.990,
+            'Ag_Ka': 22.163, 'Ag_Kb': 24.942, 'Ag_La': 2.984, 'Ag_Lb': 3.151,
+            'Cd_Ka': 23.174, 'Cd_Kb': 26.095, 'Cd_La': 3.133, 'Cd_Lb': 3.316,
+            'In_Ka': 24.210, 'In_Kb': 27.276, 'In_La': 3.287, 'In_Lb': 3.487,
+            'Sn_Ka': 25.271, 'Sn_Kb': 28.486, 'Sn_La': 3.444, 'Sn_Lb': 3.663,
+            'Sb_Ka': 26.359, 'Sb_Kb': 29.725, 'Sb_La': 3.605, 'Sb_Lb': 3.843,
+            'Te_Ka': 27.472, 'Te_Kb': 30.995, 'Te_La': 3.769, 'Te_Lb': 4.029,
+            'I_Ka': 28.612, 'I_Kb': 32.294, 'I_La': 3.937, 'I_Lb': 4.221,
+            'Xe_Ka': 29.779, 'Xe_Kb': 33.624, 'Xe_La': 4.109, 'Xe_Lb': 4.422,
+            # Period 6 (Z=55-86) - Lanthanides and beyond
+            'Cs_Ka': 30.973, 'Cs_Kb': 34.987, 'Cs_La': 4.286, 'Cs_Lb': 4.620,
+            'Ba_Ka': 32.194, 'Ba_Kb': 36.378, 'Ba_La': 4.466, 'Ba_Lb': 4.828,
+            'La_La': 4.651, 'La_Lb': 5.042, 'La_Lg': 5.383,
+            'Ce_La': 4.840, 'Ce_Lb': 5.262, 'Ce_Lg': 5.613,
+            'Pr_La': 5.034, 'Pr_Lb': 5.489, 'Pr_Lg': 5.850,
+            'Nd_La': 5.230, 'Nd_Lb': 5.722, 'Nd_Lg': 6.090,
+            'Pm_La': 5.432, 'Pm_Lb': 5.961, 'Pm_Lg': 6.339,
+            'Sm_La': 5.636, 'Sm_Lb': 6.206, 'Sm_Lg': 6.586,
+            'Eu_La': 5.846, 'Eu_Lb': 6.456, 'Eu_Lg': 6.843,
+            'Gd_La': 6.057, 'Gd_Lb': 6.713, 'Gd_Lg': 7.103,
+            'Tb_La': 6.273, 'Tb_Lb': 6.978, 'Tb_Lg': 7.368,
+            'Dy_La': 6.495, 'Dy_Lb': 7.247, 'Dy_Lg': 7.635,
+            'Ho_La': 6.720, 'Ho_Lb': 7.525, 'Ho_Lg': 7.911,
+            'Er_La': 6.949, 'Er_Lb': 7.810, 'Er_Lg': 8.189,
+            'Tm_La': 7.180, 'Tm_Lb': 8.101, 'Tm_Lg': 8.468,
+            'Yb_La': 7.416, 'Yb_Lb': 8.401, 'Yb_Lg': 8.758,
+            'Lu_La': 7.655, 'Lu_Lb': 8.709, 'Lu_Lg': 9.048,
+            'Hf_La': 7.899, 'Hf_Lb': 9.022, 'Hf_Lg': 9.347,
+            'Ta_La': 8.146, 'Ta_Lb': 9.343, 'Ta_Lg': 9.651,
+            'W_La': 8.398, 'W_Lb': 9.672, 'W_Lg': 9.961,
+            'Re_La': 8.652, 'Re_Lb': 10.010, 'Re_Lg': 10.275,
+            'Os_La': 8.911, 'Os_Lb': 10.355, 'Os_Lg': 10.598,
+            'Ir_La': 9.175, 'Ir_Lb': 10.708, 'Ir_Lg': 10.920,
+            'Pt_La': 9.442, 'Pt_Lb': 11.070, 'Pt_Lg': 11.250,
+            'Au_La': 9.713, 'Au_Lb': 11.442, 'Au_Lg': 11.584,
+            'Hg_La': 9.988, 'Hg_Lb': 11.822, 'Hg_Lg': 11.924,
+            'Tl_La': 10.268, 'Tl_Lb': 12.213, 'Tl_Lg': 12.271,
+            'Pb_La': 10.551, 'Pb_Lb': 12.614, 'Pb_Lg': 12.622,
+            'Bi_La': 10.839, 'Bi_Lb': 13.023, 'Bi_Lg': 12.979,
+            'Po_La': 11.131, 'Po_Lb': 13.447,
+            'At_La': 11.427, 'At_Lb': 13.876,
+            'Rn_La': 11.727, 'Rn_Lb': 14.316,
+            # M-lines for heavy elements
+            'Hf_Ma': 1.644, 'Hf_Mb': 1.700, 'Ta_Ma': 1.709, 'Ta_Mb': 1.766,
+            'W_Ma': 1.775, 'W_Mb': 1.835, 'Re_Ma': 1.842, 'Re_Mb': 1.903,
+            'Os_Ma': 1.910, 'Os_Mb': 1.978, 'Ir_Ma': 1.979, 'Ir_Mb': 2.053,
+            'Pt_Ma': 2.048, 'Pt_Mb': 2.127, 'Au_Ma': 2.120, 'Au_Mb': 2.204,
+            'Hg_Ma': 2.195, 'Hg_Mb': 2.282, 'Tl_Ma': 2.271, 'Tl_Mb': 2.362,
+            'Pb_Ma': 2.346, 'Pb_Mb': 2.443, 'Bi_Ma': 2.423, 'Bi_Mb': 2.525,
+            # Actinides
+            'Th_La': 12.968, 'Th_Lb': 15.623, 'Th_Lg': 16.202, 'Th_Ma': 2.996, 'Th_Mb': 3.144,
+            'Pa_La': 13.291, 'Pa_Lb': 16.024, 'Pa_Ma': 3.082, 'Pa_Mb': 3.240,
+            'U_La': 13.614, 'U_Lb': 16.428, 'U_Lg': 17.220, 'U_Ma': 3.171, 'U_Mb': 3.336,
         }
 
-        # Expected L alpha/beta ratio
-        l_ratio = 3.0
+        # Expected intensity ratios
+        K_ALPHA_BETA_RATIO = {
+            'light': (6.0, 10.0),  # Z < 25
+            'medium': (5.0, 8.0),  # 25 <= Z < 40
+            'heavy': (4.0, 7.0)  # Z >= 40
+        }
+        L_ALPHA_BETA_RATIO = (2.0, 5.0)
+        M_ALPHA_BETA_RATIO = (1.5, 4.0)
 
-        # For each peak, find ALL possible element matches
-        peak_candidates = {}  # peak_energy -> [(element, line, score), ...]
+        # Build element info
+        ELEMENT_LINES = {}
+        for line_key, energy in XRAY_ENERGIES.items():
+            parts = line_key.split('_')
+            if len(parts) == 2:
+                elem, line_type = parts
+                if elem not in ELEMENT_LINES:
+                    ELEMENT_LINES[elem] = {}
+                ELEMENT_LINES[elem][line_type] = energy
 
-        for peak_energy, peak_height in peak_list:
-            peak_candidates[peak_energy] = []
+        # Common elements for general priority
+        COMMON_ELEMENTS = ['O', 'C', 'N', 'F', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca',
+                           'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As',
+                           'Se', 'Br', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ag', 'Cd', 'In', 'Sn',
+                           'Sb', 'Te', 'I', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Gd', 'Dy',
+                           'Er', 'Yb', 'Hf', 'Ta', 'W', 'Pt', 'Au', 'Pb', 'Bi', 'Th', 'U']
 
+        # Build peak info with height lookup
+        peak_heights = {e: h for e, h in peak_list}
+
+        def find_peak_near(target_energy, tolerance=0.12):
+            """Find a peak near the target energy"""
+            for pe, ph in peak_list:
+                if abs(pe - target_energy) < tolerance:
+                    return pe, ph
+            return None, 0
+
+        def get_atomic_number(elem):
+            """Get atomic number for element"""
             try:
-                lines_list = get_xray_lines_near_energy(peak_energy, only_lines=None, width=0.15)
-                if not lines_list:
-                    continue
-
-                for line_str in lines_list:
-                    parts = line_str.split('_')
-                    if len(parts) != 2:
-                        continue
-
-                    element_symbol = parts[0]
-                    line_type = parts[1]
-
-                    try:
-                        element_obj = elements[element_symbol]
-                        if not (hasattr(element_obj, 'Atomic_properties') and
-                                hasattr(element_obj.Atomic_properties, 'Xray_lines')):
-                            continue
-
-                        xray_lines = element_obj.Atomic_properties.Xray_lines
-                        if line_type not in xray_lines:
-                            continue
-
-                        line_energy = xray_lines[line_type].energy_keV
-                        energy_diff = abs(line_energy - peak_energy)
-
-                        if energy_diff < 0.15:
-                            # Base score on energy match
-                            energy_score = 1.0 - (energy_diff / 0.15)
-
-                            # Bonus for common elements
-                            if element_symbol in common_elements:
-                                energy_score *= 1.5  # 50% bonus
-
-                            peak_candidates[peak_energy].append({
-                                'element': element_symbol,
-                                'line': line_type,
-                                'energy': line_energy,
-                                'score': energy_score,
-                                'Z': element_obj.General_properties.Z
-                            })
-
-                    except (KeyError, AttributeError):
-                        continue
+                elem_obj = elements[elem]
+                return elem_obj.General_properties.Z
             except:
+                return 26  # Default
+
+        # Score each possible element
+        element_scores = {}
+
+        for elem, lines in ELEMENT_LINES.items():
+            # Skip excluded elements
+            if elem in exclude_elements:
                 continue
 
-        # Now find element pairs (alpha + beta)
-        element_pairs = {}  # element -> {Ka: peak_energy, Kb: peak_energy, ...}
+            score = 0
+            matched_lines = []
+            Z = get_atomic_number(elem)
 
-        for element_symbol in set([cand['element'] for peak_cands in peak_candidates.values() for cand in peak_cands]):
-            element_pairs[element_symbol] = {'Ka': None, 'Kb': None, 'La': None, 'Lb': None}
+            # Check K-series
+            if 'Ka' in lines:
+                ka_energy = lines['Ka']
+                ka_peak, ka_height = find_peak_near(ka_energy)
 
-            # Find Ka and Kb
-            for peak_energy, peak_cands in peak_candidates.items():
-                for cand in peak_cands:
-                    if cand['element'] == element_symbol:
-                        line = cand['line']
-                        if line in ['Ka', 'Kb', 'La', 'Lb']:
-                            if element_pairs[element_symbol][line] is None:
-                                element_pairs[element_symbol][line] = {
-                                    'peak_energy': peak_energy,
-                                    'peak_height': next(h for e, h in peak_list if abs(e - peak_energy) < 0.001),
-                                    'expected_energy': cand['energy'],
-                                    'score': cand['score'],
-                                    'Z': cand['Z']
-                                }
+                if ka_peak:
+                    if 'Kb' in lines:
+                        kb_energy = lines['Kb']
+                        kb_peak, kb_height = find_peak_near(kb_energy)
 
-        # Score element pairs
-        pair_scores = []
+                        if kb_peak and kb_height > 0:
+                            ratio = ka_height / kb_height
+                            if Z < 25:
+                                ratio_range = K_ALPHA_BETA_RATIO['light']
+                            elif Z < 40:
+                                ratio_range = K_ALPHA_BETA_RATIO['medium']
+                            else:
+                                ratio_range = K_ALPHA_BETA_RATIO['heavy']
 
-        for element_symbol, lines in element_pairs.items():
-            # Check K pair
-            if lines['Ka'] and lines['Kb']:
-                ka = lines['Ka']
-                kb = lines['Kb']
+                            if ratio_range[0] <= ratio <= ratio_range[1]:
+                                score += 3.0
+                                matched_lines.extend([('Ka', ka_peak), ('Kb', kb_peak)])
+                            elif ratio > ratio_range[1] * 0.5:
+                                score += 1.5
+                                matched_lines.append(('Ka', ka_peak))
+                        else:
+                            score += 0.8
+                            matched_lines.append(('Ka', ka_peak))
 
-                Z = ka['Z']
-                if Z < 20:
-                    expected_ratio = k_ratios['light']
-                elif Z < 50:
-                    expected_ratio = k_ratios['medium']
-                else:
-                    expected_ratio = k_ratios['heavy']
+            # Check L-series
+            if 'La' in lines:
+                la_energy = lines['La']
+                la_peak, la_height = find_peak_near(la_energy)
 
-                measured_ratio = ka['peak_height'] / kb['peak_height']
-                ratio_error = abs(measured_ratio - expected_ratio) / expected_ratio
+                if la_peak:
+                    if 'Lb' in lines:
+                        lb_energy = lines['Lb']
+                        lb_peak, lb_height = find_peak_near(lb_energy)
 
-                # Ratio match score (most important - 60%)
-                ratio_score = max(0, 1.0 - ratio_error)
+                        if lb_peak and lb_height > 0:
+                            ratio = la_height / lb_height
+                            if L_ALPHA_BETA_RATIO[0] <= ratio <= L_ALPHA_BETA_RATIO[1]:
+                                if any(line[0] in ['Ka', 'Kb'] for line in matched_lines):
+                                    score += 2.5  # K and L both match
+                                else:
+                                    score += 2.0
+                                matched_lines.extend([('La', la_peak), ('Lb', lb_peak)])
+                            elif ratio > L_ALPHA_BETA_RATIO[0] * 0.5:
+                                if any(line[0] in ['Ka', 'Kb'] for line in matched_lines):
+                                    score += 1.5
+                                else:
+                                    score += 1.0
+                                matched_lines.append(('La', la_peak))
+                        else:
+                            if any(line[0] in ['Ka', 'Kb'] for line in matched_lines):
+                                score += 1.5
+                                matched_lines.append(('La', la_peak))
+                            else:
+                                score += 0.5
+                                matched_lines.append(('La', la_peak))
 
-                # Energy match scores (40%)
-                energy_score = (ka['score'] + kb['score']) / 2.0
+            # Check M-series (only for heavy elements Z > 70)
+            if 'Ma' in lines and Z > 70:
+                ma_energy = lines['Ma']
+                ma_peak, ma_height = find_peak_near(ma_energy)
 
-                # Total score
-                total_score = 0.6 * ratio_score + 0.4 * energy_score
+                if ma_peak:
+                    if 'Mb' in lines:
+                        mb_energy = lines['Mb']
+                        mb_peak, mb_height = find_peak_near(mb_energy)
 
-                # Extra bonus if common element
-                if element_symbol in common_elements:
-                    total_score *= 1.3
+                        if mb_peak and mb_height > 0:
+                            ratio = ma_height / mb_height
+                            if M_ALPHA_BETA_RATIO[0] <= ratio <= M_ALPHA_BETA_RATIO[1]:
+                                score += 1.5
+                                matched_lines.extend([('Ma', ma_peak), ('Mb', mb_peak)])
 
-                pair_scores.append({
-                    'element': element_symbol,
-                    'type': 'K',
-                    'score': total_score,
-                    'alpha': ka,
-                    'beta': kb,
-                    'ratio': measured_ratio,
-                    'expected_ratio': expected_ratio
-                })
+            # Apply element preference bonuses
+            if elem in include_elements:
+                score *= 2.0  # Strong bonus for user-selected elements
+            elif elem in COMMON_ELEMENTS:
+                score *= 1.3  # Moderate bonus for common elements
+            elif elem not in include_elements and len(include_elements) > 0:
+                score *= 0.5  # Penalty when user has selected specific elements
 
-                # print(f"{element_symbol} K-pair: measured_ratio={measured_ratio:.2f}, expected={expected_ratio:.1f}, score={total_score:.3f}")
+            # Only include if meaningful matches
+            if score > 0.8 and len(matched_lines) >= 1:
+                element_scores[elem] = {
+                    'score': score,
+                    'lines': matched_lines,
+                    'Z': Z
+                }
 
-            # Check L pair
-            if lines['La'] and lines['Lb']:
-                la = lines['La']
-                lb = lines['Lb']
+        # Sort by score
+        sorted_elements = sorted(element_scores.items(), key=lambda x: x[1]['score'], reverse=True)
 
-                measured_ratio = la['peak_height'] / lb['peak_height']
-                ratio_error = abs(measured_ratio - l_ratio) / l_ratio
+        # Assign peaks, avoiding conflicts
+        for elem, data in sorted_elements:
+            lines_to_add = []
+            conflict = False
 
-                ratio_score = max(0, 1.0 - ratio_error)
-                energy_score = (la['score'] + lb['score']) / 2.0
-                total_score = 0.6 * ratio_score + 0.4 * energy_score
+            for line_type, peak_energy in data['lines']:
+                if peak_energy in used_energies:
+                    conflict = True
+                    break
+                lines_to_add.append((peak_energy, elem, line_type))
 
-                if element_symbol in common_elements:
-                    total_score *= 1.3
+            if not conflict and lines_to_add:
+                for peak_energy, elem, line_type in lines_to_add:
+                    identified.append((peak_energy, elem, line_type))
+                    used_energies.add(peak_energy)
+                    print(f"Identified: {elem} {line_type} at {peak_energy:.3f} keV (score: {data['score']:.2f})")
 
-                pair_scores.append({
-                    'element': element_symbol,
-                    'type': 'L',
-                    'score': total_score,
-                    'alpha': la,
-                    'beta': lb,
-                    'ratio': measured_ratio,
-                    'expected_ratio': l_ratio
-                })
-
-                # print(f"{element_symbol} L-pair: measured_ratio={measured_ratio:.2f}, expected={l_ratio:.1f}, score={total_score:.3f}")
-
-        # Sort pairs by score and add best matches
-        pair_scores.sort(key=lambda x: x['score'], reverse=True)
-
-        for pair in pair_scores:
-            if pair['score'] < 0.4:  # Minimum threshold
-                continue
-
-            alpha_peak = pair['alpha']['peak_energy']
-            beta_peak = pair['beta']['peak_energy']
-
-            # Check if these peaks are already used
-            if alpha_peak in used_energies or beta_peak in used_energies:
-                continue
-
-            # Add this pair
-            element = pair['element']
-            if pair['type'] == 'K':
-                identified.append((alpha_peak, element, 'Ka'))
-                identified.append((beta_peak, element, 'Kb'))
-            else:
-                identified.append((alpha_peak, element, 'La'))
-                identified.append((beta_peak, element, 'Lb'))
-
-            used_energies.add(alpha_peak)
-            used_energies.add(beta_peak)
-
-            # print(f"Identified {element} {pair['type']}-pair with score {pair['score']:.3f}")
-
-        # Second pass: unpaired significant peaks
+        # Second pass: unidentified significant peaks (alpha lines only)
         for peak_energy, peak_height in peak_list:
             if peak_energy in used_energies:
                 continue
 
-            # Only significant peaks
-            if peak_height < 0.1 * peak_list[0][1]:
+            if peak_height < 0.15 * peak_list[0][1]:
                 continue
 
-            # Find best candidate (prefer alpha lines and common elements)
-            best_candidate = None
+            best_match = None
+            best_diff = 0.10
             best_score = 0
 
-            if peak_energy in peak_candidates:
-                for cand in peak_candidates[peak_energy]:
-                    # Skip beta lines - they should have alphas
-                    if cand['line'] in ['Kb', 'Lb', 'Mb']:
+            for line_key, line_energy in XRAY_ENERGIES.items():
+                if '_Kb' in line_key or '_Lb' in line_key or '_Mb' in line_key or '_Lg' in line_key:
+                    continue
+
+                diff = abs(peak_energy - line_energy)
+                if diff < best_diff:
+                    elem = line_key.split('_')[0]
+                    if elem in exclude_elements:
                         continue
 
-                    score = cand['score']
-
-                    # Strong preference for alpha lines
-                    if cand['line'] in ['Ka', 'La', 'Ma']:
-                        score *= 1.2
+                    score = 1.0 - diff / 0.10
+                    if elem in include_elements:
+                        score *= 2.0
+                    elif elem in COMMON_ELEMENTS:
+                        score *= 1.3
 
                     if score > best_score:
                         best_score = score
-                        best_candidate = cand
+                        best_diff = diff
+                        best_match = line_key
 
-            if best_candidate and best_score > 0.6:
-                identified.append((peak_energy, best_candidate['element'], best_candidate['line']))
+            if best_match:
+                elem, line_type = best_match.split('_')
+                identified.append((peak_energy, elem, line_type))
                 used_energies.add(peak_energy)
-                # print(f"Second pass: {best_candidate['element']} {best_candidate['line']} at {peak_energy:.2f} keV")
-
-        # Sort by energy
-        identified.sort(key=lambda x: x[0])
+                print(f"Identified (unpaired): {elem} {line_type} at {peak_energy:.3f} keV")
 
         return identified
 
@@ -3272,7 +3438,7 @@ class EDXSEMWindow(wx.Frame):
 
         self.parent.canvas.draw()
 
-    def _populate_edx_grid(self, energy, spectrum, title="EDX"):
+    def _populate_edx_grid_OLD(self, energy, spectrum, title="EDX"):
         """Calculate quantification and populate peak fitting grid"""
         if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
             return
@@ -3309,6 +3475,181 @@ class EDXSEMWindow(wx.Frame):
 
         # Populate grid
         self._update_peak_params_grid(results, title)
+
+    def _populate_edx_grid(self, energy, spectrum, title="EDX"):
+        """
+        Populate peak fitting grid using the SAME peaks identified by add_peak_labels.
+        This ensures labels and quantification match.
+        """
+        if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        # Initialize quantification settings if not present
+        if not hasattr(self, 'quant_settings'):
+            self.quant_settings = EDXQuantificationSettings()
+
+        # Use the peaks identified by add_peak_labels
+        identified_peaks = getattr(self, 'identified_peaks', [])
+
+        if not identified_peaks:
+            # No peaks identified - clear grid
+            grid = self.parent.peak_params_grid
+            if grid.GetNumberRows() > 0:
+                grid.DeleteRows(0, grid.GetNumberRows())
+            grid.ForceRefresh()
+            return
+
+        # Group peaks by element for quantification (use primary line: Ka > La > Ma)
+        element_peaks = {}
+        for peak_energy, element, line_type in identified_peaks:
+            if element not in element_peaks:
+                element_peaks[element] = []
+            element_peaks[element].append((peak_energy, line_type))
+
+        # Calculate quantification using identified peaks
+        results = self._calculate_quantification_from_identified(energy, spectrum, element_peaks)
+
+        if results:
+            self._update_peak_params_grid_hyperspy(results, self.quant_settings.composition_units)
+
+    def _calculate_quantification_from_identified(self, energy, spectrum, element_peaks):
+        """
+        Calculate quantification using the peaks that were identified during labeling.
+        This ensures consistency between plot labels and grid values.
+        """
+        try:
+            from exspy.material import elements as exspy_elements
+
+            settings = self.quant_settings if hasattr(self, 'quant_settings') else EDXQuantificationSettings()
+
+            results = []
+            intensities = []
+            valid_elements = []
+            kfactors = []
+
+            for element, peaks in element_peaks.items():
+                # Use the primary line (prefer Ka, then La, then Ma)
+                primary_peak = None
+                primary_line = None
+
+                for peak_energy, line_type in peaks:
+                    if line_type == 'Ka':
+                        primary_peak = peak_energy
+                        primary_line = 'Ka'
+                        break
+                    elif line_type == 'La' and primary_line != 'Ka':
+                        primary_peak = peak_energy
+                        primary_line = 'La'
+                    elif line_type == 'Ma' and primary_line is None:
+                        primary_peak = peak_energy
+                        primary_line = 'Ma'
+
+                if primary_peak is None:
+                    # Use first available
+                    primary_peak, primary_line = peaks[0]
+
+                # Calculate intensity at this peak
+                window = 0.15  # keV
+                mask = (energy >= primary_peak - window) & (energy <= primary_peak + window)
+
+                if not np.any(mask):
+                    continue
+
+                peak_spectrum = spectrum[mask]
+                peak_energy_vals = energy[mask]
+
+                # Background subtraction
+                if settings.use_background_subtraction:
+                    bg_width = settings.background_window_width
+                    bg_left_mask = (energy >= primary_peak - window - bg_width) & (energy < primary_peak - window)
+                    bg_right_mask = (energy > primary_peak + window) & (energy <= primary_peak + window + bg_width)
+
+                    bg_left = spectrum[bg_left_mask].mean() if np.any(bg_left_mask) else 0
+                    bg_right = spectrum[bg_right_mask].mean() if np.any(bg_right_mask) else 0
+                    background = (bg_left + bg_right) / 2
+
+                    net_intensity = np.sum(peak_spectrum) - background * len(peak_spectrum)
+                else:
+                    background = np.min(peak_spectrum)
+                    net_intensity = np.sum(peak_spectrum - background)
+
+                if net_intensity <= 0:
+                    continue
+
+                # Get k-factor
+                xray_line = f"{element}_{primary_line}"
+                kf = settings.get_kfactor(xray_line)
+
+                # Peak parameters
+                peak_height = float(np.max(peak_spectrum) - background)
+
+                # FWHM estimation
+                half_max = background + peak_height / 2
+                above_half = peak_spectrum >= half_max
+                if np.any(above_half):
+                    indices = np.where(above_half)[0]
+                    if len(indices) > 1:
+                        fwhm_kev = peak_energy_vals[indices[-1]] - peak_energy_vals[indices[0]]
+                    else:
+                        fwhm_kev = 0.1
+                else:
+                    fwhm_kev = 0.1
+
+                intensities.append(net_intensity)
+                valid_elements.append(element)
+                kfactors.append(kf)
+
+                results.append({
+                    'element': element,
+                    'line': primary_line,
+                    'energy': primary_peak,
+                    'height': peak_height,
+                    'area': net_intensity,
+                    'fwhm': fwhm_kev * 1000,  # eV
+                    'kfactor': kf,
+                    'all_lines': peaks  # Store all identified lines for this element
+                })
+
+            # Calculate composition using Cliff-Lorimer
+            if len(intensities) > 0:
+                intensities_arr = np.array(intensities)
+                kfactors_arr = np.array(kfactors)
+
+                # Corrected intensities
+                corrected = intensities_arr / kfactors_arr
+                total_corrected = np.sum(corrected)
+
+                if total_corrected > 0:
+                    atomic_percent = (corrected / total_corrected) * 100
+
+                    # Convert to weight percent if requested
+                    if settings.composition_units == 'weight':
+                        weight_factors = []
+                        for elem in valid_elements:
+                            try:
+                                elem_obj = exspy_elements[elem]
+                                weight_factors.append(elem_obj.General_properties.atomic_weight)
+                            except:
+                                weight_factors.append(1.0)
+
+                        weight_factors = np.array(weight_factors)
+                        weight_values = atomic_percent * weight_factors
+                        composition = (weight_values / np.sum(weight_values)) * 100
+                    else:
+                        composition = atomic_percent
+
+                    # Update results with composition
+                    for i, res in enumerate(results):
+                        res['concentration'] = composition[i]
+                        res['units'] = 'wt%' if settings.composition_units == 'weight' else 'at%'
+
+            return results
+
+        except Exception as e:
+            print(f"Quantification error: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
     def _detect_elements_from_spectrum(self, energy, spectrum):
         """Auto-detect elements from spectrum peaks"""
@@ -3358,6 +3699,306 @@ class EDXSEMWindow(wx.Frame):
         except Exception as e:
             print(f"Element detection error: {e}")
             return []
+
+    def _calculate_quantification_hyperspy(self, energy, spectrum):
+        """
+        Calculate EDX quantification using HyperSpy/ExSpy Cliff-Lorimer method.
+        This provides accurate atomic% using proper k-factors.
+        """
+        import hyperspy.api as hs
+
+        try:
+            # Get quantification settings
+            if not hasattr(self, 'quant_settings'):
+                self.quant_settings = EDXQuantificationSettings()
+
+            settings = self.quant_settings
+
+            # Create a HyperSpy EDS signal from the spectrum
+            s = hs.signals.Signal1D(spectrum.astype(float))
+
+            # Set up the energy axis
+            if len(energy) > 1:
+                scale = energy[1] - energy[0]
+            else:
+                scale = 0.01
+            s.axes_manager[0].scale = scale
+            s.axes_manager[0].offset = energy[0]
+            s.axes_manager[0].units = 'keV'
+            s.axes_manager[0].name = 'Energy'
+
+            # Try to set signal type to EDS_SEM
+            try:
+                s.set_signal_type("EDS_SEM")
+            except:
+                pass
+
+            # Detect elements from spectrum
+            elements = self._detect_elements_from_spectrum(energy, spectrum)
+
+            if not elements:
+                print("No elements detected for quantification")
+                return []
+
+            # Sort elements alphabetically (HyperSpy requirement)
+            elements = sorted(elements)
+
+            # Get k-factors for detected elements
+            kfactors, xray_lines = settings.get_all_kfactors_for_elements(elements)
+
+            print(f"Quantification - Elements: {elements}")
+            print(f"X-ray lines: {xray_lines}")
+            print(f"K-factors: {kfactors}")
+
+            # Calculate intensities for each element
+            from exspy.material import elements as exspy_elements
+
+            intensities = []
+            valid_elements = []
+            valid_kfactors = []
+            valid_lines = []
+
+            for i, element in enumerate(elements):
+                try:
+                    elem_obj = exspy_elements[element]
+                    if not hasattr(elem_obj, 'Atomic_properties'):
+                        continue
+                    if not hasattr(elem_obj.Atomic_properties, 'Xray_lines'):
+                        continue
+
+                    xray_props = elem_obj.Atomic_properties.Xray_lines
+
+                    # Find the line energy
+                    line_type = xray_lines[i].split('_')[1] if i < len(xray_lines) else 'Ka'
+                    if line_type in xray_props:
+                        line_energy = xray_props[line_type].energy_keV
+                    else:
+                        # Try to find any available line
+                        for lt in ['Ka', 'La', 'Ma']:
+                            if lt in xray_props:
+                                line_type = lt
+                                line_energy = xray_props[lt].energy_keV
+                                break
+                        else:
+                            continue
+
+                    # Define integration window
+                    window = 0.15  # keV
+                    mask = (energy >= line_energy - window) & (energy <= line_energy + window)
+
+                    if not np.any(mask):
+                        continue
+
+                    peak_spectrum = spectrum[mask]
+
+                    # Background subtraction if enabled
+                    if settings.use_background_subtraction:
+                        bg_width = settings.background_window_width
+                        bg_left_mask = (energy >= line_energy - window - bg_width) & (energy < line_energy - window)
+                        bg_right_mask = (energy > line_energy + window) & (energy <= line_energy + window + bg_width)
+
+                        bg_left = spectrum[bg_left_mask].mean() if np.any(bg_left_mask) else 0
+                        bg_right = spectrum[bg_right_mask].mean() if np.any(bg_right_mask) else 0
+                        background = (bg_left + bg_right) / 2
+
+                        net_intensity = np.sum(peak_spectrum) - background * len(peak_spectrum)
+                    else:
+                        net_intensity = np.sum(peak_spectrum)
+
+                    if net_intensity > 0:
+                        intensities.append(net_intensity)
+                        valid_elements.append(element)
+                        valid_kfactors.append(kfactors[i] if i < len(kfactors) else 1.0)
+                        valid_lines.append(f"{element}_{line_type}")
+
+                except Exception as e:
+                    print(f"Error processing element {element}: {e}")
+                    continue
+
+            if len(intensities) < 2:
+                print("Not enough valid elements for quantification")
+                # Fall back to normalized intensity method
+                return self._calculate_quantification(energy, spectrum, elements)
+
+            # Calculate composition using Cliff-Lorimer method
+            intensities_arr = np.array(intensities)
+            kfactors_arr = np.array(valid_kfactors)
+
+            # Cliff-Lorimer: C_A/C_B = k_AB * (I_A/I_B)
+            # For multiple elements, normalize to sum to 100%
+
+            # Corrected intensities (divide by k-factor)
+            corrected = intensities_arr / kfactors_arr
+
+            # Normalize to 100%
+            total_corrected = np.sum(corrected)
+            atomic_percent = (corrected / total_corrected) * 100
+
+            # Convert to weight percent if requested
+            if settings.composition_units == 'weight':
+                weight_percent = []
+                total_weight = 0
+
+                for i, element in enumerate(valid_elements):
+                    try:
+                        elem_obj = exspy_elements[element]
+                        atomic_weight = elem_obj.General_properties.atomic_weight
+                        weight_percent.append(atomic_percent[i] * atomic_weight)
+                        total_weight += atomic_percent[i] * atomic_weight
+                    except:
+                        weight_percent.append(atomic_percent[i])
+                        total_weight += atomic_percent[i]
+
+                weight_percent = np.array(weight_percent)
+                weight_percent = (weight_percent / total_weight) * 100
+                composition = weight_percent
+                units = 'wt%'
+            else:
+                composition = atomic_percent
+                units = 'at%'
+
+            # Build results list
+            results = []
+            for i, element in enumerate(valid_elements):
+                try:
+                    elem_obj = exspy_elements[element]
+                    xray_props = elem_obj.Atomic_properties.Xray_lines
+
+                    line_type = valid_lines[i].split('_')[1]
+                    if line_type in xray_props:
+                        line_energy = xray_props[line_type].energy_keV
+                    else:
+                        line_energy = 0
+
+                    # Get peak parameters
+                    window = 0.15
+                    mask = (energy >= line_energy - window) & (energy <= line_energy + window)
+                    peak_spectrum = spectrum[mask]
+                    peak_height = float(np.max(peak_spectrum)) if len(peak_spectrum) > 0 else 0
+
+                    # Estimate FWHM
+                    if len(peak_spectrum) > 0:
+                        half_max = np.min(peak_spectrum) + (np.max(peak_spectrum) - np.min(peak_spectrum)) / 2
+                        above_half = peak_spectrum >= half_max
+                        if np.any(above_half):
+                            indices = np.where(above_half)[0]
+                            if len(indices) > 1:
+                                peak_energy_vals = energy[mask]
+                                fwhm_kev = peak_energy_vals[indices[-1]] - peak_energy_vals[indices[0]]
+                            else:
+                                fwhm_kev = 0.1
+                        else:
+                            fwhm_kev = 0.1
+                    else:
+                        fwhm_kev = 0.1
+
+                    # Area calculation
+                    area = intensities[i]
+
+                    results.append({
+                        'element': element,
+                        'line': line_type,
+                        'energy': line_energy,
+                        'height': peak_height,
+                        'area': area,
+                        'fwhm': fwhm_kev * 1000,  # Convert to eV
+                        'concentration': composition[i],
+                        'units': units,
+                        'kfactor': valid_kfactors[i]
+                    })
+
+                except Exception as e:
+                    print(f"Error building result for {element}: {e}")
+                    continue
+
+            print(f"\nQuantification Results ({units}):")
+            for res in results:
+                print(f"  {res['element']} ({res['line']}): {res['concentration']:.2f} {units}")
+
+            # Update grid with results
+            self._update_peak_params_grid_hyperspy(results, units)
+
+            return results
+
+        except Exception as e:
+            print(f"HyperSpy quantification error: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fall back to simple method
+            return self._calculate_quantification(energy, spectrum, elements if 'elements' in dir() else [])
+
+    def _update_peak_params_grid_hyperspy(self, results, units="at%"):
+        """Update peak fitting grid with HyperSpy quantification results"""
+        if self.parent is None or not hasattr(self.parent, 'peak_params_grid'):
+            return
+
+        grid = self.parent.peak_params_grid
+
+        # Clear existing grid
+        if grid.GetNumberRows() > 0:
+            grid.DeleteRows(0, grid.GetNumberRows())
+
+        for i, res in enumerate(results):
+            grid.AppendRows(2)
+            row = i * 2
+            constraint_row = row + 1
+
+            # Format line name with Greek letters
+            line_type = res['line']
+            line_display = line_type.replace('Ka', 'Kα').replace('Kb', 'Kβ')
+            line_display = line_display.replace('La', 'Lα').replace('Lb', 'Lβ')
+            line_display = line_display.replace('Ma', 'Mα').replace('Mb', 'Mβ')
+
+            # Column 0: ID
+            letter_id = chr(65 + i)
+            grid.SetCellValue(row, 0, letter_id)
+
+            # Column 1: Peak label
+            label = f"{res['element']} {line_display}"
+            grid.SetCellValue(row, 1, label)
+
+            # Column 2: Position (energy in eV)
+            grid.SetCellValue(row, 2, f"{res['energy'] * 1000:.2f}")
+            grid.SetCellValue(constraint_row, 2, "fixed")
+
+            # Column 3: Height
+            grid.SetCellValue(row, 3, f"{res['height']:.2f}")
+            grid.SetCellValue(constraint_row, 3, "fixed")
+
+            # Column 4: FWHM (in eV)
+            grid.SetCellValue(row, 4, f"{res['fwhm']:.2f}")
+            grid.SetCellValue(constraint_row, 4, "fixed")
+
+            # Column 6: Area
+            grid.SetCellValue(row, 6, f"{res['area']:.2f}")
+            grid.SetCellValue(constraint_row, 6, "fixed")
+
+            # Column 10: Concentration (%) - with units indicator
+            conc_str = f"{res['concentration']:.2f}"
+            grid.SetCellValue(row, 10, conc_str)
+
+            # Column 11: K-factor (if column exists)
+            if grid.GetNumberCols() > 11:
+                grid.SetCellValue(row, 11, f"{res.get('kfactor', 1.0):.4f}")
+
+            # Apply formatting
+            for col in range(grid.GetNumberCols()):
+                grid.SetCellBackgroundColour(row, col, wx.WHITE)
+                grid.SetReadOnly(row, col, True)
+                grid.SetCellBackgroundColour(constraint_row, col, wx.Colour(200, 245, 228))
+                grid.SetReadOnly(constraint_row, col, True)
+
+        grid.ForceRefresh()
+
+        # Store grid data for persistence
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet in self.parent.Data['Core levels']:
+                grid_data = []
+                for row in range(grid.GetNumberRows()):
+                    row_data = [grid.GetCellValue(row, col) for col in range(grid.GetNumberCols())]
+                    grid_data.append(row_data)
+                self.parent.Data['Core levels'][current_sheet]['_EDX_grid_data'] = grid_data
 
     def _calculate_quantification(self, energy, spectrum, elements):
         """Calculate quantification with peak fitting parameters"""
@@ -4008,169 +4649,787 @@ class InfoWindow(wx.Frame):
 
 
 class PeriodicTableDialog(wx.Dialog):
-    """Periodic table element selector"""
+    """
+    Periodic table element selector with three states:
+    - Green: Include (prioritize this element)
+    - Red: Exclude (never identify as this element)
+    - Grey: Neutral (no preference)
+    """
 
-    def __init__(self, parent, selected_elements=None):
-        super().__init__(parent, title="Select Elements", size=(470, 230))
+    def __init__(self, parent, include_elements=None, exclude_elements=None):
+        super().__init__(parent, title="Select Elements", size=(780, 420))
 
-        self.selected_elements = selected_elements or []
+        self.include_elements = set(include_elements or [])
+        self.exclude_elements = set(exclude_elements or [])
         self.element_buttons = {}
+        self.element_states = {}  # 0=grey, 1=green, 2=red
+
+        # Initialize states
+        for elem in self.include_elements:
+            self.element_states[elem] = 1  # Green
+        for elem in self.exclude_elements:
+            self.element_states[elem] = 2  # Red
 
         panel = wx.Panel(self, style=wx.BORDER_RAISED)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # Legend
+        legend_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        legend_sizer.Add(wx.StaticText(panel, label="Click to cycle: "), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
+
+        grey_label = wx.StaticText(panel, label=" Grey (neutral) ")
+        grey_label.SetBackgroundColour(wx.Colour(220, 220, 220))
+        legend_sizer.Add(grey_label, 0, wx.ALL, 2)
+
+        legend_sizer.Add(wx.StaticText(panel, label="→"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+        green_label = wx.StaticText(panel, label=" Green (include) ")
+        green_label.SetBackgroundColour(wx.Colour(100, 200, 100))
+        legend_sizer.Add(green_label, 0, wx.ALL, 2)
+
+        legend_sizer.Add(wx.StaticText(panel, label="→"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+        red_label = wx.StaticText(panel, label=" Red (exclude) ")
+        red_label.SetBackgroundColour(wx.Colour(255, 100, 100))
+        legend_sizer.Add(red_label, 0, wx.ALL, 2)
+
+        legend_sizer.Add(wx.StaticText(panel, label="→ Grey..."), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+        main_sizer.Add(legend_sizer, 0, wx.EXPAND | wx.ALL, 5)
+
         # Periodic table layout
         table_panel = wx.Panel(panel)
-        grid_sizer = wx.GridBagSizer(0, 0)
+        grid_sizer = wx.GridBagSizer(1, 1)
 
-        # Periodic table structure (row, col, symbol)
+        # Complete periodic table structure (row, col, symbol)
+        # Main table - periods 1-7
         elements = [
+            # Period 1
             (0, 0, 'H'), (0, 17, 'He'),
-            (1, 0, 'Li'), (1, 1, 'Be'), (1, 12, 'B'), (1, 13, 'C'), (1, 14, 'N'), (1, 15, 'O'), (1, 16, 'F'), (1, 17, 'Ne'),
-            (2, 0, 'Na'), (2, 1, 'Mg'), (2, 12, 'Al'), (2, 13, 'Si'), (2, 14, 'P'), (2, 15, 'S'), (2, 16, 'Cl'), (2, 17, 'Ar'),
-            (3, 0, 'K'), (3, 1, 'Ca'), (3, 2, 'Sc'), (3, 3, 'Ti'), (3, 4, 'V'), (3, 5, 'Cr'), (3, 6, 'Mn'), (3, 7, 'Fe'),
-            (3, 8, 'Co'), (3, 9, 'Ni'), (3, 10, 'Cu'), (3, 11, 'Zn'), (3, 12, 'Ga'), (3, 13, 'Ge'), (3, 14, 'As'), (3, 15, 'Se'), (3, 16, 'Br'), (3, 17, 'Kr'),
-            (4, 0, 'Rb'), (4, 1, 'Sr'), (4, 2, 'Y'), (4, 3, 'Zr'), (4, 4, 'Nb'), (4, 5, 'Mo'), (4, 6, 'Tc'), (4, 7, 'Ru'),
-            (4, 8, 'Rh'), (4, 9, 'Pd'), (4, 10, 'Ag'), (4, 11, 'Cd'), (4, 12, 'In'), (4, 13, 'Sn'), (4, 14, 'Sb'), (4, 15, 'Te'), (4, 16, 'I'), (4, 17, 'Xe'),
-            (5, 0, 'Cs'), (5, 1, 'Ba'), (5, 2, 'La'), (5, 3, 'Hf'), (5, 4, 'Ta'), (5, 5, 'W'), (5, 6, 'Re'), (5, 7, 'Os'),
-            (5, 8, 'Ir'), (5, 9, 'Pt'), (5, 10, 'Au'), (5, 11, 'Hg'), (5, 12, 'Tl'), (5, 13, 'Pb'), (5, 14, 'Bi'), (5, 15, 'Po'), (5, 16, 'At'), (5, 17, 'Rn'),
+            # Period 2
+            (1, 0, 'Li'), (1, 1, 'Be'), (1, 12, 'B'), (1, 13, 'C'), (1, 14, 'N'),
+            (1, 15, 'O'), (1, 16, 'F'), (1, 17, 'Ne'),
+            # Period 3
+            (2, 0, 'Na'), (2, 1, 'Mg'), (2, 12, 'Al'), (2, 13, 'Si'), (2, 14, 'P'),
+            (2, 15, 'S'), (2, 16, 'Cl'), (2, 17, 'Ar'),
+            # Period 4
+            (3, 0, 'K'), (3, 1, 'Ca'), (3, 2, 'Sc'), (3, 3, 'Ti'), (3, 4, 'V'),
+            (3, 5, 'Cr'), (3, 6, 'Mn'), (3, 7, 'Fe'), (3, 8, 'Co'), (3, 9, 'Ni'),
+            (3, 10, 'Cu'), (3, 11, 'Zn'), (3, 12, 'Ga'), (3, 13, 'Ge'), (3, 14, 'As'),
+            (3, 15, 'Se'), (3, 16, 'Br'), (3, 17, 'Kr'),
+            # Period 5
+            (4, 0, 'Rb'), (4, 1, 'Sr'), (4, 2, 'Y'), (4, 3, 'Zr'), (4, 4, 'Nb'),
+            (4, 5, 'Mo'), (4, 6, 'Tc'), (4, 7, 'Ru'), (4, 8, 'Rh'), (4, 9, 'Pd'),
+            (4, 10, 'Ag'), (4, 11, 'Cd'), (4, 12, 'In'), (4, 13, 'Sn'), (4, 14, 'Sb'),
+            (4, 15, 'Te'), (4, 16, 'I'), (4, 17, 'Xe'),
+            # Period 6 (La placeholder at col 2, then Hf onwards)
+            (5, 0, 'Cs'), (5, 1, 'Ba'), (5, 3, 'Hf'), (5, 4, 'Ta'),
+            (5, 5, 'W'), (5, 6, 'Re'), (5, 7, 'Os'), (5, 8, 'Ir'), (5, 9, 'Pt'),
+            (5, 10, 'Au'), (5, 11, 'Hg'), (5, 12, 'Tl'), (5, 13, 'Pb'), (5, 14, 'Bi'),
+            (5, 15, 'Po'), (5, 16, 'At'), (5, 17, 'Rn'),
+            # Period 7 (Ac placeholder at col 2, then Rf onwards)
+            (6, 0, 'Fr'), (6, 1, 'Ra'), (6, 3, 'Rf'), (6, 4, 'Db'),
+            (6, 5, 'Sg'), (6, 6, 'Bh'), (6, 7, 'Hs'), (6, 8, 'Mt'), (6, 9, 'Ds'),
+            (6, 10, 'Rg'), (6, 11, 'Cn'), (6, 12, 'Nh'), (6, 13, 'Fl'), (6, 14, 'Mc'),
+            (6, 15, 'Lv'), (6, 16, 'Ts'), (6, 17, 'Og'),
         ]
 
-        for row, col, symbol in elements:
-            btn = wx.ToggleButton(table_panel, label=symbol, size=(25, 25))
-            btn.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        # Lanthanides (row 8) - La through Lu
+        lanthanides = [
+            (8, 2, 'La'), (8, 3, 'Ce'), (8, 4, 'Pr'), (8, 5, 'Nd'), (8, 6, 'Pm'),
+            (8, 7, 'Sm'), (8, 8, 'Eu'), (8, 9, 'Gd'), (8, 10, 'Tb'), (8, 11, 'Dy'),
+            (8, 12, 'Ho'), (8, 13, 'Er'), (8, 14, 'Tm'), (8, 15, 'Yb'), (8, 16, 'Lu'),
+        ]
 
-            if symbol in self.selected_elements:
-                btn.SetValue(True)
-                btn.SetBackgroundColour(wx.Colour(100, 200, 100))
+        # Actinides (row 9) - Ac through Lr
+        actinides = [
+            (9, 2, 'Ac'), (9, 3, 'Th'), (9, 4, 'Pa'), (9, 5, 'U'), (9, 6, 'Np'),
+            (9, 7, 'Pu'), (9, 8, 'Am'), (9, 9, 'Cm'), (9, 10, 'Bk'), (9, 11, 'Cf'),
+            (9, 12, 'Es'), (9, 13, 'Fm'), (9, 14, 'Md'), (9, 15, 'No'), (9, 16, 'Lr'),
+        ]
 
-            btn.Bind(wx.EVT_TOGGLEBUTTON, lambda evt, s=symbol, b=btn: self.on_element_toggle(evt, s, b))
+        # Add placeholder indicators for lanthanides/actinides in main table
+        la_indicator = wx.StaticText(table_panel, label="La-Lu→")
+        la_indicator.SetFont(wx.Font(7, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_NORMAL))
+        grid_sizer.Add(la_indicator, pos=(5, 2), flag=wx.ALIGN_CENTER)
+
+        ac_indicator = wx.StaticText(table_panel, label="Ac-Lr→")
+        ac_indicator.SetFont(wx.Font(7, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_NORMAL))
+        grid_sizer.Add(ac_indicator, pos=(6, 2), flag=wx.ALIGN_CENTER)
+
+        # Add row labels for lanthanides and actinides
+        ln_label = wx.StaticText(table_panel, label="Ln")
+        ln_label.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_BOLD))
+        grid_sizer.Add(ln_label, pos=(8, 0), span=(1, 2), flag=wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.RIGHT, border=5)
+
+        an_label = wx.StaticText(table_panel, label="An")
+        an_label.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_BOLD))
+        grid_sizer.Add(an_label, pos=(9, 0), span=(1, 2), flag=wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.RIGHT, border=5)
+
+        # Add spacer row between main table and lanthanides/actinides
+        spacer = wx.StaticText(table_panel, label="")
+        grid_sizer.Add(spacer, pos=(7, 0), flag=wx.ALL, border=5)
+
+        # Combine all elements
+        all_elements = elements + lanthanides + actinides
+
+        for row, col, symbol in all_elements:
+            btn = wx.Button(table_panel, label=symbol, size=(38, 22))
+            btn.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+
+            # Set initial state
+            state = self.element_states.get(symbol, 0)
+            self._apply_button_color(btn, state)
+
+            btn.Bind(wx.EVT_BUTTON, lambda evt, s=symbol, b=btn: self.on_element_click(evt, s, b))
             grid_sizer.Add(btn, pos=(row, col), flag=wx.ALL, border=0)
             self.element_buttons[symbol] = btn
 
         table_panel.SetSizer(grid_sizer)
-        main_sizer.Add(table_panel, 1, wx.EXPAND | wx.ALL, 0)
+        main_sizer.Add(table_panel, 1, wx.EXPAND | wx.ALL, 5)
 
         # Buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
         clear_btn = wx.Button(panel, label="Clear All")
         clear_btn.Bind(wx.EVT_BUTTON, self.on_clear_all)
+        btn_sizer.Add(clear_btn, 0, wx.ALL, 5)
+
+        btn_sizer.AddStretchSpacer()
+
         ok_btn = wx.Button(panel, wx.ID_OK, "OK")
         cancel_btn = wx.Button(panel, wx.ID_CANCEL, "Cancel")
 
-        btn_sizer.Add(clear_btn, 0, wx.ALL, 2)
-        btn_sizer.AddStretchSpacer()
-        btn_sizer.Add(ok_btn, 0, wx.ALL, 2)
-        btn_sizer.Add(cancel_btn, 0, wx.ALL, 2)
+        btn_sizer.Add(ok_btn, 0, wx.ALL, 5)
+        btn_sizer.Add(cancel_btn, 0, wx.ALL, 5)
 
-        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 2)
+        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
         panel.SetSizer(main_sizer)
         self.Centre()
 
-    def on_element_toggle(self, event, symbol, btn):
-        """Handle element toggle"""
-        if btn.GetValue():
-            if symbol not in self.selected_elements:
-                self.selected_elements.append(symbol)
+    def _apply_button_color(self, btn, state):
+        """Apply color based on state: 0=grey, 1=green, 2=red"""
+        if state == 1:  # Green - include
             btn.SetBackgroundColour(wx.Colour(100, 200, 100))
-        else:
-            if symbol in self.selected_elements:
-                self.selected_elements.remove(symbol)
-            btn.SetBackgroundColour(wx.NullColour)
+        elif state == 2:  # Red - exclude
+            btn.SetBackgroundColour(wx.Colour(255, 100, 100))
+        else:  # Grey - neutral
+            btn.SetBackgroundColour(wx.Colour(220, 220, 220))
         btn.Refresh()
 
+    def on_element_click(self, event, symbol, btn):
+        """Cycle through states: grey -> green -> red -> grey"""
+        current_state = self.element_states.get(symbol, 0)
+        new_state = (current_state + 1) % 3
+
+        self.element_states[symbol] = new_state
+        self._apply_button_color(btn, new_state)
+
+        # Update sets
+        if new_state == 1:  # Green
+            self.include_elements.add(symbol)
+            self.exclude_elements.discard(symbol)
+        elif new_state == 2:  # Red
+            self.include_elements.discard(symbol)
+            self.exclude_elements.add(symbol)
+        else:  # Grey
+            self.include_elements.discard(symbol)
+            self.exclude_elements.discard(symbol)
+
     def on_clear_all(self, event):
-        """Clear all selections"""
-        self.selected_elements = []
-        for btn in self.element_buttons.values():
-            btn.SetValue(False)
-            btn.SetBackgroundColour(wx.NullColour)
-            btn.Refresh()
+        """Reset all elements to grey (neutral)"""
+        self.include_elements = set()
+        self.exclude_elements = set()
+        self.element_states = {}
+
+        for symbol, btn in self.element_buttons.items():
+            self._apply_button_color(btn, 0)
+
+    def get_include_elements(self):
+        """Return set of elements to include (green)"""
+        return self.include_elements
+
+    def get_exclude_elements(self):
+        """Return set of elements to exclude (red)"""
+        return self.exclude_elements
 
     def get_selected_elements(self):
-        return self.selected_elements
+        """Legacy method - returns include elements as list"""
+        return list(self.include_elements)
+
+
+# ==================== EDX QUANTIFICATION SETTINGS ====================
+
+# Complete k-factors database for EDX quantification
+# K-factors are relative to Si Ka = 1.0
+# Covers elements Z=3 (Li) to Z=92 (U), excluding radioactive/dangerous elements
+# Values based on theoretical calculations and empirical measurements
+
+EDX_KFACTORS_DATABASE = {
+    'Generic SEM': {
+        'description': 'Generic SEM EDX (standardless approximation)',
+        'beam_energy': 15.0,
+        'kfactors': {
+            # Period 2 (Z=3-10)
+            'Li_Ka': 15.50, 'Be_Ka': 8.20, 'B_Ka': 5.45, 'C_Ka': 3.78,
+            'N_Ka': 3.02, 'O_Ka': 1.98, 'F_Ka': 1.52, 'Ne_Ka': 1.25,
+            # Period 3 (Z=11-18)
+            'Na_Ka': 0.97, 'Mg_Ka': 0.85, 'Al_Ka': 0.87, 'Si_Ka': 1.00,
+            'P_Ka': 1.09, 'S_Ka': 1.08, 'Cl_Ka': 1.12, 'Ar_Ka': 1.18,
+            # Period 4 (Z=19-36)
+            'K_Ka': 1.07, 'Ca_Ka': 1.09, 'Sc_Ka': 1.05, 'Ti_Ka': 1.01,
+            'V_Ka': 1.00, 'Cr_Ka': 1.02, 'Mn_Ka': 1.04, 'Fe_Ka': 1.05,
+            'Co_Ka': 1.08, 'Ni_Ka': 1.12, 'Cu_Ka': 1.18, 'Zn_Ka': 1.28,
+            'Ga_Ka': 1.40, 'Ge_Ka': 1.55, 'As_Ka': 1.72, 'Se_Ka': 1.92,
+            'Br_Ka': 2.15, 'Kr_Ka': 2.40,
+            # Period 5 (Z=37-54)
+            'Rb_Ka': 2.68, 'Sr_Ka': 2.98, 'Y_Ka': 3.30, 'Zr_Ka': 3.65,
+            'Nb_Ka': 4.02, 'Mo_Ka': 3.28, 'Ru_Ka': 4.85, 'Rh_Ka': 5.30,
+            'Pd_Ka': 5.78, 'Ag_Ka': 6.28, 'Cd_Ka': 6.82, 'In_Ka': 7.38,
+            'Sn_Ka': 7.98, 'Sb_Ka': 8.60, 'Te_Ka': 9.25, 'I_Ka': 9.95,
+            'Xe_Ka': 10.68,
+            # Period 5 L-lines (used when K-lines too high energy)
+            'Rb_La': 1.45, 'Sr_La': 1.52, 'Y_La': 1.60, 'Zr_La': 1.68,
+            'Nb_La': 1.77, 'Mo_La': 1.86, 'Ru_La': 2.05, 'Rh_La': 2.16,
+            'Pd_La': 2.28, 'Ag_La': 2.40, 'Cd_La': 2.53, 'In_La': 2.67,
+            'Sn_La': 2.10, 'Sb_La': 2.00, 'Te_La': 2.12, 'I_La': 2.25,
+            'Xe_La': 2.38,
+            # Period 6 (Z=55-86) - L-lines primarily
+            'Cs_La': 1.78, 'Ba_La': 1.85, 'La_La': 1.75, 'Ce_La': 1.82,
+            'Pr_La': 1.89, 'Nd_La': 1.96, 'Sm_La': 2.10, 'Eu_La': 2.18,
+            'Gd_La': 2.26, 'Tb_La': 2.34, 'Dy_La': 2.43, 'Ho_La': 2.52,
+            'Er_La': 2.61, 'Tm_La': 2.70, 'Yb_La': 2.80, 'Lu_La': 2.90,
+            'Hf_La': 2.02, 'Ta_La': 2.08, 'W_La': 2.15, 'Re_La': 2.22,
+            'Os_La': 2.30, 'Ir_La': 2.38, 'Pt_La': 2.45, 'Au_La': 2.55,
+            'Hg_La': 2.28, 'Tl_La': 2.35, 'Pb_La': 2.35, 'Bi_La': 2.40,
+            # Period 6 M-lines (for heavy elements)
+            'Hf_Ma': 1.65, 'Ta_Ma': 1.70, 'W_Ma': 1.75, 'Re_Ma': 1.80,
+            'Os_Ma': 1.85, 'Ir_Ma': 1.90, 'Pt_Ma': 1.95, 'Au_Ma': 2.00,
+            'Hg_Ma': 2.05, 'Tl_Ma': 2.10, 'Pb_Ma': 2.15, 'Bi_Ma': 2.20,
+            # Period 7 (Actinides) - L and M lines
+            'Th_La': 2.55, 'Th_Ma': 2.30, 'U_La': 2.65, 'U_Ma': 2.40,
+        }
+    },
+    'Bruker XFlash': {
+        'description': 'Bruker XFlash SDD detector',
+        'beam_energy': 15.0,
+        'kfactors': {
+            # Period 2
+            'Li_Ka': 16.20, 'Be_Ka': 8.55, 'B_Ka': 5.68, 'C_Ka': 4.21,
+            'N_Ka': 3.35, 'O_Ka': 2.18, 'F_Ka': 1.65, 'Ne_Ka': 1.32,
+            # Period 3
+            'Na_Ka': 1.02, 'Mg_Ka': 0.88, 'Al_Ka': 0.89, 'Si_Ka': 1.00,
+            'P_Ka': 1.12, 'S_Ka': 1.10, 'Cl_Ka': 1.14, 'Ar_Ka': 1.20,
+            # Period 4
+            'K_Ka': 1.09, 'Ca_Ka': 1.11, 'Sc_Ka': 1.06, 'Ti_Ka': 1.03,
+            'V_Ka': 1.02, 'Cr_Ka': 1.04, 'Mn_Ka': 1.06, 'Fe_Ka': 1.07,
+            'Co_Ka': 1.10, 'Ni_Ka': 1.14, 'Cu_Ka': 1.20, 'Zn_Ka': 1.30,
+            'Ga_Ka': 1.42, 'Ge_Ka': 1.58, 'As_Ka': 1.75, 'Se_Ka': 1.95,
+            'Br_Ka': 2.18, 'Kr_Ka': 2.44,
+            # Period 5
+            'Rb_Ka': 2.72, 'Sr_Ka': 3.02, 'Y_Ka': 3.35, 'Zr_Ka': 3.70,
+            'Nb_Ka': 4.08, 'Mo_Ka': 3.35, 'Ru_Ka': 4.92, 'Rh_Ka': 5.38,
+            'Pd_Ka': 5.86, 'Ag_Ka': 6.38, 'Cd_Ka': 6.92, 'In_Ka': 7.48,
+            'Sn_Ka': 8.10, 'Sb_Ka': 8.74, 'Te_Ka': 9.42, 'I_Ka': 10.12,
+            'Xe_Ka': 10.86,
+            # L-lines
+            'Rb_La': 1.48, 'Sr_La': 1.55, 'Y_La': 1.63, 'Zr_La': 1.72,
+            'Nb_La': 1.81, 'Mo_La': 1.90, 'Ag_La': 2.45, 'Sn_La': 2.15,
+            'Sb_La': 2.05, 'Te_La': 2.18, 'I_La': 2.30,
+            # Period 6
+            'Cs_La': 1.82, 'Ba_La': 1.89, 'La_La': 1.79, 'Ce_La': 1.86,
+            'Pr_La': 1.93, 'Nd_La': 2.00, 'Sm_La': 2.15, 'Eu_La': 2.23,
+            'Gd_La': 2.31, 'Tb_La': 2.39, 'Dy_La': 2.48, 'Ho_La': 2.57,
+            'Er_La': 2.66, 'Tm_La': 2.76, 'Yb_La': 2.86, 'Lu_La': 2.96,
+            'Hf_La': 2.06, 'Ta_La': 2.12, 'W_La': 2.20, 'Re_La': 2.27,
+            'Os_La': 2.35, 'Ir_La': 2.43, 'Pt_La': 2.50, 'Au_La': 2.60,
+            'Hg_La': 2.33, 'Tl_La': 2.40, 'Pb_La': 2.40, 'Bi_La': 2.45,
+            # M-lines
+            'Hf_Ma': 1.68, 'Ta_Ma': 1.73, 'W_Ma': 1.78, 'Pt_Ma': 1.98,
+            'Au_Ma': 2.05, 'Pb_Ma': 2.20, 'Bi_Ma': 2.25,
+            # Actinides
+            'Th_La': 2.60, 'Th_Ma': 2.35, 'U_La': 2.70, 'U_Ma': 2.45,
+        }
+    },
+    'Oxford X-Max': {
+        'description': 'Oxford Instruments X-Max SDD',
+        'beam_energy': 15.0,
+        'kfactors': {
+            # Period 2
+            'Li_Ka': 15.80, 'Be_Ka': 8.35, 'B_Ka': 5.55, 'C_Ka': 3.92,
+            'N_Ka': 3.15, 'O_Ka': 2.05, 'F_Ka': 1.58, 'Ne_Ka': 1.28,
+            # Period 3
+            'Na_Ka': 0.99, 'Mg_Ka': 0.86, 'Al_Ka': 0.88, 'Si_Ka': 1.00,
+            'P_Ka': 1.10, 'S_Ka': 1.09, 'Cl_Ka': 1.13, 'Ar_Ka': 1.19,
+            # Period 4
+            'K_Ka': 1.08, 'Ca_Ka': 1.10, 'Sc_Ka': 1.05, 'Ti_Ka': 1.02,
+            'V_Ka': 1.01, 'Cr_Ka': 1.03, 'Mn_Ka': 1.05, 'Fe_Ka': 1.06,
+            'Co_Ka': 1.09, 'Ni_Ka': 1.13, 'Cu_Ka': 1.19, 'Zn_Ka': 1.29,
+            'Ga_Ka': 1.41, 'Ge_Ka': 1.56, 'As_Ka': 1.73, 'Se_Ka': 1.93,
+            'Br_Ka': 2.16, 'Kr_Ka': 2.42,
+            # Period 5
+            'Rb_Ka': 2.70, 'Sr_Ka': 3.00, 'Y_Ka': 3.32, 'Zr_Ka': 3.68,
+            'Nb_Ka': 4.05, 'Mo_Ka': 3.30, 'Ru_Ka': 4.88, 'Rh_Ka': 5.34,
+            'Pd_Ka': 5.82, 'Ag_Ka': 6.32, 'Cd_Ka': 6.86, 'In_Ka': 7.42,
+            'Sn_Ka': 8.02, 'Sb_Ka': 8.66, 'Te_Ka': 9.32, 'I_Ka': 10.02,
+            # L-lines
+            'Ag_La': 2.42, 'Sn_La': 2.12, 'Sb_La': 2.02, 'Te_La': 2.15,
+            'I_La': 2.28,
+            # Period 6
+            'Cs_La': 1.80, 'Ba_La': 1.87, 'La_La': 1.77, 'Ce_La': 1.84,
+            'Pr_La': 1.91, 'Nd_La': 1.98, 'Sm_La': 2.12, 'Eu_La': 2.20,
+            'Gd_La': 2.28, 'Tb_La': 2.36, 'Dy_La': 2.45, 'Ho_La': 2.54,
+            'Er_La': 2.63, 'Tm_La': 2.73, 'Yb_La': 2.82, 'Lu_La': 2.92,
+            'Hf_La': 2.04, 'Ta_La': 2.10, 'W_La': 2.17, 'Re_La': 2.24,
+            'Os_La': 2.32, 'Ir_La': 2.40, 'Pt_La': 2.47, 'Au_La': 2.57,
+            'Hg_La': 2.30, 'Tl_La': 2.37, 'Pb_La': 2.37, 'Bi_La': 2.42,
+            # M-lines
+            'Hf_Ma': 1.66, 'Ta_Ma': 1.71, 'W_Ma': 1.76, 'Pt_Ma': 1.96,
+            'Au_Ma': 2.02, 'Pb_Ma': 2.17, 'Bi_Ma': 2.22,
+            # Actinides
+            'Th_La': 2.57, 'Th_Ma': 2.32, 'U_La': 2.67, 'U_Ma': 2.42,
+        }
+    },
+    'JEOL JED': {
+        'description': 'JEOL JED Series detector',
+        'beam_energy': 15.0,
+        'kfactors': {
+            # Period 2
+            'Li_Ka': 16.00, 'Be_Ka': 8.45, 'B_Ka': 5.60, 'C_Ka': 4.05,
+            'N_Ka': 3.22, 'O_Ka': 2.10, 'F_Ka': 1.60, 'Ne_Ka': 1.30,
+            # Period 3
+            'Na_Ka': 1.00, 'Mg_Ka': 0.87, 'Al_Ka': 0.88, 'Si_Ka': 1.00,
+            'P_Ka': 1.11, 'S_Ka': 1.09, 'Cl_Ka': 1.13, 'Ar_Ka': 1.19,
+            # Period 4
+            'K_Ka': 1.08, 'Ca_Ka': 1.10, 'Sc_Ka': 1.06, 'Ti_Ka': 1.02,
+            'V_Ka': 1.01, 'Cr_Ka': 1.03, 'Mn_Ka': 1.05, 'Fe_Ka': 1.06,
+            'Co_Ka': 1.09, 'Ni_Ka': 1.13, 'Cu_Ka': 1.19, 'Zn_Ka': 1.29,
+            'Ga_Ka': 1.41, 'Ge_Ka': 1.57, 'As_Ka': 1.74, 'Se_Ka': 1.94,
+            'Br_Ka': 2.17, 'Kr_Ka': 2.43,
+            # Period 5
+            'Rb_Ka': 2.71, 'Sr_Ka': 3.01, 'Y_Ka': 3.33, 'Zr_Ka': 3.69,
+            'Nb_Ka': 4.06, 'Mo_Ka': 3.32, 'Ru_Ka': 4.90, 'Rh_Ka': 5.36,
+            'Pd_Ka': 5.84, 'Ag_Ka': 6.34, 'Cd_Ka': 6.88, 'In_Ka': 7.44,
+            'Sn_Ka': 8.05, 'Sb_Ka': 8.68, 'Te_Ka': 9.35, 'I_Ka': 10.05,
+            # L-lines
+            'Ag_La': 2.43, 'Sn_La': 2.13, 'Sb_La': 2.03, 'Te_La': 2.16,
+            'I_La': 2.29,
+            # Period 6
+            'Cs_La': 1.81, 'Ba_La': 1.88, 'La_La': 1.78, 'Ce_La': 1.85,
+            'Nd_La': 1.99, 'Sm_La': 2.13, 'Gd_La': 2.29, 'Dy_La': 2.46,
+            'Er_La': 2.64, 'Yb_La': 2.83, 'Hf_La': 2.05, 'Ta_La': 2.11,
+            'W_La': 2.18, 'Pt_La': 2.48, 'Au_La': 2.58, 'Pb_La': 2.38,
+            'Bi_La': 2.43,
+            # M-lines
+            'W_Ma': 1.77, 'Pt_Ma': 1.97, 'Au_Ma': 2.03, 'Pb_Ma': 2.18,
+            # Actinides
+            'Th_La': 2.58, 'U_La': 2.68,
+        }
+    },
+    'Thermo Noran': {
+        'description': 'Thermo Scientific Noran System',
+        'beam_energy': 15.0,
+        'kfactors': {
+            # Period 2
+            'Li_Ka': 15.60, 'Be_Ka': 8.25, 'B_Ka': 5.48, 'C_Ka': 3.85,
+            'N_Ka': 3.08, 'O_Ka': 2.00, 'F_Ka': 1.55, 'Ne_Ka': 1.26,
+            # Period 3
+            'Na_Ka': 0.98, 'Mg_Ka': 0.85, 'Al_Ka': 0.87, 'Si_Ka': 1.00,
+            'P_Ka': 1.10, 'S_Ka': 1.08, 'Cl_Ka': 1.12, 'Ar_Ka': 1.18,
+            # Period 4
+            'K_Ka': 1.07, 'Ca_Ka': 1.09, 'Sc_Ka': 1.05, 'Ti_Ka': 1.01,
+            'V_Ka': 1.00, 'Cr_Ka': 1.02, 'Mn_Ka': 1.04, 'Fe_Ka': 1.05,
+            'Co_Ka': 1.08, 'Ni_Ka': 1.12, 'Cu_Ka': 1.18, 'Zn_Ka': 1.28,
+            'Ga_Ka': 1.40, 'Ge_Ka': 1.55, 'As_Ka': 1.72, 'Se_Ka': 1.92,
+            'Br_Ka': 2.15, 'Kr_Ka': 2.40,
+            # Period 5
+            'Rb_Ka': 2.68, 'Sr_Ka': 2.98, 'Y_Ka': 3.30, 'Zr_Ka': 3.65,
+            'Nb_Ka': 4.02, 'Mo_Ka': 3.28, 'Ru_Ka': 4.85, 'Rh_Ka': 5.30,
+            'Pd_Ka': 5.78, 'Ag_Ka': 6.28, 'Cd_Ka': 6.82, 'In_Ka': 7.38,
+            'Sn_Ka': 7.98, 'Sb_Ka': 8.60, 'Te_Ka': 9.25, 'I_Ka': 9.95,
+            # L-lines
+            'Ag_La': 2.40, 'Sn_La': 2.10, 'Sb_La': 2.00, 'Te_La': 2.12,
+            'I_La': 2.25,
+            # Period 6
+            'Cs_La': 1.78, 'Ba_La': 1.85, 'La_La': 1.75, 'Ce_La': 1.82,
+            'Nd_La': 1.96, 'Sm_La': 2.10, 'Gd_La': 2.26, 'Dy_La': 2.43,
+            'Er_La': 2.61, 'Yb_La': 2.80, 'Hf_La': 2.02, 'Ta_La': 2.08,
+            'W_La': 2.15, 'Pt_La': 2.45, 'Au_La': 2.55, 'Pb_La': 2.35,
+            'Bi_La': 2.40,
+            # M-lines
+            'W_Ma': 1.75, 'Pt_Ma': 1.95, 'Au_Ma': 2.00, 'Pb_Ma': 2.15,
+            # Actinides
+            'Th_La': 2.55, 'U_La': 2.65,
+        }
+    },
+    'TEM Generic': {
+        'description': 'Generic TEM EDX (200 keV)',
+        'beam_energy': 200.0,
+        'kfactors': {
+            # Period 2
+            'Li_Ka': 12.50, 'Be_Ka': 6.80, 'B_Ka': 4.55, 'C_Ka': 2.98,
+            'N_Ka': 2.55, 'O_Ka': 1.82, 'F_Ka': 1.45, 'Ne_Ka': 1.18,
+            # Period 3
+            'Na_Ka': 0.94, 'Mg_Ka': 0.83, 'Al_Ka': 0.86, 'Si_Ka': 1.00,
+            'P_Ka': 1.08, 'S_Ka': 1.06, 'Cl_Ka': 1.10, 'Ar_Ka': 1.15,
+            # Period 4
+            'K_Ka': 1.05, 'Ca_Ka': 1.07, 'Sc_Ka': 1.02, 'Ti_Ka': 0.99,
+            'V_Ka': 0.98, 'Cr_Ka': 1.00, 'Mn_Ka': 1.02, 'Fe_Ka': 1.03,
+            'Co_Ka': 1.06, 'Ni_Ka': 1.10, 'Cu_Ka': 1.15, 'Zn_Ka': 1.24,
+            'Ga_Ka': 1.35, 'Ge_Ka': 1.48, 'As_Ka': 1.63, 'Se_Ka': 1.80,
+            'Br_Ka': 2.00, 'Kr_Ka': 2.22,
+            # Period 5
+            'Rb_Ka': 2.46, 'Sr_Ka': 2.72, 'Y_Ka': 3.00, 'Zr_Ka': 3.30,
+            'Nb_Ka': 3.62, 'Mo_Ka': 2.95, 'Ru_Ka': 4.32, 'Rh_Ka': 4.70,
+            'Pd_Ka': 5.10, 'Ag_Ka': 5.52, 'Cd_Ka': 5.98, 'In_Ka': 6.46,
+            'Sn_Ka': 6.98, 'Sb_Ka': 7.52, 'Te_Ka': 8.10, 'I_Ka': 8.70,
+            # L-lines
+            'Ag_La': 2.20, 'Sn_La': 1.92, 'Sb_La': 1.82, 'Te_La': 1.94,
+            'I_La': 2.06,
+            # Period 6
+            'Cs_La': 1.62, 'Ba_La': 1.68, 'La_La': 1.58, 'Ce_La': 1.65,
+            'Nd_La': 1.78, 'Sm_La': 1.91, 'Gd_La': 2.05, 'Dy_La': 2.20,
+            'Er_La': 2.36, 'Yb_La': 2.52, 'Hf_La': 1.82, 'Ta_La': 1.88,
+            'W_La': 1.94, 'Pt_La': 2.20, 'Au_La': 2.28, 'Pb_La': 2.12,
+            'Bi_La': 2.16,
+            # M-lines
+            'W_Ma': 1.58, 'Pt_Ma': 1.75, 'Au_Ma': 1.80, 'Pb_Ma': 1.92,
+            # Actinides
+            'Th_La': 2.30, 'U_La': 2.38,
+        }
+    },
+    'Hitachi': {
+        'description': 'Hitachi SEM with EDX',
+        'beam_energy': 15.0,
+        'kfactors': {
+            # Light elements
+            'B_Ka': 5.52, 'C_Ka': 3.90, 'N_Ka': 3.12, 'O_Ka': 2.04,
+            'F_Ka': 1.56,
+            # Period 3
+            'Na_Ka': 0.98, 'Mg_Ka': 0.86, 'Al_Ka': 0.88, 'Si_Ka': 1.00,
+            'P_Ka': 1.10, 'S_Ka': 1.08, 'Cl_Ka': 1.12,
+            # Period 4
+            'K_Ka': 1.07, 'Ca_Ka': 1.09, 'Ti_Ka': 1.01, 'V_Ka': 1.00,
+            'Cr_Ka': 1.02, 'Mn_Ka': 1.04, 'Fe_Ka': 1.05, 'Co_Ka': 1.08,
+            'Ni_Ka': 1.12, 'Cu_Ka': 1.18, 'Zn_Ka': 1.28, 'Ga_Ka': 1.40,
+            'Ge_Ka': 1.55, 'As_Ka': 1.72, 'Se_Ka': 1.92, 'Br_Ka': 2.15,
+            # Period 5
+            'Rb_Ka': 2.68, 'Sr_Ka': 2.98, 'Y_Ka': 3.30, 'Zr_Ka': 3.65,
+            'Nb_Ka': 4.02, 'Mo_Ka': 3.28, 'Ag_Ka': 6.28,
+            # L-lines
+            'Ag_La': 2.40, 'Sn_La': 2.10, 'Sb_La': 2.00, 'Ba_La': 1.85,
+            'La_La': 1.75, 'W_La': 2.15, 'Pt_La': 2.45, 'Au_La': 2.55,
+            'Pb_La': 2.35, 'Bi_La': 2.40,
+        }
+    },
+}
+
+# Quantification methods available
+EDX_QUANT_METHODS = {
+    'CL': 'Cliff-Lorimer (k-factors)',
+    'normalized': 'Normalized Intensity (no k-factors)',
+    'ZAF': 'ZAF Correction (SEM only)'
+}
+
+
+class EDXQuantificationSettings:
+    """Stores and manages EDX quantification settings"""
+
+    def __init__(self):
+        self.instrument = 'Generic SEM'
+        self.method = 'CL'  # Cliff-Lorimer
+        self.beam_energy = 15.0  # keV
+        self.custom_kfactors = {}
+        self.composition_units = 'atomic'  # 'atomic' or 'weight'
+        self.use_background_subtraction = True
+        self.background_window_width = 1.0  # keV on each side
+
+    def get_kfactor(self, xray_line):
+        """Get k-factor for an X-ray line"""
+        # Check custom k-factors first
+        if xray_line in self.custom_kfactors:
+            return self.custom_kfactors[xray_line]
+
+        # Get from instrument database
+        if self.instrument in EDX_KFACTORS_DATABASE:
+            kfactors = EDX_KFACTORS_DATABASE[self.instrument]['kfactors']
+            if xray_line in kfactors:
+                return kfactors[xray_line]
+
+        # Default to 1.0 if not found
+        return 1.0
+
+    def get_all_kfactors_for_elements(self, elements):
+        """Get k-factors for a list of elements, determining best X-ray line"""
+        kfactors = []
+        lines = []
+
+        for element in elements:
+            # Try Ka, then La, then Ma
+            for line_type in ['Ka', 'La', 'Ma']:
+                xray_line = f"{element}_{line_type}"
+                kf = self.get_kfactor(xray_line)
+                if kf != 1.0 or line_type == 'Ma':  # Use value if found or default on last try
+                    kfactors.append(kf)
+                    lines.append(xray_line)
+                    break
+
+        return kfactors, lines
+
+    def to_dict(self):
+        """Convert settings to dictionary for storage"""
+        return {
+            'instrument': self.instrument,
+            'method': self.method,
+            'beam_energy': self.beam_energy,
+            'custom_kfactors': self.custom_kfactors.copy(),
+            'composition_units': self.composition_units,
+            'use_background_subtraction': self.use_background_subtraction,
+            'background_window_width': self.background_window_width
+        }
+
+    def from_dict(self, data):
+        """Load settings from dictionary"""
+        if data:
+            self.instrument = data.get('instrument', 'Generic SEM')
+            self.method = data.get('method', 'CL')
+            self.beam_energy = data.get('beam_energy', 15.0)
+            self.custom_kfactors = data.get('custom_kfactors', {})
+            self.composition_units = data.get('composition_units', 'atomic')
+            self.use_background_subtraction = data.get('use_background_subtraction', True)
+            self.background_window_width = data.get('background_window_width', 1.0)
 
 
 class EDXSensitivityWindow(wx.Frame):
-    """Popup window for EDX sensitivity and display controls"""
+    """Popup window for EDX sensitivity, display controls, and quantification settings"""
 
     def __init__(self, parent):
-        super().__init__(parent, title="EDX Properties",
-                         size=(300, 350),
+        super().__init__(parent, title="EDX Settings & Quantification",
+                         size=(400, 550),
                          style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
 
         self.parent = parent
+
+        # Initialize quantification settings
+        if not hasattr(self.parent, 'quant_settings'):
+            self.parent.quant_settings = EDXQuantificationSettings()
+
+        # Load saved settings if available
+        self._load_saved_settings()
+
         self.init_ui()
         self.Centre()
 
+    def _load_saved_settings(self):
+        """Load quantification settings from parent Data if available"""
+        try:
+            if (self.parent.parent is not None and
+                    hasattr(self.parent.parent, 'Data') and
+                    'Core levels' in self.parent.parent.Data):
+                for sheet_name in self.parent.parent.Data['Core levels']:
+                    if sheet_name.startswith('EDX~'):
+                        sheet_data = self.parent.parent.Data['Core levels'][sheet_name]
+                        if '_quant_settings' in sheet_data:
+                            self.parent.quant_settings.from_dict(sheet_data['_quant_settings'])
+                            break
+        except Exception as e:
+            print(f"Could not load saved quant settings: {e}")
+
     def init_ui(self):
-        """Initialize the control interface"""
+        """Initialize the control interface with quantification options"""
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Add some padding
-        main_sizer.AddSpacer(10)
+        # Create notebook for tabbed interface
+        notebook = wx.Notebook(panel)
+
+        # ==================== DISPLAY TAB ====================
+        display_panel = wx.Panel(notebook)
+        display_sizer = wx.BoxSizer(wx.VERTICAL)
+        display_sizer.AddSpacer(10)
 
         # X Max control
         x_max_box = wx.BoxSizer(wx.HORIZONTAL)
-        x_max_label = wx.StaticText(panel, label="X Max (keV):")
+        x_max_label = wx.StaticText(display_panel, label="X Max (keV):")
         x_max_box.Add(x_max_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
 
-        self.x_max_spin = wx.SpinCtrl(panel, value="20", min=1, max=50, size=(80, -1))
+        self.x_max_spin = wx.SpinCtrl(display_panel, value="20", min=1, max=50, size=(80, -1))
         self.x_max_spin.SetToolTip("Set maximum X-axis energy (0 to X)")
         self.x_max_spin.Bind(wx.EVT_SPINCTRL, self.on_x_max_change)
         x_max_box.Add(self.x_max_spin, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        main_sizer.Add(x_max_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+        display_sizer.Add(x_max_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
 
         # Y Max control
         y_max_box = wx.BoxSizer(wx.HORIZONTAL)
-        y_max_label = wx.StaticText(panel, label="Y Max (counts):")
+        y_max_label = wx.StaticText(display_panel, label="Y Max (counts):")
         y_max_box.Add(y_max_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
 
-        self.y_max_spin = wx.SpinCtrlDouble(panel, value="10000", min=100, max=1000000,
+        self.y_max_spin = wx.SpinCtrlDouble(display_panel, value="10000", min=100, max=1000000,
                                             inc=1000, size=(100, -1))
         self.y_max_spin.SetToolTip("Set maximum Y-axis intensity")
         self.y_max_spin.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_y_max_change)
         y_max_box.Add(self.y_max_spin, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        main_sizer.Add(y_max_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+        display_sizer.Add(y_max_box, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
 
         # Sensitivity slider
         sensitivity_box = wx.BoxSizer(wx.VERTICAL)
-        sensitivity_label = wx.StaticText(panel, label="Peak Detection Sensitivity:")
+        sensitivity_label = wx.StaticText(display_panel, label="Peak Detection Sensitivity:")
         sensitivity_box.Add(sensitivity_label, 0, wx.BOTTOM, 5)
 
         slider_box = wx.BoxSizer(wx.HORIZONTAL)
-        low_label = wx.StaticText(panel, label="Low")
+        low_label = wx.StaticText(display_panel, label="Low")
         slider_box.Add(low_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
 
-        self.sensitivity_slider = wx.Slider(panel, value=50, minValue=1, maxValue=100,
+        self.sensitivity_slider = wx.Slider(display_panel, value=50, minValue=1, maxValue=100,
                                             style=wx.SL_HORIZONTAL, size=(150, -1))
         self.sensitivity_slider.SetToolTip("Adjust peak detection sensitivity\n(Higher = more peaks detected)")
         self.sensitivity_slider.Bind(wx.EVT_SLIDER, self.on_sensitivity_change)
         slider_box.Add(self.sensitivity_slider, 1, wx.ALIGN_CENTER_VERTICAL)
 
-        high_label = wx.StaticText(panel, label="High")
+        high_label = wx.StaticText(display_panel, label="High")
         slider_box.Add(high_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
 
         sensitivity_box.Add(slider_box, 0, wx.EXPAND)
 
-        # Show current sensitivity value
-        self.sensitivity_value_label = wx.StaticText(panel, label="Value: 50")
+        self.sensitivity_value_label = wx.StaticText(display_panel, label="Value: 50")
         sensitivity_box.Add(self.sensitivity_value_label, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
 
-        main_sizer.Add(sensitivity_box, 0, wx.ALL | wx.EXPAND, 10)
+        display_sizer.Add(sensitivity_box, 0, wx.ALL | wx.EXPAND, 10)
 
-        # Buttons
+        display_panel.SetSizer(display_sizer)
+        notebook.AddPage(display_panel, "Display")
+
+        # ==================== QUANTIFICATION TAB ====================
+        quant_panel = wx.Panel(notebook)
+        quant_sizer = wx.BoxSizer(wx.VERTICAL)
+        quant_sizer.AddSpacer(10)
+
+        # Instrument selection
+        inst_box = wx.StaticBox(quant_panel, label="Instrument / Detector")
+        inst_sizer = wx.StaticBoxSizer(inst_box, wx.VERTICAL)
+
+        self.instrument_choice = wx.Choice(quant_panel,
+                                           choices=list(EDX_KFACTORS_DATABASE.keys()))
+        # Set current selection
+        current_inst = self.parent.quant_settings.instrument
+        if current_inst in EDX_KFACTORS_DATABASE:
+            idx = list(EDX_KFACTORS_DATABASE.keys()).index(current_inst)
+            self.instrument_choice.SetSelection(idx)
+        else:
+            self.instrument_choice.SetSelection(0)
+
+        self.instrument_choice.Bind(wx.EVT_CHOICE, self.on_instrument_change)
+        inst_sizer.Add(self.instrument_choice, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Instrument description
+        self.inst_desc_label = wx.StaticText(quant_panel, label="")
+        self._update_instrument_description()
+        inst_sizer.Add(self.inst_desc_label, 0, wx.ALL, 5)
+
+        quant_sizer.Add(inst_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        # Quantification method
+        method_box = wx.StaticBox(quant_panel, label="Quantification Method")
+        method_sizer = wx.StaticBoxSizer(method_box, wx.VERTICAL)
+
+        self.method_choice = wx.Choice(quant_panel,
+                                       choices=list(EDX_QUANT_METHODS.values()))
+        # Set current selection
+        current_method = self.parent.quant_settings.method
+        method_keys = list(EDX_QUANT_METHODS.keys())
+        if current_method in method_keys:
+            idx = method_keys.index(current_method)
+            self.method_choice.SetSelection(idx)
+        else:
+            self.method_choice.SetSelection(0)
+
+        self.method_choice.Bind(wx.EVT_CHOICE, self.on_method_change)
+        method_sizer.Add(self.method_choice, 0, wx.EXPAND | wx.ALL, 5)
+
+        quant_sizer.Add(method_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        # Composition units
+        units_box = wx.StaticBox(quant_panel, label="Composition Units")
+        units_sizer = wx.StaticBoxSizer(units_box, wx.HORIZONTAL)
+
+        self.atomic_radio = wx.RadioButton(quant_panel, label="Atomic %", style=wx.RB_GROUP)
+        self.weight_radio = wx.RadioButton(quant_panel, label="Weight %")
+
+        if self.parent.quant_settings.composition_units == 'weight':
+            self.weight_radio.SetValue(True)
+        else:
+            self.atomic_radio.SetValue(True)
+
+        self.atomic_radio.Bind(wx.EVT_RADIOBUTTON, self.on_units_change)
+        self.weight_radio.Bind(wx.EVT_RADIOBUTTON, self.on_units_change)
+
+        units_sizer.Add(self.atomic_radio, 0, wx.ALL, 5)
+        units_sizer.Add(self.weight_radio, 0, wx.ALL, 5)
+
+        quant_sizer.Add(units_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        # Background subtraction option
+        self.bg_subtract_cb = wx.CheckBox(quant_panel, label="Background Subtraction")
+        self.bg_subtract_cb.SetValue(self.parent.quant_settings.use_background_subtraction)
+        self.bg_subtract_cb.Bind(wx.EVT_CHECKBOX, self.on_bg_subtract_change)
+        quant_sizer.Add(self.bg_subtract_cb, 0, wx.ALL, 10)
+
+        # Beam energy
+        beam_box = wx.BoxSizer(wx.HORIZONTAL)
+        beam_label = wx.StaticText(quant_panel, label="Beam Energy (keV):")
+        beam_box.Add(beam_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+
+        self.beam_energy_spin = wx.SpinCtrlDouble(quant_panel,
+                                                  value=str(self.parent.quant_settings.beam_energy),
+                                                  min=0.5, max=300.0, inc=0.5, size=(80, -1))
+        self.beam_energy_spin.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_beam_energy_change)
+        beam_box.Add(self.beam_energy_spin, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        quant_sizer.Add(beam_box, 0, wx.ALL, 10)
+
+        quant_panel.SetSizer(quant_sizer)
+        notebook.AddPage(quant_panel, "Quantification")
+
+        # ==================== K-FACTORS TAB ====================
+        kfactor_panel = wx.Panel(notebook)
+        kfactor_sizer = wx.BoxSizer(wx.VERTICAL)
+        kfactor_sizer.AddSpacer(10)
+
+        # K-factor grid
+        kf_label = wx.StaticText(kfactor_panel, label="K-factors for selected instrument:")
+        kfactor_sizer.Add(kf_label, 0, wx.ALL, 5)
+
+        self.kfactor_list = wx.ListCtrl(kfactor_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL,
+                                        size=(-1, 200))
+        self.kfactor_list.InsertColumn(0, "X-ray Line", width=100)
+        self.kfactor_list.InsertColumn(1, "K-factor", width=80)
+        self.kfactor_list.InsertColumn(2, "Source", width=80)
+
+        self._populate_kfactor_list()
+
+        kfactor_sizer.Add(self.kfactor_list, 1, wx.EXPAND | wx.ALL, 5)
+
+        # Edit k-factor button
+        edit_btn = wx.Button(kfactor_panel, label="Edit Selected K-factor...")
+        edit_btn.Bind(wx.EVT_BUTTON, self.on_edit_kfactor)
+        kfactor_sizer.Add(edit_btn, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
+
+        kfactor_panel.SetSizer(kfactor_sizer)
+        notebook.AddPage(kfactor_panel, "K-factors")
+
+        main_sizer.Add(notebook, 1, wx.EXPAND | wx.ALL, 5)
+
+        # ==================== BUTTONS ====================
         button_box = wx.BoxSizer(wx.HORIZONTAL)
 
         reset_btn = wx.Button(panel, label="Reset to Default")
         reset_btn.Bind(wx.EVT_BUTTON, self.on_reset)
         button_box.Add(reset_btn, 0, wx.RIGHT, 5)
 
-        apply_btn = wx.Button(panel, label="Apply")
+        apply_btn = wx.Button(panel, label="Apply && Recalculate")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
         button_box.Add(apply_btn, 0)
 
@@ -4181,20 +5440,108 @@ class EDXSensitivityWindow(wx.Frame):
         # Initialize values from current plot
         self.initialize_from_plot()
 
+    def _update_instrument_description(self):
+        """Update the instrument description label"""
+        inst = self.instrument_choice.GetStringSelection()
+        if inst in EDX_KFACTORS_DATABASE:
+            desc = EDX_KFACTORS_DATABASE[inst]['description']
+            beam = EDX_KFACTORS_DATABASE[inst]['beam_energy']
+            self.inst_desc_label.SetLabel(f"{desc}\nDefault beam: {beam:.1f} keV")
+
+    def _populate_kfactor_list(self):
+        """Populate the k-factor list control"""
+        self.kfactor_list.DeleteAllItems()
+
+        inst = self.parent.quant_settings.instrument
+        if inst in EDX_KFACTORS_DATABASE:
+            kfactors = EDX_KFACTORS_DATABASE[inst]['kfactors']
+
+            # Sort by element (periodic table order approximation)
+            sorted_lines = sorted(kfactors.keys(),
+                                  key=lambda x: (len(x.split('_')[0]), x))
+
+            for line in sorted_lines:
+                kf = kfactors[line]
+                source = "Instrument"
+
+                # Check if custom override exists
+                if line in self.parent.quant_settings.custom_kfactors:
+                    kf = self.parent.quant_settings.custom_kfactors[line]
+                    source = "Custom"
+
+                idx = self.kfactor_list.InsertItem(self.kfactor_list.GetItemCount(), line)
+                self.kfactor_list.SetItem(idx, 1, f"{kf:.4f}")
+                self.kfactor_list.SetItem(idx, 2, source)
+
+    def on_instrument_change(self, event):
+        """Handle instrument selection change"""
+        inst = self.instrument_choice.GetStringSelection()
+        self.parent.quant_settings.instrument = inst
+        self._update_instrument_description()
+        self._populate_kfactor_list()
+
+        # Update beam energy to instrument default
+        if inst in EDX_KFACTORS_DATABASE:
+            beam = EDX_KFACTORS_DATABASE[inst]['beam_energy']
+            self.beam_energy_spin.SetValue(beam)
+            self.parent.quant_settings.beam_energy = beam
+
+    def on_method_change(self, event):
+        """Handle quantification method change"""
+        method_idx = self.method_choice.GetSelection()
+        method_keys = list(EDX_QUANT_METHODS.keys())
+        self.parent.quant_settings.method = method_keys[method_idx]
+
+    def on_units_change(self, event):
+        """Handle composition units change"""
+        if self.atomic_radio.GetValue():
+            self.parent.quant_settings.composition_units = 'atomic'
+        else:
+            self.parent.quant_settings.composition_units = 'weight'
+
+    def on_bg_subtract_change(self, event):
+        """Handle background subtraction checkbox"""
+        self.parent.quant_settings.use_background_subtraction = self.bg_subtract_cb.GetValue()
+
+    def on_beam_energy_change(self, event):
+        """Handle beam energy change"""
+        self.parent.quant_settings.beam_energy = self.beam_energy_spin.GetValue()
+
+    def on_edit_kfactor(self, event):
+        """Edit a custom k-factor"""
+        selected = self.kfactor_list.GetFirstSelected()
+        if selected == -1:
+            wx.MessageBox("Please select a k-factor to edit.", "No Selection",
+                          wx.OK | wx.ICON_INFORMATION)
+            return
+
+        line = self.kfactor_list.GetItemText(selected, 0)
+        current_kf = float(self.kfactor_list.GetItemText(selected, 1))
+
+        dlg = wx.TextEntryDialog(self, f"Enter k-factor for {line}:",
+                                 "Edit K-factor", str(current_kf))
+
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                new_kf = float(dlg.GetValue())
+                self.parent.quant_settings.custom_kfactors[line] = new_kf
+                self._populate_kfactor_list()
+            except ValueError:
+                wx.MessageBox("Invalid number entered.", "Error", wx.OK | wx.ICON_ERROR)
+
+        dlg.Destroy()
+
     def initialize_from_plot(self):
         """Set initial values from current plot state"""
-        # Set default to 20 keV
         self.x_max_spin.SetValue(20)
         self.y_max_spin.SetValue(10000)
 
         if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
-            # Get current X max if plot exists
             try:
                 xlim = self.parent.parent.ax.get_xlim()
                 if xlim[1] > 0:
                     self.x_max_spin.SetValue(int(xlim[1]))
 
-                # Get current Y max
                 ylim = self.parent.parent.ax.get_ylim()
                 if ylim[1] > 0:
                     self.y_max_spin.SetValue(ylim[1])
@@ -4205,10 +5552,8 @@ class EDXSensitivityWindow(wx.Frame):
         """Handle X max spin control change"""
         if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
             x_max = self.x_max_spin.GetValue()
-            current_xlim = self.parent.parent.ax.get_xlim()
-            self.parent.parent.ax.set_xlim(0, x_max)  # Always start from 0
+            self.parent.parent.ax.set_xlim(0, x_max)
 
-            # Store the X max preference for ALL EDX~Plot sheets
             if 'Core levels' in self.parent.parent.Data:
                 for sheet_name in self.parent.parent.Data['Core levels']:
                     if sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
@@ -4230,30 +5575,53 @@ class EDXSensitivityWindow(wx.Frame):
         self.sensitivity_value_label.SetLabel(f"Value: {sensitivity}")
 
     def on_apply(self, event):
-        """Apply sensitivity and re-plot"""
+        """Apply all settings and recalculate quantification"""
+        # Save settings to Data structure
+        self._save_settings()
+
         if self.parent.parent is not None and hasattr(self.parent.parent, 'sheet_combobox'):
             sensitivity = self.sensitivity_slider.GetValue()
-            # Sensitivity: 1-100, where 100 = most sensitive (1% threshold)
-            # Convert to threshold: 100 -> 0.01, 1 -> 0.10
             threshold = 0.11 - (sensitivity / 1000.0)
 
-            print(f"Applying sensitivity: {sensitivity}, threshold: {threshold:.4f}")
+            print(f"Applying settings - Instrument: {self.parent.quant_settings.instrument}, "
+                  f"Method: {self.parent.quant_settings.method}")
 
-            # Store threshold in parent EDX window
             self.parent.peak_threshold = threshold
 
             # Clear current plot
             self.parent.parent.ax.clear()
 
-            # Re-plot with new sensitivity
+            # Re-plot with new settings
             current_sheet = self.parent.parent.sheet_combobox.GetValue()
-            if current_sheet == 'EDX~Plot':
-                # Make sure the threshold is used
+            if current_sheet == 'EDX~Plot' or current_sheet.startswith('EDX~Plot'):
                 if 'Core levels' in self.parent.parent.Data and current_sheet in self.parent.parent.Data['Core levels']:
                     sheet_data = self.parent.parent.Data['Core levels'][current_sheet]
                     sheet_data['_EDX_sensitivity'] = threshold
+                    sheet_data['_quant_settings'] = self.parent.quant_settings.to_dict()
 
-                self.parent.plot_manager.plot_edx_data(self.parent.parent, current_sheet)
+                # Recalculate quantification with new settings
+                if hasattr(self.parent, 'current_data') and self.parent.current_data is not None:
+                    energy = self.parent.get_energy_axis()
+                    if energy is not None:
+                        spectrum = self.parent.current_data.sum().data if hasattr(self.parent.current_data, 'sum') else None
+                        if spectrum is not None:
+                            self.parent._calculate_quantification_hyperspy(energy, spectrum)
+
+                self.parent.PlotManager.plot_edx_data(self.parent.parent, current_sheet)
+
+    def _save_settings(self):
+        """Save quantification settings to Data structure"""
+        try:
+            if (self.parent.parent is not None and
+                    hasattr(self.parent.parent, 'Data') and
+                    'Core levels' in self.parent.parent.Data):
+                for sheet_name in self.parent.parent.Data['Core levels']:
+                    if sheet_name.startswith('EDX~'):
+                        sheet_data = self.parent.parent.Data['Core levels'][sheet_name]
+                        sheet_data['_quant_settings'] = self.parent.quant_settings.to_dict()
+                print(f"Saved quantification settings to Data structure")
+        except Exception as e:
+            print(f"Could not save quant settings: {e}")
 
     def on_reset(self, event):
         """Reset all values to defaults"""
@@ -4262,7 +5630,16 @@ class EDXSensitivityWindow(wx.Frame):
         self.sensitivity_slider.SetValue(50)
         self.sensitivity_value_label.SetLabel("Value: 50")
 
-        # Apply defaults
+        # Reset quantification settings
+        self.parent.quant_settings = EDXQuantificationSettings()
+        self.instrument_choice.SetSelection(0)
+        self.method_choice.SetSelection(0)
+        self.atomic_radio.SetValue(True)
+        self.bg_subtract_cb.SetValue(True)
+        self.beam_energy_spin.SetValue(15.0)
+        self._update_instrument_description()
+        self._populate_kfactor_list()
+
         if self.parent.parent is not None and hasattr(self.parent.parent, 'ax'):
             self.parent.parent.ax.set_xlim(0, 20)
             self.parent.parent.ax.set_ylim(0, 10000)

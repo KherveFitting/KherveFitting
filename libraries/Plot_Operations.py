@@ -4021,6 +4021,8 @@ class PlotManager:
 
                 # Get stored style preference from window config or sheet data
                 style = getattr(window, 'edx_plot_style', 'black')
+
+                print(f'Using EDX plot style: {style}')
                 if '_EDX_style' in sheet_data:
                     style = sheet_data['_EDX_style']
 
@@ -4178,7 +4180,7 @@ class PlotManager:
             # Default style: Black line, black labels, white background
             figure.patch.set_facecolor('white')
             ax.set_facecolor('white')
-            ax.plot(energy, intensity, 'k-', linewidth=0.8)
+            ax.plot(energy, intensity, 'k-', linewidth=1.0)
             ax.set_xlabel('Energy (keV)', color='black')
             ax.set_ylabel('Counts', color='black')
             ax.tick_params(colors='black', labelcolor='black')
@@ -4186,18 +4188,44 @@ class PlotManager:
                 spine.set_edgecolor('black')
             return 'black'
 
+        # elif style == 'blue_yellow':
+        #     # Blue background with yellow filled line and yellow labels
+        #     figure.patch.set_facecolor('#1e3a5f')
+        #     ax.set_facecolor('#1e3a5f')
+        #     ax.fill_between(energy, intensity, color='yellow', alpha=0.8)
+        #     ax.plot(energy, intensity, 'yellow', linewidth=1.2)
+        #     ax.set_xlabel('Energy (keV)', color='yellow')
+        #     ax.set_ylabel('Counts', color='yellow')
+        #     ax.tick_params(colors='yellow', labelcolor='yellow')
+        #     for spine in ax.spines.values():
+        #         spine.set_edgecolor('yellow')
+        #     return 'yellow'
+
         elif style == 'blue_yellow':
-            # Blue background with yellow filled line and yellow labels
-            figure.patch.set_facecolor('#1e3a5f')
+            # Blue axes background with yellow filled line, white figure background, black labels
+            figure.patch.set_facecolor('white')
             ax.set_facecolor('#1e3a5f')
             ax.fill_between(energy, intensity, color='yellow', alpha=0.8)
-            ax.plot(energy, intensity, 'yellow', linewidth=1.2)
-            ax.set_xlabel('Energy (keV)', color='yellow')
-            ax.set_ylabel('Counts', color='yellow')
-            ax.tick_params(colors='yellow', labelcolor='yellow')
+            ax.plot(energy, intensity, 'yellow', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
             for spine in ax.spines.values():
-                spine.set_edgecolor('yellow')
+                spine.set_edgecolor('black')
             return 'yellow'
+
+        elif style == 'white_green':
+            # White background with red filled line and black labels
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, intensity, color='#16A085', alpha=0.6)
+            ax.plot(energy, intensity, '#16A085', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
 
         elif style == 'white_red':
             # White background with red filled line and black labels
@@ -4218,6 +4246,32 @@ class PlotManager:
             ax.set_facecolor('white')
             ax.fill_between(energy, intensity, color='blue', alpha=0.6)
             ax.plot(energy, intensity, 'blue', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_purple':
+            # White background with blue filled line and black labels
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, intensity, color='purple', alpha=0.6)
+            ax.plot(energy, intensity, 'purple', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_pink':
+            # White background with blue filled line and black labels
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, intensity, color='pink', alpha=0.8)
+            ax.plot(energy, intensity, 'purple', linewidth=1.0)
             ax.set_xlabel('Energy (keV)', color='black')
             ax.set_ylabel('Counts', color='black')
             ax.tick_params(colors='black', labelcolor='black')

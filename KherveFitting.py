@@ -271,7 +271,7 @@ class MyFrame(wx.Frame):
         self.peak_fill_types = ["Solid Fill" for _ in range(15)]  # List of types for each peak
         self.peak_hatch_patterns = ["/", "\\", "|", "-", "+", "x", "o", "O", ".", "*"] * 2
 
-        self.edx_plot_style = 'black'  # Default EDX plot style
+        # self.edx_plot_style = 'black'  # Default EDX plot style
 
         # Add to plot preferences section
         self.excel_width = 5.2

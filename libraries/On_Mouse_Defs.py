@@ -1722,9 +1722,13 @@ class MouseEventHandler:
                 default_item = edx_menu.Append(wx.ID_ANY, "Default (Black)")
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('black'), default_item)
 
-                # Blue background, yellow filled, yellow labels
-                blue_yellow_item = edx_menu.Append(wx.ID_ANY, "Blue/Yellow")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('blue_yellow'), blue_yellow_item)
+                # Blue axes, yellow data, white figure, black labels
+                blue_yellow_white_item = edx_menu.Append(wx.ID_ANY, "Blue/Yellow")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('blue_yellow'), blue_yellow_white_item)
+
+                # White background, green filled, black labels
+                white_green_item = edx_menu.Append(wx.ID_ANY, "White/Green")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_green'), white_green_item)
 
                 # White background, red filled, black labels
                 white_red_item = edx_menu.Append(wx.ID_ANY, "White/Red")
@@ -1733,6 +1737,14 @@ class MouseEventHandler:
                 # White background, blue filled, black labels
                 white_blue_item = edx_menu.Append(wx.ID_ANY, "White/Blue")
                 self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_blue'), white_blue_item)
+
+                # White background, purple filled, black labels
+                white_purple_item = edx_menu.Append(wx.ID_ANY, "White/Purple")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_purple'), white_purple_item)
+
+                # White background, pink filled, black labels
+                white_pink_item = edx_menu.Append(wx.ID_ANY, "White/Pink")
+                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_pink'), white_pink_item)
 
                 edx_submenu = style_menu.AppendSubMenu(edx_menu, "EDX~Plot")
 
@@ -1870,95 +1882,6 @@ class MouseEventHandler:
             self.window.PopupMenu(menu)
             menu.Destroy()
 
-    def set_edx_plot_style_OLD(self, style):
-        """Apply EDX plot style to current EDX~Plot sheet"""
-        sheet_name = self.window.sheet_combobox.GetValue()
-        if not (sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot')):
-            return
-
-        # Store style preference
-        if 'Core levels' in self.window.Data and sheet_name in self.window.Data['Core levels']:
-            self.window.Data['Core levels'][sheet_name]['_EDX_style'] = style
-
-        # Get current data
-        if sheet_name not in self.window.Data['Core levels']:
-            return
-
-        sheet_data = self.window.Data['Core levels'][sheet_name]
-        if 'B.E.' not in sheet_data or 'Raw Data' not in sheet_data:
-            return
-
-        import numpy as np
-        energy = np.array(sheet_data['B.E.'])
-        intensity = np.array(sheet_data['Raw Data'])
-
-        # Clear the plot
-        self.window.ax.clear()
-
-        # Apply style-specific plotting
-        if style == 'black':
-            # Default style: Black line, black labels, white background
-            self.window.figure.patch.set_facecolor('white')
-            self.window.ax.set_facecolor('white')
-            self.window.ax.plot(energy, intensity, 'k-', linewidth=0.8)
-            self.window.ax.set_xlabel('Energy (keV)', color='black')
-            self.window.ax.set_ylabel('Counts', color='black')
-            self.window.ax.tick_params(colors='black', labelcolor='black')
-            for spine in self.window.ax.spines.values():
-                spine.set_edgecolor('black')
-            label_color = 'black'
-
-        elif style == 'blue_yellow':
-            # Blue background with yellow filled line and yellow labels
-            self.window.figure.patch.set_facecolor('#1e3a5f')
-            self.window.ax.set_facecolor('#1e3a5f')
-            self.window.ax.fill_between(energy, intensity, color='yellow', alpha=0.8)
-            self.window.ax.plot(energy, intensity, 'yellow', linewidth=1.2)
-            self.window.ax.set_xlabel('Energy (keV)', color='yellow')
-            self.window.ax.set_ylabel('Counts', color='yellow')
-            self.window.ax.tick_params(colors='yellow', labelcolor='yellow')
-            for spine in self.window.ax.spines.values():
-                spine.set_edgecolor('yellow')
-            label_color = 'yellow'
-
-        elif style == 'white_red':
-            # White background with red filled line and black labels
-            self.window.figure.patch.set_facecolor('white')
-            self.window.ax.set_facecolor('white')
-            self.window.ax.fill_between(energy, intensity, color='red', alpha=0.6)
-            self.window.ax.plot(energy, intensity, 'red', linewidth=1.0)
-            self.window.ax.set_xlabel('Energy (keV)', color='black')
-            self.window.ax.set_ylabel('Counts', color='black')
-            self.window.ax.tick_params(colors='black', labelcolor='black')
-            for spine in self.window.ax.spines.values():
-                spine.set_edgecolor('black')
-            label_color = 'black'
-
-        # Set title
-        self.window.ax.set_title('EDX Spectrum')
-
-        # Set Y-axis to scientific format
-        self.window.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
-
-        # Add peak labels with appropriate color
-        if hasattr(self.window, 'edx_window') and self.window.edx_window:
-            try:
-                # Call add_peak_labels
-                self.window.edx_window.add_peak_labels(self.window.ax, energy, intensity)
-
-                # Recolor all text labels to match style
-                for text in self.window.ax.texts:
-                    text.set_color(label_color)
-                    text.set_fontweight('bold')
-            except Exception as e:
-                print(f"Could not add peak labels: {e}")
-
-        # Set display limits
-        display_x_max = sheet_data.get('_EDX_display_max', 20)
-        self.window.ax.set_xlim(0, display_x_max)
-        self.window.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
-
-        self.window.canvas.draw()
 
     def set_edx_plot_style(self, style):
         """Apply EDX plot style to ALL EDX~Plot sheets"""
