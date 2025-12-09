@@ -1305,7 +1305,7 @@ class ElementPropertiesDialog(wx.Dialog):
         self.create_thermo_tab(self.notebook)
         self.create_sss_scholar_tab(self.notebook)
         self.create_estr_scholar_tab(self.notebook)
-        self.create_useful_pdf_tab(self.notebook)
+        # self.create_useful_pdf_tab(self.notebook)
         self.create_properties_tab(self.notebook)
         # self.create_xps_tab(self.notebook)
 

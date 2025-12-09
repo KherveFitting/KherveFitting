@@ -3493,6 +3493,7 @@ class MyFrame(wx.Frame):
                 self.multiplot_max_legend_items = config.get('multiplot_max_legend_items', 10)
 
                 self.edx_plot_style = config.get('edx_plot_style', 'black')
+                print(f"DEBUG: Loaded edx_plot_style = {self.edx_plot_style}")
 
                 # Set registered flag
                 self.registered = config.get('registered', False)
@@ -4408,9 +4409,15 @@ if __name__ == '__main__':
 
     # Apply preferences
     splash.update_message("Loading User Preferences...")
+    # if hasattr(frame, 'times_opened') and frame.times_opened > 1:
+    #     pref_window = PreferenceWindow(frame)
+    #     pref_window.OnSave(None)
+    #     print("Preferences applied")
+
+    # Apply preferences - just update plot visuals, don't save config
+    splash.update_message("Loading User Preferences...")
     if hasattr(frame, 'times_opened') and frame.times_opened > 1:
-        pref_window = PreferenceWindow(frame)
-        pref_window.OnSave(None)
+        frame.update_plot_preferences()
         print("Preferences applied")
 
     splash.update_message("Finalizing startup...")

@@ -527,11 +527,7 @@ def on_grid_left_click(window, event):
 
     event.Skip()
 
-
-
-
-
-def _restore_grid_data(window, grid_data):
+def _restore_grid_data_OLD(window, grid_data):
     """Restore peak fitting grid data from saved EDX plot"""
     import wx
 
@@ -555,6 +551,70 @@ def _restore_grid_data(window, grid_data):
         grid.SetCellValue(row, 4, row_data.get('fwhm', ''))
         grid.SetCellValue(row, 6, row_data.get('area', ''))
         grid.SetCellValue(row, 10, row_data.get('concentration', ''))
+
+        # Set constraint row
+        grid.SetCellValue(constraint_row, 2, "fixed")
+        grid.SetCellValue(constraint_row, 3, "fixed")
+        grid.SetCellValue(constraint_row, 4, "fixed")
+        grid.SetCellValue(constraint_row, 6, "fixed")
+
+        # Apply formatting - Data row white background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(row, col, wx.WHITE)
+            grid.SetReadOnly(row, col, True)
+
+        # Constraint row - light green background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(constraint_row, col, wx.Colour(200, 245, 228))
+            grid.SetReadOnly(constraint_row, col, True)
+
+    grid.ForceRefresh()
+
+def _restore_grid_data(window, grid_data):
+    """Restore peak fitting grid data from saved EDX plot"""
+    import wx
+
+    grid = window.peak_params_grid
+
+    # Clear existing grid
+    if grid.GetNumberRows() > 0:
+        grid.DeleteRows(0, grid.GetNumberRows())
+
+    # Filter out constraint rows (rows with 'fixed' values) - only process data rows
+    data_rows = []
+    for row_data in grid_data:
+        if isinstance(row_data, list):
+            # Check if this is a constraint row (has 'fixed' in position column)
+            if len(row_data) > 2 and str(row_data[2]).lower() == 'fixed':
+                continue
+        elif isinstance(row_data, dict):
+            if row_data.get('position', '').lower() == 'fixed':
+                continue
+        data_rows.append(row_data)
+
+    # Add saved data
+    for i, row_data in enumerate(data_rows):
+        grid.AppendRows(2)  # Data row + constraint row
+        row = i * 2
+        constraint_row = row + 1
+
+        # Handle both list and dict formats
+        if isinstance(row_data, dict):
+            grid.SetCellValue(row, 0, row_data.get('id', ''))
+            grid.SetCellValue(row, 1, row_data.get('label', ''))
+            grid.SetCellValue(row, 2, row_data.get('position', ''))
+            grid.SetCellValue(row, 3, row_data.get('height', ''))
+            grid.SetCellValue(row, 4, row_data.get('fwhm', ''))
+            grid.SetCellValue(row, 6, row_data.get('area', ''))
+            grid.SetCellValue(row, 10, row_data.get('concentration', ''))
+        else:  # List format
+            if len(row_data) > 0: grid.SetCellValue(row, 0, str(row_data[0]))
+            if len(row_data) > 1: grid.SetCellValue(row, 1, str(row_data[1]))
+            if len(row_data) > 2: grid.SetCellValue(row, 2, str(row_data[2]))
+            if len(row_data) > 3: grid.SetCellValue(row, 3, str(row_data[3]))
+            if len(row_data) > 4: grid.SetCellValue(row, 4, str(row_data[4]))
+            if len(row_data) > 6: grid.SetCellValue(row, 6, str(row_data[6]))
+            if len(row_data) > 10: grid.SetCellValue(row, 10, str(row_data[10]))
 
         # Set constraint row
         grid.SetCellValue(constraint_row, 2, "fixed")

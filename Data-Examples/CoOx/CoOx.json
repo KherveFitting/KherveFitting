@@ -6909,5 +6909,8 @@
   "Results Table0": {
     "Peak": {}
   },
-  "SampleNames": {}
+  "SampleNames": {
+    "1": "CoO",
+    "0": "Co3O4"
+  }
 }

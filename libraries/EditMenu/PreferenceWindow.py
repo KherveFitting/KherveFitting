@@ -11,7 +11,7 @@ class PreferenceWindow(wx.Frame):
                 wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU) | wx.STAY_ON_TOP)
         self.parent = parent
 
-        self.SetTitle("Preferences")
+        self.SetTitle("Preferences / Settings")
         if 'wxMac' in wx.PlatformInfo: #Mac
             self.SetSize((495, 630))
             self.SetMinSize((495, 630))
@@ -50,11 +50,11 @@ class PreferenceWindow(wx.Frame):
         self.instrument_tab = wx.Panel(self.notebook)
 
         # Add tabs to notebook
-        self.notebook.AddPage(self.plot_tab, "Plot Settings")
-        self.notebook.AddPage(self.other_plot_tab, "Other Plot Settings")
-        self.notebook.AddPage(self.text_tab, "Text/Axis Settings")
-        self.notebook.AddPage(self.save_tab, "Save Settings")
-        self.notebook.AddPage(self.instrument_tab, "Instrument Settings")
+        self.notebook.AddPage(self.plot_tab, "XPS Plot")
+        self.notebook.AddPage(self.other_plot_tab, "Other Plots")
+        self.notebook.AddPage(self.text_tab, "Text/Axis")
+        self.notebook.AddPage(self.save_tab, "Save")
+        self.notebook.AddPage(self.instrument_tab, "Instrument")
 
         # Add notebook to sizer
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 1)
@@ -106,20 +106,33 @@ class PreferenceWindow(wx.Frame):
         edx_box = wx.StaticBox(scrolled, label="EDX Plot Style")
         edx_sizer = wx.StaticBoxSizer(edx_box, wx.VERTICAL)
 
-        self.edx_style_radio = wx.RadioBox(
-            scrolled,
-            label="",
-            choices=["Default (Black)", "Blue/Yellow", "White/Red", "White/Blue"],
-            majorDimension=1,
-            style=wx.RA_SPECIFY_COLS
-        )
+        edx_label = wx.StaticText(scrolled, label="Color Scheme:")
+        edx_sizer.Add(edx_label, 0, wx.ALL, 5)
+
+        self.edx_style_choice = wx.Choice(scrolled, choices=[
+            "Default (Black)",
+            "Blue/Yellow",
+            "White/Red",
+            "White/Blue",
+            "White/Green",
+            "White/Purple",
+            "White/Pink"
+        ])
 
         # Set current value
         current_style = getattr(self.parent, 'edx_plot_style', 'black')
-        style_map = {'black': 0, 'blue_yellow': 1, 'white_red': 2, 'white_blue': 3}
-        self.edx_style_radio.SetSelection(style_map.get(current_style, 0))
+        style_map = {
+            'black': 0,
+            'blue_yellow': 1,
+            'white_red': 2,
+            'white_blue': 3,
+            'white_green': 4,
+            'white_purple': 5,
+            'white_pink': 6
+        }
+        self.edx_style_choice.SetSelection(style_map.get(current_style, 0))
 
-        edx_sizer.Add(self.edx_style_radio, 0, wx.ALL | wx.EXPAND, 5)
+        edx_sizer.Add(self.edx_style_choice, 0, wx.ALL | wx.EXPAND, 5)
         main_sizer.Add(edx_sizer, 0, wx.ALL | wx.EXPAND, 10)
 
         # ========== Multiplot Settings ==========
@@ -131,8 +144,8 @@ class PreferenceWindow(wx.Frame):
         palette_label = wx.StaticText(scrolled, label="Color Palette:")
         palette_sizer.Add(palette_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
 
-        palettes = ['Greens_r', 'Blues_r', 'Reds_r', 'Purples_r', 'Oranges_r',
-                    'viridis', 'plasma', 'inferno', 'magma', 'tab10', 'Set1', 'Set2']
+        palettes = ['Greens_r', 'Blues_r', 'Reds_r', 'Purples_r', 'Oranges_r', 'Greys_r', 'gray_r', 'binary_r', 'GnBu_r',
+                    'viridis', 'plasma', 'inferno', 'magma', 'turbo', 'rainbow', 'jet', 'hsv', 'tab10', 'Set1', 'Set2']
         self.multiplot_palette_choice = wx.Choice(scrolled, choices=palettes)
         current_palette = getattr(self.parent, 'multiplot_palette', 'Greens_r')
         if current_palette in palettes:

@@ -38,10 +38,12 @@ class EDXSEMWindow(wx.Frame):
         self.selected_elements = []
 
         self.point_size = 1  # Size in pixels (1 = single pixel)
+        self.line_width = 1  # Width of line selection in pixels
 
         # Store last positions for arrow button movement
         self.last_line_start = None
         self.last_line_end = None
+        self.last_line_width = 1  # Store last line width for arrow movement
 
         self.loaded_signals = []
         self.data_browser_window = None
@@ -52,6 +54,9 @@ class EDXSEMWindow(wx.Frame):
 
         self.init_ui()
         self.Centre()
+
+        # Load element preferences from data if available
+        self.load_element_preferences_from_data()
 
         # Bind close event to clear parent reference
         self.Bind(wx.EVT_CLOSE, self.on_close)
@@ -156,7 +161,7 @@ class EDXSEMWindow(wx.Frame):
 
         # Store colorbar reference
         self.current_colorbar = None
-        self.current_cmap = 'plasma'
+        self.current_cmap = 'Greens'
 
         wx.CallAfter(self.Layout)
 
@@ -658,26 +663,10 @@ class EDXSEMWindow(wx.Frame):
             # Update sheet combobox
             self.parent.sheet_combobox.SetValue('EDX~Plot')
 
-            # Plot
-            self.parent.ax.clear()
-            self.parent.ax.plot(energy, summed_spectrum, 'k-', linewidth=0.8)
-            self.parent.ax.set_xlabel('Energy (keV)')
-            self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title(f'EDX Area Spectrum (Rotated, {len(masked_spectra)} pixels)')
-            self.parent.ax.grid(False)
-
-            # Add peak labels
-            self.add_peak_labels(self.parent.ax, energy, summed_spectrum)
-
-            # Get stored X max or default to 20
-            display_x_max = self.parent.Data['Core levels']['EDX~Plot'].get('_EDX_display_max', 20)
-            self.parent.ax.set_xlim(0, display_x_max)
-            self.parent.ax.set_ylim(0, np.max(summed_spectrum) * 1.1)
-
-            self.parent.canvas.draw()
-
-            # Populate peak fitting grid with quantification
-            self._populate_edx_grid(energy, summed_spectrum, f"Rotated Area ({len(masked_spectra)} px)")
+            # Plot using common styled method
+            title = f'EDX Area Spectrum (Rotated, {len(masked_spectra)} pixels)'
+            grid_label = f"Rotated Area ({len(masked_spectra)} px)"
+            self._plot_edx_spectrum_styled(energy, summed_spectrum, title, grid_label)
 
         print(f"Rotated area: center=({cx:.0f},{cy:.0f}), size=({width:.0f}x{height:.0f}), angle={angle:.1f}°")
         print(f"Extracted {len(masked_spectra)} pixels")
@@ -1025,6 +1014,22 @@ class EDXSEMWindow(wx.Frame):
             # Update point preview if we have a position
             self._update_point_preview(event.xdata, event.ydata)
 
+        elif self.selection_mode == 'line':
+            # Adjust line width with scroll wheel
+            if event.button == 'up':
+                self.line_width = min(50, self.line_width + 1)
+            elif event.button == 'down':
+                self.line_width = max(1, self.line_width - 1)
+
+            # Update line preview if we have a start point
+            if self.line_start is not None and event.xdata is not None and event.ydata is not None:
+                self._clear_line_preview()
+                self._draw_line_preview_with_width(self.line_start,
+                                                   (int(event.xdata), int(event.ydata)),
+                                                   self.line_width)
+                self.map_canvas.draw_idle()
+
+
     def _update_point_preview(self, x, y):
         """Update point size preview rectangle"""
         # Remove existing preview
@@ -1035,14 +1040,14 @@ class EDXSEMWindow(wx.Frame):
 
         if self.point_size == 1:
             # Single pixel - show as cross
-            marker, = self.map_ax.plot(x, y, 'g+', markersize=15, markeredgewidth=2, alpha=0.5)
+            marker, = self.map_ax.plot(x, y, 'r+', markersize=15, markeredgewidth=2, alpha=0.5)
             marker._is_point_preview = True
         else:
             # Show rectangle preview
             from matplotlib.patches import Rectangle
             half_size = self.point_size / 2
             rect = Rectangle((x - half_size, y - half_size), self.point_size, self.point_size,
-                             linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+                             linewidth=2, edgecolor='red', facecolor='salmon', alpha=0.3)
             rect._is_point_preview = True
             self.map_ax.add_patch(rect)
 
@@ -1093,14 +1098,14 @@ class EDXSEMWindow(wx.Frame):
 
             if self.point_size == 1:
                 # Single pixel - show as cross
-                marker, = self.map_ax.plot(x, y, 'g+', markersize=15, markeredgewidth=2)
+                marker, = self.map_ax.plot(x, y, 'r+', markersize=15, markeredgewidth=2)
                 marker._is_selection_marker = True
             else:
                 # Show rectangle for multi-pixel selection
                 from matplotlib.patches import Rectangle
                 half_size = self.point_size / 2
                 rect = Rectangle((x - half_size, y - half_size), self.point_size, self.point_size,
-                                 linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+                                 linewidth=2, edgecolor='darkred', facecolor='red', alpha=0.3)
                 rect._is_selection_marker = True
                 self.map_ax.add_patch(rect)
 
@@ -1118,7 +1123,7 @@ class EDXSEMWindow(wx.Frame):
 
                 self.line_start = (x, y)
                 # Draw start marker
-                marker, = self.map_ax.plot(x, y, 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
+                marker, = self.map_ax.plot(x, y, 'ro', markersize=8, markeredgecolor='darkred', markeredgewidth=2)
                 marker._is_selection_marker = True
                 self.map_canvas.draw()
             else:
@@ -1134,15 +1139,15 @@ class EDXSEMWindow(wx.Frame):
                 # Draw final line
                 line, = self.map_ax.plot([self.line_start[0], self.line_end[0]],
                                          [self.line_start[1], self.line_end[1]],
-                                         'g-', linewidth=2)
+                                         'r-', linewidth=2)
                 line._is_selection_marker = True
 
                 # Draw end points
-                marker1, = self.map_ax.plot(self.line_start[0], self.line_start[1], 'go',
-                                            markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
+                marker1, = self.map_ax.plot(self.line_start[0], self.line_start[1], 'ro',
+                                            markersize=8, markeredgecolor='darkred', markeredgewidth=2)
                 marker1._is_selection_marker = True
-                marker2, = self.map_ax.plot(self.line_end[0], self.line_end[1], 'go',
-                                            markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
+                marker2, = self.map_ax.plot(self.line_end[0], self.line_end[1], 'ro',
+                                            markersize=8, markeredgecolor='darkred', markeredgewidth=2)
                 marker2._is_selection_marker = True
 
                 self.map_canvas.draw()
@@ -1174,7 +1179,7 @@ class EDXSEMWindow(wx.Frame):
         self._clear_line_preview()
         self._line_preview, = self.map_ax.plot([self.line_start[0], x],
                                                [self.line_start[1], y],
-                                               'g--', linewidth=1.5, alpha=0.7)
+                                               'r--', linewidth=1.5, alpha=0.7)
         self._line_preview._is_selection_marker = True
         self.map_canvas.draw_idle()
 
@@ -1186,6 +1191,105 @@ class EDXSEMWindow(wx.Frame):
             except (ValueError, AttributeError):
                 pass
             self._line_preview = None
+
+        # Also clear width preview patches
+        for artist in self.map_ax.patches[:]:
+            if hasattr(artist, '_is_line_preview') and artist._is_line_preview:
+                try:
+                    artist.remove()
+                except (ValueError, AttributeError):
+                    pass
+        for artist in self.map_ax.lines[:]:
+            if hasattr(artist, '_is_line_preview') and artist._is_line_preview:
+                try:
+                    artist.remove()
+                except (ValueError, AttributeError):
+                    pass
+
+    def _draw_line_preview_with_width(self, start, end, width):
+        """Draw line preview with width indicator"""
+        from matplotlib.patches import Polygon
+        import numpy as np
+
+        x1, y1 = start
+        x2, y2 = end
+
+        # Draw center line (dashed, red)
+        self._line_preview, = self.map_ax.plot([x1, x2], [y1, y2],
+                                               'r--', linewidth=1.5, alpha=0.7)
+        self._line_preview._is_line_preview = True
+
+        if width > 1:
+            # Calculate perpendicular direction
+            dx = x2 - x1
+            dy = y2 - y1
+            length = np.sqrt(dx ** 2 + dy ** 2)
+            if length > 0:
+                # Perpendicular unit vector
+                px = -dy / length
+                py = dx / length
+
+                half_width = width / 2
+
+                # Create polygon for width preview
+                corners = [
+                    (x1 + px * half_width, y1 + py * half_width),
+                    (x2 + px * half_width, y2 + py * half_width),
+                    (x2 - px * half_width, y2 - py * half_width),
+                    (x1 - px * half_width, y1 - py * half_width),
+                ]
+                poly = Polygon(corners, closed=True, fill=True,
+                               facecolor='red', edgecolor='darkred',
+                               alpha=0.2, linewidth=1)
+                poly._is_line_preview = True
+                self.map_ax.add_patch(poly)
+
+    def _draw_line_with_width(self, start, end, width):
+        """Draw final line selection with width indicator"""
+        from matplotlib.patches import Polygon
+        import numpy as np
+
+        x1, y1 = start
+        x2, y2 = end
+
+        # Draw center line (solid, red)
+        line, = self.map_ax.plot([x1, x2], [y1, y2], 'r-', linewidth=2)
+        line._is_selection_marker = True
+
+        # Draw end points (red)
+        marker1, = self.map_ax.plot(x1, y1, 'ro', markersize=8,
+                                    markeredgecolor='darkred', markeredgewidth=2)
+        marker1._is_selection_marker = True
+        marker2, = self.map_ax.plot(x2, y2, 'ro', markersize=8,
+                                    markeredgecolor='darkred', markeredgewidth=2)
+        marker2._is_selection_marker = True
+
+        if width > 1:
+            # Calculate perpendicular direction
+            dx = x2 - x1
+            dy = y2 - y1
+            length = np.sqrt(dx ** 2 + dy ** 2)
+            if length > 0:
+                # Perpendicular unit vector
+                px = -dy / length
+                py = dx / length
+
+                half_width = width / 2
+
+                # Create polygon for width indicator
+                corners = [
+                    (x1 + px * half_width, y1 + py * half_width),
+                    (x2 + px * half_width, y2 + py * half_width),
+                    (x2 - px * half_width, y2 - py * half_width),
+                    (x1 - px * half_width, y1 - py * half_width),
+                ]
+                poly = Polygon(corners, closed=True, fill=True,
+                               facecolor='red', edgecolor='darkred',
+                               alpha=0.3, linewidth=1.5)
+                poly._is_selection_marker = True
+                self.map_ax.add_patch(poly)
+
+
 
     def clear_selection_markers(self):
         """Clear all selection markers from map"""
@@ -1227,6 +1331,7 @@ class EDXSEMWindow(wx.Frame):
 
     # ==================== SPECTRUM PLOTTING ====================
 
+
     def plot_point_spectrum(self, x, y):
         """Plot spectrum from point or area around point"""
         if self.current_data is None:
@@ -1262,94 +1367,8 @@ class EDXSEMWindow(wx.Frame):
         if energy is None:
             energy = np.arange(len(spectrum))
 
-        # Plot in parent KherveFitting window
-        if self.parent is not None and hasattr(self.parent, 'ax'):
-            self.parent.ax.clear()
-
-            # Use saved plot style
-            self._plot_spectrum_with_style(self.parent.ax, energy, spectrum)
-
-            # Get stored style preference from window config
-            style = getattr(self.parent, 'edx_plot_style', 'black')
-            label_color = 'black'
-
-            # Apply style
-            if style == 'black':
-                self.parent.figure.patch.set_facecolor('white')
-                self.parent.ax.set_facecolor('white')
-                self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
-                self.parent.ax.set_xlabel('Energy (keV)', color='black')
-                self.parent.ax.set_ylabel('Counts', color='black')
-                self.parent.ax.tick_params(colors='black', labelcolor='black')
-                for spine in self.parent.ax.spines.values():
-                    spine.set_edgecolor('black')
-                label_color = 'black'
-
-            elif style == 'blue_yellow':
-                self.parent.figure.patch.set_facecolor('#1e3a5f')
-                self.parent.ax.set_facecolor('#1e3a5f')
-                self.parent.ax.fill_between(energy, spectrum, color='yellow', alpha=0.8)
-                self.parent.ax.plot(energy, spectrum, 'yellow', linewidth=1.2)
-                self.parent.ax.set_xlabel('Energy (keV)', color='yellow')
-                self.parent.ax.set_ylabel('Counts', color='yellow')
-                self.parent.ax.tick_params(colors='yellow', labelcolor='yellow')
-                for spine in self.parent.ax.spines.values():
-                    spine.set_edgecolor('yellow')
-                label_color = 'yellow'
-
-            elif style == 'white_red':
-                self.parent.figure.patch.set_facecolor('white')
-                self.parent.ax.set_facecolor('white')
-                self.parent.ax.fill_between(energy, spectrum, color='red', alpha=0.6)
-                self.parent.ax.plot(energy, spectrum, 'red', linewidth=1.0)
-                self.parent.ax.set_xlabel('Energy (keV)', color='black')
-                self.parent.ax.set_ylabel('Counts', color='black')
-                self.parent.ax.tick_params(colors='black', labelcolor='black')
-                for spine in self.parent.ax.spines.values():
-                    spine.set_edgecolor('black')
-                label_color = 'black'
-
-            elif style == 'white_blue':
-                self.parent.figure.patch.set_facecolor('white')
-                self.parent.ax.set_facecolor('white')
-                self.parent.ax.fill_between(energy, spectrum, color='blue', alpha=0.6)
-                self.parent.ax.plot(energy, spectrum, 'blue', linewidth=1.0)
-                self.parent.ax.set_xlabel('Energy (keV)', color='black')
-                self.parent.ax.set_ylabel('Counts', color='black')
-                self.parent.ax.tick_params(colors='black', labelcolor='black')
-                for spine in self.parent.ax.spines.values():
-                    spine.set_edgecolor('black')
-                label_color = 'black'
-
-            self.parent.ax.set_title('EDX Sum Spectrum', color=label_color)
-
-            # Set Y-axis to scientific format
-            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
-
-            # Add element peak labels
-            self.add_peak_labels(self.parent.ax, energy, spectrum)
-
-            # Apply label color
-            for text in self.parent.ax.texts:
-                text.set_color(label_color)
-                text.set_fontweight('bold')
-
-            # Get stored X max from any EDX~Plot sheet or default to 20
-            display_x_max = 20
-            if 'Core levels' in self.parent.Data:
-                for sname in self.parent.Data['Core levels']:
-                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
-                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
-                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
-                            break
-
-            self.parent.ax.set_xlim(0, display_x_max)
-            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
-
-            self.parent.canvas.draw()
-
-            # Populate peak fitting grid with quantification
-            self._populate_edx_grid(energy, spectrum, title)
+        # Plot using common EDX plotting method
+        self._plot_edx_spectrum_styled(energy, spectrum, title)
 
     def _plot_spectrum_with_style(self, ax, energy, spectrum):
         """Plot spectrum using saved style settings from parent window"""
@@ -1366,7 +1385,6 @@ class EDXSEMWindow(wx.Frame):
         scatter_size = getattr(self.parent, 'scatter_size', 10)
         scatter_marker = getattr(self.parent, 'scatter_marker', 'o')
         raw_data_linestyle = getattr(self.parent, 'raw_data_linestyle', '-')
-
         if plot_style == 'scatter':
             ax.scatter(energy, spectrum,
                        c=scatter_color,
@@ -1397,6 +1415,166 @@ class EDXSEMWindow(wx.Frame):
                     linewidth=line_width,
                     alpha=line_alpha)
 
+    def _plot_edx_spectrum_styled(self, energy, spectrum, title, grid_label=None):
+        """Common method to plot EDX spectrum with style from Plot_Operations.apply_edx_plot_style
+
+        Args:
+            energy: energy axis array
+            spectrum: intensity array
+            title: plot title
+            grid_label: optional label for grid (defaults to title if None)
+        """
+        if self.parent is None or not hasattr(self.parent, 'ax'):
+            return
+
+        if grid_label is None:
+            grid_label = title
+
+        self.parent.ax.clear()
+
+        # Get stored style preference from window config
+        style = getattr(self.parent, 'edx_plot_style', 'black')
+
+        # Use Plot_Operations.apply_edx_plot_style if available
+        if hasattr(self.parent, 'apply_edx_plot_style'):
+            label_color = self.parent.apply_edx_plot_style(
+                self.parent.ax, self.parent.figure, energy, spectrum, style
+            )
+        else:
+            # Fallback: apply style directly (same logic as Plot_Operations)
+            label_color = self._apply_edx_style(energy, spectrum, style)
+
+        self.parent.ax.set_title(title, color=label_color)
+
+        # Set Y-axis to scientific format
+        self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
+        # Add element peak labels
+        self.add_peak_labels(self.parent.ax, energy, spectrum)
+
+        # Apply label color to all text elements
+        for text in self.parent.ax.texts:
+            text.set_color(label_color)
+            text.set_fontweight('bold')
+
+        # Get stored X max from any EDX~Plot sheet or default to 20
+        display_x_max = 20
+        if 'Core levels' in self.parent.Data:
+            for sname in self.parent.Data['Core levels']:
+                if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
+                    if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
+                        display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
+                        break
+
+        self.parent.ax.set_xlim(0, display_x_max)
+        self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
+
+        self.parent.canvas.draw()
+
+        # Populate peak fitting grid with quantification
+        self._populate_edx_grid(energy, spectrum, grid_label)
+
+    def _apply_edx_style(self, energy, spectrum, style='black'):
+        """Fallback method to apply EDX plot style (mirrors Plot_Operations.apply_edx_plot_style)"""
+        ax = self.parent.ax
+        figure = self.parent.figure
+
+        if style == 'black':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.plot(energy, spectrum, 'k-', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'blue_yellow':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('#1e3a5f')
+            ax.fill_between(energy, spectrum, color='yellow', alpha=0.8)
+            ax.plot(energy, spectrum, 'yellow', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'yellow'
+
+        elif style == 'white_green':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, spectrum, color='#16A085', alpha=0.6)
+            ax.plot(energy, spectrum, '#16A085', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_red':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, spectrum, color='red', alpha=0.6)
+            ax.plot(energy, spectrum, 'red', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_blue':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, spectrum, color='blue', alpha=0.6)
+            ax.plot(energy, spectrum, 'blue', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_purple':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, spectrum, color='purple', alpha=0.6)
+            ax.plot(energy, spectrum, 'purple', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        elif style == 'white_pink':
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.fill_between(energy, spectrum, color='pink', alpha=0.8)
+            ax.plot(energy, spectrum, 'purple', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+        else:
+            # Default fallback
+            figure.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+            ax.plot(energy, spectrum, 'k-', linewidth=1.0)
+            ax.set_xlabel('Energy (keV)', color='black')
+            ax.set_ylabel('Counts', color='black')
+            ax.tick_params(colors='black', labelcolor='black')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            return 'black'
+
+
     def plot_area_spectrum(self, x1, y1, x2, y2):
         """Plot summed spectrum from area in KherveFitting main window"""
         if self.current_data is None:
@@ -1416,36 +1594,45 @@ class EDXSEMWindow(wx.Frame):
         if energy is None:
             energy = np.arange(len(spectrum))
 
-        # Plot in parent KherveFitting window
-        if self.parent is not None and hasattr(self.parent, 'ax'):
-            self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
-            self.parent.ax.set_xlabel('Energy (keV)')
-            self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title(f'Summed EDX Spectrum - Area: {(x2 - x1 + 1) * (y2 - y1 + 1)} pixels')
+        title = f'Summed EDX Spectrum - Area: {(x2 - x1 + 1) * (y2 - y1 + 1)} pixels'
+        grid_label = f"Area ({x2 - x1 + 1}×{y2 - y1 + 1})"
 
-            # Set Y-axis to scientific format
-            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+        # Plot using common EDX plotting method
+        self._plot_edx_spectrum_styled(energy, spectrum, title, grid_label)
 
-            # Add element peak labels
-            self.add_peak_labels(self.parent.ax, energy, spectrum)
 
-            # Get stored X max from any EDX~Plot sheet or default to 20
-            display_x_max = 20
-            if 'Core levels' in self.parent.Data:
-                for sname in self.parent.Data['Core levels']:
-                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
-                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
-                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
-                            break
+    def plot_line_spectrum_OLD(self, x1, y1, x2, y2):
+        """Plot summed spectrum along line from (x1,y1) to (x2,y2) in KherveFitting main window"""
+        if self.current_data is None:
+            return
 
-            self.parent.ax.set_xlim(0, display_x_max)
-            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
+        data = self.current_data.data
 
-            self.parent.canvas.draw()
+        if len(data.shape) != 3:
+            wx.MessageBox("Data must be 3D (x, y, energy) for line spectrum extraction",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
 
-            # Populate peak fitting grid with quantification
-            self._populate_edx_grid(energy, spectrum, f"Area ({x2 - x1 + 1}×{y2 - y1 + 1})")
+        # Get points along line using Bresenham-like algorithm
+        num_points = max(abs(x2 - x1), abs(y2 - y1)) + 1
+        x_coords = np.linspace(x1, x2, num_points).astype(int)
+        y_coords = np.linspace(y1, y2, num_points).astype(int)
+
+        # Sum spectrum along line
+        spectrum = np.zeros(data.shape[2])
+        for px, py in zip(x_coords, y_coords):
+            if 0 <= px < data.shape[1] and 0 <= py < data.shape[0]:
+                spectrum += data[py, px, :]
+
+        energy = self.get_energy_axis()
+        if energy is None:
+            energy = np.arange(len(spectrum))
+
+        title = f'EDX Line Spectrum ({x1},{y1}) to ({x2},{y2}) - {num_points} pts'
+        grid_label = f"Line ({num_points} pts)"
+
+        # Plot using common EDX plotting method
+        self._plot_edx_spectrum_styled(energy, spectrum, title, grid_label)
 
     def plot_line_spectrum(self, x1, y1, x2, y2):
         """Plot summed spectrum along line from (x1,y1) to (x2,y2) in KherveFitting main window"""
@@ -1474,36 +1661,260 @@ class EDXSEMWindow(wx.Frame):
         if energy is None:
             energy = np.arange(len(spectrum))
 
-        # Plot in parent KherveFitting window
-        if self.parent is not None and hasattr(self.parent, 'ax'):
-            self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
-            self.parent.ax.set_xlabel('Energy (keV)')
-            self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title(f'EDX Line Spectrum ({x1},{y1}) to ({x2},{y2}) - {num_points} pts')
+        title = f'EDX Line Spectrum ({x1},{y1}) to ({x2},{y2}) - {num_points} pts'
+        grid_label = f"Line ({num_points} pts)"
 
-            # Set Y-axis to scientific format
-            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+        # Plot using common EDX plotting method
+        self._plot_edx_spectrum_styled(energy, spectrum, title, grid_label)
 
-            # Add element peak labels
-            self.add_peak_labels(self.parent.ax, energy, spectrum)
+    def create_line_profile(self, x1, y1, x2, y2, line_width=1):
+        """
+        Create a zzProfile of atomic concentration along a line.
+        Each position along the line sums pixels within the specified width,
+        then quantifies elements to create a concentration profile.
+        """
+        if self.current_data is None:
+            return
 
-            # Get stored X max from any EDX~Plot sheet or default to 20
-            display_x_max = 20
-            if 'Core levels' in self.parent.Data:
-                for sname in self.parent.Data['Core levels']:
-                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
-                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
-                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
-                            break
+        data = self.current_data.data
 
-            self.parent.ax.set_xlim(0, display_x_max)
-            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
+        if len(data.shape) != 3:
+            wx.MessageBox("Data must be 3D (x, y, energy) for line profile extraction",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
 
+        # Get number of positions along the line
+        num_positions = max(abs(x2 - x1), abs(y2 - y1)) + 1
+        x_coords = np.linspace(x1, x2, num_positions)
+        y_coords = np.linspace(y1, y2, num_positions)
+
+        # Calculate perpendicular direction for width
+        dx = x2 - x1
+        dy = y2 - y1
+        length = np.sqrt(dx ** 2 + dy ** 2)
+        if length > 0:
+            px = -dy / length  # Perpendicular unit vector
+            py = dx / length
+        else:
+            px, py = 0, 1
+
+        half_width = line_width / 2
+
+        # Get energy axis
+        energy = self.get_energy_axis()
+        if energy is None:
+            energy = np.arange(data.shape[2])
+
+        # Collect spectra and quantify for each position along the line
+        profile_results = []
+        all_elements = set()
+
+        print(f"Creating line profile: ({x1},{y1}) to ({x2},{y2}), width={line_width}, positions={num_positions}")
+
+        for i, (cx, cy) in enumerate(zip(x_coords, y_coords)):
+            # Sum pixels within the width at this position
+            spectrum = np.zeros(data.shape[2])
+            pixel_count = 0
+
+            if line_width == 1:
+                # Single pixel
+                ix, iy = int(round(cx)), int(round(cy))
+                if 0 <= ix < data.shape[1] and 0 <= iy < data.shape[0]:
+                    spectrum = data[iy, ix, :].copy()
+                    pixel_count = 1
+            else:
+                # Sum pixels across the width
+                for w in np.linspace(-half_width, half_width, max(2, line_width)):
+                    ix = int(round(cx + px * w))
+                    iy = int(round(cy + py * w))
+                    if 0 <= ix < data.shape[1] and 0 <= iy < data.shape[0]:
+                        spectrum += data[iy, ix, :]
+                        pixel_count += 1
+
+            if pixel_count == 0:
+                profile_results.append({'position': i, 'elements': {}})
+                continue
+
+            # Quantify this spectrum
+            quant_results = self._quantify_spectrum_for_profile(energy, spectrum)
+            all_elements.update(quant_results.keys())
+            profile_results.append({'position': i, 'elements': quant_results})
+
+        if not all_elements:
+            wx.MessageBox("No elements detected along the line profile.",
+                          "No Elements", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create zzProfile sheet
+        self._create_profile_sheet(profile_results, all_elements, x1, y1, x2, y2, line_width)
+
+    def _quantify_spectrum_for_profile(self, energy, spectrum):
+        """Quantify a single spectrum and return element atomic percentages"""
+        results = {}
+
+        try:
+            # Use identified peaks if available, otherwise detect
+            if hasattr(self, 'identified_peaks') and self.identified_peaks:
+                element_peaks = {}
+                for peak_energy, element, line_type in self.identified_peaks:
+                    if element not in element_peaks:
+                        element_peaks[element] = []
+                    element_peaks[element].append((peak_energy, line_type))
+
+                # Calculate quantification
+                quant = self._calculate_quantification_from_identified(energy, spectrum, element_peaks)
+                if quant:
+                    for item in quant:
+                        element = item.get('element', item.get('Element', ''))
+                        at_pct = item.get('at_percent', item.get('At%', 0))
+                        if element:
+                            results[element] = float(f"{at_pct:.2f}")
+            else:
+                # Detect elements and quantify
+                elements = self._detect_elements_from_spectrum(energy, spectrum)
+                if elements:
+                    quant = self._calculate_quantification(energy, spectrum, elements)
+                    if quant:
+                        for item in quant:
+                            element = item.get('element', item.get('Element', ''))
+                            at_pct = item.get('at_percent', item.get('At%', 0))
+                            if element:
+                                results[element] = float(f"{at_pct:.2f}")
+        except Exception as e:
+            print(f"Error quantifying spectrum: {e}")
+
+        return results
+
+    def _create_profile_sheet(self, profile_results, all_elements, x1, y1, x2, y2, line_width):
+        """Create a zzProfile sheet from profile results"""
+        import datetime
+
+        if self.parent is None:
+            return
+
+        # Find next available profile number
+        existing_sheets = list(self.parent.Data.get('Core levels', {}).keys())
+        profile_num = 1
+        while f'zzProfile{profile_num}' in existing_sheets:
+            profile_num += 1
+
+        sheet_name = f'zzProfile{profile_num}'
+
+        # Build profile data structure
+        profile_data = {}
+
+        # Number column (position along line)
+        positions = [r['position'] for r in profile_results]
+        profile_data['Number'] = {
+            'x_values': list(range(len(positions))),
+            'y_values': positions
+        }
+
+        # Element columns
+        sorted_elements = sorted(all_elements)
+        for element in sorted_elements:
+            col_name = f"{element} At(%)"
+            x_values = []
+            y_values = []
+
+            for i, result in enumerate(profile_results):
+                if element in result['elements']:
+                    x_values.append(i)
+                    y_values.append(result['elements'][element])
+
+            profile_data[col_name] = {
+                'x_values': x_values,
+                'y_values': y_values
+            }
+
+        # Create sheet data structure
+        sheet_data = {
+            'Name': sheet_name,
+            'Profile Data': profile_data,
+            'Y_Axis_Label': 'Atomic Concentration (%)',
+            'X_Axis_Label': 'Position',
+            '_EDX_type': 'line_profile',
+            '_EDX_line_start': (x1, y1),
+            '_EDX_line_end': (x2, y2),
+            '_EDX_line_width': line_width,
+            '_EDX_num_positions': len(profile_results),
+            '_EDX_elements': list(sorted_elements),
+            '_EDX_save_time': datetime.datetime.now().isoformat()
+        }
+
+        # Store in parent Data
+        if 'Core levels' not in self.parent.Data:
+            self.parent.Data['Core levels'] = {}
+
+        self.parent.Data['Core levels'][sheet_name] = sheet_data
+
+        # Update sheet combobox
+        if sheet_name not in [self.parent.sheet_combobox.GetString(i)
+                              for i in range(self.parent.sheet_combobox.GetCount())]:
+            self.parent.sheet_combobox.Append(sheet_name)
+
+        # Select the new sheet and plot
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Trigger plot update
+        if hasattr(self.parent, 'plot_manager'):
+            self.parent.plot_manager.plot_profile(self.parent)
             self.parent.canvas.draw()
 
-            # Populate peak fitting grid with quantification
-            self._populate_edx_grid(energy, spectrum, f"Line ({num_points} pts)")
+        print(f"Created line profile: {sheet_name}")
+        print(f"  Line: ({x1},{y1}) to ({x2},{y2}), width={line_width}")
+        print(f"  Positions: {len(profile_results)}, Elements: {sorted_elements}")
+
+        # Save to Excel if file exists
+        self._save_profile_to_excel(sheet_name, profile_data, sorted_elements)
+
+    def _save_profile_to_excel(self, sheet_name, profile_data, elements):
+        """Save profile data to Excel file"""
+        try:
+            import pandas as pd
+
+            if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+                return
+
+            file_path = self.parent.Data['FilePath']
+
+            # Build DataFrame
+            df_data = {}
+
+            # Get positions
+            if 'Number' in profile_data:
+                num_info = profile_data['Number']
+                max_pos = max(num_info['x_values']) + 1 if num_info['x_values'] else 0
+
+                # Create position array
+                positions = [None] * max_pos
+                for x, y in zip(num_info['x_values'], num_info['y_values']):
+                    if 0 <= x < max_pos:
+                        positions[x] = f"{y:.2f}"
+                df_data['Number'] = positions
+
+                # Add element columns
+                for element in elements:
+                    col_name = f"{element} At(%)"
+                    if col_name in profile_data:
+                        col_info = profile_data[col_name]
+                        values = [None] * max_pos
+                        for x, y in zip(col_info['x_values'], col_info['y_values']):
+                            if 0 <= x < max_pos:
+                                values[x] = f"{y:.2f}"
+                        df_data[col_name] = values
+
+            df = pd.DataFrame(df_data)
+
+            # Append to Excel
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a',
+                                if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+            print(f"Saved profile to Excel: {sheet_name}")
+
+        except Exception as e:
+            print(f"Error saving profile to Excel: {e}")
 
     def _add_scale_bar(self):
         """Add scale bar to the map based on current view and axes scale information"""
@@ -1775,6 +2186,10 @@ class EDXSEMWindow(wx.Frame):
 
                 energy_values = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
 
+                # Get element preferences
+                include_elements = list(getattr(self, 'include_elements', set()))
+                exclude_elements = list(getattr(self, 'exclude_elements', set()))
+
                 # Add EDX~Plot
                 self.parent.Data['Core levels']['EDX~Plot'] = {
                     'Name': 'EDX~Plot',
@@ -1782,6 +2197,8 @@ class EDXSEMWindow(wx.Frame):
                     'Raw Data': list(spectrum_data),
                     '_EDX_display_max': 20,
                     '_EDX_type': 'plot',
+                    '_EDX_include_elements': include_elements,
+                    '_EDX_exclude_elements': exclude_elements,
                     'Background': {}
                 }
 
@@ -1792,7 +2209,9 @@ class EDXSEMWindow(wx.Frame):
                     'Map_Shape': list(map_data.shape),
                     'Energy_Range': energy_range,
                     '_EDX_type': 'map',
-                    '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path
+                    '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path,
+                    '_EDX_include_elements': include_elements,
+                    '_EDX_exclude_elements': exclude_elements
                 }
 
                 # FilePath was already set at the beginning, now update UI
@@ -1810,13 +2229,15 @@ class EDXSEMWindow(wx.Frame):
                                           for i in range(self.parent.sheet_combobox.GetCount())]:
                         self.parent.sheet_combobox.Append(sheet_name)
 
-
-
             # ========== Create JSON file ==========
             json_data = {
                 'FilePath': excel_path,
                 'Core levels': {}
             }
+
+            # Get element preferences
+            include_elements = list(getattr(self, 'include_elements', set()))
+            exclude_elements = list(getattr(self, 'exclude_elements', set()))
 
             # Add EDX~Plot to JSON
             json_data['Core levels']['EDX~Plot'] = {
@@ -1824,7 +2245,9 @@ class EDXSEMWindow(wx.Frame):
                 'B.E.': [float(f"{v:.2f}") for v in energy_values],
                 'Raw Data': [float(f"{v:.2f}") for v in spectrum_data],
                 '_EDX_display_max': 20,
-                '_EDX_type': 'plot'
+                '_EDX_type': 'plot',
+                '_EDX_include_elements': include_elements,
+                '_EDX_exclude_elements': exclude_elements
             }
 
             # Add EDX~Map to JSON
@@ -1834,7 +2257,9 @@ class EDXSEMWindow(wx.Frame):
                 'Map_Shape': list(map_data.shape),
                 'Energy_Range': energy_range,
                 '_EDX_type': 'map',
-                '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path
+                '_HDF5_Path': hdf5_copy_path if os.path.exists(hdf5_copy_path) else file_path,
+                '_EDX_include_elements': include_elements,
+                '_EDX_exclude_elements': exclude_elements
             }
 
             with open(json_path, 'w') as jf:
@@ -1850,6 +2275,36 @@ class EDXSEMWindow(wx.Frame):
                           "Error", wx.OK | wx.ICON_ERROR)
             import traceback
             traceback.print_exc()
+
+    def load_element_preferences_from_data(self):
+        """Load element preferences from parent Data structure if available"""
+        try:
+            if self.parent is None or not hasattr(self.parent, 'Data'):
+                return
+
+            if 'Core levels' not in self.parent.Data:
+                return
+
+            # Check EDX sheets for saved preferences
+            for sheet_name in ['EDX~Plot', 'EDX~Map']:
+                if sheet_name in self.parent.Data['Core levels']:
+                    sheet_data = self.parent.Data['Core levels'][sheet_name]
+
+                    if '_EDX_include_elements' in sheet_data:
+                        self.include_elements = set(sheet_data['_EDX_include_elements'])
+                        print(f"Loaded include elements: {self.include_elements}")
+
+                    if '_EDX_exclude_elements' in sheet_data:
+                        self.exclude_elements = set(sheet_data['_EDX_exclude_elements'])
+                        print(f"Loaded exclude elements: {self.exclude_elements}")
+
+                    # Also set legacy selected_elements
+                    self.selected_elements = list(self.include_elements)
+
+                    break  # Found preferences, stop looking
+
+        except Exception as e:
+            print(f"Could not load element preferences: {e}")
 
     def on_import_bcf(self, event):
         """Import Bruker BCF file"""
@@ -1921,6 +2376,9 @@ class EDXSEMWindow(wx.Frame):
 
             # Extract elements if available
             self.extract_elements(loaded_data)
+
+            # Load saved element preferences
+            self.load_element_preferences_from_data()
 
         except Exception as e:
             wx.MessageBox(f"Error loading file:\n{str(e)}",
@@ -2151,7 +2609,33 @@ class EDXSEMWindow(wx.Frame):
             print(f"Include elements: {self.include_elements}")
             print(f"Exclude elements: {self.exclude_elements}")
 
+            # Save to parent Data structure for persistence
+            self._save_element_preferences()
+
         dlg.Destroy()
+
+    def _save_element_preferences(self):
+        """Save element preferences to parent Data structure"""
+        try:
+            if self.parent is None or not hasattr(self.parent, 'Data'):
+                return
+
+            if 'Core levels' not in self.parent.Data:
+                return
+
+            include_list = list(self.include_elements)
+            exclude_list = list(self.exclude_elements)
+
+            # Save to all EDX sheets
+            for sheet_name in self.parent.Data['Core levels']:
+                if sheet_name.startswith('EDX~'):
+                    self.parent.Data['Core levels'][sheet_name]['_EDX_include_elements'] = include_list
+                    self.parent.Data['Core levels'][sheet_name]['_EDX_exclude_elements'] = exclude_list
+
+            print(f"Saved element preferences to Data structure")
+
+        except Exception as e:
+            print(f"Could not save element preferences: {e}")
 
     def on_plot_maps(self, event):
         """Plot element maps as RGB composite overlay"""
@@ -2326,7 +2810,7 @@ class EDXSEMWindow(wx.Frame):
         self.map_ax.set_yticks([])
 
         # Add scale bar
-        self._add_scale_bar(rgb_image.shape[:2])
+        self._add_scale_bar()
 
         # Legend only - no colorbar for composite
         legend_elements = []
@@ -2357,205 +2841,9 @@ class EDXSEMWindow(wx.Frame):
         if energy is None:
             energy = np.arange(len(spectrum))
 
-        # Plot in parent KherveFitting window
-        if self.parent is not None and hasattr(self.parent, 'ax'):
-            self.parent.ax.clear()
-            self.parent.ax.plot(energy, spectrum, 'k-', linewidth=0.8)
-            self.parent.ax.set_xlabel('Energy (keV)')
-            self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title('EDX Sum Spectrum')
+        # Plot using common styled method
+        self._plot_edx_spectrum_styled(energy, spectrum, 'EDX Sum Spectrum', 'Sum Spectrum')
 
-            # Set Y-axis to scientific format
-            self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
-
-            # Add element peak labels
-            self.add_peak_labels(self.parent.ax, energy, spectrum)
-
-            # Get stored X max from any EDX~Plot sheet or default to 20
-            display_x_max = 20
-            if 'Core levels' in self.parent.Data:
-                for sname in self.parent.Data['Core levels']:
-                    if sname == 'EDX~Plot' or sname.startswith('EDX~Plot'):
-                        if '_EDX_display_max' in self.parent.Data['Core levels'][sname]:
-                            display_x_max = self.parent.Data['Core levels'][sname]['_EDX_display_max']
-                            break
-
-            self.parent.ax.set_xlim(0, display_x_max)
-            self.parent.ax.set_ylim(np.min(spectrum) * 0.95, np.max(spectrum) * 1.1)
-
-            self.parent.canvas.draw()
-
-            # Populate peak fitting grid with quantification
-            self._populate_edx_grid(energy, spectrum, "Sum Spectrum")
-
-    def add_peak_labels_OLD(self, ax, energy, spectrum):
-        """Add element peak labels above peaks using ExSpy's find_peaks1D_ohaver"""
-        try:
-            # Create a temporary HyperSpy signal from the spectrum data
-            import hyperspy.api as hs
-            from exspy.material import elements
-
-            # Create signal with proper energy axis
-            temp_signal = hs.signals.Signal1D(spectrum)
-            temp_signal.axes_manager[0].scale = energy[1] - energy[0] if len(energy) > 1 else 0.01
-            temp_signal.axes_manager[0].offset = energy[0]
-            temp_signal.axes_manager[0].units = 'keV'
-            temp_signal.axes_manager[0].name = 'Energy'
-
-            # Set signal type to EDS
-            temp_signal.set_signal_type("EDS_SEM")
-
-            # Find peaks using ExSpy's find_peaks1D_ohaver
-            from exspy.utils.eds import get_xray_lines_near_energy
-
-            # Get threshold from multiple sources (priority order)
-            threshold = 0.02  # Default 2%
-
-            # 1. Check if stored in parent's Data structure
-            if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'Data'):
-                current_sheet = self.parent.sheet_combobox.GetValue()
-                if current_sheet == 'EDX~Plot' and 'Core levels' in self.parent.Data:
-                    if current_sheet in self.parent.Data['Core levels']:
-                        stored_threshold = self.parent.Data['Core levels'][current_sheet].get('_EDX_sensitivity')
-                        if stored_threshold is not None:
-                            threshold = stored_threshold
-                            print(f"Using stored threshold from Data: {threshold:.4f}")
-
-            # 2. Check if set directly on self (overrides stored value)
-            if hasattr(self, 'peak_threshold'):
-                threshold = self.peak_threshold
-                print(f"Using direct threshold from self: {threshold:.4f}")
-
-            # Calculate amp_thresh from sensitivity threshold
-            amp_thresh = np.max(spectrum) * threshold
-            print(f"Peak detection with threshold: {threshold:.4f}, amp_thresh: {amp_thresh:.2f}")
-
-            peak_data = temp_signal.find_peaks1D_ohaver(
-                maxpeakn=100,
-                medfilt_radius=5,
-                peakgroup=10,
-                amp_thresh=amp_thresh,
-                slope_thresh=0
-            )
-
-            # Get y-axis range for positioning labels
-            y_min, y_max = ax.get_ylim()
-            y_range = y_max - y_min
-
-            # For each detected peak, find possible X-ray lines
-            labeled_positions = []
-
-            # Check if peak_data is valid
-            if peak_data is not None and isinstance(peak_data, np.ndarray) and len(peak_data) > 0:
-                # Extract the actual peaks array
-                peaks = peak_data[0] if len(peak_data.shape) > 1 or peak_data.dtype == object else peak_data
-
-                print(f"Found {len(peaks)} peaks")
-
-                for peak_tuple in peaks:
-                    try:
-                        # Each peak_tuple is (position, height, width)
-                        peak_energy = float(peak_tuple[0])
-                        peak_height_val = float(peak_tuple[1])
-                        peak_width = float(peak_tuple[2])
-
-                        # Skip if too close to already labeled position
-                        too_close = False
-                        for labeled_energy in labeled_positions:
-                            if abs(peak_energy - labeled_energy) < 0.1:
-                                too_close = True
-                                break
-
-                        if too_close:
-                            continue
-
-                        # Find X-ray lines near this energy
-                        try:
-                            lines_list = get_xray_lines_near_energy(peak_energy, only_lines=None, width=0.15)
-
-                            if not lines_list:
-                                continue
-
-                            # lines_list contains strings like 'Si_Ka', 'Fe_La', etc.
-                            # Find the closest matching line by looking up their energies
-                            closest_line = None
-                            min_diff = float('inf')
-
-                            for line_str in lines_list:
-                                # Parse the line string (e.g., 'Si_Ka' -> element='Si', line='Ka')
-                                parts = line_str.split('_')
-                                if len(parts) != 2:
-                                    continue
-
-                                element_symbol = parts[0]
-                                line_type = parts[1]
-
-                                # Get the element and look up the line energy
-                                try:
-                                    element_obj = elements[element_symbol]
-
-                                    # Get line energy from element's X-ray lines
-                                    if hasattr(element_obj, 'Atomic_properties') and \
-                                            hasattr(element_obj.Atomic_properties, 'Xray_lines'):
-                                        xray_lines = element_obj.Atomic_properties.Xray_lines
-
-                                        if line_type in xray_lines:
-                                            line_energy = xray_lines[line_type].energy_keV
-                                            diff = abs(line_energy - peak_energy)
-
-                                            if diff < min_diff:
-                                                min_diff = diff
-                                                closest_line = (element_symbol, line_type)
-                                except (KeyError, AttributeError):
-                                    continue
-
-                            if closest_line and min_diff < 0.15:
-                                element, line_type = closest_line
-
-                                # Format line type with Greek letters
-                                line_type = str(line_type)
-                                line_type = line_type.replace('Ka', 'Kα').replace('Kb', 'Kβ')
-                                line_type = line_type.replace('La', 'Lα').replace('Lb', 'Lβ')
-                                line_type = line_type.replace('Ma', 'Mα').replace('Mb', 'Mβ')
-
-                                label = f"{element}\n{line_type}"
-
-                                # Get peak height at this energy from spectrum
-                                idx = np.argmin(np.abs(energy - peak_energy))
-                                spectrum_height = spectrum[idx]
-
-                                # Position label as percentage of Y-axis (closer to peak top)
-                                # Calculate peak position as percentage of plot range
-                                peak_pct = (spectrum_height - y_min) / y_range
-                                # Place label at peak percentage + 2% of plot height
-                                label_y = y_min + (peak_pct + 0.02) * y_range
-
-                                # Add label
-                                ax.text(peak_energy, label_y, label,
-                                        rotation=0,
-                                        verticalalignment='bottom',
-                                        horizontalalignment='center',
-                                        fontsize=7,
-                                        color='black',
-                                        alpha=1.0)
-
-                                labeled_positions.append(peak_energy)
-                                print(f"Labeled peak: {element} {line_type} at {peak_energy:.2f} keV")
-
-                        except Exception as e:
-                            print(f"Could not identify line at {peak_energy:.2f} keV: {e}")
-                            continue
-
-                    except Exception as e:
-                        print(f"Error processing peak: {e}")
-                        continue
-
-                print(f"Total peaks labeled: {len(labeled_positions)}")
-
-        except Exception as e:
-            print(f"Error in peak labeling: {e}")
-            import traceback
-            traceback.print_exc()
 
     def add_peak_labels(self, ax, energy, spectrum):
         """
@@ -2676,21 +2964,10 @@ class EDXSEMWindow(wx.Frame):
 
     def _identify_peaks_with_ratios(self, peak_list, elements, include_elements=None, exclude_elements=None):
         """
-        Identify peaks considering expected intensity ratios and ALL X-ray lines for each element.
-
-        Parameters:
-        -----------
-        peak_list : list of (energy, height) tuples
-        elements : exspy elements database
-        include_elements : set of element symbols to prioritize (green in periodic table)
-        exclude_elements : set of element symbols to exclude (red in periodic table)
-
-        For each element, we check:
-        - K-series: Ka, Kb (with expected Ka/Kb ratio ~7-8 for light, ~5-7 for heavy)
-        - L-series: La, Lb, Lg (with expected ratios)
-        - M-series: Ma, Mb (for very heavy elements)
-
-        An element is confirmed only if MULTIPLE lines are found with correct ratios.
+        Identify peaks with proper multi-line verification:
+        1. If a strong Ka is found, the Kb position MUST be from the same element
+        2. User-selected elements reserve ALL their line positions
+        3. Rare elements are heavily penalized unless user-selected
         """
         from exspy.utils.eds import get_xray_lines_near_energy
 
@@ -2699,6 +2976,7 @@ class EDXSEMWindow(wx.Frame):
 
         identified = []
         used_energies = set()
+        reserved_energies = {}  # Maps energy -> element that reserves it
 
         # Complete X-ray line energies database
         XRAY_ENERGIES = {
@@ -2748,7 +3026,7 @@ class EDXSEMWindow(wx.Frame):
             'Te_Ka': 27.472, 'Te_Kb': 30.995, 'Te_La': 3.769, 'Te_Lb': 4.029,
             'I_Ka': 28.612, 'I_Kb': 32.294, 'I_La': 3.937, 'I_Lb': 4.221,
             'Xe_Ka': 29.779, 'Xe_Kb': 33.624, 'Xe_La': 4.109, 'Xe_Lb': 4.422,
-            # Period 6 (Z=55-86) - Lanthanides and beyond
+            # Period 6 (Z=55-86)
             'Cs_Ka': 30.973, 'Cs_Kb': 34.987, 'Cs_La': 4.286, 'Cs_Lb': 4.620,
             'Ba_Ka': 32.194, 'Ba_Kb': 36.378, 'Ba_La': 4.466, 'Ba_Lb': 4.828,
             'La_La': 4.651, 'La_Lb': 5.042, 'La_Lg': 5.383,
@@ -2794,16 +3072,7 @@ class EDXSEMWindow(wx.Frame):
             'U_La': 13.614, 'U_Lb': 16.428, 'U_Lg': 17.220, 'U_Ma': 3.171, 'U_Mb': 3.336,
         }
 
-        # Expected intensity ratios
-        K_ALPHA_BETA_RATIO = {
-            'light': (6.0, 10.0),  # Z < 25
-            'medium': (5.0, 8.0),  # 25 <= Z < 40
-            'heavy': (4.0, 7.0)  # Z >= 40
-        }
-        L_ALPHA_BETA_RATIO = (2.0, 5.0)
-        M_ALPHA_BETA_RATIO = (1.5, 4.0)
-
-        # Build element info
+        # Build ELEMENT_LINES: element -> {line_type: energy}
         ELEMENT_LINES = {}
         for line_key, energy in XRAY_ENERGIES.items():
             parts = line_key.split('_')
@@ -2813,36 +3082,163 @@ class EDXSEMWindow(wx.Frame):
                     ELEMENT_LINES[elem] = {}
                 ELEMENT_LINES[elem][line_type] = energy
 
-        # Common elements for general priority
-        COMMON_ELEMENTS = ['O', 'C', 'N', 'F', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca',
-                           'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As',
-                           'Se', 'Br', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ag', 'Cd', 'In', 'Sn',
-                           'Sb', 'Te', 'I', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Gd', 'Dy',
-                           'Er', 'Yb', 'Hf', 'Ta', 'W', 'Pt', 'Au', 'Pb', 'Bi', 'Th', 'U']
+        # Element categories for scoring
+        VERY_COMMON = ['C', 'N', 'O', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca',
+                       'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn']
+        COMMON_ELEMENTS = ['F', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Sr', 'Y', 'Zr', 'Nb', 'Mo',
+                           'Ag', 'Cd', 'In', 'Sn', 'Sb', 'Te', 'I', 'Ba', 'La', 'Ce',
+                           'W', 'Pt', 'Au', 'Pb', 'Bi', 'Th', 'U']
+        RARE_ELEMENTS = ['Li', 'Be', 'B', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn',
+                         'Tc', 'Pm', 'Po', 'At', 'Fr', 'Ra', 'Ac',
+                         'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu',
+                         'Hf', 'Ta', 'Re', 'Os', 'Ir', 'Hg', 'Tl',
+                         'Rb', 'Cs', 'Pa', 'Np', 'Pu', 'Am', 'Cm',
+                         'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn',
+                         'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 'Og']
 
-        # Build peak info with height lookup
-        peak_heights = {e: h for e, h in peak_list}
+        def get_atomic_number(elem):
+            try:
+                elem_obj = elements[elem]
+                return elem_obj.General_properties.Z
+            except:
+                return 26
+
+        def get_k_ratio_range(Z):
+            if Z < 20:
+                return (7.0, 12.0)
+            elif Z < 30:
+                return (6.0, 9.0)
+            elif Z < 40:
+                return (5.5, 8.0)
+            else:
+                return (5.0, 7.5)
+
+        def get_l_ratio_range(Z):
+            if Z < 50:
+                return (2.5, 6.0)
+            elif Z < 70:
+                return (2.0, 5.0)
+            else:
+                return (1.8, 4.5)
 
         def find_peak_near(target_energy, tolerance=0.12):
-            """Find a peak near the target energy"""
             for pe, ph in peak_list:
                 if abs(pe - target_energy) < tolerance:
                     return pe, ph
             return None, 0
 
-        def get_atomic_number(elem):
-            """Get atomic number for element"""
-            try:
-                elem_obj = elements[elem]
-                return elem_obj.General_properties.Z
-            except:
-                return 26  # Default
+        def is_energy_reserved(energy, tolerance=0.10):
+            """Check if energy is reserved by another element"""
+            for reserved_e, elem in reserved_energies.items():
+                if abs(energy - reserved_e) < tolerance:
+                    return elem
+            return None
 
-        # Score each possible element
+        # ============================================================
+        # STEP 1: Reserve ALL line positions for user-selected elements
+        # ============================================================
+        for elem in include_elements:
+            if elem in ELEMENT_LINES:
+                for line_type, energy in ELEMENT_LINES[elem].items():
+                    reserved_energies[energy] = elem
+                    print(f"Reserved {energy:.3f} keV for {elem} {line_type}")
+
+        # ============================================================
+        # STEP 2: Find strong Ka peaks and reserve their Kb positions
+        # ============================================================
+        strong_ka_elements = {}  # element -> (ka_peak, ka_height)
+
+        # First pass: identify strong Ka peaks
+        for elem, lines in ELEMENT_LINES.items():
+            if elem in exclude_elements:
+                continue
+            if 'Ka' not in lines:
+                continue
+
+            ka_energy = lines['Ka']
+            ka_peak, ka_height = find_peak_near(ka_energy)
+
+            if ka_peak is None:
+                continue
+
+            # Is this a significant peak? (top 50% of peak heights)
+            max_height = peak_list[0][1] if peak_list else 1
+            if ka_height < max_height * 0.05:  # At least 5% of max
+                continue
+
+            # Check if this energy is reserved for a different element
+            reserved_by = is_energy_reserved(ka_energy)
+            if reserved_by and reserved_by != elem:
+                continue
+
+            # Store this as a potential Ka
+            if elem not in strong_ka_elements:
+                strong_ka_elements[elem] = (ka_peak, ka_height, lines.get('Kb'))
+
+        # For strong Ka peaks, reserve the Kb position
+        for elem, (ka_peak, ka_height, kb_energy) in strong_ka_elements.items():
+            if kb_energy:
+                # Check if Kb position has a peak
+                kb_peak, kb_height = find_peak_near(kb_energy)
+                if kb_peak:
+                    # Verify ratio is reasonable
+                    Z = get_atomic_number(elem)
+                    ratio_range = get_k_ratio_range(Z)
+                    if kb_height > 0:
+                        ratio = ka_height / kb_height
+                        # If ratio is in reasonable range, reserve this Kb for this element
+                        if ratio_range[0] * 0.5 <= ratio <= ratio_range[1] * 1.5:
+                            if kb_energy not in reserved_energies:
+                                reserved_energies[kb_energy] = elem
+                                print(f"Strong Ka found: reserving Kb at {kb_energy:.3f} keV for {elem}")
+
+        # ============================================================
+        # STEP 3: Similarly for strong La peaks, reserve Lb positions
+        # ============================================================
+        strong_la_elements = {}
+
+        for elem, lines in ELEMENT_LINES.items():
+            if elem in exclude_elements:
+                continue
+            if 'La' not in lines:
+                continue
+
+            la_energy = lines['La']
+            la_peak, la_height = find_peak_near(la_energy)
+
+            if la_peak is None:
+                continue
+
+            max_height = peak_list[0][1] if peak_list else 1
+            if la_height < max_height * 0.05:
+                continue
+
+            reserved_by = is_energy_reserved(la_energy)
+            if reserved_by and reserved_by != elem:
+                continue
+
+            if elem not in strong_la_elements:
+                strong_la_elements[elem] = (la_peak, la_height, lines.get('Lb'))
+
+        for elem, (la_peak, la_height, lb_energy) in strong_la_elements.items():
+            if lb_energy:
+                lb_peak, lb_height = find_peak_near(lb_energy)
+                if lb_peak:
+                    Z = get_atomic_number(elem)
+                    ratio_range = get_l_ratio_range(Z)
+                    if lb_height > 0:
+                        ratio = la_height / lb_height
+                        if ratio_range[0] * 0.5 <= ratio <= ratio_range[1] * 1.5:
+                            if lb_energy not in reserved_energies:
+                                reserved_energies[lb_energy] = elem
+                                print(f"Strong La found: reserving Lb at {lb_energy:.3f} keV for {elem}")
+
+        # ============================================================
+        # STEP 4: Score all elements considering reservations
+        # ============================================================
         element_scores = {}
 
         for elem, lines in ELEMENT_LINES.items():
-            # Skip excluded elements
             if elem in exclude_elements:
                 continue
 
@@ -2855,106 +3251,168 @@ class EDXSEMWindow(wx.Frame):
                 ka_energy = lines['Ka']
                 ka_peak, ka_height = find_peak_near(ka_energy)
 
-                if ka_peak:
-                    if 'Kb' in lines:
-                        kb_energy = lines['Kb']
+                # Check reservation
+                reserved_by = is_energy_reserved(ka_energy)
+                if reserved_by and reserved_by != elem:
+                    # This energy belongs to another element
+                    pass
+                elif ka_peak:
+                    kb_energy = lines.get('Kb')
+                    if kb_energy:
                         kb_peak, kb_height = find_peak_near(kb_energy)
+
+                        # Check if Kb is reserved for us or available
+                        kb_reserved_by = is_energy_reserved(kb_energy)
 
                         if kb_peak and kb_height > 0:
                             ratio = ka_height / kb_height
-                            if Z < 25:
-                                ratio_range = K_ALPHA_BETA_RATIO['light']
-                            elif Z < 40:
-                                ratio_range = K_ALPHA_BETA_RATIO['medium']
-                            else:
-                                ratio_range = K_ALPHA_BETA_RATIO['heavy']
+                            ratio_range = get_k_ratio_range(Z)
 
-                            if ratio_range[0] <= ratio <= ratio_range[1]:
-                                score += 3.0
+                            if kb_reserved_by == elem:
+                                # Kb is reserved for this element - strong match
+                                score += 5.0
                                 matched_lines.extend([('Ka', ka_peak), ('Kb', kb_peak)])
-                            elif ratio > ratio_range[1] * 0.5:
-                                score += 1.5
+                            elif kb_reserved_by is None:
+                                # Kb not reserved - check ratio
+                                if ratio_range[0] <= ratio <= ratio_range[1]:
+                                    score += 4.0
+                                    matched_lines.extend([('Ka', ka_peak), ('Kb', kb_peak)])
+                                elif ratio_range[0] * 0.7 <= ratio <= ratio_range[1] * 1.3:
+                                    score += 2.5
+                                    matched_lines.extend([('Ka', ka_peak), ('Kb', kb_peak)])
+                            # If Kb reserved for different element, only count Ka
+                            else:
+                                score += 0.5
                                 matched_lines.append(('Ka', ka_peak))
                         else:
-                            score += 0.8
+                            # No Kb peak found
+                            score += 0.5
                             matched_lines.append(('Ka', ka_peak))
+                    else:
+                        score += 0.5
+                        matched_lines.append(('Ka', ka_peak))
 
             # Check L-series
             if 'La' in lines:
                 la_energy = lines['La']
                 la_peak, la_height = find_peak_near(la_energy)
 
-                if la_peak:
-                    if 'Lb' in lines:
-                        lb_energy = lines['Lb']
+                reserved_by = is_energy_reserved(la_energy)
+                if reserved_by and reserved_by != elem:
+                    pass
+                elif la_peak:
+                    lb_energy = lines.get('Lb')
+                    if lb_energy:
                         lb_peak, lb_height = find_peak_near(lb_energy)
+                        lb_reserved_by = is_energy_reserved(lb_energy)
 
                         if lb_peak and lb_height > 0:
                             ratio = la_height / lb_height
-                            if L_ALPHA_BETA_RATIO[0] <= ratio <= L_ALPHA_BETA_RATIO[1]:
-                                if any(line[0] in ['Ka', 'Kb'] for line in matched_lines):
-                                    score += 2.5  # K and L both match
+                            ratio_range = get_l_ratio_range(Z)
+
+                            has_k_match = any(line[0] in ['Ka', 'Kb'] for line in matched_lines)
+
+                            if lb_reserved_by == elem:
+                                if has_k_match:
+                                    score += 4.0
                                 else:
-                                    score += 2.0
+                                    score += 3.0
                                 matched_lines.extend([('La', la_peak), ('Lb', lb_peak)])
-                            elif ratio > L_ALPHA_BETA_RATIO[0] * 0.5:
-                                if any(line[0] in ['Ka', 'Kb'] for line in matched_lines):
-                                    score += 1.5
-                                else:
+                            elif lb_reserved_by is None:
+                                if ratio_range[0] <= ratio <= ratio_range[1]:
+                                    if has_k_match:
+                                        score += 3.0
+                                    else:
+                                        score += 2.0
+                                    matched_lines.extend([('La', la_peak), ('Lb', lb_peak)])
+                                elif ratio_range[0] * 0.7 <= ratio <= ratio_range[1] * 1.3:
+                                    if has_k_match:
+                                        score += 2.0
+                                    else:
+                                        score += 1.0
+                                    matched_lines.extend([('La', la_peak), ('Lb', lb_peak)])
+                            else:
+                                if has_k_match:
                                     score += 1.0
-                                matched_lines.append(('La', la_peak))
+                                    matched_lines.append(('La', la_peak))
                         else:
-                            if any(line[0] in ['Ka', 'Kb'] for line in matched_lines):
+                            has_k_match = any(line[0] in ['Ka', 'Kb'] for line in matched_lines)
+                            if has_k_match:
                                 score += 1.5
                                 matched_lines.append(('La', la_peak))
                             else:
-                                score += 0.5
+                                score += 0.3
                                 matched_lines.append(('La', la_peak))
 
-            # Check M-series (only for heavy elements Z > 70)
+            # Check M-series for heavy elements
             if 'Ma' in lines and Z > 70:
                 ma_energy = lines['Ma']
                 ma_peak, ma_height = find_peak_near(ma_energy)
 
-                if ma_peak:
-                    if 'Mb' in lines:
-                        mb_energy = lines['Mb']
+                reserved_by = is_energy_reserved(ma_energy)
+                if reserved_by and reserved_by != elem:
+                    pass
+                elif ma_peak:
+                    mb_energy = lines.get('Mb')
+                    if mb_energy:
                         mb_peak, mb_height = find_peak_near(mb_energy)
-
                         if mb_peak and mb_height > 0:
                             ratio = ma_height / mb_height
-                            if M_ALPHA_BETA_RATIO[0] <= ratio <= M_ALPHA_BETA_RATIO[1]:
-                                score += 1.5
+                            if 1.5 <= ratio <= 4.0:
+                                if len(matched_lines) > 0:
+                                    score += 1.5
+                                else:
+                                    score += 1.0
                                 matched_lines.extend([('Ma', ma_peak), ('Mb', mb_peak)])
 
-            # Apply element preference bonuses
+            # ============================================================
+            # Apply element preference modifiers
+            # ============================================================
             if elem in include_elements:
-                score *= 2.0  # Strong bonus for user-selected elements
+                score *= 10.0  # MASSIVE bonus for user-selected
+            elif elem in VERY_COMMON:
+                score *= 2.0
             elif elem in COMMON_ELEMENTS:
-                score *= 1.3  # Moderate bonus for common elements
-            elif elem not in include_elements and len(include_elements) > 0:
-                score *= 0.5  # Penalty when user has selected specific elements
+                score *= 1.5
+            elif elem in RARE_ELEMENTS:
+                score *= 0.05  # 95% penalty for rare elements
 
-            # Only include if meaningful matches
-            if score > 0.8 and len(matched_lines) >= 1:
+            # Additional penalty when user has made specific selections
+            if len(include_elements) > 0 and elem not in include_elements:
+                score *= 0.2
+
+            if score > 0.3 and len(matched_lines) >= 1:
                 element_scores[elem] = {
                     'score': score,
                     'lines': matched_lines,
                     'Z': Z
                 }
 
-        # Sort by score
+        # ============================================================
+        # STEP 5: Assign peaks by score, respecting reservations
+        # ============================================================
         sorted_elements = sorted(element_scores.items(), key=lambda x: x[1]['score'], reverse=True)
 
-        # Assign peaks, avoiding conflicts
         for elem, data in sorted_elements:
             lines_to_add = []
             conflict = False
 
             for line_type, peak_energy in data['lines']:
                 if peak_energy in used_energies:
+                    # Check if it's reserved for this element
+                    reserved_by = is_energy_reserved(peak_energy)
+                    if reserved_by == elem:
+                        # It's reserved for us but already used - skip
+                        pass
                     conflict = True
                     break
+
+                # Check reservation
+                reserved_by = is_energy_reserved(peak_energy)
+                if reserved_by is not None and reserved_by != elem:
+                    conflict = True
+                    break
+
                 lines_to_add.append((peak_energy, elem, line_type))
 
             if not conflict and lines_to_add:
@@ -2963,16 +3421,43 @@ class EDXSEMWindow(wx.Frame):
                     used_energies.add(peak_energy)
                     print(f"Identified: {elem} {line_type} at {peak_energy:.3f} keV (score: {data['score']:.2f})")
 
-        # Second pass: unidentified significant peaks (alpha lines only)
+        # ============================================================
+        # STEP 6: Handle reserved but unmatched peaks
+        # ============================================================
+        for reserved_energy, elem in reserved_energies.items():
+            if reserved_energy in used_energies:
+                continue
+
+            # Find which line this is
+            if elem in ELEMENT_LINES:
+                for line_type, line_energy in ELEMENT_LINES[elem].items():
+                    if abs(line_energy - reserved_energy) < 0.05:
+                        # Check if there's a peak here
+                        peak, height = find_peak_near(reserved_energy)
+                        if peak and height > 0:
+                            identified.append((peak, elem, line_type))
+                            used_energies.add(peak)
+                            print(f"Identified (reserved): {elem} {line_type} at {peak:.3f} keV")
+                        break
+
+        # ============================================================
+        # STEP 7: Remaining unidentified significant peaks
+        # ============================================================
         for peak_energy, peak_height in peak_list:
             if peak_energy in used_energies:
                 continue
 
-            if peak_height < 0.15 * peak_list[0][1]:
+            # Skip weak peaks
+            if peak_height < 0.10 * peak_list[0][1]:
                 continue
 
+            # Check if reserved
+            reserved_by = is_energy_reserved(peak_energy)
+            if reserved_by:
+                continue  # Already handled above
+
             best_match = None
-            best_diff = 0.10
+            best_diff = 0.08
             best_score = 0
 
             for line_key, line_energy in XRAY_ENERGIES.items():
@@ -2985,18 +3470,26 @@ class EDXSEMWindow(wx.Frame):
                     if elem in exclude_elements:
                         continue
 
-                    score = 1.0 - diff / 0.10
+                    score = 1.0 - diff / 0.08
+
                     if elem in include_elements:
+                        score *= 10.0
+                    elif elem in VERY_COMMON:
                         score *= 2.0
                     elif elem in COMMON_ELEMENTS:
-                        score *= 1.3
+                        score *= 1.5
+                    elif elem in RARE_ELEMENTS:
+                        score *= 0.05
+
+                    if len(include_elements) > 0 and elem not in include_elements:
+                        score *= 0.2
 
                     if score > best_score:
                         best_score = score
                         best_diff = diff
                         best_match = line_key
 
-            if best_match:
+            if best_match and best_score > 0.2:
                 elem, line_type = best_match.split('_')
                 identified.append((peak_energy, elem, line_type))
                 used_energies.add(peak_energy)
@@ -3192,8 +3685,13 @@ class EDXSEMWindow(wx.Frame):
 
         # HeatMap submenu
         heatmap_menu = wx.Menu()
-        colormaps = ['plasma', 'viridis', 'inferno', 'magma', 'hot', 'cool', 'gray', 'jet',
-                     'rainbow', 'turbo', 'cividis', 'Spectral', 'coolwarm', 'RdYlBu', 'RdBu']
+
+        colormaps = ['Greens', 'plasma', 'viridis', 'inferno', 'magma', 'hot', 'cool', 'gray', 'jet',
+                     'rainbow', 'turbo', 'cividis', 'Spectral', 'coolwarm', 'RdYlBu', 'RdBu',
+                     'Blues', 'Reds', 'Oranges', 'Purples', 'YlOrRd', 'YlGnBu', 'RdPu', 'BuPu',
+                     'GnBu', 'PuBu', 'YlGn', 'binary', 'bone', 'copper', 'autumn', 'winter',
+                     'spring', 'summer', 'twilight', 'hsv', 'nipy_spectral', 'terrain', 'ocean',
+                     'gist_earth', 'seismic', 'bwr', 'BrBG', 'PRGn', 'PiYG', 'RdGy', 'RdYlGn']
 
         for cmap in colormaps:
             item = heatmap_menu.AppendRadioItem(wx.ID_ANY, cmap)
@@ -4325,19 +4823,19 @@ class EDXSEMWindow(wx.Frame):
 
         self.selected_points = new_points
 
-        # Redraw marker
+        # Redraw marker (red)
         self.clear_selection_markers()
         point = self.selected_points[-1]
         x, y, size = point
 
         if size == 1:
-            marker, = self.map_ax.plot(x, y, 'g+', markersize=15, markeredgewidth=2)
+            marker, = self.map_ax.plot(x, y, 'r+', markersize=15, markeredgewidth=2)
             marker._is_selection_marker = True
         else:
             from matplotlib.patches import Rectangle
             half_size = size / 2
             rect = Rectangle((x - half_size, y - half_size), size, size,
-                             linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+                             linewidth=2, edgecolor='darkred', facecolor='red', alpha=0.3)
             rect._is_selection_marker = True
             self.map_ax.add_patch(rect)
 
@@ -4369,18 +4867,12 @@ class EDXSEMWindow(wx.Frame):
         self.last_line_start = (new_x1, new_y1)
         self.last_line_end = (new_x2, new_y2)
 
-        # Redraw markers
+        # Get line width (use stored or default)
+        line_width = getattr(self, 'last_line_width', self.line_width)
+
+        # Redraw markers with width indicator (red)
         self.clear_selection_markers()
-
-        # Draw line
-        line, = self.map_ax.plot([new_x1, new_x2], [new_y1, new_y2], 'g-', linewidth=2)
-        line._is_selection_marker = True
-
-        # Draw end points
-        marker1, = self.map_ax.plot(new_x1, new_y1, 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
-        marker1._is_selection_marker = True
-        marker2, = self.map_ax.plot(new_x2, new_y2, 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2)
-        marker2._is_selection_marker = True
+        self._draw_line_with_width((new_x1, new_y1), (new_x2, new_y2), line_width)
 
         self.map_canvas.draw()
 
@@ -4388,8 +4880,8 @@ class EDXSEMWindow(wx.Frame):
         if hasattr(self, 'arrow_control_panel'):
             self.arrow_control_panel.Raise()
 
-        # Replot spectrum
-        self.plot_line_spectrum(new_x1, new_y1, new_x2, new_y2)
+        # Create line profile
+        self.create_line_profile(new_x1, new_y1, new_x2, new_y2, line_width)
 
         return True
 
@@ -4412,12 +4904,12 @@ class EDXSEMWindow(wx.Frame):
 
         self.selected_areas[-1] = (new_x1, new_y1, new_x2, new_y2)
 
-        # Redraw marker
+        # Redraw marker (red)
         self.clear_selection_markers()
 
         from matplotlib.patches import Rectangle
         rect = Rectangle((new_x1, new_y1), rect_width, rect_height,
-                         linewidth=2, edgecolor='lime', facecolor='none')
+                         linewidth=2, edgecolor='red', facecolor='red', alpha=0.2)
         rect._is_selection_marker = True
         self.map_ax.add_patch(rect)
 
@@ -4500,29 +4992,13 @@ class EDXSEMWindow(wx.Frame):
         energy_axis = self.current_data.axes_manager[-1]
         energy = energy_axis.axis
 
-        # Plot to parent window
+        # Plot to parent window using common styled method
         if self.parent is not None:
-            self.parent.ax.clear()
-            self.parent.ax.plot(energy, summed_spectrum, 'k-', linewidth=0.8)
-            self.parent.ax.set_xlabel('Energy (keV)')
-            self.parent.ax.set_ylabel('Counts')
-            self.parent.ax.set_title(f'EDX Area Spectrum (Rotated, {len(masked_spectra)} pixels)')
-            self.parent.ax.grid(False)
+            title = f'EDX Area Spectrum (Rotated, {len(masked_spectra)} pixels)'
+            grid_label = f"Rotated Area ({len(masked_spectra)} px)"
+            self._plot_edx_spectrum_styled(energy, summed_spectrum, title, grid_label)
 
-            # Add peak labels
-            self.add_peak_labels(self.parent.ax, energy, summed_spectrum)
-
-            # Get stored X max or default to 20
-            display_x_max = self.parent.Data['Core levels']['EDX~Plot'].get('_EDX_display_max', 20)
-            self.parent.ax.set_xlim(0, display_x_max)
-            self.parent.ax.set_ylim(0, np.max(summed_spectrum) * 1.1)
-
-            self.parent.canvas.draw()
-
-            # Populate peak fitting grid with quantification
-            self._populate_edx_grid(energy, summed_spectrum, f"Rotated Area ({len(masked_spectra)} px)")
-
-        print(f"Moved rotated area: center=({new_cx:.0f},{new_cy:.0f}), size=({w:.0f}x{h:.0f}), angle={angle:.1f}°")
+        print(f"Moved rotated area: center=({new_cx:.0f},{new_cy:.0f}), size=({w:.0f}x{h:.0f}), angle={angle:.1f}Â°")
         print(f"Extracted {len(masked_spectra)} pixels")
 
         return True
@@ -4657,7 +5133,7 @@ class PeriodicTableDialog(wx.Dialog):
     """
 
     def __init__(self, parent, include_elements=None, exclude_elements=None):
-        super().__init__(parent, title="Select Elements", size=(780, 420))
+        super().__init__(parent, title="Select Elements", size=(570, 350))
 
         self.include_elements = set(include_elements or [])
         self.exclude_elements = set(exclude_elements or [])
@@ -4699,7 +5175,7 @@ class PeriodicTableDialog(wx.Dialog):
 
         # Periodic table layout
         table_panel = wx.Panel(panel)
-        grid_sizer = wx.GridBagSizer(1, 1)
+        grid_sizer = wx.GridBagSizer(0, 0)
 
         # Complete periodic table structure (row, col, symbol)
         # Main table - periods 1-7
@@ -4774,7 +5250,7 @@ class PeriodicTableDialog(wx.Dialog):
         all_elements = elements + lanthanides + actinides
 
         for row, col, symbol in all_elements:
-            btn = wx.Button(table_panel, label=symbol, size=(38, 22))
+            btn = wx.Button(table_panel, label=symbol, size=(30, 22))
             btn.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
 
             # Set initial state
@@ -4786,7 +5262,7 @@ class PeriodicTableDialog(wx.Dialog):
             self.element_buttons[symbol] = btn
 
         table_panel.SetSizer(grid_sizer)
-        main_sizer.Add(table_panel, 1, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(table_panel, 1, wx.EXPAND | wx.ALL, 0)
 
         # Buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -5735,7 +6211,7 @@ class RotatableRectangle:
         from matplotlib.transforms import Affine2D
 
         rect = Rectangle((-self.width / 2, -self.height / 2), self.width, self.height,
-                         linewidth=2, edgecolor='lime', facecolor='green', alpha=0.3)
+                         linewidth=2, edgecolor='red', facecolor='red', alpha=0.3)
 
         t = Affine2D().rotate_deg(self.angle).translate(*self.center) + self.ax.transData
         rect.set_transform(t)
@@ -5743,14 +6219,14 @@ class RotatableRectangle:
 
         self.rectangle = self.ax.add_patch(rect)
 
-        # Rotation handle
+        # Rotation handle (red)
         handle_dist = max(self.width, self.height) / 2 + 10
         angle_rad = np.radians(self.angle)
         handle_x = self.center[0] + handle_dist * np.sin(angle_rad)
         handle_y = self.center[1] + handle_dist * np.cos(angle_rad)
 
-        self.rotation_handle = self.ax.plot(handle_x, handle_y, 'go', markersize=10,
-                                            markeredgecolor='darkgreen', markeredgewidth=2)[0]
+        self.rotation_handle = self.ax.plot(handle_x, handle_y, 'ro', markersize=10,
+                                            markeredgecolor='darkred', markeredgewidth=2)[0]
         self.rotation_handle._is_selection_marker = True
 
         # Show angle text when rotating
@@ -5758,14 +6234,14 @@ class RotatableRectangle:
             self.angle_text = self.ax.text(handle_x, handle_y + 5, f'{self.angle:.1f}°',
                                            fontsize=9, color='white', fontweight='bold',
                                            ha='center', va='bottom',
-                                           bbox=dict(boxstyle='round,pad=0.2', facecolor='green', alpha=0.7))
+                                           bbox=dict(boxstyle='round,pad=0.2', facecolor='darkred', alpha=0.7))
             self.angle_text._is_selection_marker = True
 
-        # Resize handles at corners
+        # Resize handles at corners (red)
         corners = self.get_corners()
         for corner in corners:
-            handle = self.ax.plot(corner[0], corner[1], 'gs', markersize=8,
-                                  markeredgecolor='darkgreen', markeredgewidth=1)[0]
+            handle = self.ax.plot(corner[0], corner[1], 'rs', markersize=8,
+                                  markeredgecolor='darkred', markeredgewidth=1)[0]
             handle._is_selection_marker = True
             self.resize_handles.append(handle)
 
