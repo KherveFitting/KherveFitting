@@ -1122,7 +1122,7 @@ class EDXSEMWindow(wx.Frame):
                 self._clear_line_preview()
 
                 self.line_start = (x, y)
-                # Draw start marker
+                # Draw start marker (red)
                 marker, = self.map_ax.plot(x, y, 'ro', markersize=8, markeredgecolor='darkred', markeredgewidth=2)
                 marker._is_selection_marker = True
                 self.map_canvas.draw()
@@ -1133,36 +1133,25 @@ class EDXSEMWindow(wx.Frame):
                 # Clear preview line
                 self._clear_line_preview()
 
-                # Clear previous markers and redraw final line
+                # Clear previous markers and redraw final line with width (red)
                 self.clear_selection_markers()
-
-                # Draw final line
-                line, = self.map_ax.plot([self.line_start[0], self.line_end[0]],
-                                         [self.line_start[1], self.line_end[1]],
-                                         'r-', linewidth=2)
-                line._is_selection_marker = True
-
-                # Draw end points
-                marker1, = self.map_ax.plot(self.line_start[0], self.line_start[1], 'ro',
-                                            markersize=8, markeredgecolor='darkred', markeredgewidth=2)
-                marker1._is_selection_marker = True
-                marker2, = self.map_ax.plot(self.line_end[0], self.line_end[1], 'ro',
-                                            markersize=8, markeredgecolor='darkred', markeredgewidth=2)
-                marker2._is_selection_marker = True
+                self._draw_line_with_width(self.line_start, self.line_end, self.line_width)
 
                 self.map_canvas.draw()
 
-                # Plot line spectrum
-                self.plot_line_spectrum(self.line_start[0], self.line_start[1],
-                                        self.line_end[0], self.line_end[1])
+                # Create line profile (zzProfile) with atomic concentrations
+                self.create_line_profile(self.line_start[0], self.line_start[1],
+                                         self.line_end[0], self.line_end[1], self.line_width)
 
                 # Store positions for arrow button movement
                 self.last_line_start = self.line_start
                 self.last_line_end = self.line_end
+                self.last_line_width = self.line_width
 
                 # Reset for next line
                 self.line_start = None
                 self.line_end = None
+
 
     def on_map_motion(self, event):
         """Handle mouse motion on map for line preview"""
@@ -1175,12 +1164,9 @@ class EDXSEMWindow(wx.Frame):
 
         x, y = int(event.xdata), int(event.ydata)
 
-        # Update line preview
+        # Update line preview with width indicator (red)
         self._clear_line_preview()
-        self._line_preview, = self.map_ax.plot([self.line_start[0], x],
-                                               [self.line_start[1], y],
-                                               'r--', linewidth=1.5, alpha=0.7)
-        self._line_preview._is_selection_marker = True
+        self._draw_line_preview_with_width(self.line_start, (x, y), self.line_width)
         self.map_canvas.draw_idle()
 
     def _clear_line_preview(self):
@@ -1209,7 +1195,6 @@ class EDXSEMWindow(wx.Frame):
     def _draw_line_preview_with_width(self, start, end, width):
         """Draw line preview with width indicator"""
         from matplotlib.patches import Polygon
-        import numpy as np
 
         x1, y1 = start
         x2, y2 = end
@@ -1247,7 +1232,6 @@ class EDXSEMWindow(wx.Frame):
     def _draw_line_with_width(self, start, end, width):
         """Draw final line selection with width indicator"""
         from matplotlib.patches import Polygon
-        import numpy as np
 
         x1, y1 = start
         x2, y2 = end
@@ -1288,7 +1272,6 @@ class EDXSEMWindow(wx.Frame):
                                alpha=0.3, linewidth=1.5)
                 poly._is_selection_marker = True
                 self.map_ax.add_patch(poly)
-
 
 
     def clear_selection_markers(self):
@@ -1672,6 +1655,7 @@ class EDXSEMWindow(wx.Frame):
         Create a zzProfile of atomic concentration along a line.
         Each position along the line sums pixels within the specified width,
         then quantifies elements to create a concentration profile.
+        Positions are calculated in nm using the data's scale information.
         """
         if self.current_data is None:
             return
@@ -1683,10 +1667,25 @@ class EDXSEMWindow(wx.Frame):
                           "Error", wx.OK | wx.ICON_ERROR)
             return
 
+        # Get scale from navigation axes (nm per pixel)
+        scale_per_pixel = 1.0  # Default to 1 if not available
+        scale_unit = 'nm'
+
+        if hasattr(self.current_data, 'axes_manager'):
+            nav_axes = self.current_data.axes_manager.navigation_axes
+            if len(nav_axes) > 0:
+                axis = nav_axes[0]
+                scale_per_pixel = axis.scale if axis.scale and axis.scale > 0 else 1.0
+                scale_unit = axis.units if hasattr(axis, 'units') and axis.units else 'nm'
+
         # Get number of positions along the line
         num_positions = max(abs(x2 - x1), abs(y2 - y1)) + 1
         x_coords = np.linspace(x1, x2, num_positions)
         y_coords = np.linspace(y1, y2, num_positions)
+
+        # Calculate distance in nm for each position along the line
+        line_length_pixels = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+        positions_nm = np.linspace(0, line_length_pixels * scale_per_pixel, num_positions)
 
         # Calculate perpendicular direction for width
         dx = x2 - x1
@@ -1710,8 +1709,9 @@ class EDXSEMWindow(wx.Frame):
         all_elements = set()
 
         print(f"Creating line profile: ({x1},{y1}) to ({x2},{y2}), width={line_width}, positions={num_positions}")
+        print(f"Scale: {scale_per_pixel:.4f} {scale_unit}/pixel, Total length: {line_length_pixels * scale_per_pixel:.2f} {scale_unit}")
 
-        for i, (cx, cy) in enumerate(zip(x_coords, y_coords)):
+        for i, (cx, cy, pos_nm) in enumerate(zip(x_coords, y_coords, positions_nm)):
             # Sum pixels within the width at this position
             spectrum = np.zeros(data.shape[2])
             pixel_count = 0
@@ -1732,62 +1732,69 @@ class EDXSEMWindow(wx.Frame):
                         pixel_count += 1
 
             if pixel_count == 0:
-                profile_results.append({'position': i, 'elements': {}})
+                profile_results.append({'position': i, 'position_nm': pos_nm, 'elements': {}})
                 continue
 
             # Quantify this spectrum
             quant_results = self._quantify_spectrum_for_profile(energy, spectrum)
             all_elements.update(quant_results.keys())
-            profile_results.append({'position': i, 'elements': quant_results})
+            profile_results.append({'position': i, 'position_nm': pos_nm, 'elements': quant_results})
 
         if not all_elements:
             wx.MessageBox("No elements detected along the line profile.",
                           "No Elements", wx.OK | wx.ICON_WARNING)
             return
 
-        # Create zzProfile sheet
-        self._create_profile_sheet(profile_results, all_elements, x1, y1, x2, y2, line_width)
+        # Create zzProfile sheet and plot
+        self._create_profile_sheet(profile_results, all_elements, x1, y1, x2, y2, line_width, scale_unit)
 
     def _quantify_spectrum_for_profile(self, energy, spectrum):
-        """Quantify a single spectrum and return element atomic percentages"""
+        """Quantify a single spectrum and return element atomic percentages.
+        Uses only the green-selected elements from the periodic table.
+        """
         results = {}
 
         try:
-            # Use identified peaks if available, otherwise detect
-            if hasattr(self, 'identified_peaks') and self.identified_peaks:
-                element_peaks = {}
-                for peak_energy, element, line_type in self.identified_peaks:
-                    if element not in element_peaks:
-                        element_peaks[element] = []
-                    element_peaks[element].append((peak_energy, line_type))
+            # Get the green-selected elements from periodic table
+            include_elements = getattr(self, 'include_elements', set())
 
-                # Calculate quantification
-                quant = self._calculate_quantification_from_identified(energy, spectrum, element_peaks)
-                if quant:
-                    for item in quant:
-                        element = item.get('element', item.get('Element', ''))
-                        at_pct = item.get('at_percent', item.get('At%', 0))
-                        if element:
-                            results[element] = float(f"{at_pct:.2f}")
-            else:
-                # Detect elements and quantify
-                elements = self._detect_elements_from_spectrum(energy, spectrum)
-                if elements:
-                    quant = self._calculate_quantification(energy, spectrum, elements)
-                    if quant:
-                        for item in quant:
-                            element = item.get('element', item.get('Element', ''))
-                            at_pct = item.get('at_percent', item.get('At%', 0))
-                            if element:
-                                results[element] = float(f"{at_pct:.2f}")
+            if not include_elements:
+                # Fallback to selected_elements if include_elements is empty
+                include_elements = set(getattr(self, 'selected_elements', []))
+
+            if not include_elements:
+                print("No elements selected (green) in periodic table for quantification")
+                return results
+
+            # Convert to list for quantification
+            elements_list = list(include_elements)
+
+            # Calculate quantification using the selected elements
+            quant = self._calculate_quantification(energy, spectrum, elements_list)
+
+            if quant:
+                for item in quant:
+                    element = item.get('element', item.get('Element', ''))
+                    # Get concentration - check multiple possible keys
+                    conc = item.get('concentration', item.get('at_percent', item.get('At%', 0)))
+                    if element and conc > 0:
+                        results[element] = float(f"{conc:.2f}")
+
         except Exception as e:
-            print(f"Error quantifying spectrum: {e}")
+            print(f"Error quantifying spectrum for profile: {e}")
+            import traceback
+            traceback.print_exc()
 
         return results
 
-    def _create_profile_sheet(self, profile_results, all_elements, x1, y1, x2, y2, line_width):
-        """Create a zzProfile sheet from profile results"""
+    def _create_profile_sheet(self, profile_results, all_elements, x1, y1, x2, y2, line_width, scale_unit='nm'):
+        """Create a zzProfile sheet from profile results and plot it.
+        Uses proper zzProfile structure compatible with ProfileEditor.py
+        Positions are in nm (or whatever scale unit is provided).
+        """
         import datetime
+        import json
+        import os
 
         if self.parent is None:
             return
@@ -1800,18 +1807,21 @@ class EDXSEMWindow(wx.Frame):
 
         sheet_name = f'zzProfile{profile_num}'
 
-        # Build profile data structure
+        # Build profile data structure with x_values and y_values format
         profile_data = {}
 
-        # Number column (position along line)
-        positions = [r['position'] for r in profile_results]
+        # Number column (position along line in nm)
+        positions_nm = [r['position_nm'] for r in profile_results]
         profile_data['Number'] = {
-            'x_values': list(range(len(positions))),
-            'y_values': positions
+            'x_values': list(range(len(positions_nm))),
+            'y_values': [float(f"{p:.2f}") for p in positions_nm]
         }
 
         # Element columns
         sorted_elements = sorted(all_elements)
+        first_element_col = None
+        first_element_values = []
+
         for element in sorted_elements:
             col_name = f"{element} At(%)"
             x_values = []
@@ -1820,25 +1830,47 @@ class EDXSEMWindow(wx.Frame):
             for i, result in enumerate(profile_results):
                 if element in result['elements']:
                     x_values.append(i)
-                    y_values.append(result['elements'][element])
+                    y_values.append(float(f"{result['elements'][element]:.2f}"))
 
             profile_data[col_name] = {
                 'x_values': x_values,
                 'y_values': y_values
             }
 
-        # Create sheet data structure
+            # Store first element for B.E. and Raw Data
+            if first_element_col is None and y_values:
+                first_element_col = col_name
+                # Build full array for Raw Data
+                first_element_values = [0.0] * len(positions_nm)
+                for x, y in zip(x_values, y_values):
+                    if 0 <= x < len(first_element_values):
+                        first_element_values[x] = y
+
+        # Create sheet data structure matching ProfileEditor.py format
         sheet_data = {
             'Name': sheet_name,
+            'B.E.': [float(f"{p:.2f}") for p in positions_nm],  # Use positions in nm as B.E.
+            'Raw Data': first_element_values if first_element_values else [0.0] * len(positions_nm),
             'Profile Data': profile_data,
             'Y_Axis_Label': 'Atomic Concentration (%)',
-            'X_Axis_Label': 'Position',
+            'X_Axis_Label': f'Position ({scale_unit})',
+            'Profile_Type': 'EDX Line Profile',
+            'Background': {
+                'Bkg Type': '',
+                'Bkg Low': '',
+                'Bkg High': '',
+                'Bkg Offset Low': '',
+                'Bkg Offset High': '',
+                'Bkg Y': first_element_values if first_element_values else [0.0] * len(positions_nm)
+            },
+            # EDX-specific metadata
             '_EDX_type': 'line_profile',
-            '_EDX_line_start': (x1, y1),
-            '_EDX_line_end': (x2, y2),
+            '_EDX_line_start': [x1, y1],
+            '_EDX_line_end': [x2, y2],
             '_EDX_line_width': line_width,
             '_EDX_num_positions': len(profile_results),
             '_EDX_elements': list(sorted_elements),
+            '_EDX_scale_unit': scale_unit,
             '_EDX_save_time': datetime.datetime.now().isoformat()
         }
 
@@ -1853,10 +1885,10 @@ class EDXSEMWindow(wx.Frame):
                               for i in range(self.parent.sheet_combobox.GetCount())]:
             self.parent.sheet_combobox.Append(sheet_name)
 
-        # Select the new sheet and plot
+        # Select the new sheet
         self.parent.sheet_combobox.SetValue(sheet_name)
 
-        # Trigger plot update
+        # Plot the profile
         if hasattr(self.parent, 'plot_manager'):
             self.parent.plot_manager.plot_profile(self.parent)
             self.parent.canvas.draw()
@@ -1864,9 +1896,40 @@ class EDXSEMWindow(wx.Frame):
         print(f"Created line profile: {sheet_name}")
         print(f"  Line: ({x1},{y1}) to ({x2},{y2}), width={line_width}")
         print(f"  Positions: {len(profile_results)}, Elements: {sorted_elements}")
+        print(f"  X-axis: Position ({scale_unit})")
 
-        # Save to Excel if file exists
+        # Save to Excel
         self._save_profile_to_excel(sheet_name, profile_data, sorted_elements)
+
+        # Save to JSON
+        self._save_profile_to_json()
+
+    def _save_profile_to_json(self):
+        """Save the current Data structure to JSON file"""
+        try:
+            import json
+            import os
+
+            if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+                return
+
+            file_path = self.parent.Data['FilePath']
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+
+            # Import the serialization function from Save module
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            print(f"Saved profile to JSON: {json_file_path}")
+
+        except Exception as e:
+            print(f"Error saving profile to JSON: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _save_profile_to_excel(self, sheet_name, profile_data, elements):
         """Save profile data to Excel file"""
@@ -4867,10 +4930,10 @@ class EDXSEMWindow(wx.Frame):
         self.last_line_start = (new_x1, new_y1)
         self.last_line_end = (new_x2, new_y2)
 
-        # Get line width (use stored or default)
+        # Get stored line width
         line_width = getattr(self, 'last_line_width', self.line_width)
 
-        # Redraw markers with width indicator (red)
+        # Redraw markers with width (red)
         self.clear_selection_markers()
         self._draw_line_with_width((new_x1, new_y1), (new_x2, new_y2), line_width)
 

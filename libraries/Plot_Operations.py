@@ -4154,8 +4154,44 @@ class PlotManager:
                 return True
 
             elif sheet_name == 'EDX~Map':
-                # [EDX~Map code remains the same]
-                ...
+                # Open EDX HeatMap window if not already open
+                from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+
+                # Check if EDX window exists and is not deleted
+                if hasattr(window, 'edx_window') and window.edx_window:
+                    try:
+                        if not window.edx_window.IsBeingDeleted():
+                            # Window exists, just raise it to front
+                            window.edx_window.Raise()
+                            window.edx_window.SetFocus()
+                            return True
+                    except (RuntimeError, wx.wxAssertionError):
+                        # Window was deleted, clear reference
+                        window.edx_window = None
+
+                # Window doesn't exist or was deleted, create new one
+                window.edx_window = open_edx_sem_window(window)
+
+                # Try to load the HDF5 data if available
+                if 'FilePath' in window.Data and window.Data['FilePath']:
+                    base_path = window.Data['FilePath'].replace('_EDX.xlsx', '')
+                    hdf5_variants = [
+                        f"{base_path}_EDX.hdf5",
+                        f"{base_path}_EDX.h5",
+                        f"{base_path}.hdf5",
+                        f"{base_path}.h5"
+                    ]
+
+                    for hdf5_path in hdf5_variants:
+                        if os.path.exists(hdf5_path):
+                            try:
+                                window.edx_window.load_file(hdf5_path, 'EDX Map')
+                                print(f"Loaded EDX map from: {hdf5_path}")
+                            except Exception as e:
+                                print(f"Could not load EDX map: {e}")
+                            break
+
+                return True
 
             return False
 
