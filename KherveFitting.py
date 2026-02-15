@@ -3397,119 +3397,115 @@ class MyFrame(wx.Frame):
         if os.path.exists('config.json'):
             with open('config.json', 'r') as f:
                 config = json.load(f)
-                self.plot_style = config.get('plot_style', self.plot_style)
-                self.scatter_size = config.get('scatter_size', self.scatter_size)
-                self.line_width = config.get('line_width', self.line_width)
-                self.line_alpha = config.get('line_alpha', self.line_alpha)
-                self.scatter_color = config.get('scatter_color', self.scatter_color)
-                self.line_color = config.get('line_color', self.line_color)
-                self.scatter_marker = config.get('scatter_marker', self.scatter_marker)
-                self.background_color = config.get('background_color', self.background_color)
-                self.background_alpha = config.get('background_alpha', self.background_alpha)
-                self.background_linestyle = config.get('background_linestyle', self.background_linestyle)
-                self.envelope_color = config.get('envelope_color', self.envelope_color)
-                self.envelope_alpha = config.get('envelope_alpha', self.envelope_alpha)
-                self.envelope_linestyle = config.get('envelope_linestyle', self.envelope_linestyle)
-                self.residual_color = config.get('residual_color', self.residual_color)
-                self.residual_alpha = config.get('residual_alpha', self.residual_alpha)
-                self.residual_linestyle = config.get('residual_linestyle', self.residual_linestyle)
-                self.background_thickness = config.get('background_thickness', 1)
-                self.envelope_thickness = config.get('envelope_thickness', 1)
-                self.residual_thickness = config.get('residual_thickness', 1)
-                self.raw_data_linestyle = config.get('raw_data_linestyle', self.raw_data_linestyle)
-                self.peak_colors = config.get('peak_colors', self.peak_colors)
-                self.peak_alpha = config.get('peak_alpha', self.peak_alpha)
-                self.peak_line_style = config.get('peak_line_style', 'Same Color')
-                self.peak_line_alpha = config.get('peak_line_alpha', 0.7)
-                self.peak_line_thickness = config.get('peak_line_thickness', 1)
-                self.peak_line_pattern = config.get('peak_line_pattern', '-')
-                self.recent_files = config.get('recent_files', [])
-                self.peak_fill_types = config.get('peak_fill_types', ["Solid Fill" for _ in range(15)])
-                self.peak_hatch_patterns = config.get('peak_hatch_patterns', ["/", "\\", "|", "-", "+", "x", "o", "O", ".", "*"] * 2)
-                self.hatch_density = config.get('hatch_density', 2)
-                self.current_instrument = config.get('current_instrument', 'Al1486')
-                self.plot_font = config.get('plot_font', 'Arial')
-                self.axis_title_size = config.get('axis_title_size', 12)
-                self.axis_number_size = config.get('axis_number_size', 10)
-                self.x_sublines = config.get('x_sublines', 5)
-                self.y_sublines = config.get('y_sublines', 5)
-                self.legend_font_size = config.get('legend_font_size', 8)
-                self.core_level_text_size = config.get('core_level_text_size', 15)
-                self.label_font_size = config.get('label_font_size', 8)
-                self.excel_width = config.get('excel_width', 5.2)
-                self.excel_height = config.get('excel_height', 5.2)
-                self.excel_dpi = config.get('excel_dpi', 100)
-                self.survey_excel_width = config.get('survey_excel_width', 10)
-                self.survey_excel_height = config.get('survey_excel_height', 7)
-                self.survey_excel_dpi = config.get('survey_excel_dpi', 100)
-                self.word_width = config.get('word_width', 5)
-                self.word_height = config.get('word_height', 5)
-                self.survey_word_width = config.get('survey_word_width', 10)
-                self.survey_word_height = config.get('survey_word_height', 5)
-                self.survey_word_dpi = config.get('survey_word_dpi', 200)
-                self.word_dpi = config.get('word_dpi', 300)
-                self.export_width = config.get('export_width', 8)
-                self.export_height = config.get('export_height', 6)
-                self.export_dpi = config.get('export_dpi', 300)
-                self.library_type = config.get('library_type', 'TPP-2M')
-                self.use_angular_correction = config.get('use_angular_correction', False)
-                self.analysis_angle = config.get('analysis_angle', 54.7)
-                self.ref_peak_name = config.get('ref_peak_name', 'C1s C-C')
-                self.ref_peak_be = config.get('ref_peak_be', 284.8)
-                self.photons = config.get('photons', 1486.67)
-                # Load NPL transmission parameters
-                self.npl_transmission_1 = config.get('npl_transmission_1', None)
-                self.npl_transmission_2 = config.get('npl_transmission_2', None)
-                self.npl_transmission_3 = config.get('npl_transmission_3', None)
-                # Load NPL Transmission parameters
-                self.npl_transmission = config.get('npl_transmission', {
-                    'a0': None,
-                    'a1': None,
-                    'a2': None,
-                    'a3': None,
-                    'a4': None,
-                    'b1': None,
-                    'b2': None,
-                    'b3': None,
-                    'b4': None,
-                    'min_ke': None,
-                    'max_ke': None
-                })
-                self.times_opened = config.get('times_opened', 0)
-                self.enable_auto_backup = config.get('enable_auto_backup', False)
-                self.backup_interval = config.get('backup_interval', 30)
-                self.legend_visible = config.get('legend_visible', 1)
-                self.y_axis_state = config.get('y_axis_state', 0)
-                self.residuals_state = config.get('residuals_state', 2)
-                self.enable_quick_settings = config.get('enable_quick_settings', False)
-                self.survey_table_state = config.get('survey_table_state', 0)
-
-                self.panel_theme = config.get('panel_theme', 'Raised')
-                self.grid_layout = config.get('grid_layout', 'split')
-
-                self.multiplot_palette = config.get('multiplot_palette', 'Greens_r')
-                self.multiplot_linewidth = config.get('multiplot_linewidth', 1.0)
-                self.multiplot_legend_ncol = config.get('multiplot_legend_ncol', 2)
-                self.multiplot_max_legend_items = config.get('multiplot_max_legend_items', 10)
-
-                self.edx_plot_style = config.get('edx_plot_style', 'black')
-                print(f"DEBUG: Loaded edx_plot_style = {self.edx_plot_style}")
-
-                # Set registered flag
-                self.registered = config.get('registered', False)
-
-                # Only increment times_opened if registered
-                if self.registered:
-                    self.times_opened = config.get('times_opened', 0) + 1
-                else:
-                    self.times_opened = 0
-
         else:
             config = {}
             print("No config file found, using default values.")
-            self.recent_files = []
 
-            self.registered = False
+        self.plot_style = config.get('plot_style', self.plot_style)
+        self.scatter_size = config.get('scatter_size', self.scatter_size)
+        self.line_width = config.get('line_width', self.line_width)
+        self.line_alpha = config.get('line_alpha', self.line_alpha)
+        self.scatter_color = config.get('scatter_color', self.scatter_color)
+        self.line_color = config.get('line_color', self.line_color)
+        self.scatter_marker = config.get('scatter_marker', self.scatter_marker)
+        self.background_color = config.get('background_color', self.background_color)
+        self.background_alpha = config.get('background_alpha', self.background_alpha)
+        self.background_linestyle = config.get('background_linestyle', self.background_linestyle)
+        self.envelope_color = config.get('envelope_color', self.envelope_color)
+        self.envelope_alpha = config.get('envelope_alpha', self.envelope_alpha)
+        self.envelope_linestyle = config.get('envelope_linestyle', self.envelope_linestyle)
+        self.residual_color = config.get('residual_color', self.residual_color)
+        self.residual_alpha = config.get('residual_alpha', self.residual_alpha)
+        self.residual_linestyle = config.get('residual_linestyle', self.residual_linestyle)
+        self.background_thickness = config.get('background_thickness', 1)
+        self.envelope_thickness = config.get('envelope_thickness', 1)
+        self.residual_thickness = config.get('residual_thickness', 1)
+        self.raw_data_linestyle = config.get('raw_data_linestyle', self.raw_data_linestyle)
+        self.peak_colors = config.get('peak_colors', self.peak_colors)
+        self.peak_alpha = config.get('peak_alpha', self.peak_alpha)
+        self.peak_line_style = config.get('peak_line_style', 'Same Color')
+        self.peak_line_alpha = config.get('peak_line_alpha', 0.7)
+        self.peak_line_thickness = config.get('peak_line_thickness', 1)
+        self.peak_line_pattern = config.get('peak_line_pattern', '-')
+        self.recent_files = config.get('recent_files', [])
+        self.peak_fill_types = config.get('peak_fill_types', ["Solid Fill" for _ in range(15)])
+        self.peak_hatch_patterns = config.get('peak_hatch_patterns', ["/", "\\", "|", "-", "+", "x", "o", "O", ".", "*"] * 2)
+        self.hatch_density = config.get('hatch_density', 2)
+        self.current_instrument = config.get('current_instrument', 'Al1486')
+        self.plot_font = config.get('plot_font', 'Arial')
+        self.axis_title_size = config.get('axis_title_size', 12)
+        self.axis_number_size = config.get('axis_number_size', 10)
+        self.x_sublines = config.get('x_sublines', 5)
+        self.y_sublines = config.get('y_sublines', 5)
+        self.legend_font_size = config.get('legend_font_size', 8)
+        self.core_level_text_size = config.get('core_level_text_size', 15)
+        self.label_font_size = config.get('label_font_size', 8)
+        self.excel_width = config.get('excel_width', 5.2)
+        self.excel_height = config.get('excel_height', 5.2)
+        self.excel_dpi = config.get('excel_dpi', 100)
+        self.survey_excel_width = config.get('survey_excel_width', 10)
+        self.survey_excel_height = config.get('survey_excel_height', 7)
+        self.survey_excel_dpi = config.get('survey_excel_dpi', 100)
+        self.word_width = config.get('word_width', 5)
+        self.word_height = config.get('word_height', 5)
+        self.survey_word_width = config.get('survey_word_width', 10)
+        self.survey_word_height = config.get('survey_word_height', 5)
+        self.survey_word_dpi = config.get('survey_word_dpi', 200)
+        self.word_dpi = config.get('word_dpi', 300)
+        self.export_width = config.get('export_width', 8)
+        self.export_height = config.get('export_height', 6)
+        self.export_dpi = config.get('export_dpi', 300)
+        self.library_type = config.get('library_type', 'TPP-2M')
+        self.use_angular_correction = config.get('use_angular_correction', False)
+        self.analysis_angle = config.get('analysis_angle', 54.7)
+        self.ref_peak_name = config.get('ref_peak_name', 'C1s C-C')
+        self.ref_peak_be = config.get('ref_peak_be', 284.8)
+        self.photons = config.get('photons', 1486.67)
+        # Load NPL transmission parameters
+        self.npl_transmission_1 = config.get('npl_transmission_1', None)
+        self.npl_transmission_2 = config.get('npl_transmission_2', None)
+        self.npl_transmission_3 = config.get('npl_transmission_3', None)
+        # Load NPL Transmission parameters
+        self.npl_transmission = config.get('npl_transmission', {
+            'a0': None,
+            'a1': None,
+            'a2': None,
+            'a3': None,
+            'a4': None,
+            'b1': None,
+            'b2': None,
+            'b3': None,
+            'b4': None,
+            'min_ke': None,
+            'max_ke': None
+        })
+        self.times_opened = config.get('times_opened', 0)
+        self.enable_auto_backup = config.get('enable_auto_backup', False)
+        self.backup_interval = config.get('backup_interval', 30)
+        self.legend_visible = config.get('legend_visible', 1)
+        self.y_axis_state = config.get('y_axis_state', 0)
+        self.residuals_state = config.get('residuals_state', 2)
+        self.enable_quick_settings = config.get('enable_quick_settings', False)
+        self.survey_table_state = config.get('survey_table_state', 0)
+
+        self.panel_theme = config.get('panel_theme', 'Raised')
+        self.grid_layout = config.get('grid_layout', 'split')
+
+        self.multiplot_palette = config.get('multiplot_palette', 'Greens_r')
+        self.multiplot_linewidth = config.get('multiplot_linewidth', 1.0)
+        self.multiplot_legend_ncol = config.get('multiplot_legend_ncol', 2)
+        self.multiplot_max_legend_items = config.get('multiplot_max_legend_items', 10)
+
+        self.edx_plot_style = config.get('edx_plot_style', 'black')
+        print(f"DEBUG: Loaded edx_plot_style = {self.edx_plot_style}")
+
+        # Set registered flag
+        self.registered = config.get('registered', False)
+
+        # Only increment times_opened if registered
+        if self.registered:
+            self.times_opened = config.get('times_opened', 0) + 1
+        else:
             self.times_opened = 0
 
         return config
