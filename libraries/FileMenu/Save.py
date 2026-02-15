@@ -774,7 +774,6 @@ def save_to_excel(window, data, file_path, sheet_name, update_console=None):
                 energy_range = edx_data.get('Energy_Range', 'N/A')
 
                 # Recreate Excel sheet with map data
-                import openpyxl
                 wb = openpyxl.load_workbook(file_path)
 
                 if sheet_name in wb.sheetnames:
@@ -4345,7 +4344,6 @@ def paste_core_level(window):
     import os
     import tempfile
     import pandas as pd
-    import openpyxl
     from copy import deepcopy
 
     # Perform backup before pasting
