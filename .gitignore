@@ -2,6 +2,7 @@
 /DATA/
 /DOCs/
 /.venv/
+/.pixi/
 /Backup/*
 /__pycache__/
 *.pyc

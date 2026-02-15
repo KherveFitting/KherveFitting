@@ -1,0 +1,63 @@
+[workspace]
+name = "KherveFitting"
+version = "0.1.0"
+description = "Kherve Fitting project"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = ">=3.10,<3.15"
+annotated-types = "==0.7.0"
+anyio = "==4.4.0"
+asteval = "==1.0.5"
+beautifulsoup4 = "*"
+darkdetect = "==0.8.0"
+defusedxml = "==0.7.1"
+et-xmlfile = "==1.0.1"  # downgraded since 1.1.0 not available
+fastparquet = "*"
+flexcache = "==0.3"
+flexparser = "==0.4"
+h5netcdf = "==1.4.1"
+h5py = "==3.12.1"
+httpcore = "==1.0.5"
+httpx = "==0.27.0"
+hyperspy = ">=2.0"
+lmfit = "==1.3.2"
+matplotlib = "==3.10.0"
+numpy = "==1.26.4"
+odfpy = "==1.4.1"
+olefile = "==0.47"
+openai = "==1.34.0"
+openpyxl = "==3.1.2"
+pandas = "==2.2.1"
+pillow = "==10.3.0"
+pint = "==0.24.4"
+psutil = "*"
+pyarrow = "*"
+pydantic = "==2.7.4"
+pydantic-core = "==2.18.4"
+pygame = "*"
+pyperclip = "*"
+python-pptx = "==0.6.23"
+requests = "==2.32.3"
+scikit-learn = ">=1.3"
+scipy = "==1.13.0"
+striprtf = "==0.0.28"
+tzlocal = "==5.2"
+uncertainties = "==3.2.2"
+wxpython = "==4.2.2"
+xarray = "==2024.11.0"
+xlrd = "==2.0.1"
+xlsxwriter = "==3.2.0"
+
+[pypi-dependencies]
+customtkinter = "==5.2.2"
+dgbowl-schemas = "==121"
+lmfitxps = "==4.2.0"  # updated since 0.2.3 not available
+spe2py = "==2.0.0"
+untangle = "==1.2.1"
+vamas = "==0.1.1"
+yadg = "==6.0"
+
+[tasks]
+app = "python KherveFitting.py"
