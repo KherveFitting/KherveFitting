@@ -2842,8 +2842,13 @@ class PlotManager:
 
     def set_fitting_results_text(self, text):
         # Method to set or update the fitting results text
+        # Are there cases where this is really necessary?
         if self.fitting_results_text:
-            self.fitting_results_text.remove()
+            try:
+                self.fitting_results_text.remove()
+            except NotImplementedError as e:
+                print("Error: %s" % e)
+
         self.fitting_results_text = self.ax.text(
             0.02, 0.04, text,
             transform=self.ax.transAxes,
