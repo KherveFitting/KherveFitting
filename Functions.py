@@ -1218,42 +1218,43 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         peaks_dict = window.Data['Core levels'][sheet_name]['Fitting']['Peaks']
                         peak_keys = list(peaks_dict.keys())
 
-                        # For SingleEntity, ALWAYS get Original_Area from L/G column (row, 5)
-                        true_original_area = float(peak_params_grid.GetCellValue(row, 5))
-
                         if i < len(peak_keys):
                             peak_name = peak_keys[i]
                             peak_data = peaks_dict[peak_name]
 
-                            # Get TRUE original position (not current grid value)
+                            # Get TRUE original values from stored data - NEVER from grid
                             original_position = peak_data.get('Original_Position', peak_data.get('Position', 0))
+                            true_original_area = peak_data.get('Original_Area',
+                                                               peak_data.get('L/G', peak_data.get('Area', 1)))
 
                             # Calculate position: original + shift
                             center = original_position + shift
 
-                            # Calculate area: original * scale
-                            area = true_original_area * scale
-
-                            # Calculate height from original envelope data
+                            # Calculate height and area from stored envelope (no Gaussian broadening)
                             if 'x_data' in peak_data and 'y_data' in peak_data:
+                                x_env = np.array(peak_data['x_data'])
                                 y_env = np.array(peak_data['y_data'])
+
                                 original_max_height = float(np.max(y_env))
                                 height = original_max_height * scale
+
+                                sorted_idx = np.argsort(x_env)
+                                area_base = abs(np.trapz(y_env[sorted_idx], x_env[sorted_idx]))
+                                area = area_base * scale
                             else:
-                                # Fallback: scale the current grid height
                                 height = float(peak_params_grid.GetCellValue(row, 3)) * scale
+                                area = true_original_area * scale
 
                         else:
                             print(f"Warning: Could not find peak data for SingleEntity index {i}")
-                            # Fallback values from grid
+                            true_original_area = float(peak_params_grid.GetCellValue(row, 5))
                             center = float(peak_params_grid.GetCellValue(row, 2))
                             height = float(peak_params_grid.GetCellValue(row, 3))
-                            # Area still calculated from Original_Area (L/G) * scale
                             area = true_original_area * scale
 
-                        fwhm = 0.0
-                        # L/G stores ORIGINAL area - get from grid, never recalculate
-                        fraction = float(peak_params_grid.GetCellValue(row, 5))
+                        fwhm = 0.0  # FWHM col stays 0 for SingleEntity
+                        # fraction MUST always be the immutable Original_Area from stored data
+                        fraction = round(float(true_original_area), 2)
                         sigma = shift  # Store shift in sigma column
                         gamma = scale  # Store scale in gamma column
                     else:
@@ -1339,7 +1340,7 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         peak_params_grid.SetCellValue(row, 8, "")
                         peak_params_grid.SetCellValue(row+1, 7, "")
                         peak_params_grid.SetCellValue(row+1, 8, "")
-                    existing_peaks[peak_label].update({
+                    update_dict = {
                         'Position': center,
                         'Height': height,
                         'FWHM': fwhm,
@@ -1347,10 +1348,15 @@ def fit_peaks(window, peak_params_grid, evaluate=False):
                         'Area': area,
                         'Sigma': sigma,
                         'Gamma': gamma,
-                        'fwhm_g':fwhm_g,
+                        'fwhm_g': fwhm_g,
                         'Skew': skew,
                         'Fitting Model': peak_model_choice
-                    })
+                    }
+                    # For SingleEntity, ensure Original_Area is never lost and L/G stays immutable
+                    if peak_model_choice == "SingleEntity":
+                        update_dict['Original_Area'] = existing_peaks[peak_label].get(
+                            'Original_Area', fraction)
+                    existing_peaks[peak_label].update(update_dict)
                 else:
                     print(f"Warning: Peak {peak_label} not found in existing data. Skipping update for this peak.")
 
