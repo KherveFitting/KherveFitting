@@ -4469,44 +4469,23 @@ class FittingWindow(wx.Frame):
             wx.MessageBox("No constraints were propagated.", "Warning", wx.OK | wx.ICON_WARNING)
 
     def extract_column_type(self, sheet_name):
-        """Extract the column type (element + orbital) from sheet name"""
+        """Extract the column type (base core-level name) from sheet name.
+
+        Row index is the trailing digit run, so the column type is the sheet
+        name with trailing digits stripped. Cut everything after the first
+        separator (_ space - .) so suffixes like 'C1s_sample' become 'C1s'.
+        Examples: C1s1 -> C1s, Bi4f7 -> Bi4f, VB1 -> VB, Fermi1 -> Fermi,
+        C1s -> C1s, Fermi -> Fermi, VB -> VB.
+        """
         if not sheet_name:
             return ""
 
-        # Handle common XPS naming patterns
         import re
 
-        # Remove common suffixes/prefixes that might indicate sample info
         cleaned_name = sheet_name.strip()
-
-        # Look for pattern: Element + orbital (e.g., C1s, O1s, Au4f, Ti2p, etc.)
-        # Pattern matches: Letters followed by numbers and optional letters, followed by optional digits
-        pattern = r'^([A-Z][a-z]?\d+[a-z]*)(?:\d+)?.*'
-        match = re.match(pattern, cleaned_name)
-
-        if match:
-            return match.group(1)
-
-        # Fallback: look for first part before underscore, space, or dash
-        separators = ['_', ' ', '-', '.']
-        for sep in separators:
-            if sep in cleaned_name:
-                first_part = cleaned_name.split(sep)[0]
-                # Check if first part looks like a core level (has both letters and numbers)
-                if re.match(r'^[A-Z][a-z]?\d+[a-z]*\d*$', first_part):
-                    # Remove trailing digits to get just the core level type
-                    core_level_match = re.match(r'^([A-Z][a-z]?\d+[a-z]*)', first_part)
-                    if core_level_match:
-                        return core_level_match.group(1)
-                break
-
-        # Final fallback: extract core level pattern from anywhere in name
-        core_level_match = re.search(r'([A-Z][a-z]?\d+[a-z]*)', cleaned_name)
-        if core_level_match:
-            return core_level_match.group(1)
-
-        # Last resort: return first 4 characters or whole name if shorter
-        return cleaned_name[:4] if len(cleaned_name) > 4 else cleaned_name
+        cleaned_name = re.split(r'[_ \-.]', cleaned_name, 1)[0]
+        stripped = re.sub(r'\d+$', '', cleaned_name)
+        return stripped if stripped else cleaned_name
 
     def get_current_constraints(self, sheet_name):
         """Extract all constraints from the current core level"""
