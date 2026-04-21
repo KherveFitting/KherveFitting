@@ -5989,19 +5989,43 @@ class FileManagerWindow(wx.Frame):
             # Special handling for Tougaard methods - they cannot be applied region-by-region
             if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
                 try:
-                    # Apply Tougaard method to the entire spectrum
+                    # Honor the Background Start (Bkg Low) and Bkg High from the Tougaard
+                    # fit window — calc only over that window, then place back into the
+                    # full-length array. Otherwise the integral spans the whole spectrum.
+                    bg_dict = core_level_data.get('Background', {})
+                    bg_low = bg_dict.get('Bkg Low')
+                    bg_high = bg_dict.get('Bkg High')
+                    try:
+                        bg_low = float(bg_low) if bg_low is not None else None
+                        bg_high = float(bg_high) if bg_high is not None else None
+                    except (ValueError, TypeError):
+                        bg_low, bg_high = None, None
+
+                    if bg_low is not None and bg_high is not None and bg_low < bg_high:
+                        mask = (x_values >= bg_low) & (x_values <= bg_high)
+                    else:
+                        mask = np.ones(len(x_values), dtype=bool)
+
+                    if np.sum(mask) < 2:
+                        mask = np.ones(len(x_values), dtype=bool)
+
+                    x_filt = x_values[mask]
+                    y_filt = y_values[mask]
+
                     if method == "U2-Tougaard":
-                        current_background = BackgroundCalculations.calculate_u2_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_u2_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
                     elif method == "U4-Tougaard":
-                        current_background = BackgroundCalculations.calculate_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
                     elif method == "2x U4-Tougaard":
-                        current_background = BackgroundCalculations.calculate_double_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_double_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
                     elif method == "3x U4-Tougaard":
-                        current_background = BackgroundCalculations.calculate_triple_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_triple_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
+
+                    current_background[mask] = bg_filt
 
                 except Exception as e:
                     print(f"Error applying Tougaard background method {method}: {e}")

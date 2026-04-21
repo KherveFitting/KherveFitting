@@ -2392,19 +2392,45 @@ class FittingWindow(wx.Frame):
             if background_method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
                 try:
                     from libraries.Peak_Functions import BackgroundCalculations
-                    # Apply Tougaard method to the entire spectrum
+                    # Honor the Background Start (Bkg Low) and Bkg High stored from the
+                    # Tougaard fit window — the calc operates only on that window, then
+                    # the result is placed back into the full-length background array
+                    # (rest stays as raw data). Without this, the integral spans the
+                    # entire spectrum and effectively starts at the data minimum BE.
+                    bg_dict = core_level_data.get('Background', {})
+                    bg_low = bg_dict.get('Bkg Low')
+                    bg_high = bg_dict.get('Bkg High')
+                    try:
+                        bg_low = float(bg_low) if bg_low is not None else None
+                        bg_high = float(bg_high) if bg_high is not None else None
+                    except (ValueError, TypeError):
+                        bg_low, bg_high = None, None
+
+                    if bg_low is not None and bg_high is not None and bg_low < bg_high:
+                        mask = (x_values >= bg_low) & (x_values <= bg_high)
+                    else:
+                        mask = np.ones(len(x_values), dtype=bool)
+
+                    if np.sum(mask) < 2:
+                        mask = np.ones(len(x_values), dtype=bool)
+
+                    x_filt = x_values[mask]
+                    y_filt = y_values[mask]
+
                     if background_method == "U2-Tougaard":
-                        current_background = BackgroundCalculations.calculate_u2_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_u2_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
                     elif background_method == "U4-Tougaard":
-                        current_background = BackgroundCalculations.calculate_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
                     elif background_method == "2x U4-Tougaard":
-                        current_background = BackgroundCalculations.calculate_double_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_double_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
                     elif background_method == "3x U4-Tougaard":
-                        current_background = BackgroundCalculations.calculate_triple_tougaard_background(
-                            x_values, y_values, sheet_name, self.parent)
+                        bg_filt = BackgroundCalculations.calculate_triple_tougaard_background(
+                            x_filt, y_filt, sheet_name, self.parent)
+
+                    current_background[mask] = bg_filt
                 except Exception as e:
                     print(f"Error applying Tougaard background method {background_method}: {e}")
             else:
@@ -2821,7 +2847,10 @@ class FittingWindow(wx.Frame):
 
         # Copy background properties with .2f formatting where applicable
         for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges',
-                    'Active_Shirley_k', 'Active_Shirley_const', 'Active_Tougaard_B', 'Tougaard_C', 'Method']:
+                    'Active_Shirley_k', 'Active_Shirley_const', 'Active_Tougaard_B', 'Tougaard_C', 'Method',
+                    'Tougaard_B', 'Tougaard_D', 'Tougaard_T0',
+                    'Tougaard_B2', 'Tougaard_C2', 'Tougaard_D2', 'Tougaard_T02',
+                    'Tougaard_B3', 'Tougaard_C3', 'Tougaard_D3', 'Tougaard_T03']:
             if key in bg_source:
                 if key == 'Bkg Type':
                     background_data[key] = bg_source[key]
@@ -2897,7 +2926,10 @@ class FittingWindow(wx.Frame):
 
         # Copy properties from clipboard
         for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges',
-                    'Active_Shirley_k', 'Active_Shirley_const', 'Active_Tougaard_B', 'Tougaard_C', 'Method']:
+                    'Active_Shirley_k', 'Active_Shirley_const', 'Active_Tougaard_B', 'Tougaard_C', 'Method',
+                    'Tougaard_B', 'Tougaard_D', 'Tougaard_T0',
+                    'Tougaard_B2', 'Tougaard_C2', 'Tougaard_D2', 'Tougaard_T02',
+                    'Tougaard_B3', 'Tougaard_C3', 'Tougaard_D3', 'Tougaard_T03']:
             if key in background_data:
                 target_bg[key] = background_data[key]
 
