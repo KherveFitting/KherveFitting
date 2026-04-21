@@ -2481,14 +2481,21 @@ class FittingWindow(wx.Frame):
                                     bg = np.zeros(n, dtype=float)
 
                                     for i in range(n):
-                                        E_prime_minus_E = x_filtered[:i] - x_filtered[i] if x_filtered[0] > x_filtered[-1] else x_filtered[i + 1:] - x_filtered[i]
+                                        # Tougaard integral runs from current position toward LOWER BE
+                                        # (higher KE = source of inelastic losses).
+                                        # For BE-descending arrays that means higher indices (j > i);
+                                        # for KE/BE-ascending arrays that means lower indices (j < i).
+                                        if x_filtered[0] > x_filtered[-1]:  # BE descending
+                                            E_prime_minus_E = x_filtered[i + 1:] - x_filtered[i]
+                                        else:
+                                            E_prime_minus_E = x_filtered[:i] - x_filtered[i]
                                         E_prime_minus_E = np.abs(E_prime_minus_E)
                                         if len(E_prime_minus_E) > 0:
                                             K = stored_B * E_prime_minus_E / ((C + E_prime_minus_E ** 2) ** 2)
                                             if x_filtered[0] > x_filtered[-1]:
-                                                bg[i] = np.trapz(K * y_shifted[:i], dx=dx) if i > 0 else 0
-                                            else:
                                                 bg[i] = np.trapz(K * y_shifted[i + 1:], dx=dx) if i < n - 1 else 0
+                                            else:
+                                                bg[i] = np.trapz(K * y_shifted[:i], dx=dx) if i > 0 else 0
 
                                     current_background[mask] = bg + baseline
                             else:
@@ -2902,15 +2909,11 @@ class FittingWindow(wx.Frame):
 
         # Recreate background if recorded ranges exist
         if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
-            # Import the FileManager class to access its static method
-            from libraries.ViewMenu.FileManager import FileManagerWindow
-
-            # Create a minimal object with the required parent attribute
-            dummy_manager = type('DummyManager', (), {'parent': self.parent})()
-
-            # Call the recreate method
-            FileManagerWindow.recreate_background_from_ranges(
-                dummy_manager, sheet_name, background_data['Recorded_Ranges'],
+            # Use the local recreate method, which handles Active Tougaard / Active
+            # Shirley / Offset / Arctan-XAS — the FileManager version silently falls
+            # back to Smart for those, so propagation produced the wrong background.
+            self.recreate_background_from_ranges_local(
+                sheet_name, background_data['Recorded_Ranges'],
                 background_data.get('Bkg Type', 'Smart'))
         else:
             self.parent.clear_and_replot()
