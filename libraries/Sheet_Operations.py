@@ -1,0 +1,679 @@
+# KherveFitting - XPS Data Analysis Software
+# Copyright (C) 2024-2026 Gwilherm Kerherve <g.kerherve@ic.ac.uk>
+#
+# KherveFitting is dual-licensed:
+#   - GNU GPL v3.0 (see LICENSE-GPL.txt) for open-source use
+#   - Commercial Licence (see LICENSE-COMMERCIAL.txt) for proprietary use
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KherveFitting-Commercial
+
+# sheet_operations.py
+
+import wx
+import wx.grid
+import numpy as np
+from libraries.Peak_Functions import OtherCalc
+from libraries.PeakManipulation import PeakManipulation
+from libraries.Utilities import _clear_peak_params_grid
+
+# In Sheet_Operations.py
+def on_sheet_selected(window, event):
+    # Extract the selected sheet name
+    if isinstance(event, str):
+        selected_sheet = event
+    else:
+        selected_sheet = window.sheet_combobox.GetValue()
+
+    # Clear survey window element lines when changing sheets
+    if hasattr(window, 'survey_window') and window.survey_window:
+        window.survey_window.clear_element_lines()
+
+    # Update BE correction from BEcorrections if available
+    if 'BEcorrections' in window.Data:
+        # Extract row number from sheet name
+        import re
+        match = re.search(r'(\d+)$', selected_sheet)
+        if match:
+            sample_row = match.group(1)
+            if sample_row in window.Data['BEcorrections']:
+                correction = window.Data['BEcorrections'][sample_row]
+                if correction != window.be_correction:
+                    window.be_correction = correction
+                    window.be_correction_spinbox.SetValue(correction)
+        else:
+            # If no numeric suffix, check row 0
+            if "0" in window.Data['BEcorrections']:
+                correction = window.Data['BEcorrections']["0"]
+                if correction != window.be_correction:
+                    window.be_correction = correction
+                    window.be_correction_spinbox.SetValue(correction)
+
+    if selected_sheet:
+        # Check if this is an EDX sheet (EDX~Plot, EDX~Plot1, EDX~Plot2, etc., or EDX~Map)
+        if selected_sheet == 'EDX~Map' or selected_sheet.startswith('EDX~Plot'):
+            # Prevent re-entry loop
+            if hasattr(window, '_processing_edx_sheet') and window._processing_edx_sheet:
+                return
+            window._processing_edx_sheet = True
+            try:
+                # Call plot_edx_data and return its result
+                # This will plot EDX~Plot sheets OR open EDX window for EDX~Map
+                result = window.plot_manager.plot_edx_data(window, selected_sheet)
+                if result:
+                    return  # Successfully handled
+                else:
+                    # If plot_edx_data failed, continue with error handling
+                    print(f"Warning: plot_edx_data returned False for {selected_sheet}")
+            finally:
+                window._processing_edx_sheet = False
+
+            # If we get here, plot_edx_data failed - don't continue processing
+            return
+
+        # Check if this is an EELS sheet (EELS~Plot, EELS~Plot1, etc., or EELS~Map)
+        if selected_sheet == 'EELS~Map' or selected_sheet.startswith('EELS~Plot'):
+            # Prevent re-entry loop
+            if hasattr(window, '_processing_eels_sheet') and window._processing_eels_sheet:
+                return
+            window._processing_eels_sheet = True
+            try:
+                result = window.plot_manager.plot_eels_data(window, selected_sheet)
+                if result:
+                    return  # Successfully handled
+                else:
+                    print(f"Warning: plot_eels_data returned False for {selected_sheet}")
+            finally:
+                window._processing_eels_sheet = False
+            return
+
+        # Check if this is any *~Map sheet (XPS~Map, C1s~Map, Si2p~Map, etc.)
+        # excluding EDX~Map and EELS~Map which have their own specialist handlers above
+        if '~Map' in selected_sheet and selected_sheet not in ('EDX~Map', 'EELS~Map'):
+            # Prevent re-entry loop
+            if hasattr(window, '_processing_xps_map') and window._processing_xps_map:
+                return
+            window._processing_xps_map = True
+            try:
+                window.plot_manager._plot_xps_map_heatmap(window, selected_sheet)
+            finally:
+                window._processing_xps_map = False
+            return
+
+        # Reinitialize peak count
+        window.peak_count = 0
+        window.bg_min_energy = None
+        window.bg_max_energy = None
+
+        window.peak_manipulation.remove_cross_from_peak()
+
+        # Reset RSD value
+        if 'fit_results' in window.__dict__:
+            window.fit_results['rsd'] = None
+
+        # Reset RSD text in PlotManager
+        if hasattr(window.plot_manager, 'rsd_text') and window.plot_manager.rsd_text:
+            window.plot_manager.rsd_text.remove()
+            window.plot_manager.rsd_text = None
+
+        # Check if there's data for the selected sheet in window.Data
+        if selected_sheet in window.Data['Core levels']:
+            core_level_data = window.Data['Core levels'][selected_sheet]
+
+            # NOTE: We never reach here for EDX sheets because we return above
+            # This code is only for normal XPS/Raman/XAS sheets
+
+            # Check if Raw Data exists (skip for special sheets)
+            if 'Raw Data' not in core_level_data:
+                # Special sheet without Raw Data - skip background setup
+                return
+
+            # FIX: Ensure Background structure exists for any sheets that reach here
+            if 'Background' not in core_level_data:
+                core_level_data['Background'] = {
+                    'Bkg X': core_level_data.get('B.E.', []),
+                    'Bkg Y': core_level_data.get('Raw Data', []),
+                    'Bkg Type': '',
+                    'Bkg Low': '',
+                    'Bkg High': '',
+                    'Bkg Offset Low': '',
+                    'Bkg Offset High': ''
+                }
+
+            if 'Background' in window.Data['Core levels'][selected_sheet]:
+                if 'Bkg Y' not in window.Data['Core levels'][selected_sheet]['Background']:
+                    window.Data['Core levels'][selected_sheet]['Background']['Bkg Y'] = \
+                        window.Data['Core levels'][selected_sheet]['Raw Data']
+                window.background = np.array(window.Data['Core levels'][selected_sheet]['Background']['Bkg Y'])
+            else:
+                window.Data['Core levels'][selected_sheet]['Background'] = {
+                    'Bkg Y': window.Data['Core levels'][selected_sheet]['Raw Data']}
+                window.background = np.array(window.Data['Core levels'][selected_sheet]['Raw Data'])
+
+            # Check if there's fitting data available
+            if 'Fitting' in core_level_data and 'Peaks' in core_level_data['Fitting']:
+                peaks = core_level_data['Fitting']['Peaks']
+
+                # Update peak count
+                window.peak_count = len(peaks)
+
+                # Adjust the number of rows in the grid
+                required_rows = window.peak_count * 2
+                current_rows = window.peak_params_grid.GetNumberRows()
+
+                if current_rows < required_rows:
+                    window.peak_params_grid.AppendRows(required_rows - current_rows)
+                elif current_rows > required_rows:
+                    window.peak_params_grid.DeleteRows(required_rows, current_rows - required_rows)
+
+                # Clear existing data in the peak_params_grid
+                window.peak_params_grid.ClearGrid()
+
+                # Populate the grid with peak data
+                for i, (peak_label, peak_data) in enumerate(peaks.items()):
+                    row = i * 2  # Each peak uses two rows
+
+                    # Set peak data
+                    window.peak_params_grid.SetCellValue(row, 0, chr(65 + i))  # A, B, C, etc.
+                    window.peak_params_grid.SetCellValue(row, 1, peak_label)
+                    window.peak_params_grid.SetCellValue(row, 2, f"{peak_data.get('Position', 'N/A'):.2f}")
+                    window.peak_params_grid.SetCellValue(row, 3, f"{peak_data.get('Height', '1e4')}")
+                    window.peak_params_grid.SetCellValue(row, 4, f"{peak_data.get('FWHM', '1.6')}")
+                    window.peak_params_grid.SetCellValue(row, 5, f"{peak_data.get('L/G', '20')}")
+                    window.peak_params_grid.SetCellValue(row, 6, f"{peak_data.get('Area', '1e4')}")
+                    window.peak_params_grid.SetCellValue(row, 7, f"{peak_data.get('Sigma', '0.6')}")
+                    window.peak_params_grid.SetCellValue(row, 8, f"{peak_data.get('Gamma', '0.4')}")
+                    window.peak_params_grid.SetCellValue(row, 9, f"{peak_data.get('Skew', '0.1')}")
+                    window.peak_params_grid.SetCellValue(row, 13, f"{peak_data.get('Fitting Model', 'GL (Area)')}")
+                    window.peak_params_grid.SetCellValue(row, 14, f"{peak_data.get('Bkg Type', '0')}")
+                    window.peak_params_grid.SetCellValue(row, 15, f"{peak_data.get('Bkg Low', '0')}")
+                    window.peak_params_grid.SetCellValue(row, 16, f"{peak_data.get('Bkg High', '0')}")
+                    window.peak_params_grid.SetCellValue(row, 17, f"{peak_data.get('Bkg Offset Low', '0')}")
+                    window.peak_params_grid.SetCellValue(row, 18, f"{peak_data.get('Bkg Offset High', '0')}")
+
+                    if 'Constraints' in peak_data:
+                        constraints = peak_data['Constraints']
+
+                        # Get min/max from current sheet's data
+                        sheet_name = window.sheet_combobox.GetValue()
+                        x_values = window.Data['Core levels'][sheet_name]['B.E.']
+                        min_pos = min(x_values)
+                        max_pos = max(x_values)
+                        position_constraint = f"{min_pos:.2f}:{max_pos:.2f}"
+
+                        default_constraints = {
+                            'Position': position_constraint,
+                            'Height': '1:1e7',
+                            'FWHM': '0.3:3.7',
+                            'L/G': '5:80',
+                            'Area': '1:1e7',
+                            'Sigma': '0.3:3',
+                            'Gamma': '0.3:3',
+                            'Skew': '0.01:2'
+                        }
+
+                        constraint_keys = ['Position', 'Height', 'FWHM', 'L/G', 'Area', 'Sigma', 'Gamma', 'Skew']
+                        for col_idx, key in enumerate(constraint_keys, 2):
+                            constraint_value = constraints.get(key, '')
+                            # print(f"Check constraint Key: {key}, Value: {constraint_value}")
+
+                            # Check if constraint is valid (either 'Fixed' or contains one of the special characters)
+                            is_valid = (constraint_value == 'Fixed' or
+                                        ':' in constraint_value or
+                                        ',' in constraint_value or
+                                        '*' in constraint_value or
+                                        '#' in constraint_value or
+                                        '+' in constraint_value or
+                                        '-' in constraint_value)
+
+                            if not constraint_value or not is_valid:
+                                # Use default if empty or invalid format
+                                constraint_value = default_constraints[key]
+                                # Update in Data structure too
+                                constraints[key] = constraint_value
+
+                            window.peak_params_grid.SetCellValue(row + 1, col_idx, str(constraint_value))
+                    else:
+                        # Create default constraints if none exist
+                        sheet_name = window.sheet_combobox.GetValue()
+                        x_values = window.Data['Core levels'][sheet_name]['B.E.']
+                        min_pos = min(x_values)
+                        max_pos = max(x_values)
+                        position_constraint = f"{min_pos:.2f}:{max_pos:.2f}"
+
+                        default_constraints = {
+                            'Position': position_constraint,
+                            'Height': '1:1e7',
+                            'FWHM': '0.3:3.6',
+                            'L/G': '5:80',
+                            'Area': '1:1e7',
+                            'Sigma': '0.3:3',
+                            'Gamma': '0.3:3',
+                            'Skew': '0.01:2'
+                        }
+                        peak_data['Constraints'] = default_constraints.copy()
+                        for col_idx, (key, value) in enumerate(default_constraints.items(), 2):
+                            window.peak_params_grid.SetCellValue(row + 1, col_idx, str(value))
+
+                    # Set background color for constraint rows
+                    for col in range(window.peak_params_grid.GetNumberCols() + 1):
+                        window.peak_params_grid.SetCellBackgroundColour(row + 1, col - 1, wx.Colour(200, 245, 228))
+                        window.peak_params_grid.SetCellBackgroundColour(row, col - 1, wx.WHITE)
+
+                    for col in [10, 11, 12]:  # Columns for Area, sigma and gamma
+                        window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(27, 140, 60))
+                    for col in [0, 1, 2]:  # Columns for Area, sigma and gamma
+                        window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                        window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+
+                    window.selected_fitting_method = window.peak_params_grid.GetCellValue(row, 13)
+                    if window.selected_fitting_method == "Voigt (Area, L/G, \u03c3)":
+                        for col in [3,4,8]:  # Columns for Height, FWHM
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [5,6,7]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    elif window.selected_fitting_method == "Voigt (Area, L/G, \u03c3, S)":
+                        for col in [3,4,8]:  # Columns for Height, FWHM
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [5,6,7,9]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method == "DS (A, \u03c3, \u03b3)":
+                        for col in [3,4]:  # Columns for Height, FWHM
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [5,6,7,8,9]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method in ["DS*G (A, \u03c3, \u03b3, S)"]:
+                        for col in [3,4]:  # Columns for Height, FWHM
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [5,6,7,8,9]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method in ["LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                        for col in [3, 7]:  # Columns for Height and Sigma
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4, 5, 6, 8, 9]:  # Columns for FWHM, L/G, Area, Gamma, Skew
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method in ["Voigt (Area, \u03c3, \u03B3)",
+                                        "ExpGauss.(Area, \u03c3, \u03b3)"]:
+                        for col in [3,4,5]:  # Columns for Height, FWHM, L/G ratio
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [6,7,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    elif window.selected_fitting_method in ["LA (Area, \u03c3, \u03b3)"]:
+                        for col in [3,5]:  # Columns for Height, FWHM, L/G ratio
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4,6,7,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    elif window.selected_fitting_method in ["LA (Area, \u03c3/\u03b3, \u03b3)"]: # LA (Area, \u03c3/\u03b3, \u03b3)
+                        for col in [3,7]:  # Columns for Height, FWHM, L/G ratio
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4,5,6,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    elif window.selected_fitting_method in ["Pseudo-Voigt (Area)", "GL (Area)", "SGL (Area)"]:
+                        for col in [3]:  # Height
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [7, 8]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4,5,6]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    elif window.selected_fitting_method in ["D-parameter", "Fermi"]:
+                        for col in [2]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [4,5,6,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                    elif window.selected_fitting_method in ["SingleEntity"]:
+                        for col in [2,3,5,6]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [7,8]:  # Columns for Height, FWHM
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [4,5,9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                    else:
+                        print("Fitting method not recognized")
+                        for col in [6]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [7, 8]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(255, 255, 255))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+                        for col in [3,4,5]:  # Columns for Height, FWHM, L/G ratio
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(0, 0, 0))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(0, 0, 0))
+                        for col in [9]:  # Columns for Area, sigma and gamma
+                            # window.peak_params_grid.SetCellValue(row, col, "0")
+                            # window.peak_params_grid.SetCellValue(row + 1, col, "0")
+                            window.peak_params_grid.SetCellTextColour(row, col, wx.Colour(128, 128, 128))
+                            window.peak_params_grid.SetCellTextColour(row + 1, col, wx.Colour(200, 245, 228))
+
+                # Update background information if available
+                if 'Background' in core_level_data:
+                    bg_data = core_level_data['Background']
+                    window.bg_min_energy = bg_data.get('Bkg Low', '')
+                    window.bg_max_energy = bg_data.get('Bkg High', '')
+                    window.background_method = bg_data.get('Bkg Type', '')  # Change 'N/A' to empty string
+                    window.offset_l = bg_data.get('Bkg Offset Low', '')
+                    window.offset_h = bg_data.get('Bkg Offset High', '')
+
+                    # Ensure background fields have empty strings when not defined
+                    if 'Bkg Type' not in bg_data:
+                        core_level_data['Background']['Bkg Type'] = ""
+                    if 'Bkg Low' not in bg_data:
+                        core_level_data['Background']['Bkg Low'] = ""
+                    if 'Bkg High' not in bg_data:
+                        core_level_data['Background']['Bkg High'] = ""
+                    if 'Bkg Offset Low' not in bg_data:
+                        core_level_data['Background']['Bkg Offset Low'] = ""
+                    if 'Bkg Offset High' not in bg_data:
+                        core_level_data['Background']['Bkg Offset High'] = ""
+
+            else:
+                # If no fitting data, ensure the grid is empty
+                _clear_peak_params_grid(window)
+        else:
+            # If no data for this sheet, ensure the grid is empty
+            _clear_peak_params_grid(window)
+
+        # Apply choice editors to the fitting model column
+        window.set_model_choice_editors(window)
+
+        # Refresh the grid display
+        window.peak_params_grid.ForceRefresh()
+
+        # Update the plot
+        window.plot_manager.plot_data(window)  # Always plot raw data first
+        if window.show_fit and window.peak_params_grid.GetNumberRows() > 0:
+            window.clear_and_replot()  # Add fit and residuals if show_fit is True
+
+        window.plot_config.update_plot_limits(window, selected_sheet)
+        window.plot_manager.update_legend(window)
+        window.update_ratios()
+
+    # Update the combobox selection if a string was passed directly
+    if isinstance(event, str):
+        window.sheet_combobox.SetValue(selected_sheet)
+
+    # NEW: Populate results grid based on row-specific Results Table
+    row_number = 0
+    import re
+    match = re.search(r'(\d+)$', selected_sheet)
+    if match:
+        row_number = int(match.group(1))
+
+    results_table_key = f'Results Table{row_number}'
+
+    # Ensure the results table exists
+    if results_table_key not in window.Data:
+        window.Data[results_table_key] = {'Peak': {}}
+
+    # Use the Grid_Operations function to populate the results grid
+    from libraries.Grid_Operations import populate_results_grid
+    populate_results_grid(window)
+
+    window.update_checkboxes_from_data()
+
+    # Update FileManager cell highlight if open
+    if hasattr(window, 'file_manager') and window.file_manager is not None:
+        try:
+            selected_sheet = window.sheet_combobox.GetValue()
+            window.file_manager.highlight_current_sheet(selected_sheet)
+        except (RuntimeError, Exception):
+            pass
+
+    # Update fitting screen range controls if fitting window is open
+    if (hasattr(window, 'fitting_window') and window.fitting_window is not None and
+            hasattr(window.fitting_window, 'update_range_controls_from_data')):
+        wx.CallAfter(window.fitting_window.update_range_controls_from_data)
+
+    # Use tab switching trick if fitting window is open and on background tab
+    if (hasattr(window, 'fitting_window') and window.fitting_window is not None and
+            hasattr(window, 'background_tab_selected') and window.background_tab_selected):
+
+        # Get the notebook from the fitting window
+        notebook = None
+        for child in window.fitting_window.GetChildren():
+            for grandchild in child.GetChildren():
+                if isinstance(grandchild, wx.Notebook):
+                    notebook = grandchild
+                    break
+            if notebook:
+                break
+
+        if notebook:
+            wx.CallAfter(window.fitting_window._switch_tabs_trick, notebook)
+
+    if (hasattr(window, 'background_window') and window.background_window is not None and
+            hasattr(window, 'area_tab_selected') and window.area_tab_selected):
+        wx.CallAfter(window.refresh_area_screen)
+
+    # Update results grid label at the end
+    if hasattr(window, 'update_results_grid_label'):
+        window.update_results_grid_label()
+
+    # Validate peak grid state after sheet change
+    if hasattr(window, 'peak_params_grid'):
+        num_rows = window.peak_params_grid.GetNumberRows()
+        if num_rows == 0:
+            window.selected_peak_index = None
+            if hasattr(window, 'peak_manipulation'):
+                window.peak_manipulation.remove_cross_from_peak()
+        elif window.selected_peak_index is not None:
+            max_peak_index = (num_rows // 2) - 1
+            if max_peak_index < 0 or window.selected_peak_index > max_peak_index:
+                print(f"Resetting selected_peak_index from {window.selected_peak_index} to None")
+                window.selected_peak_index = None
+                if hasattr(window, 'peak_manipulation'):
+                    window.peak_manipulation.remove_cross_from_peak()
+
+    # window.plot_manager.clear_and_replot(window)
+
+def on_grid_left_click(window, event):
+    if event.GetCol() == 7:  # Checkbox column
+        row = event.GetRow()
+        current_value = window.results_grid.GetCellValue(row, 7)
+        new_value = '1' if current_value == '0' else '0'
+
+        # Update grid
+        window.results_grid.SetCellValue(row, 7, new_value)
+
+        # Update Data structure
+        peak_label = chr(65 + row)  # A, B, C, ...
+        if 'Results' in window.Data and 'Peak' in window.Data['Results'] and peak_label in window.Data['Results'][
+            'Peak']:
+            window.Data['Results']['Peak'][peak_label]['Checkbox'] = new_value
+
+        # window.results_grid.RefreshCell(row, 7)
+        window.results_grid.ForceRefresh()
+        window.update_atomic_percentages()
+
+    event.Skip()
+
+def _restore_grid_data_OLD(window, grid_data):
+    """Restore peak fitting grid data from saved EDX plot"""
+    import wx
+
+    grid = window.peak_params_grid
+
+    # Clear existing grid
+    if grid.GetNumberRows() > 0:
+        grid.DeleteRows(0, grid.GetNumberRows())
+
+    # Add saved data
+    for i, row_data in enumerate(grid_data):
+        grid.AppendRows(2)  # Data row + constraint row
+        row = i * 2
+        constraint_row = row + 1
+
+        # Set values
+        grid.SetCellValue(row, 0, row_data.get('id', ''))
+        grid.SetCellValue(row, 1, row_data.get('label', ''))
+        grid.SetCellValue(row, 2, row_data.get('position', ''))
+        grid.SetCellValue(row, 3, row_data.get('height', ''))
+        grid.SetCellValue(row, 4, row_data.get('fwhm', ''))
+        grid.SetCellValue(row, 6, row_data.get('area', ''))
+        grid.SetCellValue(row, 10, row_data.get('concentration', ''))
+
+        # Set constraint row
+        grid.SetCellValue(constraint_row, 2, "fixed")
+        grid.SetCellValue(constraint_row, 3, "fixed")
+        grid.SetCellValue(constraint_row, 4, "fixed")
+        grid.SetCellValue(constraint_row, 6, "fixed")
+
+        # Apply formatting - Data row white background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(row, col, wx.WHITE)
+            grid.SetReadOnly(row, col, True)
+
+        # Constraint row - light green background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(constraint_row, col, wx.Colour(200, 245, 228))
+            grid.SetReadOnly(constraint_row, col, True)
+
+    grid.ForceRefresh()
+
+def _restore_grid_data(window, grid_data):
+    """Restore peak fitting grid data from saved EDX plot"""
+    import wx
+
+    grid = window.peak_params_grid
+
+    # Clear existing grid
+    if grid.GetNumberRows() > 0:
+        grid.DeleteRows(0, grid.GetNumberRows())
+
+    # Filter out constraint rows (rows with 'fixed' values) - only process data rows
+    data_rows = []
+    for row_data in grid_data:
+        if isinstance(row_data, list):
+            # Check if this is a constraint row (has 'fixed' in position column)
+            if len(row_data) > 2 and str(row_data[2]).lower() == 'fixed':
+                continue
+        elif isinstance(row_data, dict):
+            if row_data.get('position', '').lower() == 'fixed':
+                continue
+        data_rows.append(row_data)
+
+    # Add saved data
+    for i, row_data in enumerate(data_rows):
+        grid.AppendRows(2)  # Data row + constraint row
+        row = i * 2
+        constraint_row = row + 1
+
+        # Handle both list and dict formats
+        if isinstance(row_data, dict):
+            grid.SetCellValue(row, 0, row_data.get('id', ''))
+            grid.SetCellValue(row, 1, row_data.get('label', ''))
+            grid.SetCellValue(row, 2, row_data.get('position', ''))
+            grid.SetCellValue(row, 3, row_data.get('height', ''))
+            grid.SetCellValue(row, 4, row_data.get('fwhm', ''))
+            grid.SetCellValue(row, 6, row_data.get('area', ''))
+            grid.SetCellValue(row, 10, row_data.get('concentration', ''))
+        else:  # List format
+            if len(row_data) > 0: grid.SetCellValue(row, 0, str(row_data[0]))
+            if len(row_data) > 1: grid.SetCellValue(row, 1, str(row_data[1]))
+            if len(row_data) > 2: grid.SetCellValue(row, 2, str(row_data[2]))
+            if len(row_data) > 3: grid.SetCellValue(row, 3, str(row_data[3]))
+            if len(row_data) > 4: grid.SetCellValue(row, 4, str(row_data[4]))
+            if len(row_data) > 6: grid.SetCellValue(row, 6, str(row_data[6]))
+            if len(row_data) > 10: grid.SetCellValue(row, 10, str(row_data[10]))
+
+        # Set constraint row
+        grid.SetCellValue(constraint_row, 2, "fixed")
+        grid.SetCellValue(constraint_row, 3, "fixed")
+        grid.SetCellValue(constraint_row, 4, "fixed")
+        grid.SetCellValue(constraint_row, 6, "fixed")
+
+        # Apply formatting - Data row white background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(row, col, wx.WHITE)
+            grid.SetReadOnly(row, col, True)
+
+        # Constraint row - light green background
+        for col in range(grid.GetNumberCols()):
+            grid.SetCellBackgroundColour(constraint_row, col, wx.Colour(200, 245, 228))
+            grid.SetReadOnly(constraint_row, col, True)
+
+    grid.ForceRefresh()
+
+class CheckboxRenderer(wx.grid.GridCellRenderer):
+    def __init__(self):
+        wx.grid.GridCellRenderer.__init__(self)
+
+    def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+        dc.SetBrush(wx.Brush(wx.WHITE, wx.SOLID))
+        dc.SetPen(wx.TRANSPARENT_PEN)
+        dc.DrawRectangle(rect)
+
+        value = grid.GetCellValue(row, col)
+        if value == '1':
+            flag = wx.CONTROL_CHECKED
+        else:
+            flag = 0
+
+        wx.RendererNative.Get().DrawCheckBox(grid, dc, rect, flag)
+
+    def GetBestSize(self, grid, attr, dc, row, col):
+        return wx.Size(20, 20)
+
+    def Clone(self):
+        return CheckboxRenderer()

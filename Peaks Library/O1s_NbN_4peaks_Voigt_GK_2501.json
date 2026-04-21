@@ -1,0 +1,97 @@
+{
+  "Core levels": {
+    "O1s": {
+      "Fitting": {
+        "Peaks": {
+          "O1s NbOx, TiOx 1": {
+            "Position": 530.44,
+            "Height": 12320.79,
+            "FWHM": 1.31,
+            "L/G": 9.77,
+            "Area": 17900.0,
+            "Sigma": 1.24,
+            "Gamma": 0.13,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 525.08,
+            "Bkg High": 538.08,
+            "Bkg Offset Low": 0.0,
+            "Bkg Offset High": 0.0,
+            "Constraints": {
+              "Position": "525.08,538.08",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "1:80",
+              "Area": "1:1e7",
+              "Sigma": "0.01:3",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.0
+          },
+          "O1s NbOx, TiOx 2": {
+            "Position": 531.5,
+            "Height": 10557.72,
+            "FWHM": 1.31,
+            "L/G": 10.2,
+            "Area": 15328.75,
+            "Sigma": 1.23,
+            "Gamma": 0.14,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 525.08,
+            "Bkg High": 538.08,
+            "Bkg Offset Low": 0.0,
+            "Bkg Offset High": 0.0,
+            "Constraints": {
+              "Position": "A+1#0.2",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "A*1",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.0
+          },
+          "O1s CO": {
+            "Position": 532.51,
+            "Height": 2689.04,
+            "FWHM": 1.31,
+            "L/G": 10.2,
+            "Area": 3904.96,
+            "Sigma": 1.23,
+            "Gamma": 0.14,
+            "Skew": 0.0,
+            "Constraints": {
+              "Position": "A+1.77#0.3",
+              "L/G": "A*1",
+              "Sigma": "A*1"
+            },
+            "fwhm_g": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)"
+          },
+          "O1s NaKLL, OH": {
+            "Position": 533.9,
+            "Height": 2498.96,
+            "FWHM": 1.54,
+            "L/G": 10.25,
+            "Area": 4287.1,
+            "Sigma": 1.45,
+            "Gamma": 0.17,
+            "Skew": 0.0,
+            "Constraints": {
+              "Position": "A+2.48#1",
+              "L/G": "A*1",
+              "Sigma": "0.01:3"
+            },
+            "fwhm_g": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)"
+          }
+        },
+        "Model": "Voigt (Area, L/G, \u03c3)"
+      }
+    }
+  }
+}

@@ -1,0 +1,76 @@
+THIRD-PARTY SOFTWARE LICENSES
+==================================================
+
+This software uses the following third-party libraries:
+
+WXPYTHON v4.2.2
+---------------
+License: License not specified
+Homepage: http://wxPython.org/
+Description: Cross platform GUI toolkit for Python, "Phoenix" version
+
+MATPLOTLIB v3.8.4
+-----------------
+License: License not specified
+Homepage: https://matplotlib.org
+Description: Python plotting package
+
+NUMPY v1.26.4
+-------------
+License: License not specified
+Homepage: https://numpy.org
+Description: Fundamental package for array computing in Python
+
+PANDAS v2.2.1
+-------------
+License: License not specified
+Homepage: https://pandas.pydata.org
+Description: Powerful data structures for data analysis, time series, and statistics
+
+OPENPYXL v3.1.2
+---------------
+License: License not specified
+Homepage: https://openpyxl.readthedocs.io
+Description: A Python library to read/write Excel 2010 xlsx/xlsm files
+
+SCIPY v1.13.0
+-------------
+License: License not specified
+Homepage: https://scipy.org/
+Description: Fundamental algorithms for scientific computing in Python
+
+PILLOW v10.3.0
+--------------
+License: License not specified
+Homepage: Changelog, https://github.com/python-pillow/Pillow/blob/main/CHANGES.rst
+Description: Python Imaging Library (Fork)
+
+LMFIT v1.3.2
+------------
+License: License not specified
+Homepage: Homepage, https://lmfit.github.io//lmfit-py/
+Description: Least-Squares Minimization with Bounds and Constraints
+
+SETUPTOOLS v78.1.0
+------------------
+License: License not specified
+Homepage: Source, https://github.com/pypa/setuptools
+Description: Easily download, build, install, upgrade, and uninstall Python packages
+
+WHEEL
+-----
+Status: Not installed or not found
+
+
+COMMON LICENSE TEXTS
+====================
+
+BSD-3-Clause License:
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that conditions are met (see individual package licenses).
+
+MIT License:
+Permission is hereby granted, free of charge, to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies (see individual package licenses).
+
+For complete license texts, visit the individual package homepages listed above.

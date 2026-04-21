@@ -1,0 +1,8604 @@
+# KherveFitting - XPS Data Analysis Software
+# Copyright (C) 2024-2026 Gwilherm Kerherve <g.kerherve@ic.ac.uk>
+#
+# KherveFitting is dual-licensed:
+#   - GNU GPL v3.0 (see LICENSE-GPL.txt) for open-source use
+#   - Commercial Licence (see LICENSE-COMMERCIAL.txt) for proprietary use
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KherveFitting-Commercial
+
+import wx
+import wx.grid
+import os
+import re
+import numpy as np
+import json
+from matplotlib.ticker import ScalarFormatter
+import shutil
+import sys
+import tempfile
+from libraries.FileMenu.Save import save_state
+from libraries.FileMenu.AVG_Import import open_avg_file_direct
+
+
+class FileManagerWindow(wx.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        self.parent = parent
+
+        def detect_dark_mode():
+            if 'wxMac' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxMSW' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            elif 'wxGTK' in wx.PlatformInfo:
+                return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+            return False
+
+        # Check for maximum row index before initializing the window
+        if hasattr(parent, 'Data') and 'Core levels' in parent.Data:
+            max_index = 0
+            for sheet_name in parent.Data['Core levels'].keys():
+                match = re.match(r'[\w\-~.]+?(\d*)$', sheet_name)
+                if match:
+                    index_str = match.group(1)
+                    index = int(index_str) if index_str else 0
+                    max_index = max(max_index, index)
+
+            if max_index > 500:
+                wx.MessageBox(
+                    f"Cannot open Sample Manager: Sheet number {max_index} exceeds the maximum limit of 500.\n"
+                    f"Please rename your sheets to use lower numbers.",
+                    "Row Limit Exceeded", wx.OK | wx.ICON_ERROR)
+                # Tell the parent that file_manager is None to enable reopening later
+                parent.file_manager = None
+                # Prevent the window from being created at all
+                return
+
+        # Only initialize the window if we didn't exceed the limit
+        super().__init__(parent, title="Sample/Experiment Manager", size=(580, 300),
+                         style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, *args, **kwargs)
+
+        # Add this line to set a minimum window size
+        self.SetMinSize((600, 50))  # Ensure toolbar icons remain visible
+
+        self.offset_multiplier = 1
+        self.last_offset_sheets = []
+        self.last_keypress_time = 0
+        self.rapid_press_threshold = 1.0  # seconds
+
+        self.parent = parent
+        self.sample_names = {}  # Dictionary to store sample names by row index
+
+        # Load sample names first
+        self.load_sample_names()
+
+        # Set up UI elements including the grid
+        self.panel = wx.Panel(self)
+
+        if not detect_dark_mode():
+            self.panel.SetBackgroundColour(wx.Colour(160, 205, 188))
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Create horizontal toolbar in main sizer
+        self.toolbar = wx.ToolBar(self.panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT | wx.TB_NODIVIDER)
+        self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+        if not detect_dark_mode():
+            self.toolbar.SetBackgroundColour(wx.Colour(180, 225, 208))
+
+        self.create_toolbar()
+        self.toolbar.Realize()
+        main_sizer.Add(self.toolbar, 0, wx.EXPAND)
+
+        # Create right panel with content
+        self.right_panel = wx.Panel(self.panel)
+        right_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Create vertical toolbar
+        self.v_toolbar = wx.ToolBar(self.right_panel, style=wx.TB_VERTICAL | wx.TB_FLAT | wx.TB_NODIVIDER)
+        self.v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+        if not detect_dark_mode():
+            self.v_toolbar.SetBackgroundColour(wx.Colour(180, 225, 208))
+
+        self.create_vertical_toolbar()
+        self.v_toolbar.Realize()
+        right_sizer.Add(self.v_toolbar, 0, wx.EXPAND)
+
+        # Create grid
+        self.grid = wx.grid.Grid(self.right_panel)
+        self.core_levels = self.get_unique_core_levels()
+        self.init_grid()
+
+        if not detect_dark_mode():
+            self.grid.SetLabelBackgroundColour(wx.Colour(180, 225, 208))
+
+        right_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 0)
+
+        self.right_panel.SetSizer(right_sizer)
+
+        # Add panel to main sizer
+        main_sizer.Add(self.right_panel, 1, wx.EXPAND)
+        self.panel.SetSizer(main_sizer)
+
+        # NOW load BE corrections after the grid is created
+        self.load_be_corrections()
+
+
+        # Position window using saved position or relative to main window
+        if hasattr(parent, 'file_manager_position') and parent.file_manager_position:
+            self.SetPosition(parent.file_manager_position)
+        else:
+            # Default positioning relative to main window
+            main_pos = parent.GetPosition()
+            main_size = parent.GetSize()
+            file_manager_size = self.GetSize()
+            pos_x = main_pos.x + (main_size.width - file_manager_size.width) // 2
+            pos_y = main_pos.y + (main_size.height - file_manager_size.height) // 2
+            self.SetPosition((pos_x, pos_y))
+
+        # Initialize normalization values
+        self.norm_min = 0
+        self.norm_max = 1
+        self.norm_vlines = [None, None]  # For the normalization cursors
+        self.is_dragging_cursor = False
+
+        # Bind events
+        self.norm_type.Bind(wx.EVT_COMBOBOX, self.on_norm_type_changed)
+
+        self.parent.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.parent.canvas.mpl_connect('key_release_event', self.on_key_release)
+
+        # Populate the grid with core levels
+        self.populate_grid()
+
+        # Bind grid events
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_cell_changing)
+        self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed) # now redundant I believe
+        self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cell_focus_changed)
+
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+        # Apply consistent fonts from parent
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
+        # Highlight the current sheet if any
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        if current_sheet:
+            self.highlight_current_sheet(current_sheet)
+
+        # Set up drag and drop functionality AFTER everything is initialized
+        file_drop_target = FileManagerDropTarget(self)
+        self.SetDropTarget(file_drop_target)
+
+    def on_cell_changed(self, event):
+        """Handle completed cell edit event"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        event.Skip()
+
+    def create_vertical_toolbar(self):
+        """Create vertical toolbar with smooth, x1000, and SuM buttons"""
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+
+        # Smooth button
+        smooth_icon = os.path.join(icon_path, "Smooth-3.png")
+        if os.path.exists(smooth_icon):
+            smooth_bmp = wx.Bitmap(smooth_icon)
+        else:
+            smooth_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        smooth_tool = self.v_toolbar.AddTool(wx.ID_ANY, "Smooth Core Level", smooth_bmp,
+                                             "Apply Gaussian smoothing (width=1)")
+        self.Bind(wx.EVT_TOOL, self.on_smooth_default, smooth_tool)
+
+        # x1000 button
+        x1000_icon = os.path.join(icon_path, "Multi-3.png")
+        if os.path.exists(x1000_icon):
+            x1000_bmp = wx.Bitmap(x1000_icon)
+        else:
+            x1000_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_TOOLBAR)
+        x1000_tool = self.v_toolbar.AddTool(wx.ID_ANY, "Multiply by 1000", x1000_bmp,
+                                            "Multiply selected core level by 1000")
+        self.Bind(wx.EVT_TOOL, self.on_multiply_1000, x1000_tool)
+
+        # Subtract button
+        subtract_icon = os.path.join(icon_path, "Sub-3.png")
+        if os.path.exists(subtract_icon):
+            subtract_bmp = wx.Bitmap(subtract_icon)
+        else:
+            subtract_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
+        subtract_tool = self.v_toolbar.AddTool(wx.ID_ANY, "Subtract Selected", subtract_bmp, "Subtract selected core levels")
+        self.Bind(wx.EVT_TOOL, self.on_subtract_selected, subtract_tool)
+
+        # Sum button
+        sum_icon = os.path.join(icon_path, "SuM-3.png")
+        sum_bmp = wx.Bitmap(sum_icon)
+        sum_tool = self.v_toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
+        self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
+
+        # Create Map button
+        map_icon = os.path.join(icon_path, "heatmap_create-3.png")
+        if os.path.exists(map_icon):
+            map_bmp = wx.Bitmap(map_icon)
+        else:
+            map_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        map_tool = self.v_toolbar.AddTool(wx.ID_ANY, "Create Map", map_bmp,
+                                         "Create Map from selected core levels")
+        self.Bind(wx.EVT_TOOL, self.on_create_map_from_selection, map_tool)
+
+        # Open ScientaMapViewer button (same icon as Create Map)
+        scienta_map_icon = os.path.join(icon_path, "heatmap_Edit-3.png")
+        if os.path.exists(scienta_map_icon):
+            scienta_map_bmp = wx.Bitmap(scienta_map_icon)
+        else:
+            scienta_map_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        scienta_map_tool = self.v_toolbar.AddTool(wx.ID_ANY, "Open Map Viewer", scienta_map_bmp,
+                                                  "Edit Map for the selected xxx~Map")
+        self.Bind(wx.EVT_TOOL, self.on_open_scienta_map_viewer, scienta_map_tool)
+
+
+    def create_toolbar(self):
+        """Create toolbar with buttons for core level management"""
+        # Get icon path
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+
+        add_rows_icon = os.path.join(icon_path, "Add_Row-3.png")
+        if os.path.exists(add_rows_icon):
+            add_rows_bmp = wx.Bitmap(add_rows_icon)
+        else:
+            add_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_PLUS, wx.ART_TOOLBAR)
+        add_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Add 1 Row", add_rows_bmp, "Add 1 row to the grid")
+        self.Bind(wx.EVT_TOOL, lambda evt: self.add_single_row(), add_rows_tool)
+
+        del_rows_icon = os.path.join(icon_path, "Rem_Row-3.png")
+        if os.path.exists(del_rows_icon):
+            del_rows_bmp = wx.Bitmap(del_rows_icon)
+        else:
+            del_rows_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
+        del_rows_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Last Row", del_rows_bmp,
+                                             "Delete the last row from the grid")
+        self.Bind(wx.EVT_TOOL, lambda evt: self.delete_single_row(), del_rows_tool)
+
+        # Add Files button (NEW)
+        add_files_tool = self.toolbar.AddTool(wx.ID_ANY, 'Add File(s)',
+                                              wx.Bitmap(os.path.join(icon_path, "Add-Files-3.png"),
+                                                        wx.BITMAP_TYPE_PNG),
+                                              shortHelp="Add KherveFitting file(s) to current file")
+        self.Bind(wx.EVT_TOOL, self.on_add_files, add_files_tool)
+
+        # Copy button
+        copy_icon = os.path.join(icon_path, "copy-3.png")
+        if os.path.exists(copy_icon):
+            copy_bmp = wx.Bitmap(copy_icon)
+        else:
+            copy_bmp = wx.ArtProvider.GetBitmap(wx.ART_COPY, wx.ART_TOOLBAR)
+        copy_tool = self.toolbar.AddTool(wx.ID_ANY, "Copy Core Level", copy_bmp, "Copy selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_copy, copy_tool)
+
+        # Paste button
+        paste_icon = os.path.join(icon_path, "Paste-3.png")
+        if os.path.exists(paste_icon):
+            paste_bmp = wx.Bitmap(paste_icon)
+        else:
+            paste_bmp = wx.ArtProvider.GetBitmap(wx.ART_PASTE, wx.ART_TOOLBAR)
+        paste_tool = self.toolbar.AddTool(wx.ID_ANY, "Paste Core Level", paste_bmp, "Paste core level")
+        self.Bind(wx.EVT_TOOL, self.on_paste, paste_tool)
+
+        # Rename button
+        rename_icon = os.path.join(icon_path, "rename-3.png")
+        if os.path.exists(rename_icon):
+            rename_bmp = wx.Bitmap(rename_icon)
+        else:
+            rename_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        rename_tool = self.toolbar.AddTool(wx.ID_ANY, "Rename Core Level", rename_bmp, "Rename selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_rename, rename_tool)
+
+        # Delete button
+        delete_icon = os.path.join(icon_path, "delete-3.png")
+        if os.path.exists(delete_icon):
+            delete_bmp = wx.Bitmap(delete_icon)
+        else:
+            delete_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_TOOLBAR)
+        delete_tool = self.toolbar.AddTool(wx.ID_ANY, "Delete Core Level", delete_bmp, "Delete selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_delete, delete_tool)
+
+        # # Smooth button
+        # smooth_icon = os.path.join(icon_path, "Smooth-3.png")
+        # if os.path.exists(smooth_icon):
+        #     smooth_bmp = wx.Bitmap(smooth_icon)
+        # else:
+        #     smooth_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        # smooth_tool = self.toolbar.AddTool(wx.ID_ANY, "Smooth Core Level", smooth_bmp,
+        #                                    "Apply Gaussian smoothing (width=1)")
+        # self.Bind(wx.EVT_TOOL, self.on_smooth_default, smooth_tool)
+        #
+        # # x1000 button (multiply by 1000) - add after sum button
+        # x1000_icon = os.path.join(icon_path, "Multi-3.png")
+        # if os.path.exists(x1000_icon):
+        #     x1000_bmp = wx.Bitmap(x1000_icon)
+        # else:
+        #     x1000_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_TOOLBAR)
+        # x1000_tool = self.toolbar.AddTool(wx.ID_ANY, "Multiply by 1000", x1000_bmp,
+        #                                   "Multiply selected core level by 1000")
+        # self.Bind(wx.EVT_TOOL, self.on_multiply_1000, x1000_tool)
+        #
+        #
+        # # Sum button
+        # sum_icon = os.path.join(icon_path, "SuM-3.png")
+        # sum_bmp = wx.Bitmap(sum_icon)
+        # sum_tool = self.toolbar.AddTool(wx.ID_ANY, "Sum Selected", sum_bmp, "Sum selected core levels")
+        # self.Bind(wx.EVT_TOOL, self.on_sum_selected, sum_tool)
+
+
+        # Plot button
+        plot_icon = os.path.join(icon_path, "Plot2-25.png")
+        if os.path.exists(plot_icon):
+            plot_bmp = wx.Bitmap(plot_icon)
+        else:
+            plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Selected", plot_bmp, "Plot selected core level(s)"
+                                        "\n Press F2 or Ctrl+2 to plot selected core level")
+        self.Bind(wx.EVT_TOOL, self.on_plot_selected, plot_tool)
+
+        # Offset plot button
+        offset_plot_icon = os.path.join(icon_path, "Plot3-25.png")  # Using the same icon for now
+        if os.path.exists(offset_plot_icon):
+            offset_plot_bmp = wx.Bitmap(offset_plot_icon)
+        else:
+            offset_plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        offset_plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot with Offset", offset_plot_bmp,
+                                                "Plot selected core level(s) with offset\n"
+                                                "Press F3 or Ctrl+3 to plot with offset")
+        self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_offset, offset_plot_tool)
+
+        # Stacked plot button (F4)
+        stacked_plot_icon = os.path.join(icon_path, "StackedPlot.png")
+        if os.path.exists(stacked_plot_icon):
+            stacked_plot_bmp = wx.Bitmap(stacked_plot_icon)
+        else:
+            stacked_plot_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        stacked_plot_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot with Fitted Data", stacked_plot_bmp,
+                                                 "Plot selected core level(s) with fitted data\n"
+                                                 "Press F4 or Ctrl+4 to plot with fitted data\n"
+                                                 "Left-click/F4: increase spacing\n"
+                                                 "Right-click/Shift+F4: decrease spacing")
+        self.Bind(wx.EVT_TOOL, self.on_plot_selected_with_fitted_data, stacked_plot_tool)
+        self.Bind(wx.EVT_TOOL_RCLICKED, self.on_stacked_plot_right_click, stacked_plot_tool)
+
+        # Heatmap button
+        heatmap_icon = os.path.join(icon_path, "heatmap-3.png")
+        if os.path.exists(heatmap_icon):
+            heatmap_bmp = wx.Bitmap(heatmap_icon)
+        else:
+            heatmap_bmp = wx.ArtProvider.GetBitmap(wx.ART_FIND, wx.ART_TOOLBAR)
+        heatmap_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot 2D Heatmap", heatmap_bmp,
+                                           "Plot selected core levels as 2D heatmap\n"
+                                           "Press F5 or Ctrl+5 to plot heatmap")
+        self.Bind(wx.EVT_TOOL, self.on_plot_heatmap, heatmap_tool)
+
+        self.norm_type = wx.ComboBox(self.toolbar, choices=["Norm. OFF", "Norm. Auto", "Norm. @ BE", "Norm. to A"],
+                                     style=wx.CB_READONLY)
+        self.norm_type.SetSelection(1)  # Default to "Norm Auto"
+        self.norm_type.SetToolTip(
+            "Choose normalization method. \n Press the shift key to activate the vLine in Norm. @ BE mode.")
+
+        self.toolbar.AddControl(self.norm_type)
+
+        # self.toolbar.AddSeparator()
+
+
+
+        # Toggle size button - using a different art ID
+        self.toolbar.AddStretchableSpace()
+
+        # Add experimental description info button
+        exp_info_icon = os.path.join(icon_path, "Infos-3.png")
+        if os.path.exists(exp_info_icon):
+            exp_info_bmp = wx.Bitmap(exp_info_icon)
+        else:
+            exp_info_bmp = wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_TOOLBAR)
+        exp_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Experimental Info", exp_info_bmp,
+                                             "View experimental description information."
+                                             "\nCurrently only upport .vms and .kal")
+        self.Bind(wx.EVT_TOOL, self.on_view_exp_info, exp_info_tool)
+
+
+        # Add F2/Ctrl+2 info button
+        f2_icon = os.path.join(icon_path, "Help-3.png")  # Use existing plot icon or another appropriate one
+        if os.path.exists(f2_icon):
+            f2_bmp = wx.Bitmap(f2_icon)
+        else:
+            f2_bmp = wx.ArtProvider.GetBitmap(wx.ART_QUESTION, wx.ART_TOOLBAR)
+        f2_info_tool = self.toolbar.AddTool(wx.ID_ANY, "Plot Shortcuts", f2_bmp, "-- Press F2 or Ctrl+2 to plot peak "
+                    "models. \n-- Press F3 or Ctrl+3 to plot multiple plots with an offset\n"
+                    "-- In Norm. @BE mode, activate the plot & press the shift key to activate the vLine."
+                    "")
+
+        # pref_icon = os.path.join(icon_path, "settings-25.png")
+        # pref_bmp = wx.Bitmap(pref_icon)
+        # pref_tool = self.toolbar.AddTool(wx.ID_ANY, "Preferences", pref_bmp, "Normalization Settings")
+        # self.Bind(wx.EVT_TOOL, self.on_preferences, pref_tool)
+
+        size_icon = os.path.join(icon_path, "Minimize-25.png")
+        size_bmp = wx.Bitmap(size_icon)
+        self.size_tool = self.toolbar.AddTool(wx.ID_ANY, "Toggle Size", size_bmp, "Toggle window height")
+        self.Bind(wx.EVT_TOOL, self.on_toggle_size, self.size_tool)
+
+        # Store the original/expanded size
+        self.is_collapsed = False
+        self.expanded_height = 300  # Default expanded height
+        self.collapsed_height = 70  # Collapsed height
+
+    def restore_green_vline_if_active_OLD(self):
+        """Restore green vertical line if it was active before plot clearing"""
+        if (hasattr(self.parent, 'green_vline_active') and self.parent.green_vline_active and
+                hasattr(self.parent, 'green_vline') and self.parent.green_vline is not None):
+            # Get the position before it was cleared
+            try:
+                green_x = self.parent.green_vline.get_xdata()[0]
+                was_visible = self.parent.green_vline.get_visible()
+            except:
+                # If we can't get position, place at center
+                xlim = self.parent.ax.get_xlim()
+                green_x = (xlim[0] + xlim[1]) / 2
+                was_visible = True
+
+            # Recreate the green line
+            self.parent.green_vline = self.parent.ax.axvline(green_x, color='green', linestyle='-',
+                                                             linewidth=1, alpha=0.7)
+            self.parent.green_vline.set_visible(was_visible)
+
+            # Recreate text label if it was visible
+            if was_visible:
+                from libraries.Widgets_Toolbars import add_green_vline_text_label
+                add_green_vline_text_label(self.parent)
+
+    def restore_green_vline_if_active(self):
+        """Restore green vertical line if it was active before plot clearing"""
+        if not (hasattr(self.parent, 'green_vline_active') and self.parent.green_vline_active):
+            return
+
+        # Remove any existing green line objects first
+        if hasattr(self.parent, 'green_vline') and self.parent.green_vline is not None:
+            try:
+                self.parent.green_vline.remove()
+            except:
+                pass
+
+        if hasattr(self.parent, 'green_vline_text') and self.parent.green_vline_text is not None:
+            try:
+                self.parent.green_vline_text.remove()
+            except:
+                pass
+
+        # Always place at center of current plot
+        xlim = self.parent.ax.get_xlim()
+        green_x = (xlim[0] + xlim[1]) / 2
+
+        # Create fresh line on current axes
+        self.parent.green_vline = self.parent.ax.axvline(green_x, color='green', linestyle='-',
+                                                         linewidth=1, alpha=0.7)
+
+        # Create text label
+        from libraries.Widgets_Toolbars import add_green_vline_text_label
+        add_green_vline_text_label(self.parent)
+
+    def on_add_files(self, event):
+        """Handle Add Files button click"""
+        # Check if we have a current file open
+        if not hasattr(self.parent, 'Data') or not self.parent.Data.get('FilePath'):
+            wx.MessageBox("No file is currently open to add data to.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Show file dialog for selecting files
+        wildcard = "KherveFitting files (*.xlsx)|*.xlsx"
+
+        with wx.FileDialog(self, "Select KherveFitting file(s) to add",
+                           wildcard=wildcard,
+                           style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+
+            file_paths = fileDialog.GetPaths()
+
+            # Process each selected file
+            for file_path in file_paths:
+                # Check if it's a KherveFitting file
+                if self._is_khervefitting_file(file_path):
+                    # Add the file using our existing logic
+                    wx.CallAfter(self._add_file_to_current, file_path)
+                else:
+                    wx.MessageBox(f"File {os.path.basename(file_path)} is not a KherveFitting file.",
+                                  "Invalid File", wx.OK | wx.ICON_WARNING)
+
+    def _is_khervefitting_file(self, file_path):
+        """Check if the Excel file is a KherveFitting file (not Avantage)"""
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            is_khervefitting = "Titles" not in wb.sheetnames
+            wb.close()
+            return is_khervefitting
+        except Exception:
+            return False
+
+    def _add_file_to_current(self, file_path):
+        """Add the selected file's data to the current file"""
+        # Use the existing FileManagerDropTarget logic
+        drop_target = FileManagerDropTarget(self)
+        drop_target._add_file_to_current(file_path)
+
+    def on_stacked_plot_right_click(self, event):
+        """Handle right-click on stacked plot tool to decrease spacing"""
+        sheet_names = self.get_selected_sheet_names()
+        if sheet_names and len(sheet_names) > 1:
+            # Initialize if not exists
+            if not hasattr(self, 'fitted_offset_multiplier'):
+                self.fitted_offset_multiplier = 1
+
+            # Decrease multiplier (allow going below 1 for tighter spacing)
+            self.fitted_offset_multiplier -= 1
+
+            # Set flag to prevent reset in main method
+            self._right_click_used = True
+
+            # Update the tracking variables to match current selection
+            self.last_fitted_offset_sheets = sheet_names.copy()
+            import time
+            self.last_fitted_keypress_time = time.time()
+
+            # Replot with decreased spacing
+            self.plot_multiple_sheets_with_offset_and_fitted_data(sheet_names)
+            self.parent.sheet_combobox.SetValue(sheet_names[0])
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()
+
+    def on_toggle_size(self, event):
+        """Toggle between normal and small window size"""
+        current_size = self.GetSize()
+
+        if self.is_collapsed:
+            # Expand
+            self.SetSize((current_size.width, self.expanded_height))
+            self.is_collapsed = False
+        else:
+            # Collapse
+            self.expanded_height = current_size.height  # Save current height
+            self.SetSize((current_size.width, self.collapsed_height))
+            self.is_collapsed = True
+
+    def init_grid(self):
+        """Initialize the grid with rows and columns"""
+        # Get unique core level names from parent
+        num_levels = len(self.core_levels)
+
+        # Determine number of rows based on existing data
+        max_row_index = self.get_max_core_level_row_index()
+
+        # Check if max_row_index exceeds the limit
+        if max_row_index > 500:
+            wx.MessageBox(
+                f"Cannot open Sample Manager: Sheet number {max_row_index} exceeds the maximum limit of 500.\n"
+                f"Please rename your sheets to use lower numbers.",
+                "Row Limit Exceeded", wx.OK | wx.ICON_ERROR)
+
+        num_rows = max(10, max_row_index + 1)  # Ensure at least 10 rows
+
+        # Create grid
+        self.grid.CreateGrid(num_rows, num_levels)
+
+        # Add "Sample Name" column at index 0
+        self.grid.InsertCols(0, 1)
+        self.grid.SetColLabelValue(0, "Experiment")
+        self.grid.SetColSize(0, 70)  # Wider column for sample names
+
+        # Add BE Correction and Normalization columns at the end
+        self.grid.AppendCols(3)  # Add 3 columns instead of 2
+        self.grid.SetColLabelValue(num_levels + 1, "Xshift")
+        self.grid.SetColLabelValue(num_levels + 2, "Norm. @ BE")
+        self.grid.SetColLabelValue(num_levels + 3, "Norm. to A")
+
+
+        # Set column width for new columns
+        self.grid.SetColSize(num_levels + 1, 60)
+        self.grid.SetColSize(num_levels + 2, 70)  # Wider for the new name
+        self.grid.SetColSize(num_levels + 3, 70)  # New column
+
+        # # Enable cell editing for renaming
+        # self.grid.EnableEditing(False)
+
+        # Keep editing enabled but control which cells are editable
+        self.grid.EnableEditing(True)
+
+        # Make all core level columns read-only (columns 1 to len(self.core_levels))
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Core level columns only
+                self.grid.SetReadOnly(row, col, True)
+
+        # Set column labels (core level names)
+        self.grid.SetRowLabelSize(30)
+        for i, level in enumerate(self.core_levels):
+            self.grid.SetColLabelValue(i + 1, level)  # Add +1 to skip Sample Name column
+
+        # Set row labels (0, 1, 2, etc.)
+        for i in range(num_rows):
+            self.grid.SetRowLabelValue(i, str(i))
+
+        # Set column width and row height
+        default_col_width = 50
+        default_row_height = 20
+
+        # Set column sizes and row heights
+        for i in range(num_levels):
+            self.grid.SetColSize(i + 1, default_col_width)
+        for i in range(num_rows):
+            self.grid.SetRowSize(i, default_row_height)
+
+        # Set cell alignment
+        self.grid.SetColSize(num_levels + 1, 40)
+        self.grid.SetColSize(num_levels + 2, 40)
+
+        # After setting up grid and columns, make BE Correction column read-only
+        be_col_index = len(self.core_levels) + 1
+        for row in range(self.grid.GetNumberRows()):
+            self.grid.SetReadOnly(row, be_col_index, True)
+
+        # Set cell alignment
+        for row in range(num_rows):
+            for col in range(num_levels):
+                self.grid.SetCellAlignment(row, col, wx.ALIGN_CENTER, wx.ALIGN_CENTER)
+
+
+            # Apply consistent fonts to grid
+            if 'wxMac' in wx.PlatformInfo:
+                default_font = 'Helvetica'
+                font_size = 11
+            elif 'wxGTK' in wx.PlatformInfo:
+                default_font = 'DejaVu Sans'
+                font_size = 9
+            else:
+                default_font = 'Calibri'
+                font_size = 9
+
+            self.grid.SetDefaultCellFont(
+                wx.Font(font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+                        wx.FONTWEIGHT_NORMAL, faceName=default_font))
+            self.grid.SetLabelFont(
+                wx.Font(font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+                        wx.FONTWEIGHT_NORMAL, faceName=default_font))
+
+            # Fix text color for Mac dark mode
+            def detect_dark_mode():
+                if 'wxMac' in wx.PlatformInfo:
+                    return wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW).GetLuminance() < 0.5
+                return False
+
+            if detect_dark_mode():
+                # Set all text to black in dark mode for readability
+                for row in range(num_rows):
+                    for col in range(self.grid.GetNumberCols()):
+                        self.grid.SetCellTextColour(row, col, wx.BLACK)
+
+            self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
+            self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.on_cursor_changed)
+            self.grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.on_grid_right_click)
+            self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK, self.on_cell_double_click)
+
+    def on_cell_double_click(self, event):
+        """Handle double-click on grid cells"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        # Allow double-click editing for experiment column (0) and normalization columns
+        editable_columns = [0,  # Experiment/Sample name column
+                            len(self.core_levels) + 2,  # Norm. @ BE column
+                            len(self.core_levels) + 3]  # Norm. to A column
+
+        if col in editable_columns:
+            # For editable columns, let the default double-click behavior work
+            event.Skip()
+        else:
+            # Check if it's a core level column (contains a sheet name)
+            cell_value = self.grid.GetCellValue(row, col)
+            if col > 0 and col <= len(self.core_levels) and cell_value and cell_value in self.parent.Data['Core levels']:
+                # Update label manager if it's open
+                self.update_label_manager_if_open(cell_value)
+
+            # Call the plot function directly
+            self.on_plot_selected(None)
+            return  # Don't skip the event
+
+    def update_label_manager_if_open(self, sheet_name):
+        """Update label manager if it's currently open"""
+        if hasattr(self.parent, 'labels_window') and self.parent.labels_window and self.parent.labels_window.IsShown():
+            # Set the sheet in parent first
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+            # Update the label manager grid
+            self.parent.labels_window.update_list()
+
+    def get_unique_core_levels(self):
+        """Get list of unique core level names from parent data"""
+        unique_levels = set()
+
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            for sheet_name in self.parent.Data['Core levels'].keys():
+                base_name = self.extract_base_name(sheet_name)
+                if base_name:
+                    unique_levels.add(base_name)
+
+        return sorted(list(unique_levels))
+    def extract_base_name_OLD(self, sheet_name):
+        """Extract base core level name without any trailing numbers"""
+        # Add support for Raman files with underscores
+        if "Raman_" in sheet_name or "Ra_" in sheet_name:
+            # Special handling for Raman files with underscores
+            base_parts = sheet_name.split('_')
+            if len(base_parts) > 1:
+                return '_'.join(base_parts[:-1]) if base_parts[-1].isdigit() else sheet_name
+
+        # Original pattern for typical core levels
+        match = re.match(r'([A-Za-z0-9]+?)(\d*)$', sheet_name)
+        if match:
+            return match.group(1)
+        return sheet_name
+
+    def extract_base_name(self, sheet_name):
+        """Extract base core level name without any trailing numbers"""
+        # Add support for Raman files with underscores
+        if "Raman_" in sheet_name or "Ra_" in sheet_name:
+            # Special handling for Raman files with underscores
+            base_parts = sheet_name.split('_')
+            if len(base_parts) > 1:
+                return '_'.join(base_parts[:-1]) if base_parts[-1].isdigit() else sheet_name
+
+        # Updated pattern to handle special characters like underscores, tildes, dots
+        # Matches any non-digit characters followed by optional digits at the end
+        match = re.match(r'([\w\-~.]+?)(\d*)$', sheet_name)
+        if match:
+            return match.group(1)
+        return sheet_name
+
+    def get_max_core_level_row_index_OLD(self):
+        """Get the maximum row index based on core level naming"""
+        max_index = 0
+
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            for sheet_name in self.parent.Data['Core levels'].keys():
+                match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)
+                if match:
+                    index_str = match.group(1)
+                    index = int(index_str) if index_str else 0
+                    max_index = max(max_index, index)
+
+        return max_index
+
+    def get_max_core_level_row_index(self):
+        """Get the maximum row index based on core level naming"""
+        max_index = 0
+
+        if hasattr(self.parent, 'Data') and 'Core levels' in self.parent.Data:
+            for sheet_name in self.parent.Data['Core levels'].keys():
+                match = re.match(r'[A-Za-z0-9-]+?(\d*)$', sheet_name)
+                if match:
+                    index_str = match.group(1)
+                    index = int(index_str) if index_str else 0
+                    max_index = max(max_index, index)
+
+        return max_index
+
+    def populate_grid(self):
+        """Populate the grid with core levels from the data"""
+        if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
+            return
+
+        # Find maximum index across all sheets
+        max_index = 0
+        for sheet_name in self.parent.Data['Core levels'].keys():
+            # match = re.match(r'[A-Za-z0-9]+?(\d*)$', sheet_name)
+            match = re.match(r'[\w\-~.]+?(\d*)$', sheet_name)  # Updated pattern
+            if match:
+                index_str = match.group(1)
+                index = int(index_str) if index_str else 0
+                max_index = max(max_index, index)
+
+        # Check if max_index exceeds the limit
+        if max_index > 500:
+            wx.MessageBox(f"Cannot open Sample Manager: Sheet number {max_index} exceeds the maximum limit of 500.\n"
+                          f"Please rename your sheets to use lower numbers.",
+                          "Row Limit Exceeded", wx.OK | wx.ICON_ERROR)
+            self.Close()
+            return
+
+        # Clear grid first
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                self.grid.SetCellValue(row, col, "")
+                self.grid.SetCellBackgroundColour(row, col, wx.WHITE)
+
+        # Initialize sample names from parent data if available
+        if 'SampleNames' in self.parent.Data:
+            self.sample_names = self.parent.Data['SampleNames']
+        else:
+            self.sample_names = {}
+
+        # Map of all core levels by type and index
+        core_level_map = {}
+
+        self.grid.SetColSize(0, 70)  # Reset wider width for sample name column
+
+        # First, categorize all core levels
+        # First, categorize all core levels
+        for sheet_name in self.parent.Data['Core levels'].keys():
+            if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                # Handle Raman files with underscore
+                base_parts = sheet_name.split('_')
+                base_name = base_parts[0] + "_" + base_parts[1]  # Keep format as "Raman_bSiO4"
+                index_str = ""
+                if len(base_parts) > 2 and base_parts[2].isdigit():
+                    index_str = base_parts[2]
+                index = int(index_str) if index_str else 0
+            else:
+                # Original pattern for typical core levels
+                match = re.match(r'([\w\-~.]+?)(\d*)$', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                    index_str = match.group(2)
+                    index = int(index_str) if index_str else 0
+                else:
+                    continue  # Skip if no match found
+
+            if base_name not in core_level_map:
+                core_level_map[base_name] = {}
+            core_level_map[base_name][index] = sheet_name
+
+        # Make sure grid has enough rows
+        max_index = 0
+        for base_name in core_level_map:
+            if core_level_map[base_name]:
+                max_index = max(max_index, max(core_level_map[base_name].keys()))
+
+        if max_index >= self.grid.GetNumberRows():
+            self.grid.AppendRows(max_index - self.grid.GetNumberRows() + 1)
+            # Set row label for new rows
+            for row in range(self.grid.GetNumberRows()):
+                if not self.grid.GetRowLabelValue(row):
+                    self.grid.SetRowLabelValue(row, str(row))
+
+
+        # Set column width and row height
+        default_col_width = 50
+        # # Set column sizes and row heights
+        # for i in range(len(self.core_levels)):
+        #     if i + 1 < self.grid.GetNumberCols():
+        #         self.grid.SetColSize(i + 1, default_col_width)
+        # Set column sizes and row heights
+        for i in range(len(self.core_levels)):
+            col_label = self.grid.GetColLabelValue(i + 1)
+            if col_label.startswith(("EDX~", "XAS~", "EELS~", "RAM~", "zzMap~", "zzPro", "XPS~Map")):
+                self.grid.SetColSize(i + 1, default_col_width + 20)
+            elif col_label.startswith(("zzMap~", "zzPro")):
+                self.grid.SetColSize(i + 1, default_col_width + 40)
+            else:
+                self.grid.SetColSize(i + 1, default_col_width)
+
+        # Make sure grid has enough columns (core levels + sample name column)
+        if len(self.core_levels) + 1 > self.grid.GetNumberCols():
+            self.grid.AppendCols(len(self.core_levels) + 1 - self.grid.GetNumberCols())
+            # Update column labels
+            self.grid.SetColLabelValue(0, "Experiment")
+            for i, level in enumerate(self.core_levels):
+                self.grid.SetColLabelValue(i + 1, level)
+
+        # Make sure we have the BE correction and Normalization columns
+        be_col_index = len(self.core_levels) + 1
+        norm_col_index = len(self.core_levels) + 2
+        norm_area_col_index = len(self.core_levels) + 3
+
+        # Add these columns if they don't exist
+        if self.grid.GetNumberCols() <= be_col_index:
+            self.grid.AppendCols(norm_col_index + 1 - self.grid.GetNumberCols())
+
+        # Set column labels
+        self.grid.SetColLabelValue(be_col_index, "Xshift")
+        self.grid.SetColLabelValue(norm_col_index, "Norm. @ BE")
+        self.grid.SetColLabelValue(norm_area_col_index, "Norm. to A")
+
+        if norm_col_index < self.grid.GetNumberCols():
+            # Leave normalization column empty for now
+            self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+
+        if norm_area_col_index < self.grid.GetNumberCols():
+            # Leave area normalization column empty for now
+            self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(180, 235, 208))
+
+        # Set column sizes
+        self.grid.SetColSize(be_col_index, 40)
+        self.grid.SetColSize(norm_col_index, 40)
+
+        # Now populate the grid
+        for col, base_name in enumerate(self.core_levels):
+            if base_name in core_level_map:
+                for index, sheet_name in core_level_map[base_name].items():
+                    # Ensure we have enough rows
+                    if index >= self.grid.GetNumberRows():
+                        self.grid.AppendRows(index - self.grid.GetNumberRows() + 1)
+                        # Set row label for new rows
+                        for row in range(self.grid.GetNumberRows()):
+                            if not self.grid.GetRowLabelValue(row):
+                                self.grid.SetRowLabelValue(row, str(row))
+
+                    # Set the cell value and color
+                    self.grid.SetCellValue(index, col+1, sheet_name)
+                    self.grid.SetCellBackgroundColour(index, col+1, wx.Colour(200, 245, 228))
+
+        # Add BE correction values for each row
+        for row in range(self.grid.GetNumberRows()):
+            # Verify column index is valid before setting value
+            be_col_index = len(self.core_levels) + 1
+            if be_col_index < self.grid.GetNumberCols():
+                # Set BE correction value if available
+                be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
+                self.grid.SetCellValue(row, be_col_index, str(be_correction))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
+
+            # Check if normalization column exists
+            norm_col_index = len(self.core_levels) + 2
+            if norm_col_index < self.grid.GetNumberCols():
+                # Leave normalization column empty for now
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+
+        be_col_index = len(self.core_levels) + 1
+        if be_col_index < self.grid.GetNumberCols():
+            for row in range(self.grid.GetNumberRows()):
+                # Set BE correction value if available
+                be_correction = self.parent.Data.get('BEcorrections', {}).get(str(row), "0.0")
+                self.grid.SetCellValue(row, be_col_index, str(be_correction))
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
+                self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))  # Set text color to gray
+
+        # Add sample names to first column
+        for row in range(self.grid.GetNumberRows()):
+            sample_name = self.sample_names.get(str(row), "")
+            self.grid.SetCellValue(row, 0, sample_name)
+            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(230, 230, 230))
+
+        # Set background color for normalization columns for all rows
+        norm_col_index = len(self.core_levels) + 2
+        norm_area_col_index = len(self.core_levels) + 3
+        for row in range(self.grid.GetNumberRows()):
+            if norm_col_index < self.grid.GetNumberCols():
+                # self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(180, 235, 208))
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+            if norm_area_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
+
+        # Make sure grid has enough columns (core levels + sample name column + BE + Norm columns)
+        required_cols = len(self.core_levels) + 4  # +1 for sample name, +3 for BE and two norm columns
+        current_cols = self.grid.GetNumberCols()
+
+        if current_cols < required_cols:
+            self.grid.AppendCols(required_cols - current_cols)
+
+        num_levels = len(self.core_levels)
+        self.grid.SetColSize(num_levels + 2, 70)  # Wider for the new name
+        self.grid.SetColSize(num_levels + 3, 70)  # New column
+
+        # Calculate total width needed based on column sizes
+        total_width = 0
+        for col in range(self.grid.GetNumberCols()):
+            total_width += self.grid.GetColSize(col)
+
+        # Add some padding for grid borders, scrollbars, etc.
+        total_width += 40
+
+        # Add width for row labels
+        total_width += self.grid.GetRowLabelSize()
+
+        # Ensure minimum width for toolbar visibility
+        minimum_width = 630
+        total_width = max(total_width, minimum_width)
+
+        # Calculate height based on current window size
+        current_size = self.GetSize()
+
+        # Set the new window size with calculated width and current height
+        self.SetSize(total_width, current_size.GetHeight())
+
+        # Force refresh
+        self.grid.ForceRefresh()
+
+    def load_be_corrections(self):
+        """Load BE correction values from parent Data or JSON file"""
+
+        # First, check if we have BE corrections in parent.Data
+        if 'BEcorrections' in self.parent.Data:
+            be_corrections = self.parent.Data['BEcorrections']
+            # Apply these corrections to the grid
+            be_col = len(self.core_levels) + 1
+            for row, correction in be_corrections.items():
+                try:
+                    row_idx = int(row)
+                    if 0 <= row_idx < self.grid.GetNumberRows():
+                        self.grid.SetCellValue(row_idx, be_col, str(correction))
+                except (ValueError, IndexError):
+                    continue
+
+        # As fallback, load from JSON file
+        else:
+            import json
+            file_path = self.parent.Data.get('FilePath', '')
+            if file_path:
+                json_path = os.path.splitext(file_path)[0] + '.json'
+                try:
+                    if os.path.exists(json_path):
+                        with open(json_path, 'r') as f:
+                            json_data = json.load(f)
+
+                        if 'BEcorrections' in json_data:
+                            be_corrections = json_data['BEcorrections']
+                            self.parent.Data['BEcorrections'] = be_corrections
+
+                            # Update grid with BE corrections
+                            be_col = len(self.core_levels) + 1
+                            for row, correction in be_corrections.items():
+                                try:
+                                    row_idx = int(row)
+                                    if 0 <= row_idx < self.grid.GetNumberRows():
+                                        self.grid.SetCellValue(row_idx, be_col, str(correction))
+                                except (ValueError, IndexError):
+                                    continue
+                except Exception as e:
+                    print(f"Error loading BE corrections: {e}")
+
+
+    def save_be_corrections(self):
+        """Save BE correction values from grid to parent data only"""
+        be_corrections = {}
+
+        # Get BE correction values from grid
+        be_col_index = len(self.core_levels) + 1
+
+        # Check if BE column exists
+        if be_col_index < self.grid.GetNumberCols():
+            for row in range(self.grid.GetNumberRows()):
+                value = self.grid.GetCellValue(row, be_col_index)
+                if value.strip():
+                    try:
+                        be_corrections[str(row)] = float(value)
+                    except ValueError:
+                        be_corrections[str(row)] = 0.0
+
+        # Save to parent.Data
+        self.parent.Data['BEcorrections'] = be_corrections
+
+        # Update current BE correction based on selected sheet
+        current_sheet = self.parent.sheet_combobox.GetValue()
+        sheet_found = False
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):
+                if self.grid.GetCellValue(row, col) == current_sheet:
+                    sheet_found = True
+                    correction = be_corrections.get(str(row), 0.0)
+                    self.parent.be_correction = correction
+                    self.parent.Data['BEcorrection'] = correction  # For backward compatibility
+                    self.parent.be_correction_spinbox.SetValue(correction)
+                    break
+            if sheet_found:
+                break
+
+    def load_sample_names(self):
+        import json
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+
+                    if 'SampleNames' in json_data:
+                        self.sample_names = json_data['SampleNames']
+                        self.parent.Data['SampleNames'] = self.sample_names
+            except Exception as e:
+                print(f"Error loading sample names: {e}")
+
+    # Add a method to save sample names:
+
+    def save_sample_names(self):
+        # Update sample_names from grid
+        for row in range(self.grid.GetNumberRows()):
+            name = self.grid.GetCellValue(row, 0)
+            if name:
+                self.sample_names[str(row)] = name
+            elif str(row) in self.sample_names:
+                del self.sample_names[str(row)]
+
+        # Save to parent.Data
+        self.parent.Data['SampleNames'] = self.sample_names
+
+        # Save to JSON file
+        file_path = self.parent.Data.get('FilePath', '')
+        if file_path:
+            json_path = os.path.splitext(file_path)[0] + '.json'
+            try:
+                # Load existing JSON data
+                json_data = {}
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+
+                # Update sample names in JSON
+                json_data['SampleNames'] = self.sample_names
+
+                # Save back to JSON file
+                with open(json_path, 'w') as f:
+                    json.dump(json_data, f, indent=2)
+
+            except Exception as e:
+                print(f"Error saving sample names to JSON: {e}")
+
+    def on_key_down(self, event):
+        """Handle key press events"""
+        key_code = event.GetKeyCode()
+
+        # Check if we're in heatmap mode
+        is_heatmap_active = hasattr(self.parent, 'heatmap_data')
+
+        # Handle Ctrl+Down and Ctrl+Up for heatmap intensity adjustment
+        if is_heatmap_active and wx.GetKeyState(wx.WXK_CONTROL):
+            if key_code == wx.WXK_DOWN:
+                # Decrease vmax (increase contrast)
+                self.parent.heatmap_vmax = max(0.1, self.parent.heatmap_vmax - 0.05)
+                self.refresh_heatmap()
+                return
+            elif key_code == wx.WXK_UP:
+                # Increase vmax (decrease contrast)
+                self.parent.heatmap_vmax = min(2.0, self.parent.heatmap_vmax + 0.05)
+                self.refresh_heatmap()
+                return
+
+        if key_code == wx.WXK_F2:
+            # Call the plot function directly
+            self.on_plot_selected(None)
+
+            # Update label manager if it's open
+            sheet_names = self.get_selected_sheet_names()
+            if sheet_names:
+                self.update_label_manager_if_open(sheet_names[0])
+
+            return  # Don't skip the event
+        elif key_code == wx.WXK_F3:
+            # Call the offset plot function
+            self.on_plot_selected_with_offset(None)
+            return  # Don't skip the event
+        elif key_code == wx.WXK_F4:
+            # Check if Shift is held down for decrease spacing
+            if event.ShiftDown():
+                # Shift+F4: Decrease spacing (same as right-click)
+                self.on_stacked_plot_right_click(None)
+            else:
+                # F4: Normal increase spacing
+                self.on_plot_selected_with_fitted_data(None)
+            return  # Don't skip the event
+        elif key_code == wx.WXK_F5:
+            # Call the heatmap plot function
+            self.on_plot_heatmap(None)
+            return  # Don't skip the event
+        elif event.ControlDown() and key_code == wx.WXK_F2:
+            # CTRL+F2: Standard multiple plot
+            self.on_plot_selected(None)
+            return
+        elif event.ControlDown() and key_code == wx.WXK_F3:
+            # CTRL+F3: Offset multiple plot
+            self.on_plot_selected_with_offset(None)
+            return
+        elif event.ControlDown() and key_code == ord('2'):
+            # CTRL+2: Standard multiple plot
+            self.on_plot_selected(None)
+            return
+        elif event.ControlDown() and key_code == ord('3'):
+            # CTRL+3: Offset multiple plot
+            self.on_plot_selected_with_offset(None)
+            return
+        elif event.ControlDown() and key_code == wx.WXK_F4:
+            # CTRL+F4: Offset multiple plot with fitted data
+            self.on_plot_selected_with_fitted_data(None)
+            return
+        elif event.ControlDown() and key_code == ord('4'):
+            # CTRL+4: Offset multiple plot with fitted data
+            self.on_plot_selected_with_fitted_data(None)
+            return
+        else:
+            event.Skip()
+
+    def on_plot_selected(self, event):
+        """Plot the currently selected core level(s)"""
+        sheet_names = self.get_selected_sheet_names()
+
+        # If the single selected sheet is an XPS~Map, plot all sweep lines (overlay)
+        if sheet_names and len(sheet_names) == 1 and sheet_names[0].startswith('XPS~Map'):
+            # F2 resets the map offset multiplier
+            self.map_offset_multiplier = 1
+            self.plot_xps_map_lines(sheet_names[0], offset=False)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()
+            return
+
+        # Clear heatmap data when switching to regular plot
+        if hasattr(self.parent, 'heatmap_data'):
+            self.parent.heatmap_data = None
+            self.parent.heatmap_sheets = None
+
+        # # Hide heatmap controls when switching to regular plots
+        # self.hide_heatmap_controls()
+
+        if sheet_names:
+            if len(sheet_names) == 1:
+                # Single sheet - update combobox and plot
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_names[0])
+            else:
+                # Multiple sheets - overlay plot
+                self.plot_multiple_sheets(sheet_names)
+                # Update combobox with first sheet name
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+
+            # Highlight the selected cell(s)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()  # Bring the file manager window to the front
+
+    def on_sum_selected(self, event):
+        """Sum/average the Y values of selected cells in the same column"""
+        save_state(self.parent)
+        # Get selected cells grouped by column
+        selected_by_column = {}
+
+        # Check for selected blocks first
+        blocks = self.grid.GetSelectedBlocks()
+        for block in blocks:  # Directly iterate over blocks instead of using GetCount()
+            top = block.GetTopRow()
+            bottom = block.GetBottomRow()
+            left = block.GetLeftCol()
+            right = block.GetRightCol()
+
+            for col in range(left, right + 1):
+                if col not in selected_by_column:
+                    selected_by_column[col] = []
+
+                for row in range(top, bottom + 1):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        selected_by_column[col].append(cell_value)
+
+        # Add individually selected cells
+        selected_cells = self.grid.GetSelectedCells()
+        for cell in selected_cells:
+            row, col = cell.GetRow(), cell.GetCol()
+
+            if col not in selected_by_column:
+                selected_by_column[col] = []
+
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                selected_by_column[col].append(cell_value)
+
+        # Process each column separately
+        for col, sheet_names in selected_by_column.items():
+            if len(sheet_names) > 1:
+                self.create_summed_spectrum(sheet_names, self.grid.GetColLabelValue(col))
+
+    def create_summed_spectrum(self, sheet_names, base_name):
+        """Create a new spectrum that is the average of the selected spectra"""
+        if not sheet_names:
+            return
+
+        # Find the earliest available row
+        used_rows = []
+        for sheet in self.parent.Data['Core levels'].keys():
+            match = re.match(r'([\w\-~.]+?)(\d*)$', sheet)
+            if match:
+                sheet_base = match.group(1)
+                row_str = match.group(2)
+                if sheet_base == base_name:
+                    row_num = int(row_str) if row_str else 0
+                    used_rows.append(row_num)
+
+        # Find the first unused row number
+        row_num = 0
+        while row_num in used_rows:
+            row_num += 1
+
+        # Create the new sheet name with the available row
+        new_sheet_name = f"{base_name}{row_num}" if row_num > 0 else base_name
+
+        # Get X values from the first sheet (assuming they're similar)
+        first_sheet = sheet_names[0]
+        x_values = self.parent.Data['Core levels'][first_sheet]['B.E.']
+
+        # Sum Y values from all sheets
+        summed_y = np.zeros_like(x_values, dtype=float)
+        for sheet_name in sheet_names:
+            if sheet_name in self.parent.Data['Core levels']:
+                current_y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                summed_y += np.array(current_y)
+
+        # Average the Y values
+        avg_y = summed_y / len(sheet_names)
+
+        # Create a new entry in the parent data
+        if 'Core levels' not in self.parent.Data:
+            self.parent.Data['Core levels'] = {}
+            self.parent.Data['Number of Core levels'] = 0
+
+        self.parent.Data['Core levels'][new_sheet_name] = {
+            'Name': new_sheet_name,
+            'B.E.': x_values,
+            'Raw Data': avg_y.tolist(),
+            'Background': {
+                'Bkg Type': 'Linear',
+                'Bkg Low': min(x_values),
+                'Bkg High': max(x_values),
+                'Bkg Offset Low': 0,
+                'Bkg Offset High': 0,
+                'Bkg Y': avg_y.tolist()  # Initially use raw data as background
+            }
+        }
+        self.parent.Data['Number of Core levels'] += 1
+
+        # Update the Excel file
+        import pandas as pd
+        df = pd.DataFrame({
+            'BE': x_values,
+            'Raw Data': avg_y.tolist(),
+            'Background': avg_y.tolist(),
+            'Transmission': [1.0] * len(x_values)
+        })
+
+        with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+        # Update combobox in parent
+        self.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Plot the new sheet
+        self.parent.sheet_combobox.SetValue(new_sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, new_sheet_name)
+
+        # Update the grid
+        self.populate_grid()
+
+        # Notify the user
+        # wx.MessageBox(f"Created summed spectrum: {new_sheet_name}", "Sum Complete", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Sum Complete", f"Created summed spectrum: {new_sheet_name}")
+
+    def on_subtract_selected(self, event):
+        """Subtract the Y values of selected cells in the same column (only works with 2 selections)"""
+        save_state(self.parent)
+        # Get selected cells grouped by column
+        selected_by_column = {}
+
+        # Check for selected blocks first
+        blocks = self.grid.GetSelectedBlocks()
+        for block in blocks:  # Directly iterate over blocks instead of using GetCount()
+            top = block.GetTopRow()
+            bottom = block.GetBottomRow()
+            left = block.GetLeftCol()
+            right = block.GetRightCol()
+
+            for col in range(left, right + 1):
+                if col not in selected_by_column:
+                    selected_by_column[col] = []
+
+                for row in range(top, bottom + 1):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        selected_by_column[col].append(cell_value)
+
+        # Add individually selected cells
+        selected_cells = self.grid.GetSelectedCells()
+        for cell in selected_cells:
+            row, col = cell.GetRow(), cell.GetCol()
+
+            if col not in selected_by_column:
+                selected_by_column[col] = []
+
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                selected_by_column[col].append(cell_value)
+
+        # Process each column separately
+        for col, sheet_names in selected_by_column.items():
+            # Remove duplicates while preserving order
+            sheet_names = list(dict.fromkeys(sheet_names))
+
+            if len(sheet_names) < 2:
+                wx.MessageBox("Please select at least 2 core levels to subtract.", "Insufficient Selection", wx.OK | wx.ICON_WARNING)
+                continue
+            elif len(sheet_names) > 2:
+                # Take only the last 2 selected
+                sheet_names = sheet_names[-2:]
+
+            # Show confirmation dialog with choice of order
+            result = self.show_subtract_choice_dialog(sheet_names)
+            if result:
+                self.create_subtracted_spectrum(result, self.grid.GetColLabelValue(col))
+
+    def show_subtract_choice_dialog(self, sheet_names):
+        """Show dialog to choose which order to subtract the 2 core levels"""
+        # Check if both spectra have the same data length
+        first_length = len(self.parent.Data['Core levels'][sheet_names[0]]['Raw Data'])
+        second_length = len(self.parent.Data['Core levels'][sheet_names[1]]['Raw Data'])
+
+        if first_length != second_length:
+            wx.MessageBox(f"Cannot subtract: Data lengths do not match!\n{sheet_names[0]}: {first_length} points\n{sheet_names[1]}: {second_length} points",
+                          "Data Length Mismatch", wx.OK | wx.ICON_ERROR)
+            return None
+
+        # Create the dialog
+        dialog = wx.Dialog(self, wx.ID_ANY, "Choose Subtract Order", size=(450, 250))
+        dialog.SetWindowStyle(dialog.GetWindowStyle() | wx.STAY_ON_TOP)
+
+        # Position dialog relative to file manager window
+        fm_pos = self.GetPosition()
+        fm_size = self.GetSize()
+        dialog_size = dialog.GetSize()
+        x = fm_pos.x + (fm_size.width - dialog_size.width) // 2
+        y = fm_pos.y + (fm_size.height - dialog_size.height) // 2
+        dialog.SetPosition((x, y))
+
+        # Create sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title
+        title_text = wx.StaticText(dialog, wx.ID_ANY, "Select which subtraction to perform:")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        sizer.Add(title_text, 0, wx.ALL | wx.CENTER, 10)
+
+        # Data length information
+        length_text = wx.StaticText(dialog, wx.ID_ANY, f"Both spectra have {first_length} data points")
+        length_text.SetForegroundColour(wx.Colour(0, 128, 0))  # Green color
+        sizer.Add(length_text, 0, wx.ALL | wx.CENTER, 5)
+
+        # Radio buttons for choice
+        radio_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        option1 = wx.RadioButton(dialog, wx.ID_ANY, f"{sheet_names[0]} - {sheet_names[1]}", style=wx.RB_GROUP)
+        option2 = wx.RadioButton(dialog, wx.ID_ANY, f"{sheet_names[1]} - {sheet_names[0]}")
+
+        option1.SetValue(True)  # Default selection
+
+        radio_sizer.Add(option1, 0, wx.ALL | wx.LEFT, 10)
+        radio_sizer.Add(option2, 0, wx.ALL | wx.LEFT, 10)
+
+        sizer.Add(radio_sizer, 0, wx.ALL | wx.CENTER, 10)
+
+        # Buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(dialog, wx.ID_OK, "Subtract")
+        cancel_btn = wx.Button(dialog, wx.ID_CANCEL, "Cancel")
+
+        button_sizer.Add(ok_btn, 0, wx.ALL, 5)
+        button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+
+        sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
+
+        dialog.SetSizer(sizer)
+        dialog.Fit()
+
+        # Show dialog and return result
+        result = dialog.ShowModal()
+
+        if result == wx.ID_OK:
+            if option1.GetValue():
+                chosen_order = [sheet_names[0], sheet_names[1]]
+            else:
+                chosen_order = [sheet_names[1], sheet_names[0]]
+
+            dialog.Destroy()
+            return chosen_order
+        else:
+            dialog.Destroy()
+            return None
+
+    def show_subtract_confirmation(self, sheet_names):
+        """Show a confirmation dialog for subtract operation with data length validation"""
+        # Check if all selected spectra have the same data length
+        first_sheet = sheet_names[0]
+        first_length = len(self.parent.Data['Core levels'][first_sheet]['Raw Data'])
+
+        length_mismatch = False
+        for sheet_name in sheet_names[1:]:
+            if len(self.parent.Data['Core levels'][sheet_name]['Raw Data']) != first_length:
+                length_mismatch = True
+                break
+
+        # Create the dialog
+        dialog = wx.Dialog(self, wx.ID_ANY, "Subtract Confirmation", size=(400, 300))
+        dialog.SetWindowStyle(dialog.GetWindowStyle() | wx.STAY_ON_TOP)
+
+        # Position dialog relative to file manager window
+        fm_pos = self.GetPosition()
+        fm_size = self.GetSize()
+        dialog_size = dialog.GetSize()
+        x = fm_pos.x + (fm_size.width - dialog_size.width) // 2
+        y = fm_pos.y + (fm_size.height - dialog_size.height) // 2
+        dialog.SetPosition((x, y))
+
+        # Create sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title
+        title_text = wx.StaticText(dialog, wx.ID_ANY, "Subtract Operation Order:")
+        title_font = title_text.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_text.SetFont(title_font)
+        sizer.Add(title_text, 0, wx.ALL | wx.CENTER, 10)
+
+        # Show the operation order
+        operation_text = sheet_names[0]
+        for i, sheet_name in enumerate(sheet_names[1:], 1):
+            operation_text += f" - {sheet_name}"
+
+        operation_label = wx.StaticText(dialog, wx.ID_ANY, operation_text)
+        sizer.Add(operation_label, 0, wx.ALL | wx.CENTER, 10)
+
+        # Data length information
+        length_text = f"Data points: {first_length}"
+        length_label = wx.StaticText(dialog, wx.ID_ANY, length_text)
+        sizer.Add(length_label, 0, wx.ALL | wx.CENTER, 5)
+
+        # Warning if length mismatch
+        if length_mismatch:
+            warning_text = wx.StaticText(dialog, wx.ID_ANY, "WARNING: Selected spectra have different data lengths!")
+            warning_text.SetForegroundColour(wx.Colour(255, 0, 0))  # Red color
+            warning_font = warning_text.GetFont()
+            warning_font.SetWeight(wx.FONTWEIGHT_BOLD)
+            warning_text.SetFont(warning_font)
+            sizer.Add(warning_text, 0, wx.ALL | wx.CENTER, 10)
+
+            # Show individual lengths
+            for sheet_name in sheet_names:
+                sheet_length = len(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+                length_info = wx.StaticText(dialog, wx.ID_ANY, f"{sheet_name}: {sheet_length} points")
+                sizer.Add(length_info, 0, wx.ALL | wx.LEFT, 5)
+
+        # Buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        if length_mismatch:
+            # Only show Cancel if there's a length mismatch
+            cancel_btn = wx.Button(dialog, wx.ID_CANCEL, "Cancel")
+            button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+        else:
+            # Show both OK and Cancel if lengths match
+            ok_btn = wx.Button(dialog, wx.ID_OK, "Proceed")
+            cancel_btn = wx.Button(dialog, wx.ID_CANCEL, "Cancel")
+            button_sizer.Add(ok_btn, 0, wx.ALL, 5)
+            button_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+
+        sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
+
+        dialog.SetSizer(sizer)
+        dialog.Fit()
+
+        # Show dialog and return result
+        if length_mismatch:
+            dialog.ShowModal()
+            dialog.Destroy()
+            return False  # Don't proceed if lengths don't match
+        else:
+            result = dialog.ShowModal()
+            dialog.Destroy()
+            return result == wx.ID_OK
+
+    def create_subtracted_spectrum(self, sheet_names, base_name):
+        """Create a new spectrum that is the subtraction of exactly 2 spectra (first - second)"""
+        if len(sheet_names) != 2:
+            return
+
+        first_sheet, second_sheet = sheet_names[0], sheet_names[1]
+
+        # Double-check data lengths before proceeding
+        first_length = len(self.parent.Data['Core levels'][first_sheet]['Raw Data'])
+        second_length = len(self.parent.Data['Core levels'][second_sheet]['Raw Data'])
+
+        if first_length != second_length:
+            wx.MessageBox(f"Cannot subtract: Data lengths do not match!\n{first_sheet}: {first_length} points\n{second_sheet}: {second_length} points",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Find the earliest available row
+        used_rows = []
+        for sheet in self.parent.Data['Core levels'].keys():
+            match = re.match(r'([\w\-~.]+?)(\d*)$', sheet)
+            if match:
+                sheet_base = match.group(1)
+                row_str = match.group(2)
+                if sheet_base == base_name:
+                    row_num = int(row_str) if row_str else 0
+                    used_rows.append(row_num)
+
+        # Find the first unused row number
+        row_num = 0
+        while row_num in used_rows:
+            row_num += 1
+
+        # Create the new sheet name with the available row
+        new_sheet_name = f"{base_name}{row_num}" if row_num > 0 else base_name
+
+        # Get X values from the first sheet
+        x_values = self.parent.Data['Core levels'][first_sheet]['B.E.']
+
+        # Subtract: first - second
+        first_y = np.array(self.parent.Data['Core levels'][first_sheet]['Raw Data'], dtype=float)
+        second_y = np.array(self.parent.Data['Core levels'][second_sheet]['Raw Data'], dtype=float)
+        subtracted_y = first_y - second_y
+
+        # Create a new entry in the parent data
+        if 'Core levels' not in self.parent.Data:
+            self.parent.Data['Core levels'] = {}
+            self.parent.Data['Number of Core levels'] = 0
+
+        self.parent.Data['Core levels'][new_sheet_name] = {
+            'Name': new_sheet_name,
+            'B.E.': x_values,
+            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Background': {
+                'Bkg Type': 'Linear',
+                'Bkg Low': min(x_values),
+                'Bkg High': max(x_values),
+                'Bkg Offset Low': 0,
+                'Bkg Offset High': 0,
+                'Bkg Y': [float(f"{val:.2f}") for val in subtracted_y.tolist()]  # Initially use raw data as background
+            }
+        }
+        self.parent.Data['Number of Core levels'] += 1
+
+        # Update the Excel file
+        import pandas as pd
+        df = pd.DataFrame({
+            'BE': x_values,
+            'Raw Data': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Background': [float(f"{val:.2f}") for val in subtracted_y.tolist()],
+            'Transmission': [1.0] * len(x_values)
+        })
+
+        with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+        # Update combobox in parent
+        self.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Plot the new sheet
+        self.parent.sheet_combobox.SetValue(new_sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, new_sheet_name)
+
+        # Update the grid
+        self.populate_grid()
+
+        # Notify the user
+        operation_text = f"{first_sheet} - {second_sheet}"
+        self.parent.show_popup_message2("Subtract Complete", f"Created subtracted spectrum: {new_sheet_name}\nOperation: {operation_text}")
+
+    def get_selected_sheet_names(self):
+        """Get names of all currently selected sheets in the grid"""
+        sheet_names = []
+
+        # Check for selected blocks first
+        blocks = self.grid.GetSelectedBlocks()
+        for block in blocks:
+            top = block.GetTopRow()
+            bottom = block.GetBottomRow()
+            left = block.GetLeftCol()
+            right = block.GetRightCol()
+
+            for row in range(top, bottom + 1):
+                for col in range(left, right + 1):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        sheet_names.append(cell_value)
+
+        # Add individually selected cells
+        selected_cells = self.grid.GetSelectedCells()
+        for cell in selected_cells:
+            row, col = cell.GetRow(), cell.GetCol()
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                sheet_names.append(cell_value)
+
+        # If no selection, use the current cell
+        if not sheet_names:
+            row = self.grid.GetGridCursorRow()
+            col = self.grid.GetGridCursorCol()
+            if row >= 0 and col >= 0:
+                cell_value = self.grid.GetCellValue(row, col)
+                if cell_value and cell_value in self.parent.Data['Core levels']:
+                    sheet_names.append(cell_value)
+
+        # Deduplicate the list before returning
+        return list(dict.fromkeys(sheet_names))  # Preserves order unlike set conversion
+
+    def plot_selected_cell(self):
+        # Get the current cell
+        row = self.grid.GetGridCursorRow()
+        col = self.grid.GetGridCursorCol()
+
+        # Only plot if the cell contains a valid sheet name
+        cell_value = self.grid.GetCellValue(row, col)
+        if cell_value and cell_value in self.parent.Data['Core levels']:
+            self.on_plot_selected(None)
+
+    def quick_plot_sheet(self, sheet_name):
+        """Plot just the raw data quickly without background or peaks"""
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        # Check if this is an EDX sheet BEFORE updating combobox to avoid event loop
+        if sheet_name == 'EDX~Map' or sheet_name.startswith('EDX~Plot'):
+            # Prevent re-entry
+            if hasattr(self, '_plotting_edx') and self._plotting_edx:
+                return
+            self._plotting_edx = True
+
+            try:
+                if sheet_name.startswith('EDX~Plot') or sheet_name == 'EDX~Plot':
+                    # EDX~Plot, EDX~Plot1, EDX~Plot2, etc.
+                    # Update combobox WITHOUT triggering event
+                    self.parent.sheet_combobox.SetStringSelection(sheet_name)
+
+                    self.highlight_current_sheet(sheet_name)
+
+                    # Directly call plot_edx_data WITHOUT going through on_sheet_selected
+                    self.quick_plot_edx(sheet_name)
+
+                elif sheet_name == 'EDX~Map':
+                    # Don't update combobox for map
+                    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+                    import os
+
+                    # Get HDF5 path from sheet data or try to find it
+                    sheet_data = self.parent.Data['Core levels'].get('EDX~Map', {})
+                    # HDF5 path is derived from FilePath
+                    from libraries.ToolsMenu.EDX_SEM_Analysis import get_hdf5_path_from_filepath
+                    hdf5_path = get_hdf5_path_from_filepath(self.window.Data.get('FilePath'))
+
+                    if not hdf5_path or not os.path.exists(hdf5_path):
+                        if hasattr(self.parent, 'current_file_path') and self.parent.current_file_path:
+                            base_path = self.parent.current_file_path.replace('_EDX.xlsx', '')
+                            hdf5_variants = [
+                                f"{base_path}_EDX.hdf5",
+                                f"{base_path}_EDX.h5",
+                                f"{base_path}.hdf5",
+                                f"{base_path}.h5"
+                            ]
+
+                            for variant in hdf5_variants:
+                                if os.path.exists(variant):
+                                    hdf5_path = variant
+                                    break
+
+                    if hdf5_path and os.path.exists(hdf5_path):
+                        # Check if window already open
+                        if hasattr(self.parent, 'edx_window') and self.parent.edx_window and not self.parent.edx_window.IsBeingDeleted():
+                            self.parent.edx_window.Raise()
+                        else:
+                            edx_window = open_edx_sem_window(self.parent)
+                            if edx_window:
+                                self.parent.edx_window = edx_window
+                                edx_window.load_file(hdf5_path, 'EDX Map')
+                    else:
+                        wx.MessageBox(
+                            f"HDF5 file not found for EDX Map.\n\nExpected: {hdf5_path}",
+                            "File Not Found",
+                            wx.OK | wx.ICON_WARNING
+                        )
+            finally:
+                self._plotting_edx = False
+            return
+
+        # Check if this is an XPS~Map sheet — single-click plots sweep lines on the main window
+        if sheet_name.startswith('XPS~Map'):
+            self.plot_xps_map_lines(sheet_name, offset=False)
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            self.highlight_current_sheet(sheet_name)
+            return
+        # Update parent's combobox
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Highlight this cell
+        self.highlight_current_sheet(sheet_name)
+
+        # CHECK IF THIS IS A PROFILE SHEET - use plot_profile if so
+        if sheet_name.startswith('zzProfile'):
+            if self.parent.plot_manager.plot_profile(self.parent):
+                return  # Profile plotted successfully
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Get data for XPS/Raman
+        x_values = self.parent.Data['Core levels'][sheet_name]['B.E.']
+        y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+        # Update parent's data arrays
+        self.parent.x_values = np.array(x_values)
+        self.parent.y_values = np.array(y_values)
+        self.parent.background = np.array(y_values)  # Initialize background with raw data
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Check if it's a Raman or XAS file
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+        is_xas = sheet_name.startswith('XAS')
+
+        # Plot simple black line
+        if self.parent.energy_scale == 'KE':
+            self.parent.ax.plot(self.parent.photons - x_values, y_values, 'k-', linewidth=1)
+        else:
+            self.parent.ax.plot(x_values, y_values, 'k-', linewidth=1)
+
+        # Add core level text - skip for Raman files
+        if not is_raman:
+            if is_xas:
+                # Use XAS formatting
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(sheet_name)
+            else:
+                # Use XPS formatting
+                base_name = self.extract_base_name(sheet_name)
+                formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
+
+            self.parent.ax.text(0.98, 0.98, formatted_name, transform=self.parent.ax.transAxes,
+                                fontsize=self.parent.core_level_text_size, fontweight='bold',
+                                va='top', ha='right')
+
+        # Set x-axis direction based on data type
+        if is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            self.parent.ax.set_ylabel("Intensity (a.u.)")
+            self.parent.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for Raman
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            self.parent.ax.set_ylabel("Intensity (a.u.)")
+            self.parent.ax.set_xlim(min(x_values), max(x_values))  # Normal direction for XAS
+        else:
+            # Set axes for XPS
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            self.parent.ax.set_ylabel("Intensity (CPS)")
+            self.parent.ax.set_xlim(max(x_values), min(x_values))  # Reversed for XPS
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Apply text settings from preference window
+        self.parent.plot_manager.apply_text_settings(self.parent)
+
+        # Draw
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state in the manager
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def quick_plot_edx(self, sheet_name):
+        """Quick plot EDX spectrum without labels or quantification"""
+        import numpy as np
+        from matplotlib.ticker import ScalarFormatter
+
+        if sheet_name not in self.parent.Data['Core levels']:
+            return
+
+        sheet_data = self.parent.Data['Core levels'][sheet_name]
+
+        # Get energy and intensity data
+        if 'B.E.' in sheet_data and 'Raw Data' in sheet_data:
+            energy = np.array(sheet_data['B.E.'])
+            intensity = np.array(sheet_data['Raw Data'])
+        elif 'Energy_keV' in sheet_data and 'Intensity' in sheet_data:
+            # Old format compatibility
+            energy = np.array(sheet_data['Energy_keV'])
+            intensity = np.array(sheet_data['Intensity'])
+        else:
+            print(f"ERROR: {sheet_name} missing required data keys")
+            return
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove heatmap colorbar if exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Remove RSD subplot if exists
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Remove RSD text if exists
+        if hasattr(self.parent.plot_manager, 'rsd_text') and self.parent.plot_manager.rsd_text:
+            try:
+                self.parent.plot_manager.rsd_text.remove()
+                self.parent.plot_manager.rsd_text = None
+            except:
+                pass
+
+        # Reset plot position to full size
+        self.parent.ax.set_position([0.1, 0.1, 0.85, 0.85])
+
+        # Plot EDX spectrum - simple black line
+        self.parent.ax.plot(energy, intensity, 'k-', linewidth=1)
+
+        # Set EDX-specific labels
+        self.parent.ax.set_xlabel('Energy (keV)')
+        self.parent.ax.set_ylabel('Counts')
+
+        # Set title based on selection info if available
+        selection_info = sheet_data.get('_EDX_selection')
+        if selection_info:
+            sel_type = selection_info.get('type', 'unknown')
+            if sel_type == 'point':
+                x, y = selection_info.get('x', 0), selection_info.get('y', 0)
+                size = selection_info.get('size', 1)
+                if size == 1:
+                    self.parent.ax.set_title(f'EDX Spectrum - Point ({x}, {y})')
+                else:
+                    self.parent.ax.set_title(f'EDX Spectrum - Point ({x}, {y}) [{size}×{size} px]')
+            elif sel_type == 'line':
+                self.parent.ax.set_title('EDX Spectrum - Line Profile')
+            elif sel_type == 'rectangle':
+                angle = selection_info.get('angle', 0)
+                self.parent.ax.set_title(f'EDX Spectrum - Rectangle (θ={angle:.1f}°)')
+            elif sel_type == 'area':
+                self.parent.ax.set_title('EDX Spectrum - Area')
+            else:
+                self.parent.ax.set_title(f'EDX Spectrum ({sel_type})')
+        else:
+            self.parent.ax.set_title('EDX Sum Spectrum')
+
+        # Set Y-axis to scientific format
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
+
+        # Update parent's data arrays
+        self.parent.x_values = energy
+        self.parent.y_values = intensity
+
+        # Set display range
+        display_x_max = sheet_data.get('_EDX_display_max', 20)
+        self.parent.ax.set_xlim(0, display_x_max)
+        self.parent.ax.set_ylim(np.min(intensity) * 0.95, np.max(intensity) * 1.1)
+
+        # Draw
+        self.parent.canvas.draw_idle()
+
+
+    def plot_multiple_sheets(self, sheet_names):
+        """Plot multiple core levels together on the same graph"""
+        if not sheet_names:
+            return
+
+        # Mark this as F2 plot type
+        self.parent.last_multiplot_type = 'F2'
+
+        # Get palette and linewidth settings
+        palette = getattr(self.parent, 'multiplot_palette', 'tab10')
+        linewidth = getattr(self.parent, 'multiplot_linewidth', 1.0)
+
+        # Get colors from palette
+        import matplotlib
+        import matplotlib.cm as cm
+        cmap = matplotlib.colormaps.get_cmap(palette)
+        num_sheets = len(sheet_names)
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Set the first sheet as the active one in the parent window
+        self.parent.sheet_combobox.SetValue(sheet_names[0])
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_names[0])
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Track min/max x values
+        x_min = float('inf')
+        x_max = float('-inf')
+
+        # Determine if normalization is needed
+        norm_method = self.norm_type.GetValue()
+        normalize = norm_method != "Norm. OFF"
+
+        # For auto normalization, we need to calculate global min/max
+        global_min = float('inf')
+        global_max = float('-inf')
+
+        # Check if all sheets are from the same column (core level)
+        base_names = set(self.extract_base_name(name) for name in sheet_names)
+        same_column = len(base_names) == 1
+        column_name = list(base_names)[0] if same_column else None
+
+        if normalize and norm_method == "Norm. Auto":
+            # Get global min/max across all selected datasets
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                    global_min = min(global_min, min(y_values))
+                    global_max = max(global_max, max(y_values))
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+        # Restore green line if active
+        self.restore_green_vline_if_active()
+
+        # Plot each selected sheet
+        for i, sheet_name in enumerate(sheet_names):
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level = self.parent.Data['Core levels'][sheet_name]
+                x_values = core_level['B.E.']
+                y_values = np.array(core_level['Raw Data'])
+
+                # Update min/max x values
+                x_min = min(x_min, min(x_values))
+                x_max = max(x_max, max(x_values))
+
+                # Apply normalization if enabled
+                if normalize:
+                    if norm_method == "Norm. Auto":
+                        # Original auto normalization code
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+                        # Avoid division by zero
+                        if norm_max != norm_min:
+                            y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+                    elif norm_method == "Norm. @ BE":
+                        # Original auto normalization code
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+
+
+                        # Get the BE value for normalization
+                        row_found = -1
+                        col_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    col_found = col
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_be_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 2)
+                            norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+
+                            try:
+                                # Normalize at a specific binding energy
+                                norm_be = float(norm_be_str) if norm_be_str else None
+                                if norm_be is not None:
+                                    # Find closest x value
+                                    closest_idx = np.argmin(np.abs(np.array(x_values) - norm_be))
+                                    norm_value = y_values[closest_idx] - norm_min
+                                    # Avoid division by zero
+                                    if norm_value != 0:
+                                        y_values = (y_values - norm_min) / norm_value * 1000
+
+                            except ValueError:
+                                pass
+                    elif norm_method == "Norm. to A":
+                        # Get the normalization factor directly from the "Norm. to A" column
+                        row_found = -1
+                        col_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    col_found = col
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+                            try:
+                                # Simply multiply the y values by the factor from the column
+                                norm_factor = float(norm_area_str) if norm_area_str else None
+                                if norm_factor is not None:
+                                    norm_min = min(y_values)
+                                    y_values = (y_values - norm_min) / norm_factor * 1000
+                            except ValueError:
+                                pass
+
+                # Use a different color for each plot
+                # color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+                color_value = 0.1 + (0.65 * i / max(num_sheets - 1, 1))
+                color = cmap(color_value)
+
+                # Get legend label (use experiment name if available)
+                legend_label = self.get_legend_label_for_sheet(sheet_name)
+
+                # Plot the data
+                if self.parent.energy_scale == 'KE':
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=legend_label, color=color,
+                                        linewidth = linewidth)
+                                        # linewidth=self.parent.line_width)
+                else:
+                    self.parent.ax.plot(x_values, y_values, label=legend_label, color=color,
+                                        linewidth=linewidth)
+                                        # linewidth=self.parent.line_width)
+
+        # Check if any sheet is Raman or XAS
+        is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
+        is_xas = any(name.startswith('XAS') for name in sheet_names)
+        is_edx = any(name == 'EDX~Plot' or name.startswith('EDX~Plot') for name in sheet_names)
+
+        # Set labels and formatting based on data type
+        if is_edx:
+            self.parent.ax.set_xlabel("Energy (keV)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Counts")
+            else:
+                self.parent.ax.set_ylabel("Counts")
+            # Normal direction for EDX
+            self.parent.ax.set_xlim(0, x_max)
+        elif is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Intensity")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for Raman
+            self.parent.ax.set_xlim(x_min, x_max)
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Intensity")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for XAS
+            self.parent.ax.set_xlim(x_min, x_max)
+        else:
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel("Normalized Intensity")
+            else:
+                self.parent.ax.set_ylabel("Intensity (CPS)")
+            # Reversed for XPS
+            self.parent.ax.set_xlim(x_max, x_min)
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # # Only show legend if 7 or fewer items
+        max_items = getattr(self.parent, 'multiplot_max_legend_items', 10)
+        if len(sheet_names) <= max_items:
+            ncol = getattr(self.parent, 'multiplot_legend_ncol', 2)
+            self.parent.ax.legend(loc='upper left', ncol=ncol)
+
+
+        # If all sheets are from the same column, add core level text in top right (except for Raman)
+        if same_column and not is_raman and not is_edx:
+            # Format name based on data type
+            if is_xas:
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(column_name)
+            else:
+                formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+
+            sheet_name_text = self.parent.ax.text(
+                0.98, 0.98,  # Position (top-right corner)
+                formatted_name,
+                transform=self.parent.ax.transAxes,
+                fontsize=self.parent.core_level_text_size,
+                fontfamily=[self.parent.plot_font],
+                fontweight='bold',
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(facecolor='none', edgecolor='none', alpha=1),
+            )
+            sheet_name_text.sheet_name_text = True  # Mark this text object
+
+        # Apply text settings from preferences
+        self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
+        self.parent.ax.xaxis.label.set_size(self.parent.axis_title_size)
+        self.parent.ax.yaxis.label.set_size(self.parent.axis_title_size)
+
+        # Update the plot
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def replot_with_normalization(self):
+        """Replot the current selection with updated normalization settings"""
+        sheet_names = self.get_selected_sheet_names()
+        if sheet_names:
+            self.plot_multiple_sheets(sheet_names)
+
+    def on_cell_focus_changed(self, event):
+        """Save sample names when cell focus changes"""
+        if event.GetCol() == 0:  # Sample name column
+            self.save_sample_names()
+        event.Skip()
+
+    def on_cell_changing(self, event):
+        """Handle cell edit event for renaming and repositioning core levels"""
+        row = event.GetRow()
+        col = event.GetCol()
+        old_value = self.grid.GetCellValue(row, col)
+        new_value = event.GetString()
+
+        # Prevent editing BE correction column
+        if col == len(self.core_levels) + 1:  # BE correction column
+            event.Veto()
+            return
+
+        # Handle sample name column separately
+        if col == 0:
+            # Just update the sample name
+            self.sample_names[str(row)] = new_value
+            self.save_sample_names()
+            event.Skip()
+            return
+
+        # Handle BE correction column separately
+        if col == len(self.core_levels) + 1:  # BE correction column
+            try:
+                new_correction = float(new_value)
+
+                # Update parent.Data['BEcorrections']
+                if 'BEcorrections' not in self.parent.Data:
+                    self.parent.Data['BEcorrections'] = {}
+                self.parent.Data['BEcorrections'][str(row)] = new_correction
+
+                # Check if current sheet in main window belongs to this row
+                current_sheet = self.parent.sheet_combobox.GetValue()
+                sheet_found = False
+                for cell_col in range(1, len(self.core_levels) + 1):
+                    if self.grid.GetCellValue(row, cell_col) == current_sheet:
+                        sheet_found = True
+                        # Update main window spinbox and apply correction
+                        self.parent.be_correction = new_correction
+                        self.parent.be_correction_spinbox.SetValue(new_correction)
+                        self.parent.apply_be_correction(new_correction)
+                        break
+
+                # Even if this row doesn't contain the current sheet, save corrections
+                if not sheet_found:
+                    self.save_be_corrections()
+
+            except ValueError:
+                # wx.MessageBox("BE correction must be a number", "Invalid Value", wx.OK | wx.ICON_ERROR)
+                self.parent.show_popup_message2( "Invalid Value", "BE correction must be a number")
+                event.Veto()
+                return
+
+        # Only process if there's a real change and the cell isn't empty
+        if old_value and old_value != new_value and new_value.strip():
+            # Check if old name exists in parent data
+            if old_value in self.parent.Data['Core levels']:
+                # Check if new name already exists
+                if new_value in self.parent.Data['Core levels']:
+                    # wx.MessageBox(f"A core level named '{new_value}' already exists.",
+                    #               "Duplicate Name", wx.OK | wx.ICON_ERROR)
+                    self.parent.show_popup_message2("Duplicate Name", f"A core level named '{new_value}' already "
+                                                                      f"exists.")
+                    event.Veto()
+                    return
+
+                # Set the sheet in parent before renaming
+                self.parent.sheet_combobox.SetValue(old_value)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, old_value)
+
+                # Perform the rename
+                from libraries.Utilities import rename_sheet
+                rename_sheet(self.parent, new_value)
+
+                # Always refresh the grid to properly position items
+                wx.CallAfter(self.populate_grid)
+
+    def on_cell_click(self, event):
+        row = event.GetRow()
+        col = event.GetCol()
+        cell_value = self.grid.GetCellValue(row, col)
+
+        # Prevent multiple firing
+        if hasattr(self, '_processing_cell_click') and self._processing_cell_click:
+            event.Skip()
+            return
+
+        # Process the event to select the cell
+        event.Skip()
+
+        # Check if shift or ctrl is being held down
+        if not wx.GetKeyState(wx.WXK_SHIFT) and not wx.GetKeyState(wx.WXK_CONTROL):
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                # Check if it's an EDX~Map sheet
+                if cell_value == 'EDX~Map':
+                    # Open EDX/SEM window
+                    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+                    import os
+                    if hasattr(self.parent, 'current_file_path') and self.parent.current_file_path:
+                        hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.hdf5')
+                        if not os.path.exists(hdf5_path):
+                            hdf5_path = self.parent.current_file_path.replace('_EDX.xlsx', '.h5')
+
+                        if os.path.exists(hdf5_path):
+                            edx_window = open_edx_sem_window(self.parent)
+                            if edx_window:
+                                edx_window.load_file(hdf5_path, 'EDX Map')
+                elif cell_value.startswith('XPS~Map'):
+                    # Single-click on XPS~Map → overlay line plot on main window
+                    wx.CallAfter(self.quick_plot_sheet, cell_value)
+                else:
+                    wx.CallAfter(self.quick_plot_sheet, cell_value)
+
+    def _reset_cell_click_flag(self):
+        """Reset the cell click flag after delay"""
+        self._processing_cell_click = False
+
+    def on_cursor_changed(self, event):
+        # Process the event first to change the cursor
+        event.Skip()
+
+        # Check if shift or ctrl is being held down
+        if wx.GetKeyState(wx.WXK_SHIFT) or wx.GetKeyState(wx.WXK_CONTROL):
+            return
+
+        row = event.GetRow()
+        col = event.GetCol()
+        cell_value = self.grid.GetCellValue(row, col)
+        if cell_value and cell_value in self.parent.Data['Core levels']:
+            # Skip map sheets
+            if cell_value == 'EDX~Map' or cell_value.startswith('XPS~Map'):
+                return
+            wx.CallAfter(self.quick_plot_sheet, cell_value)
+
+            # THIS MAY TO BE DELETED AS IT IS TOO SLOW
+            # Get BE correction for the current row
+            be_col_index = len(self.core_levels) + 1
+            be_correction = self.grid.GetCellValue(row, be_col_index)
+
+            # Update parent's BE correction if valid
+            if be_correction.strip():
+                try:
+                    correction_value = float(be_correction)
+                    self.parent.be_correction = correction_value
+                    self.parent.be_correction_spinbox.SetValue(correction_value)
+                    # Apply the correction to the current view
+                    # self.parent.apply_be_correction(correction_value)
+                except ValueError:
+                    pass  # Ignore invalid correction values
+
+
+    def on_copy(self, event):
+        """Copy the selected core levels with original uncorrected BE values"""
+        import os
+        import json
+        import tempfile
+        from copy import deepcopy
+
+        sheet_names = self.get_selected_sheet_names()
+        if not sheet_names:
+            return
+
+        clipboard_data = {}
+
+        for sheet_name in sheet_names:
+            if sheet_name in self.parent.Data['Core levels']:
+                clipboard_data[sheet_name] = deepcopy(self.parent.Data['Core levels'][sheet_name])
+
+                # Get BE correction for this sheet's row
+                source_row = 0
+                if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                    base_parts = sheet_name.split('_')
+                    if len(base_parts) > 2 and base_parts[2].isdigit():
+                        source_row = int(base_parts[2])
+                else:
+                    match_row = re.search(r'(\d+)$', sheet_name)
+                    if match_row:
+                        source_row = int(match_row.group(1))
+
+                be_correction = self.parent.Data.get('BEcorrections', {}).get(str(source_row), 0.0)
+
+                # Store original BE values (subtract the applied correction)
+                original_be_values = [be - be_correction for be in clipboard_data[sheet_name]['B.E.']]
+                clipboard_data[sheet_name]['B.E.'] = original_be_values
+
+                # Also adjust background limits if present
+                if 'Background' in clipboard_data[sheet_name]:
+                    if 'Bkg Low' in clipboard_data[sheet_name]['Background'] and \
+                            clipboard_data[sheet_name]['Background']['Bkg Low'] != '':
+                        try:
+                            clipboard_data[sheet_name]['Background']['Bkg Low'] -= be_correction
+                        except (TypeError, ValueError):
+                            pass
+
+                    if 'Bkg High' in clipboard_data[sheet_name]['Background'] and \
+                            clipboard_data[sheet_name]['Background']['Bkg High'] != '':
+                        try:
+                            clipboard_data[sheet_name]['Background']['Bkg High'] -= be_correction
+                        except (TypeError, ValueError):
+                            pass
+
+                # Adjust peak positions if present
+                if 'Fitting' in clipboard_data[sheet_name] and 'Peaks' in clipboard_data[sheet_name]['Fitting']:
+                    for peak in clipboard_data[sheet_name]['Fitting']['Peaks'].values():
+                        if 'Position' in peak:
+                            peak['Position'] -= be_correction
+                        if 'Constraints' in peak:
+                            pos_constraint = peak['Constraints'].get('Position', '')
+                            if pos_constraint and ',' in pos_constraint and not any(
+                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                                try:
+                                    min_val, max_val = map(float, pos_constraint.split(','))
+                                    peak['Constraints'][
+                                        'Position'] = f"{min_val - be_correction:.2f},{max_val - be_correction:.2f}"
+                                except ValueError:
+                                    pass
+
+                file_path = self.parent.Data.get('FilePath', '')
+                if file_path and os.path.exists(file_path):
+                    try:
+                        # Read all data including columns C and D
+                        import pandas as pd
+                        df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+                        # Store column names
+                        column_names = df.columns.tolist()
+                        clipboard_data[sheet_name]['column_names'] = column_names
+
+                        # Store exact data from columns C and D (indices 2 and 3)
+                        if df.shape[1] > 3:
+                            clipboard_data[sheet_name]['column_C_data'] = df.iloc[:, 2].tolist()
+                            clipboard_data[sheet_name]['column_D_data'] = df.iloc[:, 3].tolist()
+
+                    except Exception as e:
+                        print(f"Error reading Excel data for {sheet_name}: {e}")
+
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Copy Core Levels", clipboard_data, "copy")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
+
+        # Save to clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+        with open(clipboard_file, 'w') as f:
+            json.dump(clipboard_data, f)
+
+    def on_paste(self, event):
+        """Paste the core levels with original column names and experimental description"""
+        import json
+        import tempfile
+        import os
+        import re
+        import pandas as pd
+        from copy import deepcopy
+
+        # Get the clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+
+        if not os.path.exists(clipboard_file):
+            wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Load the clipboard data
+        try:
+            with open(clipboard_file, 'r') as f:
+                clipboard_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid clipboard data", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not clipboard_data:
+            wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # CHECK IF NO FILE IS OPEN AND CREATE NEW FILES
+        if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+            # Ask user if they want to create new files
+            dlg = wx.MessageDialog(
+                self,
+                "No file is currently open. Do you want to create new .json and .xlsx files?",
+                "Create New Files",
+                wx.YES_NO | wx.ICON_QUESTION
+            )
+
+            if dlg.ShowModal() != wx.ID_YES:
+                dlg.Destroy()
+                return
+
+            dlg.Destroy()
+
+            # Show file dialog to create new files
+            with wx.FileDialog(
+                    self,
+                    "Create New KherveFitting File",
+                    wildcard="Excel files (*.xlsx)|*.xlsx",
+                    style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+            ) as fileDialog:
+
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    return
+
+                file_path = fileDialog.GetPath()
+                if not file_path.lower().endswith('.xlsx'):
+                    file_path += '.xlsx'
+
+                try:
+                    # Create empty Excel file
+                    import openpyxl
+                    wb = openpyxl.Workbook()
+                    wb.save(file_path)
+
+                    # Set the filepath in window.Data
+                    self.parent.Data['FilePath'] = file_path
+                    self.parent.SetStatusText(f"Selected File: {file_path}", 0)
+
+                    # Initialize Core levels if needed
+                    if 'Core levels' not in self.parent.Data:
+                        self.parent.Data['Core levels'] = {}
+                        self.parent.Data['Number of Core levels'] = 0
+
+                    # Create JSON file
+                    json_file_path = os.path.splitext(file_path)[0] + '.json'
+                    from libraries.FileMenu.Save import convert_to_serializable_and_round
+                    json_data = convert_to_serializable_and_round(self.parent.Data)
+                    with open(json_file_path, 'w') as json_file:
+                        json.dump(json_data, json_file, indent=2)
+
+                    # Update recent files if available
+                    if hasattr(self.parent, 'recent_files'):
+                        if file_path in self.parent.recent_files:
+                            self.parent.recent_files.remove(file_path)
+                        self.parent.recent_files.insert(0, file_path)
+                        self.parent.recent_files = self.parent.recent_files[:self.parent.max_recent_files]
+                        if hasattr(self.parent, 'save_config'):
+                            self.parent.save_config()
+
+                except Exception as e:
+                    wx.MessageBox(f"Error creating files: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+                    return
+
+
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Paste Core Levels", clipboard_data, "paste")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
+
+        # Perform backup before pasting
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Get the clipboard file
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+
+        if not os.path.exists(clipboard_file):
+            wx.MessageBox("No core levels in clipboard", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Load the clipboard data
+        try:
+            with open(clipboard_file, 'r') as f:
+                clipboard_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid clipboard data", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not clipboard_data:
+            wx.MessageBox("Clipboard is empty", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Determine target row based on cursor position
+        target_row = self.grid.GetGridCursorRow()
+
+        # Get BE corrections for target row
+        target_correction = self.parent.Data.get('BEcorrections', {}).get(str(target_row), 0.0)
+
+        # Group core levels by base name (e.g., "C1s" without the number)
+        core_level_groups = {}
+        for sheet_name in clipboard_data.keys():
+            # Extract the true base name (e.g., "C1s" from "C1s2")
+            # match = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
+            if match:
+                base_name = match.group(1)
+                if base_name not in core_level_groups:
+                    core_level_groups[base_name] = []
+                core_level_groups[base_name].append(sheet_name)
+
+        # For each base name, determine the starting row
+        base_name_row_map = {}
+        current_row = target_row
+
+        for base_name, sheets in core_level_groups.items():
+            base_name_row_map[base_name] = current_row
+
+            # If there are multiple sheets with the same base name,
+            # increment the current row for the next base name
+            if len(sheets) > 1:
+                current_row += len(sheets)
+            # If it's just one sheet, keep the same row for the next base name
+
+        # Process each core level
+        for sheet_name, core_level_data in clipboard_data.items():
+            # Extract source row from original sheet name
+            match_row = re.search(r'(\d+)$', sheet_name)
+            source_row = match_row.group(1) if match_row else "0"
+
+            # Try to get source correction from clipboard data, or default to 0.0
+            # This allows pasting between different instances
+            source_correction = 0.0
+            if "BEcorrection" in core_level_data:
+                source_correction = core_level_data["BEcorrection"]
+
+            # Calculate the BE adjustment needed
+            be_adjustment = source_correction - target_correction
+
+            # Extract base name and determine which group it belongs to
+            # match_base = re.match(r'([A-Za-z]+\d*[spdfg]*)', sheet_name)
+            match_base = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
+            if match_base:
+                base_name = match_base.group(1)
+
+                # Find position in the group to determine row offset
+                group = core_level_groups[base_name]
+                position = group.index(sheet_name)
+
+                # Calculate the actual row for this sheet
+                actual_row = base_name_row_map[base_name] + position
+
+                # Create new sheet name
+                new_sheet_name = f"{base_name}{actual_row}"
+
+                # Check if new name already exists
+                counter = 0
+                while new_sheet_name in self.parent.Data['Core levels']:
+                    counter += 1
+                    new_sheet_name = f"{base_name}{actual_row}_{counter}"
+
+                # Ensure the required fields are present in core_level_data
+                if 'B.E.' not in core_level_data or 'Raw Data' not in core_level_data:
+                    wx.MessageBox(f"Invalid data structure for {sheet_name}", "Paste Failed", wx.OK | wx.ICON_ERROR)
+                    continue
+
+                # Adjust BE values to remove previous correction and apply new row's correction
+                adjusted_be_values = [be - be_adjustment for be in core_level_data['B.E.']]
+
+                # Create new core level data with adjusted BE values
+                new_core_level_data = deepcopy(core_level_data)
+                new_core_level_data['B.E.'] = adjusted_be_values
+                new_core_level_data['Name'] = new_sheet_name
+
+                # Ensure background structure exists
+                if 'Background' not in new_core_level_data:
+                    new_core_level_data['Background'] = {
+                        'Bkg Y': new_core_level_data['Raw Data'],
+                        'Bkg Type': '',
+                        'Bkg Low': min(adjusted_be_values),
+                        'Bkg High': max(adjusted_be_values),
+                        'Bkg Offset Low': 0,
+                        'Bkg Offset High': 0
+                    }
+
+                # Adjust background limits if present
+                if 'Background' in new_core_level_data:
+                    if 'Bkg Low' in new_core_level_data['Background'] and new_core_level_data['Background'][
+                        'Bkg Low'] != '':
+                        try:
+                            new_core_level_data['Background']['Bkg Low'] -= be_adjustment
+                        except (TypeError, ValueError):
+                            # Handle case where Bkg Low is not a number
+                            new_core_level_data['Background']['Bkg Low'] = min(adjusted_be_values)
+
+                    if 'Bkg High' in new_core_level_data['Background'] and new_core_level_data['Background'][
+                        'Bkg High'] != '':
+                        try:
+                            new_core_level_data['Background']['Bkg High'] -= be_adjustment
+                        except (TypeError, ValueError):
+                            # Handle case where Bkg High is not a number
+                            new_core_level_data['Background']['Bkg High'] = max(adjusted_be_values)
+
+                    # Ensure Bkg Y exists
+                    if 'Bkg Y' not in new_core_level_data['Background'] or not new_core_level_data['Background'][
+                        'Bkg Y']:
+                        new_core_level_data['Background']['Bkg Y'] = new_core_level_data['Raw Data']
+
+                # Adjust peak positions if present
+                if 'Fitting' in new_core_level_data and 'Peaks' in new_core_level_data['Fitting']:
+                    for peak in new_core_level_data['Fitting']['Peaks'].values():
+                        if 'Position' in peak:
+                            peak['Position'] -= be_adjustment
+                        if 'Constraints' in peak:
+                            pos_constraint = peak['Constraints'].get('Position', '')
+                            if pos_constraint and ',' in pos_constraint and not any(
+                                    c in pos_constraint for c in 'ABCDEFGHIJKLMNOP'):
+                                try:
+                                    min_val, max_val = map(float, pos_constraint.split(','))
+                                    peak['Constraints'][
+                                        'Position'] = f"{min_val - be_adjustment:.2f},{max_val - be_adjustment:.2f}"
+                                except ValueError:
+                                    pass
+
+                # Add to parent data
+                if 'Core levels' not in self.parent.Data:
+                    self.parent.Data['Core levels'] = {}
+                if 'Number of Core levels' not in self.parent.Data:
+                    self.parent.Data['Number of Core levels'] = 0
+
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+                self.parent.Data['Number of Core levels'] += 1
+
+                # Update Excel file
+                try:
+                    # Get data length for this core level
+                    data_length = len(adjusted_be_values)
+
+                    # Ensure arrays have the correct length
+                    raw_data = core_level_data['Raw Data']
+                    if len(raw_data) > data_length:
+                        raw_data = raw_data[:data_length]
+                    elif len(raw_data) < data_length:
+                        # Pad with zeros if too short
+                        raw_data = raw_data + [0] * (data_length - len(raw_data))
+
+                    # Get background data, defaulting to raw data if not available
+                    bkg_data = core_level_data.get('Background', {}).get('Bkg Y', raw_data)
+                    if len(bkg_data) > data_length:
+                        bkg_data = bkg_data[:data_length]
+                    elif len(bkg_data) < data_length:
+                        # Pad with zeros if too short
+                        bkg_data = bkg_data + [0] * (data_length - len(bkg_data))
+
+                    # Check if it's a Raman file
+                    is_raman = "Raman_" in new_sheet_name or "Ra_" in new_sheet_name
+
+                    # Use original column names for Raman, standardized names for others
+                    if is_raman:
+                        column_names = core_level_data.get('column_names',
+                                                           ['BE','Corrected Data', 'Raw Data', 'Transmission'])
+                    else:
+                        # Force standard column names for all XPS core levels and surveys
+                        column_names = ['Binding Energy (eV)', 'Corrected Data', 'Raw Data', 'Transmission']
+
+                    # Make sure we have enough column names
+                    while len(column_names) < 4:
+                        if is_raman:
+                            column_names.append(f"Column{len(column_names) + 1}")
+                        else:
+                            default_names = ['Binding Energy (eV)', 'Corrected Data', 'Raw Data', 'Transmission']
+                            if len(column_names) < len(default_names):
+                                column_names.append(default_names[len(column_names)])
+                            else:
+                                column_names.append(f"Column{len(column_names) + 1}")
+
+                    # Calculate original BE values by adding back the source correction
+                    # original_be_values = [be - source_correction for be in core_level_data['B.E.']]
+
+                    # Create DataFrame with original column names
+                    data_dict = {
+                        column_names[0]: core_level_data['B.E.'],
+                        column_names[1]: raw_data
+                    }
+
+                    # Use the exact C and D data from clipboard if available
+                    if 'column_C_data' in core_level_data and len(column_names) > 2:
+                        col_c_data = core_level_data['column_C_data']
+                        # Adjust length if needed
+                        if len(col_c_data) != data_length:
+                            if len(col_c_data) > data_length:
+                                col_c_data = col_c_data[:data_length]
+                            else:
+                                col_c_data = col_c_data + [None] * (data_length - len(col_c_data))
+                        data_dict[column_names[2]] = col_c_data
+                    elif len(column_names) > 2:
+                        data_dict[column_names[2]] = bkg_data
+
+                    if 'column_D_data' in core_level_data and len(column_names) > 3:
+                        col_d_data = core_level_data['column_D_data']
+                        # Adjust length if needed
+                        if len(col_d_data) != data_length:
+                            if len(col_d_data) > data_length:
+                                col_d_data = col_d_data[:data_length]
+                            else:
+                                col_d_data = col_d_data + [None] * (data_length - len(col_d_data))
+                        data_dict[column_names[3]] = col_d_data
+                    elif len(column_names) > 3:
+                        data_dict[column_names[3]] = [1.0] * data_length
+
+                    df = pd.DataFrame(data_dict)
+
+                    # Write to Excel with original column names
+                    with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                        if_sheet_exists='replace') as writer:
+                        df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+                        # Remove borders from header row
+                        workbook = writer.book
+                        worksheet = workbook[new_sheet_name]
+                        from openpyxl.styles import Border
+                        no_border = Border()
+
+                        # Apply no border to header row (row 1)
+                        for col in range(1, len(column_names) + 1):
+                            worksheet.cell(row=1, column=col).border = no_border
+
+                        # Add experimental description data if available
+                        if 'experimental_description' in core_level_data and core_level_data[
+                            'experimental_description']:
+                            # Calculate column 'AX' index (typically 49)
+                            exp_col = 49
+
+                            # Get the workbook and sheet
+                            workbook = writer.book
+                            worksheet = workbook[new_sheet_name]
+
+                            # Add experimental description header
+                            worksheet.cell(row=1, column=exp_col + 1, value="Experimental Description")
+                            worksheet.cell(row=1, column=exp_col + 2, value="Value")
+
+                            # Add all experimental description data
+                            for i, item in enumerate(core_level_data['experimental_description']):
+                                if len(item) >= 2:
+                                    worksheet.cell(row=i + 2, column=exp_col + 1, value=item[0])
+                                    worksheet.cell(row=i + 2, column=exp_col + 2, value=item[1])
+
+                except Exception as e:
+                    wx.MessageBox(f"Error writing to Excel: {str(e)}", "Warning", wx.OK | wx.ICON_WARNING)
+                    # Continue even if Excel write fails
+
+                # Update combobox in parent
+                if hasattr(self.parent, 'sheet_combobox'):
+                    self.parent.sheet_combobox.Append(new_sheet_name)
+
+        # Refresh the grid
+        self.populate_grid()
+
+        # Update JSON file
+        try:
+            json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            self.save_be_corrections()
+            self.save_sample_names()
+        except Exception as e:
+            print(f"Error in final update steps: {e}")
+
+        # UPDATE EXCEL FILE - Remove default empty sheet if it exists
+        try:
+            wb = openpyxl.load_workbook(self.parent.Data['FilePath'])
+
+            # Check if default "Sheet" exists and remove it if it's empty
+            if "Sheet" in wb.sheetnames:
+                default_sheet = wb["Sheet"]
+                # Check if sheet is empty (only has default structure)
+                is_empty = True
+                for row in default_sheet.iter_rows():
+                    for cell in row:
+                        if cell.value is not None:
+                            is_empty = False
+                            break
+                    if not is_empty:
+                        break
+
+                # Remove the empty default sheet
+                if is_empty and len(wb.sheetnames) > 1:  # Don't remove if it's the only sheet
+                    wb.remove(default_sheet)
+                    wb.save(self.parent.Data['FilePath'])
+
+        except Exception as e:
+            print(f"Note: Could not remove default sheet: {e}")
+
+        # Refresh the grid
+        self.populate_grid()
+
+        # Update JSON file
+        try:
+            json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            self.save_be_corrections()
+            self.save_sample_names()
+        except Exception as e:
+            print(f"Error in final update steps: {e}")
+
+        # Refresh sheets after pasting
+        try:
+            # Create console window for refresh operation
+            parent_pos = self.parent.GetPosition()
+            parent_size = self.parent.GetSize()
+            console_frame = wx.Frame(self.parent, title="Refreshing Sheets", size=(300, 200))
+            console_frame.SetPosition((
+                parent_pos.x + (parent_size.width - 300) // 2,
+                parent_pos.y + (parent_size.height - 200) // 2
+            ))
+            console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            console_frame.Show()
+
+            def update_console(message):
+                console_text.AppendText(message + '\n')
+                console_text.Update()
+                wx.SafeYield()
+
+            from libraries.Sheet_Operations import on_sheet_selected
+            from libraries.FileMenu.Save import refresh_sheets
+            refresh_sheets(self.parent, on_sheet_selected, update_console)
+
+            # Close console after refresh
+            wx.CallLater(500, console_frame.Close)
+
+        except Exception as refresh_err:
+            print(f"Error refreshing sheets: {refresh_err}")
+
+        # Close and reopen the file manager to refresh all columns
+        self.parent.file_manager = None  # Clear the reference
+        self.Destroy()  # Close current file manager
+        wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
+
+        self.parent.show_popup_message2("Paste Successful",
+                                        f"{len(clipboard_data)} core level(s) pasted."
+                                        f"\nCreated backup of the original data in Backup folder"
+                                        f"\nBeware that core level retain their BE correction values")
+
+    def on_rename(self, event):
+        """Rename the selected core level"""
+        save_state(self.parent)
+        sheet_names = self.get_selected_sheet_names()
+
+        if sheet_names:
+            sheet_name = sheet_names[0]  # Use the first selected sheet
+
+            # Set the sheet in parent before renaming
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+
+            dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name} (single word only):", "Rename Core Level",
+                                     sheet_name)
+            if dlg.ShowModal() == wx.ID_OK:
+                new_name = dlg.GetValue()
+                if new_name and new_name != sheet_name:
+                    # Check for single word validation
+                    if len(new_name.split()) > 1:
+                        self.parent.show_popup_message2("Invalid Name",
+                                                        "Only single words are allowed for sheet names.")
+                    else:
+                        from libraries.Utilities import rename_sheet
+                        rename_sheet(self.parent, new_name)
+                        # Reload the grid after renaming
+                        self.populate_grid()
+            dlg.Destroy()
+
+
+    def on_delete(self, event):
+        """Delete selected core level(s)."""
+        # Gather all sheet names to delete
+        sheet_names = []
+
+        # Check if cells are selected
+        selected_cells = []
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Skip sample name column
+                if self.grid.IsInSelection(row, col):
+                    cell_value = self.grid.GetCellValue(row, col)
+                    if cell_value and cell_value in self.parent.Data['Core levels']:
+                        sheet_names.append(cell_value)
+
+        # If no cells selected, try current cursor position
+        if not sheet_names:
+            row = self.grid.GetGridCursorRow()
+            col = self.grid.GetGridCursorCol()
+
+            if col > 0 and col <= len(self.core_levels):
+                cell_value = self.grid.GetCellValue(row, col)
+                if cell_value and cell_value in self.parent.Data['Core levels']:
+                    sheet_names.append(cell_value)
+
+        # Remove duplicates
+        sheet_names = list(set(sheet_names))
+
+        if not sheet_names:
+            self.parent.show_popup_message2("Information", "No core levels selected.")
+            return
+
+        # Show preview dialog
+        preview_dialog = CoreLevelPreviewDialog(self, "Delete Core Levels",
+                                                {name: self.parent.Data['Core levels'][name] for name in sheet_names},
+                                                "delete")
+        if preview_dialog.ShowModal() != wx.ID_OK:
+            preview_dialog.Destroy()
+            return
+        preview_dialog.Destroy()
+
+        # Backup before deletion
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Delete the sheets
+        for sheet_name in sheet_names:
+            # Delete the sheet from parent Data
+            if sheet_name in self.parent.Data['Core levels']:
+                del self.parent.Data['Core levels'][sheet_name]
+                self.parent.Data['Number of Core levels'] -= 1
+
+                # Also remove from Excel file if possible
+                try:
+                    import pandas as pd
+                    from openpyxl import load_workbook
+
+                    excel_path = self.parent.Data.get('FilePath', '')
+                    if excel_path and os.path.exists(excel_path):
+                        book = load_workbook(excel_path)
+                        if sheet_name in book.sheetnames:
+                            del book[sheet_name]
+                            book.save(excel_path)
+                except Exception as e:
+                    print(f"Error removing sheet from Excel: {e}")
+
+        # Save JSON file
+        json_file_path = os.path.splitext(self.parent.Data['FilePath'])[0] + '.json'
+        from libraries.FileMenu.Save import convert_to_serializable_and_round
+        json_data = convert_to_serializable_and_round(self.parent.Data)
+        with open(json_file_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+        # Update the parent's combobox
+        if hasattr(self.parent, 'sheet_combobox'):
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet in self.parent.Data['Core levels'].keys():
+                self.parent.sheet_combobox.Append(sheet)
+
+            # Select an available sheet
+            if current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+            elif self.parent.sheet_combobox.GetCount() > 0:
+                self.parent.sheet_combobox.SetSelection(0)
+                new_sheet = self.parent.sheet_combobox.GetValue()
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_sheet)
+
+        # Close and reopen the file manager to refresh all columns
+        self.parent.file_manager = None  # Clear the reference
+        self.Destroy()  # Close current file manager
+        wx.CallAfter(self.parent.on_open_file_manager, None)  # Reopen file manager
+
+        self.parent.show_popup_message2("Success", f"Deleted {len(sheet_names)} core level(s).")
+
+    def on_preferences(self, event):
+        dlg = wx.Dialog(self, title="Normalization Settings", size=(300, 200))
+        panel = wx.Panel(dlg)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Min value input
+        min_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        min_sizer.Add(wx.StaticText(panel, label="Min Value:"), 0, wx.ALL, 5)
+        min_ctrl = wx.SpinCtrlDouble(panel, value=str(self.norm_min), min=0, max=1000000, inc=0.1)
+        min_sizer.Add(min_ctrl, 1, wx.ALL, 5)
+
+        # Max value input
+        max_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        max_sizer.Add(wx.StaticText(panel, label="Max Value:"), 0, wx.ALL, 5)
+        max_ctrl = wx.SpinCtrlDouble(panel, value=str(self.norm_max), min=0, max=1000000, inc=0.1)
+        max_sizer.Add(max_ctrl, 1, wx.ALL, 5)
+
+        # Buttons
+        btn_sizer = wx.StdDialogButtonSizer()
+        ok_btn = wx.Button(panel, wx.ID_OK)
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        btn_sizer.AddButton(ok_btn)
+        btn_sizer.AddButton(cancel_btn)
+        btn_sizer.Realize()
+
+        # Add to main sizer
+        sizer.Add(min_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(max_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        panel.SetSizer(sizer)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            self.norm_min = min_ctrl.GetValue()
+            self.norm_max = max_ctrl.GetValue()
+
+        dlg.Destroy()
+
+    def on_norm_changed_OLD(self, event):
+        """Handle normalization checkbox toggle."""
+        if self.norm_check.GetValue():
+            # self.replot_with_normalization()
+            if self.norm_type.GetValue() != "Norm. Auto":
+                self.show_norm_cursors()
+        else:
+            self.hide_norm_cursors()
+            self.replot_with_normalization()
+
+    def on_norm_type_changed(self, event):
+        """Handle normalization type selection change."""
+        norm_method = self.norm_type.GetValue()
+
+        if norm_method == "Norm. OFF":
+            self.hide_norm_cursors()
+            self.replot_with_normalization()
+        else:
+            # Reapply normalization with new method setting
+            self.replot_with_normalization()
+
+            # Show or hide normalization cursors based on selected method
+            if norm_method == "Norm. Auto" and not self.is_dragging_cursor:
+                self.hide_norm_cursors()
+            elif norm_method == "Norm. @ BE":
+                self.hide_norm_cursors()  # No cursors needed for BE normalization
+
+    def on_auto_changed(self, event):
+        if self.norm_type.GetValue() != "Norm. OFF":
+            # Re-apply normalization with new Auto setting
+            self.replot_with_normalization()
+            # Show or hide normalization cursors based on auto setting
+            if self.auto_check.GetValue():
+                self.hide_norm_cursors()
+            else:
+                self.show_norm_cursors()
+
+
+    def on_key_press(self, event):
+        """Handle key press events"""
+        try:
+            # Only show the line if shift is pressed and Norm. @ BE is selected
+            if event.key == 'shift' and self.norm_type.GetValue() == "Norm. @ BE":
+                # Create vertical line at current mouse position
+                if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+                    self.be_norm_line.remove()
+
+                # Place line at mouse position if available, otherwise center of plot
+                if event.xdata is not None:
+                    x_pos = event.xdata
+                else:
+                    x_pos = (self.parent.ax.get_xlim()[0] + self.parent.ax.get_xlim()[1]) / 2
+
+                self.be_norm_line = self.parent.ax.axvline(x_pos, color='red', linestyle='-',
+                                                           linewidth=2, alpha=0.8)
+
+                # Connect mouse events for dragging
+                self.motion_id = self.parent.canvas.mpl_connect('motion_notify_event',
+                                                                self.on_norm_line_motion)
+                self.press_id = self.parent.canvas.mpl_connect('button_press_event',
+                                                               self.on_norm_line_press)
+                self.release_id = self.parent.canvas.mpl_connect('button_release_event',
+                                                                 self.on_norm_line_release)
+
+                # Initialize dragging state
+                self.is_dragging = False
+
+                # Draw the line
+                self.parent.canvas.draw_idle()
+        except RuntimeError:
+            # Handle the case where the control has been deleted
+            pass
+
+    def on_key_release(self, event):
+        """Handle key release events"""
+        if event.key == 'shift':
+            self.remove_norm_line()
+
+    def on_norm_line_motion(self, event):
+        """Handle mouse movement for the normalization line"""
+        # Only process if shift is still pressed
+        if not wx.GetKeyState(wx.WXK_SHIFT):
+            self.remove_norm_line()
+            return
+
+        # Update line position if mouse is in plot area
+        if event.inaxes and hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+            # Get the current energy value from parent
+            if hasattr(self.parent, 'current_energy_value'):
+                x_value = self.parent.current_energy_value
+
+                self.be_norm_line.set_xdata([x_value, x_value])
+                self.parent.canvas.draw_idle()
+
+                # If dragging, update normalization values in grid
+                if self.is_dragging:
+                    self.update_norm_be_values(x_value)
+
+    def on_norm_line_press(self, event):
+        """Handle mouse button press on the normalization line"""
+        if not wx.GetKeyState(wx.WXK_SHIFT) or not event.inaxes or event.button != 1:
+            return
+
+        # Start dragging and updating values
+        self.is_dragging = True
+
+        # Update values immediately on press using parent's stored energy value
+        if hasattr(self.parent, 'current_energy_value'):
+            self.update_norm_be_values(self.parent.current_energy_value)
+
+    def on_norm_line_release(self, event):
+        """Handle mouse button release"""
+        if self.is_dragging:
+            self.is_dragging = False
+
+            # Final update of values using parent's stored energy value
+            if hasattr(self.parent, 'current_energy_value'):
+                self.update_norm_be_values(self.parent.current_energy_value)
+
+            # Remove the line
+            self.remove_norm_line()
+
+    def remove_norm_line(self):
+        """Remove the normalization line and disconnect events"""
+        # Remove the line
+        if hasattr(self, 'be_norm_line') and self.be_norm_line is not None:
+            self.be_norm_line.remove()
+            self.be_norm_line = None
+
+        # Disconnect events
+        if hasattr(self, 'motion_id'):
+            self.parent.canvas.mpl_disconnect(self.motion_id)
+        if hasattr(self, 'press_id'):
+            self.parent.canvas.mpl_disconnect(self.press_id)
+        if hasattr(self, 'release_id'):
+            self.parent.canvas.mpl_disconnect(self.release_id)
+
+        # Reset dragging state
+        self.is_dragging = False
+
+        # Update the canvas
+        self.parent.canvas.draw_idle()
+
+    def update_norm_be_values(self, x_value):
+        """Update the Norm. @ BE values in the grid with the given x value"""
+        # Get selected cells to determine which rows to update
+        selected_cells = self.get_selected_sheet_names()
+        rows_to_update = []
+
+        # Find grid rows for each selected sheet
+        for sheet_name in selected_cells:
+            for row in range(self.grid.GetNumberRows()):
+                for col in range(1, len(self.core_levels) + 1):
+                    if self.grid.GetCellValue(row, col) == sheet_name:
+                        rows_to_update.append(row)
+                        break
+
+        # If no specific rows selected, update all rows
+        if not rows_to_update:
+            rows_to_update = list(range(self.grid.GetNumberRows()))
+
+        # Update the BE normalization column for each row
+        norm_be_col = len(self.core_levels) + 2
+        for row in rows_to_update:
+            self.grid.SetCellValue(row, norm_be_col, f"{x_value:.2f}")
+
+        # Refresh grid and replot if normalization is active
+        self.grid.ForceRefresh()
+        if self.norm_type.GetValue() != "Norm. OFF":
+            self.replot_with_normalization()
+
+
+
+    def on_close(self, event):
+        self.save_sample_names()
+        self.save_be_corrections()  # Add this line
+        self.parent.file_manager_position = self.GetPosition()
+        event.Skip()
+
+    def sort_excel_sheets(self, event):
+        """Sort Excel sheets by sample group and element name"""
+        save_state(self.parent)
+        if not hasattr(self.parent, 'Data') or 'Core levels' not in self.parent.Data:
+            wx.MessageBox("No data available to sort.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get all sheet names from Data
+        sheet_names = list(self.parent.Data['Core levels'].keys())
+
+        # Group sheets by sample number
+        grouped_sheets = {}
+
+        for sheet_name in sheet_names:
+            # Handle wide/survey scans specially
+            if "wide" in sheet_name.lower() or "survey" in sheet_name.lower():
+                match = re.match(r'(wide|survey)(\d*)$', sheet_name.lower(), re.IGNORECASE)
+                if match:
+                    base_name = match.group(1).capitalize()
+                    sample_num = match.group(2)
+                else:
+                    base_name = sheet_name
+                    sample_num = ""
+            else:
+                # Regular core level
+                # match = re.match(r'([A-Za-z]+\d*[spdfg]*)(\d*)$', sheet_name)
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                if match:
+                    base_name, sample_num = match.groups()
+                else:
+                    base_name = sheet_name
+                    sample_num = ""
+
+            sample_num = int(sample_num) if sample_num else 0
+
+            if sample_num not in grouped_sheets:
+                grouped_sheets[sample_num] = []
+
+            grouped_sheets[sample_num].append((base_name, sheet_name))
+
+        # Sort each group alphabetically by base name
+        for sample_num in grouped_sheets:
+            # Put "Wide" or "Survey" at the end of each group
+            def sort_key(item):
+                base = item[0].lower()
+                if "wide" in base or "survey" in base:
+                    return "zzz"  # This ensures these come last alphabetically
+                return base
+
+            grouped_sheets[sample_num].sort(key=sort_key)
+
+        # Create final sorted list of sheet names
+        sorted_sheet_names = []
+        for sample_num in sorted(grouped_sheets.keys()):
+            for _, sheet_name in grouped_sheets[sample_num]:
+                sorted_sheet_names.append(sheet_name)
+
+        # Check if already sorted
+        if sheet_names == sorted_sheet_names:
+            # wx.MessageBox("Sheets are already sorted.", "Information", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Information", "Sheets are already sorted.")
+            return
+
+
+        # Sort the Excel file
+        try:
+            import pandas as pd
+
+            file_path = self.parent.Data['FilePath']
+
+            # Check if file is accessible
+            try:
+                with open(file_path, 'rb') as f:
+                    pass
+            except PermissionError:
+                wx.MessageBox("Cannot sort sheets: Excel file is open in another program.",
+                              "File Locked", wx.OK | wx.ICON_ERROR)
+                return
+
+            # Read all data into memory
+            data_frames = {}
+            for sheet_name in sheet_names:
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                data_frames[sheet_name] = df
+
+            # Write sheets in sorted order
+            with pd.ExcelWriter(file_path, engine='openpyxl', mode='w') as writer:
+                for sheet_name in sorted_sheet_names:
+                    data_frames[sheet_name].to_excel(writer, sheet_name=sheet_name, index=False)
+
+            # Update Data structure
+            sorted_core_levels = {}
+            for sheet_name in sorted_sheet_names:
+                sorted_core_levels[sheet_name] = self.parent.Data['Core levels'][sheet_name]
+            self.parent.Data['Core levels'] = sorted_core_levels
+
+            # Update UI
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet_name in sorted_sheet_names:
+                self.parent.sheet_combobox.Append(sheet_name)
+
+            if current_sheet in sorted_sheet_names:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+            elif sorted_sheet_names:
+                self.parent.sheet_combobox.SetValue(sorted_sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sorted_sheet_names[0])
+
+            # Refresh grid
+            self.populate_grid()
+
+            # wx.MessageBox("Sheets sorted successfully.", "Success", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Success", "Sheets sorted successfully.")
+
+
+        except Exception as e:
+            wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_backup(self, event):
+        """Create a backup of the current Excel and JSON files"""
+        if 'FilePath' not in self.parent.Data or not self.parent.Data['FilePath']:
+            wx.MessageBox("No file currently open to backup.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get current file paths
+        excel_file = self.parent.Data['FilePath']
+        json_file = os.path.splitext(excel_file)[0] + '.json'
+
+        # Check if files exist
+        if not os.path.exists(excel_file):
+            wx.MessageBox(f"Excel file not found: {excel_file}", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Create backup folder in the executable directory
+        import sys
+        import platform
+
+        executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+
+        # For Mac bundle, go outside the .app
+        if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        # For development environment, fall back to current script directory
+        elif not "KherveFitting" in executable_dir:
+            executable_dir = os.path.dirname(os.path.abspath(__file__))
+            # Go up one level if in libraries folder
+            if os.path.basename(executable_dir) == "libraries":
+                executable_dir = os.path.dirname(executable_dir)
+
+        backup_folder = os.path.join(executable_dir, "Backup")
+        if not os.path.exists(backup_folder):
+            os.makedirs(backup_folder)
+
+        # Generate timestamp in format: YYcDD_HHMMSS
+        import datetime
+        now = datetime.datetime.now()
+        month_letter = chr(ord('a') + now.month - 1)  # a=Jan, b=Feb, c=Mar, etc.
+        timestamp = f"{now.year % 100}{month_letter}{now.day:02d}_{now.hour:02d}{now.minute:02d}{now.second:02d}"
+
+        # Create backup filenames
+        excel_filename = os.path.basename(excel_file)
+        excel_backup = os.path.join(backup_folder, f"{excel_filename}_{timestamp}")
+
+        # Copy the Excel file
+        try:
+            shutil.copy2(excel_file, excel_backup)
+            files_backed_up = [excel_backup]
+
+            # Copy the JSON file if it exists
+            if os.path.exists(json_file):
+                json_filename = os.path.basename(json_file)
+                json_backup = os.path.join(backup_folder, f"{json_filename}_{timestamp}")
+                shutil.copy2(json_file, json_backup)
+                files_backed_up.append(json_backup)
+
+            # Show success message
+            # wx.MessageBox(f"Backup created successfully:\n" + "\n".join(files_backed_up),
+            #               "Backup Complete", wx.OK | wx.ICON_INFORMATION)
+            self.parent.show_popup_message2("Backup Complete", f"Backup created successfully:\n" + "\n".join(
+                files_backed_up))
+
+        except Exception as e:
+            # wx.MessageBox(f"Error creating backup: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+            self.parent.show_popup_message2("Error", f"Error creating backup: {str(e)}")
+
+    def rename_from_context_menu(self, sheet_name):
+        """Rename a core level from the right-click context menu"""
+        save_state(self.parent)
+
+        # Set the sheet in parent before renaming
+        self.parent.sheet_combobox.SetValue(sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name}:", "Rename Core Level", sheet_name)
+        if dlg.ShowModal() == wx.ID_OK:
+            new_name = dlg.GetValue()
+            if new_name and new_name != sheet_name:
+                from libraries.Utilities import rename_sheet
+                rename_sheet(self.parent, new_name)
+                # Reload the grid after renaming
+                self.populate_grid()
+        dlg.Destroy()
+
+    def on_grid_right_click(self, event):
+        """Handle right-click on grid to show context menu"""
+        import os
+        import tempfile
+
+        row = event.GetRow()
+        col = event.GetCol()
+
+        # Create context menu
+        menu = wx.Menu()
+
+        # Add standard menu items
+        copy_item = menu.Append(wx.ID_ANY, "Copy Core Level(s)")
+        paste_item = menu.Append(wx.ID_ANY, "Paste Core Level(s)")
+        delete_item = menu.Append(wx.ID_ANY, "Delete Core Level(s)")
+
+
+
+        menu.AppendSeparator()
+
+        # Add propagate fittings functionality
+        propagate_fittings = menu.Append(wx.ID_ANY, "Propagate Fittings")
+
+        # Add rename option for core level cells only
+        if col > 0 and col <= len(self.core_levels):  # Only for core level columns
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                menu.AppendSeparator()
+                rename_item = menu.Append(wx.ID_ANY, f"Rename '{cell_value}'")
+                self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.rename_from_context_menu(sheet), rename_item)
+
+        # Add insert row option
+        menu.AppendSeparator()
+        insert_row_item = menu.Append(wx.ID_ANY, f"Insert Row")
+        self.Bind(wx.EVT_MENU, lambda evt, r=row: self.on_insert_row(r), insert_row_item)
+
+        delete_row_item = menu.Append(wx.ID_ANY, f"Delete Row {row}")
+        self.Bind(wx.EVT_MENU, lambda evt, r=row: self.on_delete_row(r), delete_row_item)
+
+        # Add info option for core level cells only
+        if col > 0 and col <= len(self.core_levels):  # Only for core level columns
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                menu.AppendSeparator()
+                info_item = menu.Append(wx.ID_ANY, f"Info")
+                self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.open_experimental_description(sheet), info_item)
+
+        # Check if paste should be enabled (clipboard has data)
+        clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_corelevels_clipboard.json')
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+
+        paste_item.Enable(os.path.exists(clipboard_file))
+
+        # # Enable peak table functions only for core level columns and if clipboard exists
+        # has_peak_clipboard = os.path.exists(peak_clipboard_file)
+        # background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        # has_background_clipboard = os.path.exists(background_clipboard_file)
+        # is_core_level_column = col > 0 and col <= len(self.core_levels)
+        # has_current_core_level = is_core_level_column and bool(self.grid.GetCellValue(row, col).strip())
+        #
+        # copy_peak_table.Enable(has_current_core_level)
+        # paste_peak_table.Enable(has_peak_clipboard and has_current_core_level)
+        # paste_peak_table_column.Enable(has_peak_clipboard and is_core_level_column)
+        #
+        # # Enable background functions
+        # copy_background.Enable(has_current_core_level)
+        # paste_background.Enable(has_background_clipboard and has_current_core_level)
+        # paste_background_select.Enable(has_background_clipboard and is_core_level_column)
+        #
+        # # Enable combined functions
+        # has_both_clipboards = has_peak_clipboard and has_background_clipboard
+        # copy_peak_bkg.Enable(has_current_core_level)
+        # paste_peak_bkg_single.Enable(has_both_clipboards and has_current_core_level)
+        # paste_peak_bkg_multi.Enable(has_both_clipboards and is_core_level_column)
+
+        # Enable propagate fittings for core level columns with current core level
+        is_core_level_column = col > 0 and col <= len(self.core_levels)
+        has_current_core_level = is_core_level_column and bool(self.grid.GetCellValue(row, col).strip())
+
+        propagate_fittings.Enable(has_current_core_level)
+
+        # Bind events
+        self.Bind(wx.EVT_MENU, self.on_copy, copy_item)
+        self.Bind(wx.EVT_MENU, self.on_paste, paste_item)
+        self.Bind(wx.EVT_MENU, self.on_delete, delete_item)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_from_filemanager(row, col), copy_peak_table)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_from_filemanager(row, col), paste_peak_table)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_to_column_from_filemanager(row, col), paste_peak_table_column)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.copy_background_from_filemanager(row, col), copy_background)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_from_filemanager(row, col), paste_background)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_background_to_column_from_filemanager(row, col), paste_background_select)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.copy_peak_table_and_background_from_filemanager(row, col), copy_peak_bkg)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_and_background_single_from_filemanager(row, col), paste_peak_bkg_single)
+        # self.Bind(wx.EVT_MENU, lambda evt: self.paste_peak_table_and_background_multi_from_filemanager(row, col), paste_peak_bkg_multi)
+
+        self.Bind(wx.EVT_MENU, lambda evt: self.propagate_fittings_from_filemanager(row, col), propagate_fittings)
+
+        # Add normalization propagation options for BE and Area normalization columns
+        norm_be_col = len(self.core_levels) + 2
+        norm_area_col = len(self.core_levels) + 3
+
+        if col == norm_be_col or col == norm_area_col:
+            cell_value = self.grid.GetCellValue(row, col)
+            if cell_value:
+                menu.AppendSeparator()
+                propagate_item = menu.Append(wx.ID_ANY, f"Propagate {cell_value} to all rows")
+                self.Bind(wx.EVT_MENU, lambda evt, r=row, c=col, v=cell_value: self.propagate_norm_value(r, c, v),
+                          propagate_item)
+
+        # Show the menu
+        self.grid.PopupMenu(menu)
+        menu.Destroy()
+
+    def propagate_norm_value(self, source_row, column, value):
+        """Propagate a normalization value to all rows in the same column"""
+        # Ask for confirmation
+        col_label = self.grid.GetColLabelValue(column)
+        if wx.MessageBox(f"Propagate value '{value}' to all rows in column '{col_label}'?",
+                         "Confirm Propagation", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+            return
+
+        # Apply the value to all rows
+        for row in range(self.grid.GetNumberRows()):
+            self.grid.SetCellValue(row, column, value)
+
+        # Refresh grid
+        self.grid.ForceRefresh()
+
+        # If currently plotting multiple sheets, update the plot with new normalization
+        self.replot_with_normalization()
+
+        # wx.MessageBox(f"Value '{value}' propagated to all rows.", "Success", wx.OK | wx.ICON_INFORMATION)
+        self.parent.show_popup_message2("Success", f"Value '{value}' propagated to all rows.")
+
+    def open_experimental_description(self, sheet_name):
+        """Open the Experimental Description window for the specified sheet"""
+        # Check if window already exists and close it
+        if hasattr(self.parent, 'experimental_description_window') and self.parent.experimental_description_window is not None:
+            try:
+                self.parent.experimental_description_window.Close()
+                self.parent.experimental_description_window.Destroy()
+            except:
+                pass
+
+        # Create new window
+        self.parent.experimental_description_window = ExperimentalDescriptionWindow(self.parent, sheet_name)
+        self.parent.experimental_description_window.Show()
+
+    def highlight_current_sheet(self, sheet_name):
+        """Highlight the cell containing the current sheet name"""
+        # Clear existing highlights
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                if self.grid.GetCellBackgroundColour(row, col) == wx.YELLOW:
+                    base_color = wx.Colour(200, 245, 228) if col > 0 else wx.Colour(180, 235, 208)
+                    self.grid.SetCellBackgroundColour(row, col, base_color)
+
+        # Find and highlight the cell with sheet_name
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(1, len(self.core_levels) + 1):  # Skip sample name column
+                if self.grid.GetCellValue(row, col) == sheet_name:
+                    self.grid.SetCellBackgroundColour(row, col, wx.YELLOW)
+                    self.grid.MakeCellVisible(row, col)
+                    break
+
+        self.grid.ForceRefresh()
+
+    def add_more_rows(self):
+        """Add 10 more rows to the grid."""
+        current_rows = self.grid.GetNumberRows()
+        self.grid.AppendRows(10)
+
+        # Set row labels for new rows
+        for row in range(current_rows, current_rows + 10):
+            self.grid.SetRowLabelValue(row, str(row))
+
+        # Set appropriate background colors for new rows
+        for row in range(current_rows, current_rows + 10):
+            # Sample name column (Experiment)
+            self.grid.SetCellBackgroundColour(row, 0, wx.Colour(230, 230, 230))
+
+            # BE correction column (Xshift)
+            be_col_index = len(self.core_levels) + 1
+            if be_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
+                self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))
+
+            # Norm @ BE column
+            norm_col_index = len(self.core_levels) + 2
+            if norm_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+
+            # Norm to A column
+            norm_area_col_index = len(self.core_levels) + 3
+            if norm_area_col_index < self.grid.GetNumberCols():
+                self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
+
+        self.grid.ForceRefresh()
+
+    def delete_last_rows(self):
+        """Delete the last 2 rows from the grid."""
+        current_rows = self.grid.GetNumberRows()
+        if current_rows >= 2:
+            self.grid.DeleteRows(current_rows - 2, 2)
+            self.grid.ForceRefresh()
+        else:
+            wx.MessageBox("Not enough rows to delete.", "Warning", wx.OK | wx.ICON_WARNING)
+
+    def add_single_row(self):
+        """Add 1 row to the grid."""
+        current_rows = self.grid.GetNumberRows()
+        self.grid.AppendRows(1)
+
+        # Set row label for new row
+        self.grid.SetRowLabelValue(current_rows, str(current_rows))
+
+        # Set appropriate background colors for new row
+        row = current_rows
+        # Sample name column (Experiment)
+        self.grid.SetCellBackgroundColour(row, 0, wx.Colour(230, 230, 230))
+
+        # BE correction column (Xshift)
+        be_col_index = len(self.core_levels) + 1
+        if be_col_index < self.grid.GetNumberCols():
+            self.grid.SetCellValue(row, be_col_index, "0.0")
+            self.grid.SetCellBackgroundColour(row, be_col_index, wx.Colour(230, 230, 230))
+            self.grid.SetCellTextColour(row, be_col_index, wx.Colour(128, 128, 128))
+
+        # Norm @ BE column
+        norm_col_index = len(self.core_levels) + 2
+        if norm_col_index < self.grid.GetNumberCols():
+            self.grid.SetCellBackgroundColour(row, norm_col_index, wx.Colour(230, 230, 230))
+
+        # Norm to A column
+        norm_area_col_index = len(self.core_levels) + 3
+        if norm_area_col_index < self.grid.GetNumberCols():
+            self.grid.SetCellBackgroundColour(row, norm_area_col_index, wx.Colour(230, 230, 230))
+
+        self.grid.ForceRefresh()
+
+
+
+    def delete_single_row(self):
+        """Delete the last row from the grid."""
+        current_rows = self.grid.GetNumberRows()
+        if current_rows >= 1:
+            self.grid.DeleteRows(current_rows - 1, 1)
+            self.grid.ForceRefresh()
+        else:
+            wx.MessageBox("No rows to delete.", "Warning", wx.OK | wx.ICON_WARNING)
+
+
+    def plot_multiple_sheets_with_offset(self, sheet_names):
+        """Plot multiple core levels with vertical offset between plots"""
+        if not sheet_names:
+            return
+
+        # Mark this as F3 plot type
+        self.parent.last_multiplot_type = 'F3'
+
+        # Get palette and linewidth settings
+        palette = getattr(self.parent, 'multiplot_palette', 'tab10')
+        linewidth = getattr(self.parent, 'multiplot_linewidth', 1.0)
+
+        # Get colors from palette
+        import matplotlib
+        import matplotlib.cm as cm
+        cmap = matplotlib.colormaps.get_cmap(palette)
+        num_sheets = len(sheet_names)
+
+        # Clear heatmap data when switching to regular plot
+        if hasattr(self.parent, 'heatmap_data'):
+            self.parent.heatmap_data = None
+            self.parent.heatmap_sheets = None
+
+
+        # Use current time to determine if this is a rapid keypress
+        import time
+        current_time = time.time()
+
+        # Check if this is the same set of sheets as last time
+        if self.last_offset_sheets == sheet_names:
+            # Check if the keypress was rapid (within threshold)
+            if current_time - self.last_keypress_time < self.rapid_press_threshold:
+                # Increment the offset multiplier for rapid presses
+                self.offset_multiplier += 1
+            else:
+                # Reset multiplier if too much time has passed
+                self.offset_multiplier = 1
+        else:
+            # Reset for new selection
+            self.offset_multiplier = 1
+            self.last_offset_sheets = sheet_names.copy()
+
+        # Update last keypress time
+        self.last_keypress_time = current_time
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Set the first sheet as the active one in the parent window
+        self.parent.sheet_combobox.SetValue(sheet_names[0])
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_names[0])
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Restore green line if active
+        self.restore_green_vline_if_active()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Remove heatmap colorbar AND its axes if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Track min/max x values
+        x_min = float('inf')
+        x_max = float('-inf')
+
+        # Determine if normalization is needed
+        normalize = self.norm_type.GetValue() != "Norm. OFF"
+        norm_method = self.norm_type.GetValue()
+
+        # For auto normalization, we need to calculate global min/max
+        global_min = float('inf')
+        global_max = float('-inf')
+
+        # Check if all sheets are from the same column (core level)
+        base_names = set(self.extract_base_name(name) for name in sheet_names)
+        same_column = len(base_names) == 1
+        column_name = list(base_names)[0] if same_column else None
+
+        if normalize and norm_method == "Norm. Auto":
+            # Get global min/max across all selected datasets
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+                    global_min = min(global_min, min(y_values))
+                    global_max = max(global_max, max(y_values))
+
+        # Plot each selected sheet with progressive offset
+        for i, sheet_name in enumerate(sheet_names):
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level = self.parent.Data['Core levels'][sheet_name]
+                x_values = core_level['B.E.']
+                y_values = np.array(core_level['Raw Data'])
+
+                # Update min/max x values
+                x_min = min(x_min, min(x_values))
+                x_max = max(x_max, max(x_values))
+
+                # Apply normalization if enabled
+                if normalize:
+                    # print("Normalise_before")
+                    if norm_method == "Norm. Auto":
+                        # Auto normalization
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+                        # print("Normalise")
+                        # Avoid division by zero
+                        if norm_max != norm_min:
+                            y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+
+                            # Add offset based on position and multiplier
+                            offset = i * (0.1 * self.offset_multiplier) * 1000
+                            y_values += offset
+
+                    elif norm_method == "Norm. @ BE":
+                        # Get the normalization point
+                        norm_min = min(y_values)
+                        norm_max = max(y_values)
+
+                        row_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_be_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 2)
+                            try:
+                                norm_be = float(norm_be_str) if norm_be_str else None
+                                if norm_be is not None:
+                                    closest_idx = np.argmin(np.abs(np.array(x_values) - norm_be))
+                                    norm_value = y_values[closest_idx] - norm_min
+                                    if norm_value != 0:
+                                        y_values = (y_values - norm_min) / norm_value * 1000
+
+                                        # Add offset based on position and multiplier
+                                        offset = i * (0.1 * self.offset_multiplier) * 1000
+                                        y_values += offset
+                            except ValueError:
+                                pass
+                    elif norm_method == "Norm. to A":
+                        # Use area normalization factor
+                        row_found = -1
+                        for row in range(self.grid.GetNumberRows()):
+                            for col in range(1, len(self.core_levels) + 1):
+                                if self.grid.GetCellValue(row, col) == sheet_name:
+                                    row_found = row
+                                    break
+                            if row_found >= 0:
+                                break
+
+                        if row_found >= 0:
+                            norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+                            try:
+                                norm_factor = float(norm_area_str) if norm_area_str else None
+                                if norm_factor is not None:
+                                    norm_min = min(y_values)
+                                    y_values = (y_values - norm_min) / norm_factor * 1000
+
+                                    # Add offset based on position and multiplier
+                                    offset = i * (0.1 * self.offset_multiplier) * 1000
+                                    y_values += offset
+                            except ValueError:
+                                pass
+
+                # Use a different color for each plot
+                # color = self.parent.peak_colors[i % len(self.parent.peak_colors)]
+                color_value = 0.1 + (0.65 * i / max(num_sheets - 1, 1))
+                color = cmap(color_value)
+
+                # Get legend label (use experiment name if available)
+                legend_label = self.get_legend_label_for_sheet(sheet_name)
+
+                # Plot the data
+                if self.parent.energy_scale == 'KE':
+                    self.parent.ax.plot(self.parent.photons - x_values, y_values, label=legend_label, color=color,
+                                        linewidth= linewidth)
+                                        # linewidth=self.parent.line_width)
+                else:
+                    self.parent.ax.plot(x_values, y_values, label=legend_label, color=color,
+                                        linewidth=linewidth)
+                                        # linewidth=self.parent.line_width)
+
+        # Check if any sheet is Raman or XAS
+        is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
+        is_xas = any(name.startswith('XAS') for name in sheet_names)
+        is_edx = any(name == 'EDX~Plot' or name.startswith('EDX~Plot') for name in sheet_names)
+
+        # Set labels and formatting based on data type
+        if is_edx:
+            self.parent.ax.set_xlabel("Energy (keV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Counts (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Counts")
+            # Normal direction for EDX (0 to max)
+            self.parent.ax.set_xlim(0, x_max)
+        elif is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for Raman
+            self.parent.ax.set_xlim(x_min, x_max)
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Intensity (a.u.)")
+            # Normal direction for XAS
+            self.parent.ax.set_xlim(x_min, x_max)
+        else:
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Intensity (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Intensity (CPS)")
+            # Reversed for XPS
+            self.parent.ax.set_xlim(x_max, x_min)
+
+        # Apply scientific format to Y-axis
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Only show legend if 7 or fewer items
+        max_items = getattr(self.parent, 'multiplot_max_legend_items', 10)
+        if len(sheet_names) <= max_items:
+            ncol = getattr(self.parent, 'multiplot_legend_ncol', 2)
+            self.parent.ax.legend(loc='upper left', ncol=ncol)
+
+        # If all sheets are from the same column, add core level text in top right (except for Raman)
+        if same_column and not is_raman and not is_edx:
+            # Format name based on data type
+            if is_xas:
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(column_name)
+            else:
+                formatted_name = self.parent.plot_manager.format_sheet_name(column_name)
+
+            sheet_name_text = self.parent.ax.text(
+                0.98, 0.98,  # Position (top-right corner)
+                formatted_name,
+                transform=self.parent.ax.transAxes,
+                fontsize=self.parent.core_level_text_size,
+                fontfamily=[self.parent.plot_font],
+                fontweight='bold',
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(facecolor='none', edgecolor='none', alpha=1),
+            )
+            sheet_name_text.sheet_name_text = True  # Mark this text object
+
+        # Apply text settings from preferences
+        self.parent.ax.tick_params(axis='both', labelsize=self.parent.axis_number_size)
+        self.parent.ax.xaxis.label.set_size(self.parent.axis_title_size)
+        self.parent.ax.yaxis.label.set_size(self.parent.axis_title_size)
+
+        # Update the plot
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+    def on_plot_selected_with_offset(self, event):
+        """Plot the currently selected core level(s) with offset"""
+        sheet_names = self.get_selected_sheet_names()
+
+        # If the single selected sheet is an XPS~Map, plot all sweep lines with offset.
+        # Repeated F3 presses increase the offset multiplier; F2 resets it.
+        if sheet_names and len(sheet_names) == 1 and sheet_names[0].startswith('XPS~Map'):
+            import time
+            current_time = time.time()
+            last_map_sheet = getattr(self, 'last_map_offset_sheet', None)
+            last_map_time = getattr(self, 'last_map_offset_time', 0)
+            if last_map_sheet == sheet_names[0] and (current_time - last_map_time) < self.rapid_press_threshold:
+                self.map_offset_multiplier = getattr(self, 'map_offset_multiplier', 1) + 1
+            else:
+                self.map_offset_multiplier = 1
+            self.last_map_offset_sheet = sheet_names[0]
+            self.last_map_offset_time = current_time
+            self.plot_xps_map_lines(sheet_names[0], offset=True)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()
+            return
+
+        if sheet_names:
+            if len(sheet_names) == 1:
+                # Single sheet - update combobox and plot
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_names[0])
+            else:
+                # Multiple sheets - offset plot
+                self.plot_multiple_sheets_with_offset(sheet_names)
+                # Update combobox with first sheet name
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+
+            # Highlight the selected cell(s)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()  # Bring the file manager window to the front
+
+    def on_plot_selected_with_fitted_data(self, event):
+        """Plot the currently selected core level(s) with offset and fitted data"""
+        sheet_names = self.get_selected_sheet_names()
+
+        # If the single selected sheet is an XPS~Map, show the 2D heatmap (F4 = heatmap view)
+        if sheet_names and len(sheet_names) == 1 and sheet_names[0].startswith('XPS~Map'):
+            self.plot_xps_map_on_main(sheet_names[0])
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()
+            return
+
+        if sheet_names:
+            if len(sheet_names) == 1:
+                # Single sheet - update combobox and plot
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, sheet_names[0])
+            else:
+                # Multiple sheets - offset plot with fitted data
+                self.plot_multiple_sheets_with_offset_and_fitted_data(sheet_names)
+                # Update combobox with first sheet name
+                self.parent.sheet_combobox.SetValue(sheet_names[0])
+
+            # Highlight the selected cell(s)
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()  # Bring the file manager window to the front
+
+    def plot_multiple_sheets_with_offset_and_fitted_data(self, sheet_names):
+        """Plot multiple core levels with vertical offset between plots including fitted data"""
+        if not sheet_names:
+            return
+
+        # Use current time to determine if this is a rapid keypress for F4
+        import time
+        current_time = time.time()
+
+        # Use separate tracking variables for F4
+        if not hasattr(self, 'last_fitted_offset_sheets'):
+            self.last_fitted_offset_sheets = []
+        if not hasattr(self, 'last_fitted_keypress_time'):
+            self.last_fitted_keypress_time = 0
+        if not hasattr(self, 'fitted_offset_multiplier'):
+            self.fitted_offset_multiplier = 1
+
+        # Check if this is the same set of sheets as last time for F4
+        if self.last_fitted_offset_sheets == sheet_names:
+            # Check if the keypress was rapid (within threshold)
+            if current_time - self.last_fitted_keypress_time < self.rapid_press_threshold:
+                # Only increment if this is a left-click (not a right-click)
+                # Right-click handler sets its own multiplier value
+                if not hasattr(self, '_right_click_used'):
+                    self.fitted_offset_multiplier += 1
+                else:
+                    # Reset the right-click flag
+                    delattr(self, '_right_click_used')
+            else:
+                # Reset multiplier if too much time has passed (but not if right-click was used)
+                if not hasattr(self, '_right_click_used'):
+                    self.fitted_offset_multiplier = 1
+                else:
+                    delattr(self, '_right_click_used')
+        else:
+            # Reset for new selection (but not if right-click was used)
+            if not hasattr(self, '_right_click_used'):
+                self.fitted_offset_multiplier = 1
+            else:
+                delattr(self, '_right_click_used')
+            self.last_fitted_offset_sheets = sheet_names.copy()
+
+        # Update last keypress time for F4
+        self.last_fitted_keypress_time = current_time
+
+        # Store the original residuals state
+        original_residuals_state = self.parent.plot_manager.residuals_state
+
+        # Set the first sheet as the active one in the parent window
+        self.parent.sheet_combobox.SetValue(sheet_names[0])
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_names[0])
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Restore green line if active
+        self.restore_green_vline_if_active()
+
+        # Remove any residual subplot temporarily
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Remove heatmap colorbar if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                self.parent.heatmap_colorbar.remove()
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Track min/max x values
+        x_min = float('inf')
+        x_max = float('-inf')
+
+        # Determine if normalization is needed
+        normalize = self.norm_type.GetValue() != "Norm. OFF"
+        norm_method = self.norm_type.GetValue()
+
+        # Determine the reference maximum for offset calculation
+        if normalize:
+            # When normalized, use 1000 as the reference maximum
+            reference_max = 1000
+        else:
+            # When not normalized, use the actual maximum across all datasets
+            all_y_max = []
+            for sheet_name in sheet_names:
+                if sheet_name in self.parent.Data['Core levels']:
+                    y_values = np.array(self.parent.Data['Core levels'][sheet_name]['Raw Data'])
+                    all_y_max.append(max(y_values))
+            reference_max = max(all_y_max) if all_y_max else 1000
+
+        # Plot each sheet with increasing offset
+        for i, sheet_name in enumerate(sheet_names):
+            if sheet_name not in self.parent.Data['Core levels']:
+                continue
+
+            # Get data
+            core_level = self.parent.Data['Core levels'][sheet_name]
+            x_values = np.array(core_level['B.E.'])
+            y_values = np.array(core_level['Raw Data'])
+            original_y_values = y_values.copy()  # Keep original for normalization parameters
+
+            # Update min/max x values
+            x_min = min(x_min, min(x_values))
+            x_max = max(x_max, max(x_values))
+
+            # Store normalization parameters for fitted data
+            norm_params = None
+
+            # Apply normalization if enabled and store parameters
+            if normalize:
+                if norm_method == "Norm. Auto":
+                    # Auto normalization
+                    norm_min = min(y_values)
+                    norm_max = max(y_values)
+                    # Avoid division by zero
+                    if norm_max != norm_min:
+                        norm_params = {'method': 'auto', 'min': norm_min, 'max': norm_max}
+                        y_values = (y_values - norm_min) / (norm_max - norm_min) * 1000
+
+                elif norm_method == "Norm. @ BE":
+                    # Get the normalization point
+                    norm_min = min(y_values)
+                    norm_max = max(y_values)
+
+                    row_found = -1
+                    for row in range(self.grid.GetNumberRows()):
+                        for col in range(1, len(self.core_levels) + 1):
+                            if self.grid.GetCellValue(row, col) == sheet_name:
+                                row_found = row
+                                break
+                        if row_found >= 0:
+                            break
+
+                    if row_found >= 0:
+                        norm_be_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 2)
+                        try:
+                            norm_be = float(norm_be_str) if norm_be_str else None
+                            if norm_be is not None:
+                                closest_idx = np.argmin(np.abs(np.array(x_values) - norm_be))
+                                norm_value = y_values[closest_idx] - norm_min
+                                if norm_value != 0:
+                                    norm_params = {'method': 'norm_be', 'min': norm_min, 'norm_value': norm_value}
+                                    y_values = (y_values - norm_min) / norm_value * 1000
+                        except ValueError:
+                            pass
+
+                elif norm_method == "Norm. to A":
+                    # Get the normalization factor directly from the "Norm. to A" column
+                    row_found = -1
+                    for row in range(self.grid.GetNumberRows()):
+                        for col in range(1, len(self.core_levels) + 1):
+                            if self.grid.GetCellValue(row, col) == sheet_name:
+                                row_found = row
+                                break
+                        if row_found >= 0:
+                            break
+
+                    if row_found >= 0:
+                        norm_area_str = self.grid.GetCellValue(row_found, len(self.core_levels) + 3)
+                        try:
+                            norm_area = float(norm_area_str) if norm_area_str else None
+                            if norm_area is not None and norm_area != 0:
+                                norm_min = min(y_values)
+                                norm_params = {'method': 'norm_area', 'min': norm_min, 'norm_area': norm_area}
+                                y_values = (y_values - norm_min) / norm_area * 1000
+                        except ValueError:
+                            pass
+
+            # Calculate offset: Initial 1.1*Max, then +0.2*Max for each additional press
+            base_spacing = 1.05  # Initial spacing
+            additional_spacing = 0.05 * (self.fitted_offset_multiplier - 1)  # Additional spacing per press
+            total_spacing = base_spacing + additional_spacing
+            offset = i * total_spacing * reference_max
+
+            # Apply the offset to y_values
+            y_values_with_offset = y_values + offset
+
+            # Define base color for this core level (for overall fit envelope)
+            base_color = self.parent.plot_manager.peak_colors[i % len(self.parent.plot_manager.peak_colors)]
+
+            # Plot raw data using the same style as clear_and_replot
+            if self.parent.plot_manager.plot_style == "scatter":
+                # Use scatter plot with config settings
+                self.parent.ax.scatter(x_values, y_values_with_offset,
+                                       c=self.parent.plot_manager.scatter_color,
+                                       s=self.parent.plot_manager.scatter_size,
+                                       alpha=self.parent.plot_manager.line_alpha,
+                                       marker=self.parent.plot_manager.scatter_marker,
+                                       label=f'{sheet_name} (Raw)')
+            else:
+                # Use line plot with config settings
+                self.parent.ax.plot(x_values, y_values_with_offset,
+                                    color=self.parent.plot_manager.line_color,
+                                    alpha=self.parent.plot_manager.line_alpha,
+                                    linewidth=self.parent.plot_manager.line_width,
+                                    linestyle=self.parent.plot_manager.raw_data_linestyle,
+                                    label=f'{sheet_name} (Raw)')
+
+            # Plot fitted data if available (with the SAME offset and normalization factor)
+            self.plot_fitted_data_for_sheet(sheet_name, x_values, offset, base_color, i, norm_params)
+
+        # Check if any sheet is Raman or XAS
+        is_raman = any(name.startswith('RA') or 'RAMAN' in name.upper() for name in sheet_names)
+        is_xas = any(name.startswith('XAS') for name in sheet_names)
+        is_edx = any(name == 'EDX~Plot' or name.startswith('EDX~Plot') for name in sheet_names)
+
+        # Set up the plot based on data type
+        if is_edx:
+            self.parent.ax.set_xlabel("Energy (keV)")
+            if normalize:
+                self.parent.ax.set_ylabel(f"Normalized Counts (offset×{self.offset_multiplier / 10:.1f})")
+            else:
+                self.parent.ax.set_ylabel("Counts")
+            # Normal direction for EDX (0 to max)
+            self.parent.ax.set_xlim(0, x_max)
+        elif is_raman:
+            self.parent.ax.set_xlabel("Wavenumber (cm⁻¹)")
+            self.parent.ax.set_ylabel("Normalised Intensity (a.u.)")
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_min, x_max)  # Normal direction for Raman
+        elif is_xas:
+            self.parent.ax.set_xlabel("Photon Energy (eV)")
+            self.parent.ax.set_ylabel("Normalised Intensity (a.u.)")
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_min, x_max)  # Normal direction for XAS
+        elif self.parent.energy_scale == 'KE':
+            self.parent.ax.set_xlabel("Kinetic Energy (eV)")
+            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_min, x_max)  # Normal for KE
+        else:
+            self.parent.ax.set_xlabel("Binding Energy (eV)")
+            self.parent.ax.set_ylabel("Normalised Intensity (CPS)")
+            if x_min != float('inf') and x_max != float('-inf'):
+                self.parent.ax.set_xlim(x_max, x_min)  # Reversed for XPS
+
+        # # Add scientific notation to Y-axis (same as clear_and_replot)
+        # from matplotlib.ticker import ScalarFormatter
+        # self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        # self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Hide Y-axis tick labels and numbers (not needed for stacked plots)
+        self.parent.ax.set_yticklabels([])
+        self.parent.ax.tick_params(axis='y', which='both', left=False, right=False)
+
+        # Apply text settings from preference window
+        self.parent.plot_manager.apply_text_settings(self.parent)
+
+        # Add core level name at top right using plot coordinates (except for Raman)
+        if sheet_names and not is_raman:
+            # Extract core level name from the first sheet
+            first_sheet = sheet_names[0]
+
+            # Format name based on data type
+            if is_xas:
+                formatted_name = self.parent.plot_manager.format_xas_sheet_name(first_sheet)
+            else:
+                # Handle XPS data format
+                if '_' in first_sheet:
+                    core_level = first_sheet.split('_')[-1]  # Get part after last underscore
+                else:
+                    import re
+                    match = re.search(r'([A-Z][a-z]?\d+[a-z]+)', first_sheet)
+                    core_level = match.group(1) if match else first_sheet
+                formatted_name = self.parent.plot_manager.format_sheet_name(core_level)
+
+            # Use plot coordinates (0-1 range) for positioning
+            self.parent.ax.text(0.98, 0.98, formatted_name,  # 98% from left, 98% from bottom
+                                transform=self.parent.ax.transAxes,  # Use plot coordinates
+                                fontsize=getattr(self.parent, 'core_level_text_size', 12),
+                                fontweight='bold',
+                                ha='right', va='top',
+                                color='black',
+                                bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=2))
+
+        # Add peak color legend for filled peaks only
+        self.update_stacked_plot_legend()
+
+        # Update the plot
+        self.parent.canvas.draw_idle()
+
+        # Restore the original residuals state in the manager
+        self.parent.plot_manager.residuals_state = original_residuals_state
+
+
+    def get_display_text_for_sheet(self, sheet_name):
+        """Get sample name from SampleNames if available, otherwise return sheet name"""
+        try:
+            # Check if there's sample names data
+            if (hasattr(self.parent, 'Data') and
+                    'SampleNames' in self.parent.Data):
+
+                sample_names = self.parent.Data['SampleNames']
+
+                # Find which row this sheet corresponds to by looking through the grid
+                for row in range(self.grid.GetNumberRows()):
+                    for col in range(1, len(self.core_levels) + 1):
+                        if self.grid.GetCellValue(row, col) == sheet_name:
+                            # Found the sheet in this row, now get the sample name
+                            row_key = str(row)
+                            if row_key in sample_names:
+                                sample_name = sample_names[row_key]
+                                if sample_name and str(sample_name).strip():
+                                    return str(sample_name).strip()
+                            break
+
+            # Fallback to sheet name if no sample name found
+            return sheet_name
+
+        except Exception as e:
+            print(f"Error getting display text: {e}")
+            return sheet_name
+
+    def get_legend_label_for_sheet(self, sheet_name):
+        """Get the legend label for a sheet - uses experiment name from column 0 if available"""
+        try:
+            # Find which row this sheet corresponds to
+            for row in range(self.grid.GetNumberRows()):
+                for col in range(1, len(self.core_levels) + 1):
+                    if self.grid.GetCellValue(row, col) == sheet_name:
+                        # Found the sheet, now check if there's an experiment name in column 0
+                        experiment_name = self.grid.GetCellValue(row, 0)
+                        if experiment_name and str(experiment_name).strip():
+                            return str(experiment_name).strip()
+                        break
+
+            # Fallback to sheet name if no experiment name found
+            return sheet_name
+        except:
+            return sheet_name
+
+    def plot_fitted_data_for_sheet(self, sheet_name, x_values, offset, base_color, sheet_index, norm_params=None):
+        """Plot fitted data using the same styling as clear_and_replot"""
+        if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
+            return
+
+        fitting_data = self.parent.Data['Core levels'][sheet_name]['Fitting']
+
+        def apply_normalization(data, norm_params):
+            """Apply the same normalization transformation used for raw data"""
+            if norm_params is None:
+                return data
+
+            data = np.array(data)
+            if norm_params['method'] == 'auto':
+                norm_min = norm_params['min']
+                norm_max = norm_params['max']
+                if norm_max != norm_min:
+                    return (data - norm_min) / (norm_max - norm_min) * 1000
+            elif norm_params['method'] == 'norm_be':
+                norm_min = norm_params['min']
+                norm_value = norm_params['norm_value']
+                if norm_value != 0:
+                    return (data - norm_min) / norm_value * 1000
+            elif norm_params['method'] == 'norm_area':
+                norm_min = norm_params['min']
+                norm_area = norm_params['norm_area']
+                if norm_area != 0:
+                    return (data - norm_min) / norm_area * 1000
+
+            return data
+
+        # Get background data
+        background = np.zeros_like(x_values)
+        if ('Background' in self.parent.Data['Core levels'][sheet_name] and
+                'Bkg Y' in self.parent.Data['Core levels'][sheet_name]['Background']):
+            background = np.array(self.parent.Data['Core levels'][sheet_name]['Background']['Bkg Y'])
+            background = background[:len(x_values)]
+
+        # Plot background using the same style as clear_and_replot
+        background_normalized = apply_normalization(background, norm_params)
+        self.parent.ax.plot(x_values, background_normalized + offset,
+                            color=self.parent.plot_manager.background_color,
+                            alpha=self.parent.plot_manager.background_alpha,
+                            linestyle=self.parent.plot_manager.background_linestyle,
+                            linewidth=self.parent.plot_manager.background_thickness,
+                            label=f'{sheet_name} (Bkg)')
+
+        # Add text label for this dataset (smaller and leftmost position)
+        max_y_with_offset = (max(background_normalized) if len(background_normalized) > 0 else 0) + offset + 50
+
+        # Check if this is XAS or Raman data
+        is_xas = sheet_name.startswith('XAS')
+        is_raman = sheet_name.startswith('RA') or 'RAMAN' in sheet_name.upper()
+
+        # Position text based on data type
+        if is_xas or is_raman:
+            # For XAS/Raman: axis goes min to max, so position at left edge (min side)
+            text_x = min(x_values) + (
+                        max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (low energy side)
+        else:
+            # For XPS: axis goes max to min, so position at left edge (high BE side)
+            text_x = max(x_values) - (
+                        max(x_values) - min(x_values)) * 0.02  # Position at 2% from left edge (high BE side)
+
+        display_text = self.get_display_text_for_sheet(sheet_name)
+        self.parent.ax.text(text_x, max_y_with_offset, display_text,
+                            fontsize=getattr(self.parent, 'label_font_size', 8),  # Use smaller font
+                            ha='left', va='bottom',  # Left align
+                            color='k')
+
+        # Plot individual peaks using fill_between just like clear_and_replot
+        if 'Peaks' in fitting_data:
+            peaks = fitting_data['Peaks']
+            peaks_list = list(peaks.items())
+            num_peaks = len(peaks_list)
+
+            # Identify doublets using the same logic as clear_and_replot
+            doublets = []
+            for i in range(0, num_peaks - 1):
+                current_label = peaks_list[i][0]  # peak name
+                next_label = peaks_list[i + 1][0]  # next peak name
+                if self.is_part_of_doublet(current_label, next_label):
+                    doublets.extend([i, i + 1])
+
+            for peak_idx, (peak_name, peak_data) in enumerate(peaks_list):
+                if not self.is_peak_data_complete(peak_data):
+                    continue
+
+                # Calculate individual peak curve + background
+                individual_peak_with_bg = self.calculate_single_peak_with_background(
+                    x_values, peak_data, background, sheet_name)
+
+                if individual_peak_with_bg is not None:
+                    # Apply the SAME normalization as raw data
+                    peak_normalized = apply_normalization(individual_peak_with_bg, norm_params)
+                    background_normalized = apply_normalization(background, norm_params)
+
+                    # Handle doublet coloring the same way as clear_and_replot
+                    if peak_idx in doublets:
+                        if doublets.index(peak_idx) % 2 == 0:  # First peak of the doublet
+                            color = self.parent.plot_manager.peak_colors[
+                                peak_idx % len(self.parent.plot_manager.peak_colors)]
+                            alpha = getattr(self.parent, 'peak_alpha', 0.3)
+                        else:  # Second peak of the doublet
+                            # Use the same color as the first peak of the doublet, but with lower alpha
+                            color = self.parent.plot_manager.peak_colors[
+                                (peak_idx - 1) % len(self.parent.plot_manager.peak_colors)]
+                            alpha = getattr(self.parent, 'peak_alpha', 0.3) * 0.99  # Reduce alpha for the second peak
+                    else:
+                        color = self.parent.plot_manager.peak_colors[
+                            peak_idx % len(self.parent.plot_manager.peak_colors)]
+                        alpha = getattr(self.parent, 'peak_alpha', 0.3)
+
+                    # Get peak fill type (same as clear_and_replot)
+                    peak_fill_types = getattr(self.parent, 'peak_fill_types', ["Solid Fill"] * 15)
+                    peak_fill_type = peak_fill_types[peak_idx % len(peak_fill_types)]
+
+                    if peak_fill_type == "Solid Fill":
+                        # Use fill_between with solid fill
+                        self.parent.ax.fill_between(x_values, background_normalized + offset, peak_normalized + offset,
+                                                    facecolor=color, alpha=alpha, edgecolor='none',
+                                                    label=f'{peak_name}')
+
+                    elif peak_fill_type == "Hatch":
+                        # Use fill_between with hatch pattern
+                        peak_hatch_patterns = getattr(self.parent, 'peak_hatch_patterns', ["/"] * 15)
+                        hatch_density = getattr(self.parent, 'hatch_density', 2)
+                        hatch_pattern = peak_hatch_patterns[peak_idx % len(peak_hatch_patterns)] * hatch_density
+
+                        self.parent.ax.fill_between(x_values, background_normalized + offset, peak_normalized + offset,
+                                                    color='none',
+                                                    hatch=hatch_pattern,
+                                                    linewidth=getattr(self.parent, 'peak_line_thickness', 1),
+                                                    edgecolor=color, alpha=alpha,
+                                                    label=f'{peak_name}')
+
+                    elif peak_fill_type == "None":
+                        # Only draw the line (no fill) - but still need to plot something
+                        peak_line_style = getattr(self.parent, 'peak_line_style', 'Same Color')
+                        if peak_line_style != "No Line":
+                            # Determine line color
+                            if peak_line_style == "Black":
+                                line_color = 'black'
+                            elif peak_line_style == "Grey":
+                                line_color = 'grey'
+                            else:  # Same Color
+                                line_color = color
+
+                            self.parent.ax.plot(x_values, peak_normalized + offset,
+                                                color=line_color,
+                                                alpha=getattr(self.parent, 'peak_line_alpha', 0.7),
+                                                linewidth=getattr(self.parent, 'peak_line_thickness', 1),
+                                                linestyle=getattr(self.parent, 'peak_line_pattern', '-'),
+                                                label=f'{peak_name}')
+
+                    # Add peak line on top if peak_line_style is not "No Line" (same as plot_peak)
+                    peak_line_style = getattr(self.parent, 'peak_line_style', 'Same Color')
+                    if peak_line_style != "No Line":
+                        # Determine line color
+                        if peak_line_style == "Black":
+                            line_color = 'black'
+                        elif peak_line_style == "Grey":
+                            line_color = 'grey'
+                        else:  # Same Color
+                            line_color = color
+
+                        line_alpha = min(alpha + 0.1, 1)
+                        self.parent.ax.plot(x_values, peak_normalized + offset,
+                                            color=line_color,
+                                            alpha=getattr(self.parent, 'peak_line_alpha', 0.7),
+                                            linewidth=getattr(self.parent, 'peak_line_thickness', 1),
+                                            linestyle=getattr(self.parent, 'peak_line_pattern', '-'))
+
+        # Plot overall fit using the same style as clear_and_replot (envelope)
+        overall_fit = self.calculate_overall_fit_from_data(sheet_name, x_values, background)
+        if overall_fit is not None:
+            overall_fit_normalized = apply_normalization(overall_fit, norm_params)
+            self.parent.ax.plot(x_values, overall_fit_normalized + offset,
+                                color=self.parent.plot_manager.envelope_color,
+                                alpha=self.parent.plot_manager.envelope_alpha,
+                                linestyle=self.parent.plot_manager.envelope_linestyle,
+                                linewidth=self.parent.plot_manager.envelope_thickness,
+                                label=f'{sheet_name} (Fit)')
+
+    def update_stacked_plot_legend(self):
+        """Update legend to show only filled peaks with their colors (no duplicates)"""
+        handles, labels = self.parent.ax.get_legend_handles_labels()
+
+        # Filter to get only filled peaks (avoiding duplicates)
+        filled_peak_handles = []
+        filled_peak_labels = []
+        seen_peak_names = set()  # Track peak names we've already added
+
+        for handle, label in zip(handles, labels):
+            # Skip non-peak labels
+            if any(x in label for x in ['(Raw)', '(Bkg)', 'Overall Fit', 'Residuals', 'Background']):
+                continue
+
+            # For stacked plots, peak labels are just the peak name
+            # Check if this is a peak by looking for it in current sheet data
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet and current_sheet in self.parent.Data['Core levels']:
+                fitting_data = self.parent.Data['Core levels'][current_sheet].get('Fitting', {})
+                if 'Peaks' in fitting_data:
+                    peaks = fitting_data['Peaks']
+
+                    # Check if this label matches any peak name
+                    for peak_idx, (peak_name, peak_data) in enumerate(peaks.items()):
+                        if peak_name == label:  # Direct match
+                            # Get peak fill type
+                            peak_fill_types = getattr(self.parent, 'peak_fill_types', ["Solid Fill"] * 15)
+                            peak_fill_type = peak_fill_types[peak_idx % len(peak_fill_types)]
+
+                            # Only add to legend if it's filled AND not already seen
+                            if peak_fill_type != "None" and peak_name not in seen_peak_names:
+                                filled_peak_handles.append(handle)
+                                filled_peak_labels.append(peak_name)
+                                seen_peak_names.add(peak_name)  # Mark as seen
+                            break
+
+        # Create legend with only filled peaks (no duplicates, no title)
+        if filled_peak_handles and self.parent.plot_manager.legend_visible != 0:
+            self.parent.ax.legend(filled_peak_handles, filled_peak_labels,
+                                  loc='upper left', frameon=True, fancybox=True,
+                                  framealpha=0.8, edgecolor='gray')
+        else:
+            # Hide legend if disabled
+            legend = self.parent.ax.get_legend()
+            if legend:
+                legend.set_visible(False)
+
+    def is_part_of_doublet(self, current_label, next_label):
+        """Check if two consecutive peaks form a doublet (same logic as clear_and_replot)"""
+        try:
+            # Extract the element and orbital parts from peak labels
+            # Example: "C1s3/2 p1" and "C1s1/2 p2" should be detected as doublet
+            import re
+
+            # Pattern to match element + orbital + spin-orbit coupling
+            pattern = r'([A-Za-z]+\d+[spdf])(\d+/\d+)?'
+
+            current_match = re.match(pattern, current_label)
+            next_match = re.match(pattern, next_label)
+
+            if current_match and next_match:
+                current_base = current_match.group(1)  # e.g., "C1s"
+                next_base = next_match.group(1)
+
+                # If the base orbital is the same, check for spin-orbit coupling
+                if current_base == next_base:
+                    current_coupling = current_match.group(2)  # e.g., "3/2"
+                    next_coupling = next_match.group(2)  # e.g., "1/2"
+
+                    if current_coupling and next_coupling:
+                        # Check for common doublet patterns
+                        doublet_patterns = [
+                            ("3/2", "1/2"),  # p and d orbitals
+                            ("5/2", "3/2"),  # d orbitals
+                            ("7/2", "5/2")  # f orbitals
+                        ]
+
+                        for pattern in doublet_patterns:
+                            if (current_coupling, next_coupling) == pattern:
+                                return True
+
+            return False
+
+        except Exception:
+            return False
+
+    def calculate_single_peak_with_background(self, x_values, peak_data, background, sheet_name):
+        """Calculate a single peak curve with background added (same normalization as raw data)"""
+        try:
+            import lmfit
+            from libraries.Peak_Functions import PeakFunctions
+
+            # Get peak parameters
+            peak_x = float(peak_data['Position'])
+            peak_y = float(peak_data['Height'])
+            fwhm = float(peak_data['FWHM'])
+            lg_ratio = float(peak_data.get('L/G', 20))
+            fitting_model = peak_data.get('Fitting Model', 'Voigt (Area, L/G, σ)')
+
+            # Calculate peak curve only (without background) using same logic as update_overall_fit_and_residuals
+            if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
+                # For Voigt: W_g and W_l are widths, need to convert to sigma and gamma
+                if 'Sigma' in peak_data and 'Gamma' in peak_data:
+                    w_g = float(peak_data['Sigma'])  # W_g (Gaussian width)
+                    w_l = float(peak_data['Gamma'])  # W_l (Lorentzian width)
+                    sigma = w_g / 2.355  # Convert width to sigma
+                    gamma = w_l / 2  # Convert width to gamma
+                else:
+                    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                    gamma = lg_ratio / 100 * sigma
+
+                peak_model = lmfit.models.VoigtModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "Voigt (Area, L/G, \u03c3, S)":
+                # For Skewed Voigt: same conversion
+                w_g = float(peak_data.get('Sigma', fwhm / 2.355))
+                w_l = float(peak_data.get('Gamma', lg_ratio / 100 * fwhm / 2.355))
+                sigma = w_g / 2.355
+                gamma = w_l / 2
+                skew = float(peak_data.get('Skew', 0.01))
+
+                peak_model = lmfit.models.SkewedVoigtModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, skew=skew, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma, skew=skew)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "Gaussian":
+                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                peak_model = lmfit.models.GaussianModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "Lorentzian":
+                peak_model = lmfit.models.LorentzianModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=fwhm / 2, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=fwhm / 2)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "GL (Height)":
+                peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "SGL (Height)":
+                peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz)
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "GL (Area)":
+                peak_model = lmfit.Model(PeakFunctions.gauss_lorentz_Area)
+                area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model == "SGL (Area)":
+                peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area)
+                area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            elif fitting_model in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                                   "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                # For LA models, use stored y_values if available
+                if 'y_values' in peak_data:
+                    peak_curve = np.array(peak_data['y_values'])[:len(x_values)]
+                else:
+                    # Fallback - skip this peak
+                    return None
+            elif fitting_model == "SingleEntity":
+                # Handle SingleEntity envelope - get stored data and interpolate
+                if 'x_data' in peak_data and 'y_data' in peak_data:
+                    # Get stored envelope data
+                    x_env = np.array(peak_data['x_data'])
+                    y_env = np.array(peak_data['y_data'])
+
+                    # Get shift and scale from peak_data
+                    position_shift = float(peak_data.get('Sigma', 0))
+                    area_scale = float(peak_data.get('Gamma', 1))
+
+                    # Create interpolator
+                    from scipy.interpolate import interp1d
+                    interpolator = interp1d(x_env, y_env, kind='cubic',
+                                            bounds_error=False, fill_value=0.0)
+
+                    # Shift x and interpolate
+                    x_shifted = x_values - position_shift
+                    y_interpolated = interpolator(x_shifted)
+
+                    # Scale by area
+                    peak_curve = y_interpolated * area_scale
+                else:
+                    # No envelope data - skip this peak
+                    return None
+            else:
+                # Fallback to Voigt for unknown models
+                sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                gamma = lg_ratio / 100 * sigma
+                peak_model = lmfit.models.VoigtModel()
+                amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+                params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+                peak_curve = peak_model.eval(params, x=x_values)
+
+            # Add background to peak (same as plot_peak does: peak + background)
+            peak_with_background = peak_curve + background
+
+            return peak_with_background
+
+        except Exception as e:
+            print(f"Error calculating single peak: {e}")
+            return None
+
+    def calculate_overall_fit_from_data(self, sheet_name, x_values, background):
+        """Calculate overall fit from stored peak data - same logic as update_overall_fit_and_residuals"""
+        try:
+            if 'Fitting' not in self.parent.Data['Core levels'][sheet_name]:
+                return None
+
+            fitting_data = self.parent.Data['Core levels'][sheet_name]['Fitting']
+
+            # Start with background (same as update_overall_fit_and_residuals)
+            overall_fit = background.astype(float).copy()[:len(x_values)]
+
+            # Add all peak curves using the same logic as update_overall_fit_and_residuals
+            if 'Peaks' in fitting_data:
+                peaks = fitting_data['Peaks']
+
+                for peak_name, peak_data in peaks.items():
+                    if not self.is_peak_data_complete(peak_data):
+                        continue
+
+                    # Get peak parameters (same as in update_overall_fit_and_residuals)
+                    peak_x = float(peak_data['Position'])
+                    peak_y = float(peak_data['Height'])
+                    fwhm = float(peak_data['FWHM'])
+                    lg_ratio = float(peak_data.get('L/G', 20))
+                    fitting_model = peak_data.get('Fitting Model', 'Voigt (Area, L/G, σ)')
+
+                    # Use the same model logic as update_overall_fit_and_residuals
+                    import lmfit
+                    from libraries.Peak_Functions import PeakFunctions
+
+                    if fitting_model in ["Voigt (Area, L/G, \u03c3)", "Voigt (Area, \u03c3, \u03b3)"]:
+                        # FIXED: For Voigt, W_g and W_l are widths, need to convert to sigma and gamma
+                        if 'Sigma' in peak_data and 'Gamma' in peak_data:
+                            w_g = float(peak_data['Sigma'])  # W_g (Gaussian width)
+                            w_l = float(peak_data['Gamma'])  # W_l (Lorentzian width)
+                            sigma = w_g / 2.355  # Convert width to sigma
+                            gamma = w_l / 2  # Convert width to gamma
+                        else:
+                            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                            gamma = lg_ratio / 100 * sigma
+
+                        peak_model = lmfit.models.VoigtModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma)
+
+                    elif fitting_model == "Voigt (Area, L/G, \u03c3, S)":
+                        # FIXED: Same conversion for Skewed Voigt
+                        w_g = float(peak_data.get('Sigma', fwhm / 2.355))
+                        w_l = float(peak_data.get('Gamma', lg_ratio / 100 * fwhm / 2.355))
+                        sigma = w_g / 2.355
+                        gamma = w_l / 2
+                        skew = float(peak_data.get('Skew', 0.01))
+
+                        peak_model = lmfit.models.SkewedVoigtModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, gamma=gamma, skew=skew,
+                                                             x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma, gamma=gamma,
+                                                        skew=skew)
+
+                    elif fitting_model == "Gaussian":
+                        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+                        peak_model = lmfit.models.GaussianModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=sigma, x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=sigma)
+
+                    elif fitting_model == "Lorentzian":
+                        peak_model = lmfit.models.LorentzianModel()
+                        amplitude = peak_y / peak_model.eval(center=0, amplitude=1, sigma=fwhm / 2, x=0)
+                        params = peak_model.make_params(center=peak_x, amplitude=amplitude, sigma=fwhm / 2)
+
+                    elif fitting_model == "GL (Height)":
+                        peak_model = lmfit.Model(PeakFunctions.gauss_lorentz)
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+
+                    elif fitting_model == "SGL (Height)":
+                        peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz)
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, amplitude=peak_y)
+
+                    elif fitting_model == "GL (Area)":
+                        peak_model = lmfit.Model(PeakFunctions.gauss_lorentz_Area)
+                        area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+
+                    elif fitting_model == "SGL (Area)":
+                        peak_model = lmfit.Model(PeakFunctions.S_gauss_lorentz_Area)
+                        area = float(peak_data.get('Area', peak_y * fwhm * 1.064))
+                        params = peak_model.make_params(center=peak_x, fwhm=fwhm, fraction=lg_ratio, area=area)
+
+                    elif fitting_model in ["LA (Area, \u03c3, \u03b3)", "LA (Area, \u03c3/\u03b3, \u03b3)",
+                                           "LA*G (Area, \u03c3/\u03b3, \u03b3)"]:
+                        # For LA models, use stored y_values if available
+                        if 'y_values' in peak_data:
+                            peak_fit = np.array(peak_data['y_values'])[:len(x_values)]
+                            overall_fit += peak_fit
+                            continue
+                        else:
+                            # Fallback to basic calculation
+                            continue
+
+                    elif fitting_model in ["D-parameter", "SurveyID", "VBM", "Fermi"]:
+                        # Skip these models in overall fit calculation
+                        continue
+                    elif fitting_model == "SingleEntity":
+                        # Handle SingleEntity envelope
+                        if 'x_data' in peak_data and 'y_data' in peak_data:
+                            # Get stored envelope data
+                            x_env = np.array(peak_data['x_data'])
+                            y_env = np.array(peak_data['y_data'])
+
+                            # Get shift and scale
+                            position_shift = float(peak_data.get('Sigma', 0))
+                            area_scale = float(peak_data.get('Gamma', 1))
+
+                            # Create interpolator
+                            from scipy.interpolate import interp1d
+                            interpolator = interp1d(x_env, y_env, kind='cubic',
+                                                    bounds_error=False, fill_value=0.0)
+
+                            # Shift x and interpolate
+                            x_shifted = x_values - position_shift
+                            y_interpolated = interpolator(x_shifted)
+
+                            # Scale by area and add to overall fit
+                            peak_fit = y_interpolated * area_scale
+                            overall_fit += peak_fit
+                            continue
+                        else:
+                            # No envelope data - skip this peak
+                            continue
+
+                    else:
+                        print(
+                            f"Warning: Unknown fitting model '{fitting_model}' for peak {peak_name}. Skipping this peak.")
+                        continue
+
+                    # Calculate and add peak fit (same as update_overall_fit_and_residuals)
+                    peak_fit = peak_model.eval(params, x=x_values)
+                    overall_fit += peak_fit
+
+            return overall_fit
+
+        except Exception as e:
+            print(f"Error calculating overall fit: {e}")
+            return None
+
+    def is_peak_data_complete(self, peak_data):
+        """Check if peak data has all required parameters"""
+        required_params = ['Position', 'Height', 'FWHM', 'Fitting Model']
+        return all(param in peak_data for param in required_params)
+
+    def hide_norm_cursors(self):
+        """Hide normalization cursors if they exist"""
+        if hasattr(self, 'norm_vlines') and self.norm_vlines:
+            for vline in self.norm_vlines:
+                if vline is not None:
+                    vline.remove()
+            self.norm_vlines = [None, None]
+        self.is_dragging_cursor = False
+        self.parent.canvas.draw_idle()
+
+    def show_norm_cursors(self):
+        """Show normalization cursors for manual range selection"""
+        # Implementation details would depend on how you want to display and interact with the cursors
+        pass
+
+    def on_view_exp_info(self, event):
+        """Display experimental description information for the selected sheet"""
+        sheet_names = self.get_selected_sheet_names()
+
+        if not sheet_names:
+            wx.MessageBox("No sheet selected.", "Information", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        sheet_name = sheet_names[0]
+        exp_window = ExperimentalDescriptionWindow(self.parent, sheet_name)
+        exp_window.Show()
+
+
+    def on_insert_row(self, target_row):
+        """Insert a new row above the target row, incrementing all higher row numbers"""
+
+        # Backup before operation
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Get all core levels and group by row number
+        sheets_to_rename = []
+
+        for sheet_name in list(self.parent.Data['Core levels'].keys()):
+            # Handle Raman files with underscore
+            if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                base_parts = sheet_name.split('_')
+                base_name = base_parts[0] + "_" + base_parts[1]
+                if len(base_parts) > 2 and base_parts[2].isdigit():
+                    row_num = int(base_parts[2])
+                else:
+                    row_num = 0
+            else:
+                # Regular core level parsing
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                    row_str = match.group(2)
+                    row_num = int(row_str) if row_str else 0
+                else:
+                    continue
+
+            if row_num >= target_row:
+                sheets_to_rename.append((sheet_name, base_name, row_num))
+
+        # Sort sheets to rename by row number (descending to avoid conflicts)
+        sheets_to_rename.sort(key=lambda x: x[2], reverse=True)
+
+        try:
+            import openpyxl
+
+            file_path = self.parent.Data['FilePath']
+
+            # Load workbook - do NOT read data content
+            wb = openpyxl.load_workbook(file_path)
+
+            # Rename sheets in reverse order (highest row numbers first)
+            renamed_sheets = {}
+            for old_name, base_name, old_row in sheets_to_rename:
+                new_row = old_row + 1
+
+                # Create new name
+                if "Raman_" in old_name or "Ra_" in old_name:
+                    new_name = f"{base_name}_{new_row}" if new_row > 0 else base_name
+                else:
+                    new_name = f"{base_name}{new_row}" if new_row > 0 else base_name
+
+                # Rename sheet tab only (not content)
+                if old_name in wb.sheetnames:
+                    sheet = wb[old_name]
+                    sheet.title = new_name
+                    renamed_sheets[old_name] = new_name
+
+                    # Update internal data structure
+                    if old_name in self.parent.Data['Core levels']:
+                        self.parent.Data['Core levels'][new_name] = self.parent.Data['Core levels'].pop(old_name)
+
+            # Save workbook with renamed tabs
+            wb.save(file_path)
+
+            # Update BE corrections - shift row numbers
+            if 'BEcorrections' in self.parent.Data:
+                new_be_corrections = {}
+                for row_str, correction in self.parent.Data['BEcorrections'].items():
+                    row_num = int(row_str)
+                    if row_num >= target_row:
+                        new_be_corrections[str(row_num + 1)] = correction
+                    else:
+                        new_be_corrections[row_str] = correction
+                self.parent.Data['BEcorrections'] = new_be_corrections
+
+            # Update sample names - shift row numbers
+            new_sample_names = {}
+            for row_str, name in self.sample_names.items():
+                row_num = int(row_str)
+                if row_num >= target_row:
+                    new_sample_names[str(row_num + 1)] = name
+                else:
+                    new_sample_names[row_str] = name
+            self.sample_names = new_sample_names
+            self.parent.Data['SampleNames'] = self.sample_names
+
+            # Update parent combobox
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet_name in sorted(self.parent.Data['Core levels'].keys()):
+                self.parent.sheet_combobox.Append(sheet_name)
+
+            # Update current selection
+            if current_sheet in renamed_sheets:
+                new_current = renamed_sheets[current_sheet]
+                self.parent.sheet_combobox.SetValue(new_current)
+            elif current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+
+            # Save JSON file
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Refresh grid
+            self.populate_grid()
+
+            # self.parent.show_popup_message2("Success", f"Inserted row above {target_row}. "
+            #                                            f"{len(sheets_to_rename)} sheets renamed.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error inserting row: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+    def on_delete_row(self, target_row):
+        """Delete all core levels in the target row and decrement higher row numbers"""
+        # Find sheets in target row
+        sheets_in_row = []
+        for col in range(1, len(self.core_levels) + 1):
+            cell_value = self.grid.GetCellValue(target_row, col)
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                sheets_in_row.append(cell_value)
+
+        # Handle empty row case
+        if not sheets_in_row:
+            if wx.MessageBox(f"Delete empty row {target_row}?\n"
+                             f"This will decrement all higher row numbers.",
+                             "Confirm Delete Empty Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+                return
+            sheets_to_delete = set()
+        else:
+            # Confirm deletion for non-empty row
+            if wx.MessageBox(f"Delete all {len(sheets_in_row)} core level(s) in row {target_row}?\n"
+                             f"This will decrement all higher row numbers.\n\n"
+                             f"Sheets to delete: {', '.join(sheets_in_row)}",
+                             "Confirm Delete Row", wx.YES_NO | wx.ICON_QUESTION) != wx.YES:
+                return
+            sheets_to_delete = set(sheets_in_row)
+
+        # Backup before operation
+        from libraries.Utilities import perform_auto_backup
+        perform_auto_backup(self.parent)
+
+        # Get all core levels and identify sheets to rename
+        sheets_to_rename = []
+
+        for sheet_name in list(self.parent.Data['Core levels'].keys()):
+            # Handle Raman files with underscore
+            if "Raman_" in sheet_name or "Ra_" in sheet_name:
+                base_parts = sheet_name.split('_')
+                base_name = base_parts[0] + "_" + base_parts[1]
+                if len(base_parts) > 2 and base_parts[2].isdigit():
+                    row_num = int(base_parts[2])
+                else:
+                    row_num = 0
+            else:
+                # Regular core level parsing
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)(\d*)$', sheet_name)
+                if match:
+                    base_name = match.group(1)
+                    row_str = match.group(2)
+                    row_num = int(row_str) if row_str else 0
+                else:
+                    continue
+
+            if row_num > target_row:
+                sheets_to_rename.append((sheet_name, base_name, row_num))
+
+        # Sort sheets to rename by row number (ascending to avoid conflicts)
+        sheets_to_rename.sort(key=lambda x: x[2])
+
+        try:
+            import openpyxl
+
+            file_path = self.parent.Data['FilePath']
+
+            # Load workbook - do NOT read data content
+            wb = openpyxl.load_workbook(file_path)
+
+            # Delete sheets from Excel file and Data structure
+            for sheet_name in sheets_to_delete:
+                if sheet_name in wb.sheetnames:
+                    del wb[sheet_name]
+                if sheet_name in self.parent.Data['Core levels']:
+                    del self.parent.Data['Core levels'][sheet_name]
+                    self.parent.Data['Number of Core levels'] -= 1
+
+            # Rename sheets with higher row numbers (decrement by 1)
+            renamed_sheets = {}
+            for old_name, base_name, old_row in sheets_to_rename:
+                new_row = old_row - 1
+
+                # Create new name
+                if "Raman_" in old_name or "Ra_" in old_name:
+                    new_name = f"{base_name}_{new_row}" if new_row > 0 else base_name
+                else:
+                    new_name = f"{base_name}{new_row}" if new_row > 0 else base_name
+
+                # Rename sheet tab only (not content)
+                if old_name in wb.sheetnames:
+                    sheet = wb[old_name]
+                    sheet.title = new_name
+                    renamed_sheets[old_name] = new_name
+
+                    # Update internal data structure
+                    if old_name in self.parent.Data['Core levels']:
+                        self.parent.Data['Core levels'][new_name] = self.parent.Data['Core levels'].pop(old_name)
+
+            # Save workbook with renamed tabs
+            wb.save(file_path)
+
+            # Update BE corrections - shift row numbers down by 1
+            if 'BEcorrections' in self.parent.Data:
+                new_be_corrections = {}
+                for row_str, correction in self.parent.Data['BEcorrections'].items():
+                    row_num = int(row_str)
+                    if row_num == target_row:
+                        # Skip the deleted row
+                        continue
+                    elif row_num > target_row:
+                        new_be_corrections[str(row_num - 1)] = correction
+                    else:
+                        new_be_corrections[row_str] = correction
+                self.parent.Data['BEcorrections'] = new_be_corrections
+
+            # Update sample names - shift row numbers down by 1
+            new_sample_names = {}
+            for row_str, name in self.sample_names.items():
+                row_num = int(row_str)
+                if row_num == target_row:
+                    # Skip the deleted row
+                    continue
+                elif row_num > target_row:
+                    new_sample_names[str(row_num - 1)] = name
+                else:
+                    new_sample_names[row_str] = name
+            self.sample_names = new_sample_names
+            self.parent.Data['SampleNames'] = self.sample_names
+
+            # Update parent combobox
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            self.parent.sheet_combobox.Clear()
+            for sheet_name in sorted(self.parent.Data['Core levels'].keys()):
+                self.parent.sheet_combobox.Append(sheet_name)
+
+            # Update current selection
+            if current_sheet in sheets_to_delete:
+                # Current sheet was deleted, select first available
+                if self.parent.sheet_combobox.GetCount() > 0:
+                    self.parent.sheet_combobox.SetSelection(0)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, self.parent.sheet_combobox.GetValue())
+            elif current_sheet in renamed_sheets:
+                # Current sheet was renamed
+                new_current = renamed_sheets[current_sheet]
+                self.parent.sheet_combobox.SetValue(new_current)
+            elif current_sheet in self.parent.Data['Core levels']:
+                self.parent.sheet_combobox.SetValue(current_sheet)
+
+            # Save JSON file
+            json_file_path = os.path.splitext(file_path)[0] + '.json'
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            json_data = convert_to_serializable_and_round(self.parent.Data)
+            with open(json_file_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Refresh grid
+            self.populate_grid()
+
+            # if sheets_to_delete:
+            #     self.parent.show_popup_message2("Success",
+            #                                     f"Deleted row {target_row} with {len(sheets_to_delete)} sheets. "
+            #                                     f"{len(sheets_to_rename)} sheets renumbered.")
+            # else:
+            #     self.parent.show_popup_message2("Success", f"Deleted empty row {target_row}. "
+            #                                                f"{len(sheets_to_rename)} sheets renumbered.")
+
+        except Exception as e:
+            wx.MessageBox(f"Error deleting row: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_smooth_default(self, event):
+        """Apply default gaussian smoothing with width 1"""
+        selected_sheets = self.get_selected_sheet_names()
+
+        if not selected_sheets:
+            wx.MessageBox("Please select a core level to smooth", "No Selection", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create console window
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+        console_frame = wx.Frame(self.parent, title="Smoothing Core Levels", size=(300, 200))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 200) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        try:
+            from scipy.ndimage import gaussian_filter
+            import re
+            import pandas as pd
+            from libraries.ToolsMenu.PlotModWindow import PlotModWindow
+
+            for sheet_name in selected_sheets:
+                update_console(f"Smoothing: {sheet_name}")
+
+                # Get data
+                x = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+                # Apply Gaussian smoothing with width 1
+                smoothed_y = gaussian_filter(y, sigma=1)
+
+                # Get base name for new sheet
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
+                base_name = match.group(1) if match else sheet_name
+
+                # Use existing utility method to find next available name
+                plot_mod = PlotModWindow(self.parent)
+                new_sheet_name = plot_mod.get_earliest_row_name(base_name)
+
+                update_console(f"Creating: {new_sheet_name}")
+
+                # Create new core level data - ensure all data is in list format
+                new_core_level_data = {
+                    'B.E.': x if isinstance(x, list) else x.tolist(),
+                    'Raw Data': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y),
+                    'Background': {'Bkg Y': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y)},
+                    'Name': new_sheet_name
+                }
+
+                # Add to parent data
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+                self.parent.Data['Number of Core levels'] += 1
+
+                # Save to Excel file
+                df = pd.DataFrame({
+                    'BE': x if isinstance(x, list) else x.tolist(),
+                    'Corrected Data': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y),
+                    'Raw Data': smoothed_y.tolist() if hasattr(smoothed_y, 'tolist') else list(smoothed_y),
+                    'Transmission': [1.0] * len(x)
+                })
+
+                # Save DataFrame to Excel
+                with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                    if_sheet_exists='replace') as writer:
+                    df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+                # Update sheet combobox
+                self.parent.sheet_combobox.Append(new_sheet_name)
+
+                update_console(f"Completed: {new_sheet_name}")
+
+            # Refresh grid
+            self.populate_grid()
+
+            # Select first new smoothed sheet
+            if selected_sheets:
+                match = re.match(r'([A-Za-z-]+\d*[spdfg]*)', selected_sheets[0])
+                base_name = match.group(1) if match else selected_sheets[0]
+                plot_mod = PlotModWindow(self.parent)
+                new_name = plot_mod.get_earliest_row_name(base_name)
+                self.parent.sheet_combobox.SetValue(new_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_name)
+
+            update_console("Smoothing completed!")
+            wx.CallLater(1000, console_frame.Close)
+
+        except Exception as e:
+            update_console(f"Error: {str(e)}")
+            wx.CallLater(2000, console_frame.Close)
+
+    def on_multiply_1000(self, event):
+        """Multiply selected core levels by 1000"""
+        selected_sheets = self.get_selected_sheet_names()
+
+        if not selected_sheets:
+            wx.MessageBox("Please select a core level to multiply", "No Selection", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Create console window
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+        console_frame = wx.Frame(self.parent, title="Multiplying Core Levels by 1000", size=(300, 200))
+        console_frame.SetPosition((
+            parent_pos.x + (parent_size.width - 300) // 2,
+            parent_pos.y + (parent_size.height - 200) // 2
+        ))
+        console_text = wx.TextCtrl(console_frame, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        console_frame.Show()
+
+        def update_console(message):
+            console_text.AppendText(message + '\n')
+            console_text.Update()
+            wx.SafeYield()
+
+        try:
+            import re
+            import pandas as pd
+            from libraries.ToolsMenu.PlotModWindow import PlotModWindow
+
+            for sheet_name in selected_sheets:
+                update_console(f"Multiplying: {sheet_name}")
+
+                # Get data
+                x = self.parent.Data['Core levels'][sheet_name]['B.E.']
+                y = self.parent.Data['Core levels'][sheet_name]['Raw Data']
+
+                # Multiply by 1000
+                multiplied_y = [val * 1000 for val in y]
+
+                # Get base name for new sheet
+                match = re.match(r'([A-Za-z-]+(?:\d+[spdfg]+)?)', sheet_name)
+                base_name = match.group(1) if match else sheet_name
+
+                # Use existing utility method to find next available name
+                plot_mod = PlotModWindow(self.parent)
+                new_sheet_name = plot_mod.get_earliest_row_name(base_name)
+
+                update_console(f"Creating: {new_sheet_name}")
+
+                # Create new core level data - ensure all data is in list format
+                new_core_level_data = {
+                    'B.E.': x if isinstance(x, list) else x.tolist(),
+                    'Raw Data': multiplied_y,
+                    'Background': {'Bkg Y': multiplied_y},
+                    'Name': new_sheet_name
+                }
+
+                # Add to parent data
+                self.parent.Data['Core levels'][new_sheet_name] = new_core_level_data
+                self.parent.Data['Number of Core levels'] += 1
+
+                # Save to Excel file
+                df = pd.DataFrame({
+                    'BE': x if isinstance(x, list) else x.tolist(),
+                    'Corrected Data': multiplied_y,
+                    'Raw Data': multiplied_y,
+                    'Transmission': [1.0] * len(x)
+                })
+
+                # Save DataFrame to Excel
+                with pd.ExcelWriter(self.parent.Data['FilePath'], engine='openpyxl', mode='a',
+                                    if_sheet_exists='replace') as writer:
+                    df.to_excel(writer, sheet_name=new_sheet_name, index=False)
+
+                # Update sheet combobox
+                self.parent.sheet_combobox.Append(new_sheet_name)
+
+                update_console(f"Completed: {new_sheet_name}")
+
+            # Refresh grid
+            self.populate_grid()
+
+            # Select first new multiplied sheet
+            if selected_sheets:
+                match = re.match(r'([A-Za-z-]+\d*[spdfg]*)', selected_sheets[0])
+                base_name = match.group(1) if match else selected_sheets[0]
+                plot_mod = PlotModWindow(self.parent)
+                new_name = plot_mod.get_earliest_row_name(base_name)
+                self.parent.sheet_combobox.SetValue(new_name)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, new_name)
+
+            update_console("Multiplication by 1000 completed!")
+            wx.CallLater(1000, console_frame.Close)
+
+        except Exception as e:
+            update_console(f"Error: {str(e)}")
+            wx.CallLater(2000, console_frame.Close)
+
+    def copy_peak_table_from_filemanager(self, row, col):
+        """Copy peak table from the selected core level in file manager"""
+        import os
+        import json
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Copy Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get the main window reference and call the existing copy function
+        from libraries.FileMenu.Save import copy_all_peak_parameters
+
+        # Temporarily set the sheet to the selected one
+        original_sheet = self.parent.sheet_combobox.GetValue()
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Load the sheet data
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        # Copy the peak parameters
+        copy_all_peak_parameters(self.parent)
+
+        # Restore original sheet
+        self.parent.sheet_combobox.SetValue(original_sheet)
+        on_sheet_selected(self.parent, original_sheet)
+
+    def paste_peak_table_from_filemanager(self, row, col):
+        """Paste peak table to the selected core level in file manager"""
+        import os
+        import json
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check if clipboard has data
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+        if not os.path.exists(peak_clipboard_file):
+            wx.MessageBox("No peak table in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get the main window reference and call the existing paste function
+        from libraries.FileMenu.Save import paste_all_peak_parameters
+
+        # Temporarily set the sheet to the selected one
+        original_sheet = self.parent.sheet_combobox.GetValue()
+        self.parent.sheet_combobox.SetValue(sheet_name)
+
+        # Load the sheet data
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        # Paste the peak parameters
+        paste_all_peak_parameters(self.parent)
+
+        # Restore original sheet
+        self.parent.sheet_combobox.SetValue(original_sheet)
+        on_sheet_selected(self.parent, original_sheet)
+
+    def paste_peak_table_to_column_from_filemanager(self, row, col):
+        """Paste peak table to selected core levels in the same column with background regions"""
+        import os
+        import json
+        import tempfile
+        import re
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if clipboard has data
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+        if not os.path.exists(peak_clipboard_file):
+            wx.MessageBox("No peak table in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load clipboard data
+        try:
+            with open(peak_clipboard_file, 'r') as f:
+                clipboard_data = json.load(f)
+        except:
+            wx.MessageBox("Invalid clipboard data", "Paste Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # DEBUG: Print clipboard structure
+        if 'background' in clipboard_data:
+            if 'recorded_ranges' in clipboard_data['background']:
+                recorded_ranges = clipboard_data['background']['recorded_ranges']
+            else:
+                print("DENo 'recorded_ranges' key in background data")
+        else:
+            print("DEBUG: No 'background' key in clipboard data")
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+        # Find all core levels that match this base name
+        matching_core_levels = []
+        for core_level_name in self.parent.Data['Core levels'].keys():
+            if (core_level_name == core_level_base or
+                    (core_level_name.startswith(core_level_base) and
+                     re.match(rf'^{re.escape(core_level_base)}\d+$', core_level_name))):
+                matching_core_levels.append(core_level_name)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            from libraries.FileMenu.Save import paste_all_peak_parameters
+            from libraries.Sheet_Operations import on_sheet_selected
+
+            success_count = 0
+
+            for core_level_name in selected_core_levels:
+                try:
+                    # Set the sheet
+                    self.parent.sheet_combobox.SetValue(core_level_name)
+                    on_sheet_selected(self.parent, core_level_name)
+
+                    # Paste peak parameters (this now includes recorded ranges)
+                    paste_all_peak_parameters(self.parent)
+
+                    # Create background from the recorded ranges
+                    self.create_background_from_recorded_ranges(core_level_name)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to paste to {core_level_name}: {e}")
+
+            # Restore original sheet
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+
+        except Exception as e:
+            # Restore original sheet on error
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+            wx.MessageBox(f"Error during paste operation: {str(e)}", "Paste Failed", wx.OK | wx.ICON_ERROR)
+
+    def create_background_from_recorded_ranges(self, core_level_name):
+        """Create background from recorded ranges using existing Fitting_Screen functionality"""
+        try:
+            current_sheet = self.parent.sheet_combobox.GetValue()
+            if current_sheet == core_level_name:
+                # Check if we have recorded ranges
+                if (core_level_name in self.parent.Data['Core levels'] and
+                        'Background' in self.parent.Data['Core levels'][core_level_name] and
+                        'Recorded_Ranges' in self.parent.Data['Core levels'][core_level_name]['Background']):
+
+                    recorded_ranges = self.parent.Data['Core levels'][core_level_name]['Background']['Recorded_Ranges']
+                    if recorded_ranges:
+                        print(f"Creating background from {len(recorded_ranges)} recorded ranges for {core_level_name}")
+
+                        # Use the existing function from mouse_handler
+                        if (hasattr(self.parent, 'mouse_handler') and
+                                hasattr(self.parent.mouse_handler, 'redraw_all_regions_background')):
+                            wx.CallAfter(self.parent.mouse_handler.redraw_all_regions_background)
+                        else:
+                            print(f"Warning: redraw_all_regions_background not available for {core_level_name}")
+                    else:
+                        print(f"No recorded ranges found for {core_level_name}")
+                else:
+                    print(f"No background data or recorded ranges found for {core_level_name}")
+        except Exception as e:
+            print(f"Error creating background for {core_level_name}: {e}")
+
+    def show_core_level_selection_dialog(self, core_levels, base_name):
+        """Show dialog to select which core levels to paste to"""
+        dialog = CoreLevelSelectionDialog(self, core_levels, base_name)
+        selected = []
+        if dialog.ShowModal() == wx.ID_OK:
+            selected = dialog.get_selected_core_levels()
+        dialog.Destroy()
+        return selected
+
+    def copy_background_from_filemanager(self, row, col):
+        """Copy background from the selected core level in file manager"""
+        import os
+        import json
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Copy Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+        # Check if background exists
+        if 'Background' not in core_level_data or 'Bkg Y' not in core_level_data['Background']:
+            wx.MessageBox("No background found in selected core level", "Copy Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Copy all background data with .2f formatting for numeric values
+        background_data = {}
+        bg_source = core_level_data['Background']
+
+        # Copy background array
+        background_data['Bkg Y'] = bg_source['Bkg Y'][:]
+
+        # Copy other background properties with .2f formatting where applicable
+        for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+            if key in bg_source:
+                if key == 'Recorded_Ranges' and bg_source[key]:
+                    # Format recorded ranges with .2f precision
+                    formatted_ranges = []
+                    for range_tuple in bg_source[key]:
+                        formatted_range = (
+                            float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                            float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                            float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                            float(f"{float(range_tuple[3]):.2f}")  # max_range
+                        )
+                        formatted_ranges.append(formatted_range)
+                    background_data[key] = formatted_ranges
+                elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                    try:
+                        value = float(bg_source[key])
+                        background_data[key] = f"{value:.2f}"
+                    except (ValueError, TypeError):
+                        background_data[key] = bg_source[key]
+                else:
+                    background_data[key] = bg_source[key]
+                    print(f"Copied background property '{key}': {bg_source[key]}")
+
+        # Save to clipboard file
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        with open(background_clipboard_file, 'w') as f:
+            json.dump(background_data, f)
+
+        self.parent.show_popup_message2("Background Copied", f"Background copied from '{sheet_name}'")
+
+    def paste_background_from_filemanager(self, row, col):
+        """Paste background to the selected core level in file manager"""
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load the background clipboard data
+        try:
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid background clipboard data", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not background_data:
+            wx.MessageBox("Background clipboard is empty or invalid", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Save state before making changes
+        save_state(self.parent)
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            # Set the target sheet
+            self.parent.sheet_combobox.SetValue(sheet_name)
+            from libraries.Sheet_Operations import on_sheet_selected
+            on_sheet_selected(self.parent, sheet_name)
+
+            # Get target core level data
+            target_core_level = self.parent.Data['Core levels'][sheet_name]
+
+            # Initialize Background structure if it doesn't exist
+            if 'Background' not in target_core_level:
+                target_core_level['Background'] = {}
+
+            target_bg = target_core_level['Background']
+
+            # Initialize Bkg Y to Raw Data and Bkg X to B.E. from the TARGET core level
+            if 'Raw Data' in target_core_level:
+                target_bg['Bkg Y'] = target_core_level['Raw Data'][:]
+            else:
+                wx.MessageBox(f"No Raw Data found in '{sheet_name}'", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+                return
+
+            if 'B.E.' in target_core_level:
+                target_bg['Bkg X'] = target_core_level['B.E.'][:]
+
+            # Copy other background properties (NOT the Y values)
+            for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+                if key in background_data:
+                    if key == 'Recorded_Ranges' and background_data[key]:
+                        # Format recorded ranges with .2f precision
+                        formatted_ranges = []
+                        for range_tuple in background_data[key]:
+                            formatted_range = (
+                                float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                                float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                                float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                                float(f"{float(range_tuple[3]):.2f}")  # max_range
+                            )
+                            formatted_ranges.append(formatted_range)
+                        target_bg[key] = formatted_ranges
+                    elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                        try:
+                            value = float(background_data[key])
+                            target_bg[key] = f"{value:.2f}"
+                        except (ValueError, TypeError):
+                            target_bg[key] = background_data[key]
+                    else:
+                        target_bg[key] = background_data[key]
+
+            # Update window background array to Raw Data initially
+            self.parent.background = np.array(target_core_level['Raw Data'])
+
+            # Update background range values if they exist
+            if 'Bkg Low' in background_data and 'Bkg High' in background_data:
+                try:
+                    self.parent.bg_min_energy = float(background_data['Bkg Low'])
+                    self.parent.bg_max_energy = float(background_data['Bkg High'])
+                except (ValueError, TypeError):
+                    pass
+
+            # Update parent window properties to match pasted data
+            self.parent.background_method = background_data.get('Bkg Type', 'Smart')
+
+
+            # Update offset values from first recorded range if available
+            if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+                first_range = background_data['Recorded_Ranges'][0]
+                self.parent.offset_h = float(f"{float(first_range[0]):.2f}")  # offset_h
+                self.parent.offset_l = float(f"{float(first_range[1]):.2f}")  # offset_l
+
+            # Force peak fitting grid refresh if it exists
+            if hasattr(self.parent, 'peak_params_grid'):
+                try:
+                    wx.CallAfter(self.parent.peak_params_grid.ForceRefresh)
+                except Exception as e:
+                    print(f"Error refreshing peak_params_grid: {e}")
+
+            # Update peak fitting grid if it exists and has data (following On_Mouse_Defs.py pattern)
+            if (hasattr(self.parent, 'peak_params_grid') and
+                    self.parent.peak_params_grid.GetNumberRows() > 0):
+
+                num_peaks = self.parent.peak_params_grid.GetNumberRows() // 2
+
+                # Get the background values from the pasted data
+                bkg_type = background_data.get('Bkg Type', 'Smart')
+                bkg_low = background_data.get('Bkg Low', '')
+                bkg_high = background_data.get('Bkg High', '')
+
+                # Convert to float for .2f formatting
+                try:
+                    bkg_low_val = float(bkg_low)
+                    bkg_high_val = float(bkg_high)
+                except (ValueError, TypeError):
+                    bkg_low_val = 0.0
+                    bkg_high_val = 0.0
+
+                for i in range(num_peaks):
+                    row = i * 2
+                    # Update grid columns: 14=Bkg Type, 15=Bkg Low, 16=Bkg High
+                    self.parent.peak_params_grid.SetCellValue(row, 14, bkg_type)
+                    self.parent.peak_params_grid.SetCellValue(row, 15, f"{bkg_low_val:.2f}")
+                    self.parent.peak_params_grid.SetCellValue(row, 16, f"{bkg_high_val:.2f}")
+
+                # Force grid refresh after updating cells
+                wx.CallAfter(self.parent.peak_params_grid.ForceRefresh)
+
+            # If we have recorded ranges, recreate the background from them using the target's data
+            if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+
+                # recreate background manually - pass the background type from clipboard
+                wx.CallAfter(self.recreate_background_from_ranges, sheet_name, background_data['Recorded_Ranges'], background_data.get('Bkg Type', 'Smart'))
+
+            else:
+                # No recorded ranges, just replot with the initialized background (Raw Data)
+                wx.CallAfter(self.parent.clear_and_replot)
+
+            self.parent.show_popup_message2("Background Pasted", f"Background pasted to '{sheet_name}'")
+
+        except Exception as e:
+            wx.MessageBox(f"Error pasting background: {str(e)}", "Paste Background Error", wx.OK | wx.ICON_ERROR)
+        finally:
+            # Restore original sheet
+            if original_sheet != sheet_name:
+                wx.CallAfter(lambda: self.parent.sheet_combobox.SetValue(original_sheet))
+                wx.CallAfter(lambda: on_sheet_selected(self.parent, original_sheet))
+
+    def recreate_background_from_ranges(self, sheet_name, recorded_ranges, background_method=None):
+        """Recreate background from recorded ranges without fitting window dependency"""
+        try:
+            from libraries.Peak_Functions import BackgroundCalculations
+            import numpy as np
+
+            if sheet_name not in self.parent.Data['Core levels']:
+                return
+
+            core_level_data = self.parent.Data['Core levels'][sheet_name]
+
+            # Get the data
+            x_values = np.array(core_level_data['B.E.'], dtype=float)
+            y_values = np.array(core_level_data['Raw Data'], dtype=float)
+
+            # Initialize background to raw data
+            current_background = np.array(y_values)
+
+            # Get background method from parameter or parent (default to Smart if not available)
+            method = background_method or getattr(self.parent, 'background_method', 'Smart')
+
+            # Special handling for Tougaard methods - they cannot be applied region-by-region
+            if method in ["U4-Tougaard", "U2-Tougaard", "2x U4-Tougaard", "3x U4-Tougaard"]:
+                try:
+                    # Apply Tougaard method to the entire spectrum
+                    if method == "U2-Tougaard":
+                        current_background = BackgroundCalculations.calculate_u2_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif method == "U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif method == "2x U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_double_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+                    elif method == "3x U4-Tougaard":
+                        current_background = BackgroundCalculations.calculate_triple_tougaard_background(
+                            x_values, y_values, sheet_name, self.parent)
+
+                except Exception as e:
+                    print(f"Error applying Tougaard background method {method}: {e}")
+
+            else:
+                # Apply each recorded range in sequence for non-Tougaard methods
+                for offset_h, offset_l, min_range, max_range in recorded_ranges:
+                    try:
+                        # Apply background calculation for this range
+                        if method == "Multi-Regions Smart":
+                            current_background = BackgroundCalculations.calculate_adaptive_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif method == "Shirley":
+                            current_background = BackgroundCalculations.calculate_adaptive_shirley_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif method == "Linear":
+                            current_background = BackgroundCalculations.calculate_adaptive_linear_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        elif method == "Smart":
+                            current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+                        else:
+                            # Fallback to smart for unknown methods
+                            current_background = BackgroundCalculations.calculate_adaptive_single_smart_background(
+                                x_values, y_values, (min_range, max_range), current_background,
+                                float(f"{offset_h:.2f}"), float(f"{offset_l:.2f}"))
+
+                    except Exception as e:
+                        print(f"Error applying background range {min_range}-{max_range}: {e}")
+                        continue
+
+            # Update the background in the data structure
+            core_level_data['Background']['Bkg Y'] = current_background.tolist()
+            self.parent.background = current_background
+
+            # # Ensure arrays are aligned before replotting
+            # if hasattr(self.parent, 'x_values') and 'B.E.' in core_level_data:
+            #     self.parent.x_values = np.array(core_level_data['B.E.'])
+
+            # Replot to show the new background
+            self.parent.clear_and_replot()
+
+        except Exception as e:
+            print(f"Error recreating background for {sheet_name}: {e}")
+            # If background recreation fails, just replot with raw data
+            self.parent.clear_and_replot()
+
+    def paste_background_to_column_from_filemanager(self, row, col):
+        """Paste background to selected core levels in the column using CoreLevelSelectionDialog"""
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if background clipboard has data
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Background Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Load the background clipboard data
+        try:
+            with open(background_clipboard_file, 'r') as f:
+                background_data = json.load(f)
+        except json.JSONDecodeError:
+            wx.MessageBox("Invalid background clipboard data", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        if not background_data:
+            wx.MessageBox("Background clipboard is empty", "Paste Background Failed", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "C1s"
+
+        # Find all core levels that match this base name
+        matching_core_levels = []
+        for core_level_name in self.parent.Data['Core levels'].keys():
+            if (core_level_name == core_level_base or
+                    (core_level_name.startswith(core_level_base) and
+                     re.match(rf'^{re.escape(core_level_base)}\d+$', core_level_name))):
+                matching_core_levels.append(core_level_name)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return
+
+        # Save state before making changes
+        save_state(self.parent)
+
+        # Store original sheet
+        original_sheet = self.parent.sheet_combobox.GetValue()
+
+        try:
+            success_count = 0
+
+            for core_level_name in selected_core_levels:
+                try:
+                    # Set the target sheet
+                    self.parent.sheet_combobox.SetValue(core_level_name)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, core_level_name)
+
+                    # Get target core level data
+                    target_core_level = self.parent.Data['Core levels'][core_level_name]
+
+                    # Initialize Background structure if it doesn't exist
+                    if 'Background' not in target_core_level:
+                        target_core_level['Background'] = {}
+
+                    target_bg = target_core_level['Background']
+
+                    # Initialize Bkg Y to Raw Data and Bkg X to B.E. from the TARGET core level
+                    if 'Raw Data' in target_core_level:
+                        target_bg['Bkg Y'] = target_core_level['Raw Data'][:]
+                    else:
+                        print(f"No Raw Data found in '{core_level_name}'")
+                        continue
+
+                    if 'B.E.' in target_core_level:
+                        target_bg['Bkg X'] = target_core_level['B.E.'][:]
+
+                    # Copy background properties (NOT the Y values)
+                    for key in ['Bkg Type', 'Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High', 'Recorded_Ranges']:
+                        if key in background_data:
+                            if key == 'Recorded_Ranges' and background_data[key]:
+                                # Format recorded ranges with .2f precision
+                                formatted_ranges = []
+                                for range_tuple in background_data[key]:
+                                    formatted_range = (
+                                        float(f"{float(range_tuple[0]):.2f}"),  # offset_h
+                                        float(f"{float(range_tuple[1]):.2f}"),  # offset_l
+                                        float(f"{float(range_tuple[2]):.2f}"),  # min_range
+                                        float(f"{float(range_tuple[3]):.2f}")  # max_range
+                                    )
+                                    formatted_ranges.append(formatted_range)
+                                target_bg[key] = formatted_ranges
+                            elif key in ['Bkg Low', 'Bkg High', 'Bkg Offset Low', 'Bkg Offset High']:
+                                try:
+                                    value = float(background_data[key])
+                                    target_bg[key] = f"{value:.2f}"
+                                except (ValueError, TypeError):
+                                    target_bg[key] = background_data[key]
+                            else:
+                                target_bg[key] = background_data[key]
+
+                    # Update window background array to Raw Data initially
+                    self.parent.background = np.array(target_core_level['Raw Data'])
+
+                    # Update parent's x_values to match target data length
+                    if 'B.E.' in target_core_level:
+                        self.parent.x_values = np.array(target_core_level['B.E.'])
+
+                    # If we have recorded ranges, recreate the background from them
+                    if 'Recorded_Ranges' in background_data and background_data['Recorded_Ranges']:
+                        # Call the working recreate method directly
+                        self.recreate_background_from_ranges(core_level_name, background_data['Recorded_Ranges'])
+                    else:
+                        # No recorded ranges, just replot with the initialized background (Raw Data)
+                        self.parent.clear_and_replot()
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to paste background to {core_level_name}: {e}")
+
+            # Show success message
+            if success_count > 0:
+                self.parent.show_popup_message2("Background Pasted",
+                                                f"Background pasted to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to paste background to any core levels", "Paste Background Error",
+                              wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error pasting background: {str(e)}", "Paste Background Error", wx.OK | wx.ICON_ERROR)
+        finally:
+            # Restore original sheet
+            if original_sheet:
+                self.parent.sheet_combobox.SetValue(original_sheet)
+                from libraries.Sheet_Operations import on_sheet_selected
+                on_sheet_selected(self.parent, original_sheet)
+
+    def copy_peak_table_and_background_from_filemanager(self, row, col):
+        """Copy both peak table and background from the selected core level in file manager"""
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Copy Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        try:
+            # Copy peak table first
+            self.copy_peak_table_from_filemanager(row, col)
+
+            # Copy background second
+            self.copy_background_from_filemanager(row, col)
+
+            self.parent.show_popup_message2("Peak Table + Background Copied",
+                                            f"Peak table and background copied from '{sheet_name}'")
+        except Exception as e:
+            wx.MessageBox(f"Error copying peak table and background: {str(e)}",
+                          "Copy Failed", wx.OK | wx.ICON_ERROR)
+
+    def paste_peak_table_and_background_single_from_filemanager(self, row, col):
+        """Paste both background and peak table to the selected core level in file manager"""
+        import os
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check if both clipboards have data
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+
+        if not os.path.exists(peak_clipboard_file):
+            wx.MessageBox("No peak table in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        try:
+            # First paste background
+            self.paste_background_from_filemanager(row, col)
+
+            # Then paste peak table
+            self.paste_peak_table_from_filemanager(row, col)
+
+            # self.parent.show_popup_message2("Peak Table + Background Pasted",
+            #                                 f"Background and peak table pasted to '{sheet_name}'")
+        except Exception as e:
+            wx.MessageBox(f"Error pasting peak table and background: {str(e)}",
+                          "Paste Failed", wx.OK | wx.ICON_ERROR)
+
+    def paste_peak_table_and_background_multi_from_filemanager(self, row, col):
+        """Paste both background and peak table to multiple core levels in the column"""
+        import os
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        # Check if both clipboards have data
+        peak_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_peak_clipboard.json')
+        background_clipboard_file = os.path.join(tempfile.gettempdir(), 'khervefitting_background_clipboard.json')
+
+        if not os.path.exists(peak_clipboard_file):
+            wx.MessageBox("No peak table in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        if not os.path.exists(background_clipboard_file):
+            wx.MessageBox("No background in clipboard", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Get the column header (core level base name)
+        core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+        # Find all core levels that match this base name in the column
+        matching_core_levels = []
+        for grid_row in range(self.grid.GetNumberRows()):
+            cell_value = self.grid.GetCellValue(grid_row, col).strip()
+            if cell_value and cell_value in self.parent.Data['Core levels']:
+                if cell_value.startswith(core_level_base):
+                    matching_core_levels.append(cell_value)
+
+        if not matching_core_levels:
+            wx.MessageBox(f"No core levels found for {core_level_base}", "Paste Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Show selection dialog ONCE for both operations
+        selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+        if not selected_core_levels:
+            return  # User cancelled
+
+        try:
+            success_count = 0
+
+            # First paste background to all selected core levels
+            for core_level_name in selected_core_levels:
+                try:
+                    # Find the row containing this core level name
+                    target_row = -1
+                    for grid_row in range(self.grid.GetNumberRows()):
+                        if self.grid.GetCellValue(grid_row, col) == core_level_name:
+                            target_row = grid_row
+                            break
+
+                    if target_row == -1:
+                        print(f"Could not find grid row for core level: {core_level_name}")
+                        continue
+
+                    # Paste background first
+                    self.paste_background_from_filemanager(target_row, col)
+
+                    # Then paste peak table
+                    self.paste_peak_table_from_filemanager(target_row, col)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to paste background and peak table to {core_level_name}: {e}")
+
+            # Show success message
+            if success_count > 0:
+                # self.parent.show_popup_message2("Peak Table + Background Pasted",
+                #                                 f"Background and peak table pasted to {success_count} core level(s)")
+                print("Peak Table + Background Pasted",
+                                                f"Background and peak table pasted to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to paste to any core levels", "Paste Failed", wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error pasting peak table and background: {str(e)}",
+                          "Paste Failed", wx.OK | wx.ICON_ERROR)
+
+    def propagate_fittings_from_filemanager(self, row, col):
+        """Propagate fittings (copy peak table + background from selected core level, then paste to selected core levels in column)"""
+        import os
+        import tempfile
+
+        if col <= 0 or col > len(self.core_levels):
+            return
+
+        sheet_name = self.grid.GetCellValue(row, col)
+        if not sheet_name or sheet_name not in self.parent.Data['Core levels']:
+            wx.MessageBox("No valid core level selected", "Propagate Failed", wx.OK | wx.ICON_WARNING)
+            return
+
+        try:
+            # Step 1: Copy peak table and background from the selected core level
+            self.copy_peak_table_and_background_from_filemanager(row, col)
+
+            # Step 2: Get the column header (core level base name)
+            core_level_base = self.core_levels[col - 1]  # e.g., "O1s"
+
+            # Find all core levels that match this base name in the column
+            matching_core_levels = []
+            for grid_row in range(self.grid.GetNumberRows()):
+                cell_value = self.grid.GetCellValue(grid_row, col).strip()
+                if cell_value and cell_value in self.parent.Data['Core levels']:
+                    if cell_value.startswith(core_level_base) and cell_value != sheet_name:  # Exclude source
+                        matching_core_levels.append(cell_value)
+
+            if not matching_core_levels:
+                wx.MessageBox(f"No other core levels found for {core_level_base} to propagate to",
+                              "Propagate Failed", wx.OK | wx.ICON_WARNING)
+                return
+
+            # Step 3: Show selection dialog for target core levels
+            selected_core_levels = self.show_core_level_selection_dialog(matching_core_levels, core_level_base)
+            if not selected_core_levels:
+                return  # User cancelled
+
+            # Step 4: Paste to all selected core levels
+            success_count = 0
+            for core_level_name in selected_core_levels:
+                try:
+                    # Find the row containing this core level name
+                    target_row = -1
+                    for grid_row in range(self.grid.GetNumberRows()):
+                        if self.grid.GetCellValue(grid_row, col) == core_level_name:
+                            target_row = grid_row
+                            break
+
+                    if target_row == -1:
+                        print(f"Could not find grid row for core level: {core_level_name}")
+                        continue
+
+                    # Paste background first, then peak table
+                    self.paste_background_from_filemanager(target_row, col)
+                    self.paste_peak_table_from_filemanager(target_row, col)
+
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to propagate fittings to {core_level_name}: {e}")
+
+            # Show success message
+            if success_count > 0:
+                self.parent.show_popup_message2("Fittings Propagated",
+                                                f"Fittings propagated from '{sheet_name}' to {success_count} core level(s)")
+            else:
+                wx.MessageBox("Failed to propagate fittings to any core levels", "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+        except Exception as e:
+            wx.MessageBox(f"Error propagating fittings: {str(e)}",
+                          "Propagate Failed", wx.OK | wx.ICON_ERROR)
+
+    # Add these methods to FileManagerWindow class in FileManager.py
+    def copy_peak_table_and_background_from_current_sheet(self, sheet_name):
+        """Copy peak table and background from specified sheet"""
+        # Simulate a file manager row/col for the current sheet
+        row, col = 0, 1  # Dummy values
+
+        # Temporarily set grid value
+        if hasattr(self, 'grid'):
+            original_value = self.grid.GetCellValue(row, col) if self.grid.GetNumberRows() > 0 else ""
+            if self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, sheet_name)
+
+        try:
+            self.copy_peak_table_and_background_from_filemanager(row, col)
+        finally:
+            # Restore original value
+            if hasattr(self, 'grid') and self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, original_value)
+
+    def paste_peak_table_and_background_to_sheet(self, sheet_name):
+        """Paste peak table and background to specified sheet"""
+        # Similar approach as above
+        row, col = 0, 1
+
+        if hasattr(self, 'grid'):
+            original_value = self.grid.GetCellValue(row, col) if self.grid.GetNumberRows() > 0 else ""
+            if self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, sheet_name)
+
+        try:
+            self.paste_peak_table_and_background_single_from_filemanager(row, col)
+        finally:
+            if hasattr(self, 'grid') and self.grid.GetNumberRows() > 0:
+                self.grid.SetCellValue(row, col, original_value)
+
+    def on_plot_heatmap(self, event):
+        """Plot selected core levels as a 2D heatmap"""
+        sheet_names = self.get_selected_sheet_names()
+
+        if not sheet_names:
+            self.parent.show_popup_message2("No Selection", "Please select core levels to plot as heatmap.")
+            return
+
+        # If a single XPS~Map sheet is selected, plot it directly on the main window
+        if len(sheet_names) == 1 and sheet_names[0].startswith('XPS~Map'):
+            self.plot_xps_map_on_main(sheet_names[0])
+            self.highlight_current_sheet(sheet_names[0])
+            self.Raise()
+            return
+
+        if len(sheet_names) < 2:
+            self.parent.show_popup_message2("Insufficient Data", "Please select at least 2 core levels for heatmap.")
+            return
+
+        # Check if we're already showing the same heatmap - just refresh instead of recreating
+        if (hasattr(self.parent, 'heatmap_sheets') and
+                self.parent.heatmap_sheets == sheet_names and
+                hasattr(self.parent, 'heatmap_data')):
+            # Already showing this heatmap, just refresh it
+            self.refresh_heatmap()
+        else:
+            # Create new heatmap
+            self.plot_heatmap(sheet_names)
+
+    def plot_xps_map_lines(self, map_sheet_name, offset=False):
+        """
+        Plot all sweep lines from an XPS~Map as individual line spectra on the main window.
+        F2 → overlay (offset=False), F3 → stacked with vertical offset (offset=True).
+        """
+        if map_sheet_name not in self.parent.Data['Core levels']:
+            self.parent.show_popup_message2("Error", f"Map sheet '{map_sheet_name}' not found in data.")
+            return
+
+        map_data = self.parent.Data['Core levels'][map_sheet_name]
+        be_values = np.array(map_data.get('B.E.', []))
+        num_sweeps = map_data.get('_num_sweeps', 0)
+        if num_sweeps == 0:
+            num_sweeps = sum(1 for k in map_data if k.startswith('Y') and k[1:].isdigit())
+
+        if num_sweeps == 0 or len(be_values) == 0:
+            self.parent.show_popup_message2("Error", f"Invalid map data in '{map_sheet_name}'.")
+            return
+
+        # --- clear axes and any existing colorbar ---
+        self.parent.ax.clear()
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except Exception:
+                pass
+        if hasattr(self.parent, 'plot_manager'):
+            pm = self.parent.plot_manager
+            if hasattr(pm, 'residuals_subplot') and pm.residuals_subplot:
+                try:
+                    self.parent.figure.delaxes(pm.residuals_subplot)
+                except Exception:
+                    pass
+                pm.residuals_subplot = None
+                self.parent.ax.get_xaxis().set_visible(True)
+
+        # Restore full axes width (no colorbar needed)
+        self.parent.ax.set_position([0.1, 0.125, 0.85, 0.85])
+
+        # --- colour palette ---
+        import matplotlib
+        import matplotlib.cm as cm
+        palette = getattr(self.parent, 'multiplot_palette', 'tab10')
+        cmap_lines = matplotlib.colormaps.get_cmap(palette)
+        linewidth = getattr(self.parent, 'multiplot_linewidth', 1.0)
+
+        norm_mode = self.norm_type.GetValue()
+
+        # Collect and optionally normalise all sweeps to 0-1000
+        sweep_data = []
+        for i in range(num_sweeps):
+            col_name = f'Y{i + 1}'
+            if col_name not in map_data:
+                sweep_data.append(None)
+                continue
+            y = np.array(map_data[col_name], dtype=float)
+            if norm_mode == "Norm. Auto":
+                y_min, y_max = y.min(), y.max()
+                if y_max - y_min > 0:
+                    y = (y - y_min) / (y_max - y_min) * 1000.0
+                else:
+                    y = np.full_like(y, 500.0)
+            sweep_data.append(y)
+
+        # Offset step: 10% of the normalised range per multiplier tick
+        # For Norm. Auto data spans 0-1000, so base step = 100.
+        # For raw data, base step = 10% of first sweep's range.
+        if offset:
+            valid = [s for s in sweep_data if s is not None]
+            if valid:
+                if norm_mode == "Norm. Auto":
+                    base_step = 100.0
+                else:
+                    r = valid[0]
+                    base_step = (r.max() - r.min()) * 0.1 if r.max() - r.min() > 0 else 1.0
+                step = base_step * getattr(self, 'map_offset_multiplier', 1)
+            else:
+                step = 0.0
+        else:
+            step = 0.0
+
+        x_min = float(be_values.min())
+        x_max = float(be_values.max())
+
+        max_legend = getattr(self.parent, 'multiplot_max_legend_items', 10)
+
+        for i, y_values in enumerate(sweep_data):
+            if y_values is None:
+                continue
+            y_plot = y_values + i * step
+            color_value = 0.1 + 0.65 * i / max(num_sweeps - 1, 1)
+            color = cmap_lines(color_value)
+            label = f'Sweep {i + 1}' if num_sweeps <= max_legend else None
+            self.parent.ax.plot(be_values, y_plot, color=color,
+                                linewidth=linewidth, label=label)
+
+        # --- axes formatting (same style as plot_multiple_sheets) ---
+        base_name = (map_data.get('_core_level', '')
+                     or map_data.get('ExperimentalInfo', {}).get('Core Level', '')
+                     or map_sheet_name)
+
+        self.parent.ax.set_xlabel('Binding Energy (eV)',
+                                  fontsize=getattr(self.parent, 'axis_title_size', 10))
+        if norm_mode == "Norm. Auto":
+            if offset and step > 0:
+                mult = getattr(self, 'map_offset_multiplier', 1)
+                ylabel = f'Norm. Intensity 0-1000 (offset×{mult})'
+            else:
+                ylabel = 'Norm. Intensity'
+        else:
+            ylabel = 'Intensity (CPS)'
+        self.parent.ax.set_ylabel(ylabel, fontsize=getattr(self.parent, 'axis_title_size', 10))
+        self.parent.ax.tick_params(axis='both',
+                                   labelsize=getattr(self.parent, 'axis_number_size', 9))
+
+        # XPS convention: reversed x-axis
+        self.parent.ax.set_xlim(x_max, x_min)
+
+        # Core-level label top-right (same style as plot_multiple_sheets)
+        formatted_name = self.parent.plot_manager.format_sheet_name(base_name)
+        sheet_name_text = self.parent.ax.text(
+            0.98, 0.98, formatted_name,
+            transform=self.parent.ax.transAxes,
+            fontsize=getattr(self.parent, 'core_level_text_size', 12),
+            fontfamily=[getattr(self.parent, 'plot_font', 'sans-serif')],
+            fontweight='bold',
+            verticalalignment='top',
+            horizontalalignment='right',
+            bbox=dict(facecolor='none', edgecolor='none', alpha=1),
+        )
+        sheet_name_text.sheet_name_text = True
+
+        if num_sweeps <= max_legend:
+            ncol = getattr(self.parent, 'multiplot_legend_ncol', 2)
+            self.parent.ax.legend(loc='upper left', ncol=ncol)
+
+        from matplotlib.ticker import ScalarFormatter
+        self.parent.ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        self.parent.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+        # Mark that main window now shows a line plot (not a heatmap)
+        self.parent.xps_map_on_main = None
+        self.parent.sheet_combobox.SetValue(map_sheet_name)
+
+        self.parent.canvas.draw_idle()
+
+    def plot_xps_map_on_main(self, map_sheet_name):
+        """
+        Plot an XPS~Map sheet as a 2D heatmap directly on the main KherveFitting window.
+        This is triggered by F2, F4, or the Map/Heatmap toolbar icon when an XPS~Map cell
+        is selected in the FileManager grid.
+        """
+        if map_sheet_name not in self.parent.Data['Core levels']:
+            self.parent.show_popup_message2("Error", f"Map sheet '{map_sheet_name}' not found in data.")
+            return
+
+        map_data = self.parent.Data['Core levels'][map_sheet_name]
+
+        # Retrieve BE values and sweep data
+        be_values = np.array(map_data.get('B.E.', []))
+        num_sweeps = map_data.get('_num_sweeps', 0)
+        if num_sweeps == 0:
+            num_sweeps = sum(1 for k in map_data if k.startswith('Y') and k[1:].isdigit())
+
+        if num_sweeps == 0 or len(be_values) == 0:
+            self.parent.show_popup_message2("Error", f"Invalid map data in '{map_sheet_name}'.")
+            return
+
+        # Build 2D data array (num_sweeps × num_be_points)
+        norm_mode = self.norm_type.GetValue()
+        data_2d = np.zeros((num_sweeps, len(be_values)))
+        for i in range(num_sweeps):
+            col_name = f'Y{i + 1}'
+            if col_name in map_data:
+                row = np.array(map_data[col_name], dtype=float)
+                if norm_mode == "Norm. Auto":
+                    r_min, r_max = row.min(), row.max()
+                    if r_max - r_min > 0:
+                        row = (row - r_min) / (r_max - r_min) * 1000.0
+                    else:
+                        row = np.full_like(row, 500.0)
+                data_2d[i, :] = row
+
+        # Use whichever colormap the user has set (default viridis)
+        cmap_name = getattr(self.parent, 'heatmap_colormap', 'viridis')
+
+        # ---------- clear the main axes properly ----------
+        self.parent.ax.clear()
+
+        # Remove old colorbar if present
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except Exception:
+                pass
+
+        # Remove residuals subplot if present
+        if hasattr(self.parent, 'plot_manager'):
+            pm = self.parent.plot_manager
+            if hasattr(pm, 'residuals_subplot') and pm.residuals_subplot:
+                try:
+                    self.parent.figure.delaxes(pm.residuals_subplot)
+                except Exception:
+                    pass
+                pm.residuals_subplot = None
+                self.parent.ax.get_xaxis().set_visible(True)
+
+        # Reset axes to fixed position - MUST be set before and after colorbar creation
+        # to prevent matplotlib from stealing space from the axes on each call
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # ---------- draw heatmap ----------
+        be_descending = be_values[0] > be_values[-1] if len(be_values) > 1 else False
+        extent_x0 = float(be_values[0])
+        extent_x1 = float(be_values[-1])
+
+        vmin_h = 0 if norm_mode == "Norm. Auto" else data_2d.min()
+        vmax_h = 1000.0 if norm_mode == "Norm. Auto" else data_2d.max()
+        if be_descending:
+            heatmap_img = self.parent.ax.imshow(
+                data_2d, aspect='auto', origin='lower',
+                extent=[extent_x0, extent_x1, 0, num_sweeps],
+                cmap=cmap_name, vmin=vmin_h, vmax=vmax_h)
+        else:
+            data_flipped = np.fliplr(data_2d)
+            heatmap_img = self.parent.ax.imshow(
+                data_flipped, aspect='auto', origin='lower',
+                extent=[float(be_values.max()), float(be_values.min()), 0, num_sweeps],
+                cmap=cmap_name, vmin=vmin_h, vmax=vmax_h)
+
+        self.parent.ax.set_ylim(0, num_sweeps)
+        self.parent.ax.set_xlabel('Binding Energy (eV)', fontsize=getattr(self.parent, 'axis_title_size', 10))
+        self.parent.ax.set_ylabel('Sweep Number', fontsize=getattr(self.parent, 'axis_title_size', 10))
+        self.parent.ax.tick_params(axis='both', labelsize=getattr(self.parent, 'axis_number_size', 9))
+
+        # Get a friendly title
+        base_name = (map_data.get('_core_level', '')
+                     or map_data.get('ExperimentalInfo', {}).get('Core Level', '')
+                     or map_sheet_name)
+        self.parent.ax.set_title(f'XPS Map \u2013 {base_name}',
+                                 fontsize=getattr(self.parent, 'axis_title_size', 11))
+
+        # Create colorbar at a FIXED position using cax= (same approach as plot_heatmap).
+        # Using ax= would cause matplotlib to shrink self.parent.ax on every call,
+        # producing the narrowing-map bug seen when pressing F4 repeatedly.
+        try:
+            cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+            cbar = self.parent.figure.colorbar(heatmap_img, cax=cbar_ax)
+            cbar_label = 'Normalised Intensity' if norm_mode == "Norm. Auto" else 'Intensity (CPS)'
+            cbar.set_label(cbar_label, rotation=270, labelpad=20,
+                           fontsize=getattr(self.parent, 'axis_title_size', 9))
+            cbar.ax.tick_params(labelsize=getattr(self.parent, 'axis_number_size', 9))
+            self.parent.heatmap_colorbar = cbar
+            self.parent.heatmap_cbar_ax = cbar_ax
+        except Exception:
+            self.parent.heatmap_colorbar = None
+
+        # Re-assert the axes position after colorbar creation (belt-and-braces)
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Store reference so save_plot_to_excel can detect the active XPS~Map
+        self.parent.xps_map_on_main = map_sheet_name
+        self.parent.xps_map_figure_data = {
+            'be_values': be_values,
+            'data_2d': data_2d,
+            'num_sweeps': num_sweeps,
+            'cmap': cmap_name,
+        }
+
+        # Update combobox so the sheet is known
+        self.parent.sheet_combobox.SetValue(map_sheet_name)
+
+        self.parent.canvas.draw_idle()
+
+    def plot_heatmap(self, sheet_names):
+        """Create a 2D heatmap plot of the selected sheets"""
+        import matplotlib
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LinearSegmentedColormap
+
+        # Use selected colormap if available
+        cmap_name = getattr(self.parent, 'heatmap_colormap', 'viridis')
+        cmap = matplotlib.colormaps.get_cmap(cmap_name)
+
+        # Clear the plot
+        self.parent.ax.clear()
+
+        # Remove old colorbar completely if it exists
+        if hasattr(self.parent, 'heatmap_colorbar') and self.parent.heatmap_colorbar is not None:
+            try:
+                # Remove the colorbar axes from the figure
+                if hasattr(self.parent.heatmap_colorbar, 'ax'):
+                    self.parent.figure.delaxes(self.parent.heatmap_colorbar.ax)
+                self.parent.heatmap_colorbar = None
+            except:
+                pass
+
+        # Reset axes position to default
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Remove any residual subplot
+        if hasattr(self.parent.plot_manager, 'residuals_subplot') and self.parent.plot_manager.residuals_subplot:
+            self.parent.figure.delaxes(self.parent.plot_manager.residuals_subplot)
+            self.parent.plot_manager.residuals_subplot = None
+            self.parent.ax.get_xaxis().set_visible(True)
+
+        # Initialize heatmap intensity scale if not exists - will be set properly after normalisation
+        self.parent.heatmap_vmax = None  # reset each time so it's recalculated below
+
+        # Collect all data
+        all_data = []
+        all_be = []
+        labels = []
+
+        for sheet_name in sheet_names:
+            if sheet_name in self.parent.Data['Core levels']:
+                core_level = self.parent.Data['Core levels'][sheet_name]
+                x_values = np.array(core_level['B.E.'])
+                y_values = np.array(core_level['Raw Data'])
+
+                # Remove NaN and Inf values
+                valid_mask = np.isfinite(x_values) & np.isfinite(y_values)
+                x_values = x_values[valid_mask]
+                y_values = y_values[valid_mask]
+
+                if len(x_values) == 0:
+                    self.parent.show_popup_message2("Invalid Data",
+                                                    f"Sheet {sheet_name} has no valid data points.")
+                    return
+
+                all_data.append(y_values)
+                all_be.append(x_values)
+
+                # Get display label
+                display_text = self.get_display_text_for_sheet(sheet_name)
+                labels.append(display_text)
+
+        if not all_data:
+            self.parent.show_popup_message2("No Data", "No valid data found for heatmap.")
+            return
+
+        # Find the longest BE array to determine target length
+        max_length = max(len(be) for be in all_be)
+
+        # Find common BE range using the first spectrum as reference
+        reference_be = all_be[0]
+        min_be = reference_be[0]
+        max_be = reference_be[-1]
+
+        # Determine if BE is increasing or decreasing
+        be_increasing = reference_be[0] < reference_be[-1]
+
+        # Create common BE axis
+        common_be = np.linspace(max_be, min_be, max_length)
+
+        # Interpolate all data to common BE axis
+        interpolated_data = []
+        for i, (be, data) in enumerate(zip(all_be, all_data)):
+            # For np.interp to work, we need INCREASING x values
+            be_sorted = be[::-1]
+            data_sorted = data[::-1]
+
+            # Interpolate on the reversed (increasing) BE
+            common_be_sorted = common_be[::-1]
+            interp_data_sorted = np.interp(common_be_sorted, be_sorted, data_sorted)
+
+            # Reverse back to decreasing order for plotting
+            interp_data = interp_data_sorted[::-1]
+
+            # Replace any NaN or Inf that might have been introduced
+            interp_data = np.nan_to_num(interp_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+            interpolated_data.append(interp_data)
+
+        # Create 2D array for heatmap
+        heatmap_data = np.array(interpolated_data)
+
+        # Final safety check for NaN/Inf
+        heatmap_data = np.nan_to_num(heatmap_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Normalise or keep raw depending on combo selection
+        norm_mode = self.norm_type.GetValue()
+        if norm_mode == "Norm. Auto":
+            display_data = np.zeros_like(heatmap_data)
+            for i in range(heatmap_data.shape[0]):
+                row_min = heatmap_data[i, :].min()
+                row_max = heatmap_data[i, :].max()
+                if row_max - row_min > 0:
+                    display_data[i, :] = (heatmap_data[i, :] - row_min) / (row_max - row_min) * 1000.0
+                else:
+                    display_data[i, :] = 500.0
+        else:
+            display_data = heatmap_data.copy()
+
+        # Store data and sheet names for replotting
+        self.parent.heatmap_data = display_data
+        self.parent.heatmap_data_original = display_data.copy()
+        self.parent.heatmap_be = common_be
+        self.parent.heatmap_labels = labels
+        self.parent.heatmap_sheets = sheet_names
+        self.parent.heatmap_be_increasing = be_increasing
+
+        # Plot heatmap using pcolormesh
+        X, Y = np.meshgrid(common_be, np.arange(len(sheet_names)))
+
+        if norm_mode == "Norm. Auto":
+            self.parent.heatmap_vmax = 1000.0
+            vmin = 0
+        else:
+            self.parent.heatmap_vmax = display_data.max()
+            vmin = display_data.min()
+        vmax = self.parent.heatmap_vmax
+        im = self.parent.ax.pcolormesh(X, Y, display_data, shading='auto', cmap=cmap,
+                                       vmin=vmin, vmax=vmax)
+
+        # Create colorbar with fixed axes to prevent shrinking
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Create colorbar axes manually at fixed position [left, bottom, width, height]
+        cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+        cbar = self.parent.figure.colorbar(im, cax=cbar_ax)
+        cbar_label = 'Normalised Intensity' if norm_mode == "Norm. Auto" else 'Intensity (CPS)'
+        cbar.set_label(cbar_label, rotation=270, labelpad=20,
+                       fontsize=self.parent.axis_title_size)
+        cbar.ax.tick_params(labelsize=self.parent.axis_number_size)
+
+        # Store colorbar reference and axes for reuse
+        self.parent.heatmap_colorbar = cbar
+        self.parent.heatmap_cbar_ax = cbar_ax
+        self.parent.heatmap_axes_position = self.parent.ax.get_position()
+
+        # Set labels
+        if self.parent.energy_scale == 'BE':
+            self.parent.ax.set_xlabel('Binding Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+        else:
+            self.parent.ax.set_xlabel('Kinetic Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+
+        self.parent.ax.set_ylabel('Spectrum', fontsize=self.parent.axis_title_size)
+
+        # Set y-axis labels with numbers
+        self.parent.ax.set_yticks(np.arange(len(labels)))
+        numeric_labels = [str(i + 1) for i in range(len(labels))]
+        self.parent.ax.set_yticklabels(numeric_labels, fontsize=self.parent.axis_number_size)
+        # Reverse x-axis for BE scale if needed
+        if not be_increasing:
+            self.parent.ax.invert_xaxis()
+
+        # Apply axis formatting
+        self.parent.ax.tick_params(axis='x', labelsize=self.parent.axis_number_size)
+
+        # Set title with current vmax value
+        # self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
+        #                          fontsize=self.parent.axis_title_size)
+
+        # Redraw canvas
+        self.parent.canvas.draw_idle()
+
+    def refresh_heatmap(self):
+        """Refresh the heatmap with updated intensity scale"""
+        if not hasattr(self.parent, 'heatmap_data') or self.parent.heatmap_data is None:
+            return
+
+        # Clear and replot with stored data
+        self.parent.ax.clear()
+
+        # Set axes position
+        self.parent.ax.set_position([0.1, 0.1, 0.73, 0.85])
+
+        # Plot heatmap
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        # Use selected colormap if available
+        cmap_name = getattr(self.parent, 'heatmap_colormap', 'viridis')
+        cmap = matplotlib.colormaps.get_cmap(cmap_name)
+
+        X, Y = np.meshgrid(self.parent.heatmap_be, np.arange(len(self.parent.heatmap_sheets)))
+
+        im = self.parent.ax.pcolormesh(X, Y, self.parent.heatmap_data, shading='auto', cmap=cmap,
+                                       vmin=0, vmax=self.parent.heatmap_vmax)
+
+        # Check if colorbar axes exists and reuse it
+        if hasattr(self.parent, 'heatmap_cbar_ax') and self.parent.heatmap_cbar_ax is not None:
+            # Reuse existing colorbar axes
+            try:
+                cbar = self.parent.figure.colorbar(im, cax=self.parent.heatmap_cbar_ax)
+            except:
+                # If reuse fails, create new one
+                cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+                cbar = self.parent.figure.colorbar(im, cax=cbar_ax)
+                self.parent.heatmap_cbar_ax = cbar_ax
+        else:
+            # Create new colorbar axes
+            cbar_ax = self.parent.figure.add_axes([0.84, 0.1, 0.03, 0.85])
+            cbar = self.parent.figure.colorbar(im, cax=cbar_ax)
+            self.parent.heatmap_cbar_ax = cbar_ax
+
+        cbar.set_label('Normalized Intensity)', rotation=270, labelpad=20,
+                       fontsize=self.parent.axis_title_size)
+        cbar.ax.tick_params(labelsize=self.parent.axis_number_size)
+        self.parent.heatmap_colorbar = cbar
+
+        # Set labels
+        if self.parent.energy_scale == 'BE':
+            self.parent.ax.set_xlabel('Binding Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+        else:
+            self.parent.ax.set_xlabel('Kinetic Energy (eV)',
+                                      fontsize=self.parent.axis_title_size)
+
+        self.parent.ax.set_ylabel('Spectrum', fontsize=self.parent.axis_title_size)
+        self.parent.ax.set_yticks(np.arange(len(self.parent.heatmap_labels)))
+        numeric_labels = [str(i + 1) for i in range(len(self.parent.heatmap_labels))]
+        self.parent.ax.set_yticklabels(numeric_labels, fontsize=self.parent.axis_number_size)
+
+
+        if not self.parent.heatmap_be_increasing:
+            self.parent.ax.invert_xaxis()
+
+        self.parent.ax.tick_params(axis='x', labelsize=self.parent.axis_number_size)
+        # self.parent.ax.set_title(f'2D Heatmap (vmax={self.parent.heatmap_vmax:.2f})',
+        #                          fontsize=self.parent.axis_title_size)
+
+        # Redraw canvas
+        self.parent.canvas.draw_idle()
+
+    def create_heatmap_controls(self):
+        """Create control panel for heatmap vmax adjustment"""
+        if hasattr(self, 'heatmap_control_panel'):
+            # Panel already exists
+            return
+
+        # Create a small control panel
+        self.heatmap_control_panel = wx.Panel(self.right_panel)
+        control_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Label
+        label = wx.StaticText(self.heatmap_control_panel, label="Heatmap Intensity (vmax):")
+        control_sizer.Add(label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+
+        # Slider: 50..2000 for Norm. Auto (direct value), reused for no-norm mode too
+        self.heatmap_vmax_slider = wx.Slider(self.heatmap_control_panel,
+                                             value=1000,  # Start at 1000 (full range for Norm. Auto)
+                                             minValue=50,
+                                             maxValue=2000,
+                                             style=wx.SL_HORIZONTAL | wx.SL_LABELS)
+        self.heatmap_vmax_slider.SetMinSize((200, -1))
+        control_sizer.Add(self.heatmap_vmax_slider, 1, wx.ALL | wx.EXPAND, 5)
+
+        # Text control for precise value
+        self.heatmap_vmax_text = wx.TextCtrl(self.heatmap_control_panel,
+                                             value="1000.00",
+                                             style=wx.TE_PROCESS_ENTER,
+                                             size=(70, -1))
+        control_sizer.Add(self.heatmap_vmax_text, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+
+        # Reset button
+        reset_btn = wx.Button(self.heatmap_control_panel, label="Reset", size=(60, -1))
+        control_sizer.Add(reset_btn, 0, wx.ALL, 5)
+
+        self.heatmap_control_panel.SetSizer(control_sizer)
+
+        # Bind events
+        self.heatmap_vmax_slider.Bind(wx.EVT_SLIDER, self.on_heatmap_slider_change)
+        self.heatmap_vmax_text.Bind(wx.EVT_TEXT_ENTER, self.on_heatmap_text_change)
+        reset_btn.Bind(wx.EVT_BUTTON, self.on_heatmap_reset)
+
+        # Add to the right panel sizer (before the grid)
+        right_sizer = self.right_panel.GetSizer()
+        right_sizer.Insert(1, self.heatmap_control_panel, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Hide initially
+        self.heatmap_control_panel.Hide()
+
+    def on_heatmap_slider_change(self, event):
+        """Handle slider change for heatmap vmax"""
+        norm_str = self.norm_type.GetValue() if hasattr(self, 'norm_type') else "Norm. Auto"
+        if norm_str == "Norm. Auto":
+            # slider 50..2000, value stored directly
+            vmax = float(self.heatmap_vmax_slider.GetValue())
+        else:
+            # slider 1..200 maps to 1%..200% of data max
+            data_max = self.parent.heatmap_data.max() if hasattr(self.parent, 'heatmap_data') and self.parent.heatmap_data is not None else 1.0
+            vmax = self.heatmap_vmax_slider.GetValue() / 100.0 * data_max
+        self.parent.heatmap_vmax = vmax
+        self.heatmap_vmax_text.SetValue(f"{vmax:.2f}")
+        self.refresh_heatmap()
+
+    def on_heatmap_text_change(self, event):
+        """Handle text control change for heatmap vmax"""
+        norm_str = self.norm_type.GetValue() if hasattr(self, 'norm_type') else "Norm. Auto"
+        try:
+            vmax = float(self.heatmap_vmax_text.GetValue())
+            if norm_str == "Norm. Auto":
+                vmax = max(50.0, min(2000.0, vmax))
+                self.heatmap_vmax_slider.SetValue(int(vmax))
+            else:
+                data_max = self.parent.heatmap_data.max() if hasattr(self.parent, 'heatmap_data') and self.parent.heatmap_data is not None else 1.0
+                vmax = max(1.0, vmax)
+                self.heatmap_vmax_slider.SetValue(int(vmax / data_max * 100))
+            self.parent.heatmap_vmax = vmax
+            self.refresh_heatmap()
+        except ValueError:
+            pass
+
+    def on_heatmap_reset(self, event):
+        """Reset heatmap vmax to default"""
+        norm_str = self.norm_type.GetValue() if hasattr(self, 'norm_type') else "Norm. Auto"
+        if norm_str == "Norm. Auto":
+            self.parent.heatmap_vmax = 1000.0
+            self.heatmap_vmax_slider.SetValue(1000)
+            self.heatmap_vmax_text.SetValue("1000.00")
+        else:
+            data_max = self.parent.heatmap_data.max() if hasattr(self.parent, 'heatmap_data') and self.parent.heatmap_data is not None else 1.0
+            self.parent.heatmap_vmax = data_max
+            self.heatmap_vmax_slider.SetValue(100)
+            self.heatmap_vmax_text.SetValue(f"{data_max:.2f}")
+        self.refresh_heatmap()
+
+    def on_change_colormap(self, event):
+        """Legacy function - kept for compatibility"""
+        colormaps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'RdBu', 'coolwarm', 'jet', 'hot']
+        dlg = wx.SingleChoiceDialog(self, "Choose a colormap", "Colormap", colormaps)
+        if dlg.ShowModal() == wx.ID_OK:
+            selected = dlg.GetStringSelection()
+            self.heatmap_colormap = selected
+            self.plot_heatmap()
+        dlg.Destroy()
+
+
+    def on_smooth_heatmap(self, event):
+        """Legacy function - kept for compatibility"""
+        self.smooth_heatmap(1.0)
+
+    def on_create_map_from_selection(self, event):
+        """Create XPS~Map from selected core levels in the grid."""
+        # Get all selected cells and extract unique sheet names
+        sheet_names = []
+        selected_cells = self.grid.GetSelectedCells()
+
+        # Also check for selected blocks
+        top_left = self.grid.GetSelectionBlockTopLeft()
+        bottom_right = self.grid.GetSelectionBlockBottomRight()
+
+        # Collect from individual cells
+        for cell in selected_cells:
+            row, col = cell
+            sheet_name = self.grid.GetCellValue(row, col)
+            if sheet_name and sheet_name in self.parent.Data['Core levels']:
+                if sheet_name not in sheet_names:
+                    sheet_names.append(sheet_name)
+
+        # Collect from blocks
+        for i in range(len(top_left)):
+            for row in range(top_left[i][0], bottom_right[i][0] + 1):
+                for col in range(top_left[i][1], bottom_right[i][1] + 1):
+                    sheet_name = self.grid.GetCellValue(row, col)
+                    if sheet_name and sheet_name in self.parent.Data['Core levels']:
+                        if sheet_name not in sheet_names:
+                            sheet_names.append(sheet_name)
+
+        if len(sheet_names) < 2:
+            wx.MessageBox("Please select at least 2 core levels to create a map.",
+                          "Selection Error", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Check that all sheets have the same core level type
+        core_level_types = set()
+        for sheet_name in sheet_names:
+            # Extract base core level name (remove numbers at end)
+            base_name = re.sub(r'\d+$', '', sheet_name)
+            core_level_types.add(base_name)
+
+        if len(core_level_types) > 1:
+            wx.MessageBox(f"All selected core levels must be of the same type.\nFound: {', '.join(core_level_types)}",
+                          "Type Mismatch", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Get the base name (core level type)
+        base_name = core_level_types.pop()
+
+        # Create XPS~Map sheet name: XPS~Map, XPS~Map1, XPS~Map2, etc.
+        existing_maps = [name for name in self.parent.Data['Core levels'].keys()
+                         if name.startswith('XPS~Map')]
+        if len(existing_maps) == 0:
+            map_sheet_name = "XPS~Map"
+        else:
+            counter = 1
+            map_sheet_name = f"XPS~Map{counter}"
+            while map_sheet_name in self.parent.Data['Core levels']:
+                counter += 1
+                map_sheet_name = f"XPS~Map{counter}"
+
+        # Get reference data from first sheet
+        first_sheet_name = sheet_names[0]
+        first_sheet_data = self.parent.Data['Core levels'][first_sheet_name]
+
+        # Check that all sheets have the same BE values
+        reference_be = np.array([float(x) for x in first_sheet_data['B.E.']])
+
+        for sheet_name in sheet_names[1:]:
+            sheet_data = self.parent.Data['Core levels'][sheet_name]
+            be_values = np.array([float(x) for x in sheet_data['B.E.']])
+            if not np.allclose(be_values, reference_be, atol=0.01):
+                wx.MessageBox(f"All core levels must have the same BE values.\n{sheet_name} has different BE values.",
+                              "BE Mismatch", wx.OK | wx.ICON_ERROR)
+                return
+
+        num_sweeps = len(sheet_names)
+
+        # Create map data structure matching Scienta_Import format
+        map_data = {
+            'Name': map_sheet_name,
+            'B.E.': [round(float(val), 2) for val in reference_be],
+            '_Map_type': 'combined',
+            '_num_sweeps': num_sweeps,
+            '_core_level': base_name,
+        }
+
+        # Add Y columns for each sweep (Y1, Y2, Y3, ...)
+        for idx, sheet_name in enumerate(sheet_names, start=1):
+            sheet_data = self.parent.Data['Core levels'][sheet_name]
+            raw_data = sheet_data.get('Raw Data', sheet_data.get('Corrected Data', []))
+            map_data[f'Y{idx}'] = [round(float(val), 2) for val in raw_data]
+
+        # Build experimental info matching Scienta_Import format
+        first_exp_info = first_sheet_data.get('ExperimentalInfo', {})
+        map_data['ExperimentalInfo'] = {
+            'Sample ID': first_exp_info.get('Sample ID', first_exp_info.get('Sample', '')),
+            'Spectrum Name': first_exp_info.get('Spectrum Name', ''),
+            'Region Name': base_name,
+            'Core Level': base_name,
+            'Map Sheet Name': map_sheet_name,
+            'Instrument': first_exp_info.get('Instrument', ''),
+            'Location': first_exp_info.get('Location', ''),
+            'User': first_exp_info.get('User', ''),
+            'Date': first_exp_info.get('Date', ''),
+            'Time': first_exp_info.get('Time', ''),
+            'Technique': 'XPS Map',
+            'Excitation Energy': first_exp_info.get('Excitation Energy', ''),
+            'Pass Energy': first_exp_info.get('Pass Energy', ''),
+            'Number of Sweeps': str(num_sweeps),
+            'Number of Points': str(len(reference_be)),
+            'BE Start': f"{reference_be[0]:.2f}",
+            'BE End': f"{reference_be[-1]:.2f}",
+            'Source Sheets': ', '.join(sheet_names),
+        }
+
+        # Add background structure
+        map_data['Background'] = {
+            'Bkg Type': '',
+            'Bkg Low': round(float(min(reference_be)), 2),
+            'Bkg High': round(float(max(reference_be)), 2),
+            'Bkg Offset Low': 0,
+            'Bkg Offset High': 0
+        }
+
+        # Add to window.Data
+        self.parent.Data['Core levels'][map_sheet_name] = map_data
+        self.parent.Data['Number of Core levels'] = len(self.parent.Data['Core levels'])
+
+        # Add sheet to Excel
+        self._add_map_sheet_to_excel(map_sheet_name, map_data, sheet_names)
+
+        # Update combobox if not already present
+        if map_sheet_name not in [self.parent.sheet_combobox.GetString(i)
+                                  for i in range(self.parent.sheet_combobox.GetCount())]:
+            self.parent.sheet_combobox.Append(map_sheet_name)
+
+        # Save state
+        from libraries.FileMenu.Save import save_state
+        save_state(self.parent)
+
+        wx.MessageBox(f"Created map: {map_sheet_name}\nCore Level: {base_name}\nSweeps: {num_sweeps}",
+                      "XPS~Map Created", wx.OK | wx.ICON_INFORMATION)
+
+        # Close and reopen FileManager at the same desktop position so the new XPS~Map cell appears
+        current_position = self.GetPosition()
+        self.parent.file_manager_position = current_position
+        self.save_sample_names()
+        self.save_be_corrections()
+
+        def reopen():
+            if hasattr(self.parent, 'file_manager') and self.parent.file_manager:
+                self.parent.file_manager.Destroy()
+                self.parent.file_manager = None
+            new_fm = FileManagerWindow(self.parent)
+            self.parent.file_manager = new_fm
+            new_fm.Show()
+            # Highlight the newly created map sheet
+            new_fm.highlight_current_sheet(map_sheet_name)
+
+        wx.CallAfter(reopen)
+
+    def on_open_scienta_map_viewer(self, event):
+        """
+        Open the ScientaMapViewer for the currently selected XPS~Map sheet.
+        Triggered by the Map Viewer icon on the vertical toolbar.
+        """
+        sheet_names = self.get_selected_sheet_names()
+
+        # Find the first XPS~Map in the selection (or cursor cell)
+        map_sheet_name = None
+        for name in sheet_names:
+            if name.startswith('XPS~Map'):
+                map_sheet_name = name
+                break
+
+        if map_sheet_name is None:
+            self.parent.show_popup_message2(
+                "No XPS~Map Selected",
+                "Please select an XPS~Map cell in the grid before opening the Map Viewer."
+            )
+            return
+
+        # If a viewer is already open for this map, just raise it
+        if hasattr(self.parent, 'scienta_map_window') and self.parent.scienta_map_window:
+            try:
+                if not self.parent.scienta_map_window.IsBeingDeleted():
+                    self.parent.scienta_map_window.Raise()
+                    return
+            except Exception:
+                pass
+
+        from libraries.ViewMenu.ScientaMapViewer import open_scienta_map_viewer
+        map_window = open_scienta_map_viewer(self.parent, map_sheet_name)
+        if map_window:
+            self.parent.scienta_map_window = map_window
+
+    def _add_map_sheet_to_excel(self, map_sheet_name, map_data, source_sheets):
+        """Add map sheet to Excel file matching Scienta_Import format."""
+        import openpyxl
+
+        excel_path = self.parent.Data.get('FilePath', '')
+        if not excel_path or not os.path.exists(excel_path):
+            return
+
+        try:
+            wb = openpyxl.load_workbook(excel_path)
+
+            # Remove existing sheet if it exists
+            if map_sheet_name in wb.sheetnames:
+                del wb[map_sheet_name]
+
+            ws = wb.create_sheet(map_sheet_name)
+
+            num_sweeps = map_data['_num_sweeps']
+            be_values = [float(x) for x in map_data['B.E.']]
+
+            # Write headers: BE, Y1, Y2, Y3, ...
+            ws.cell(row=1, column=1, value='BE')
+            for sweep_idx in range(num_sweeps):
+                ws.cell(row=1, column=sweep_idx + 2, value=f'Y{sweep_idx + 1}')
+
+            # Write data rows
+            for i, be_val in enumerate(be_values):
+                ws.cell(row=i + 2, column=1, value=round(be_val, 2))
+                for sweep_idx in range(num_sweeps):
+                    y_data = map_data[f'Y{sweep_idx + 1}']
+                    ws.cell(row=i + 2, column=sweep_idx + 2, value=round(float(y_data[i]), 2))
+
+            # Write experimental info - position at column after Y data + 10
+            exp_col = num_sweeps + 10
+            ws.cell(row=1, column=exp_col, value="Experimental Description")
+
+            if 'ExperimentalInfo' in map_data:
+                row = 2
+                for key, value in map_data['ExperimentalInfo'].items():
+                    ws.cell(row=row, column=exp_col, value=key)
+                    ws.cell(row=row, column=exp_col + 1, value=str(value))
+                    row += 1
+
+            # Set column widths for experimental info
+            ws.column_dimensions[openpyxl.utils.get_column_letter(exp_col)].width = 25
+            ws.column_dimensions[openpyxl.utils.get_column_letter(exp_col + 1)].width = 40
+
+            wb.save(excel_path)
+            wb.close()
+        except Exception as e:
+            print(f"Error adding map sheet to Excel: {e}")
+            import traceback
+            traceback.print_exc()
+
+
+class CoreLevelSelectionDialog(wx.Dialog):
+    """Dialog for selecting which core levels to paste peak table to"""
+
+    def __init__(self, parent, core_levels, base_name):
+        super().__init__(parent, title=f"Select Core Levels for {base_name}",
+                         size=(400, 300), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+
+        self.core_levels = core_levels
+        self.create_controls()
+        self.center_on_parent()
+
+    def create_controls(self):
+        """Create dialog controls"""
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Instructions
+        instruction_text = wx.StaticText(self, label="Select core levels to paste peak table and background:")
+        main_sizer.Add(instruction_text, 0, wx.ALL | wx.EXPAND, 10)
+
+        # Selection buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        select_all_btn = wx.Button(self, label="Select All")
+        unselect_all_btn = wx.Button(self, label="Unselect All")
+
+        select_all_btn.Bind(wx.EVT_BUTTON, self.on_select_all)
+        unselect_all_btn.Bind(wx.EVT_BUTTON, self.on_unselect_all)
+
+        button_sizer.Add(select_all_btn, 0, wx.ALL, 5)
+        button_sizer.Add(unselect_all_btn, 0, wx.ALL, 5)
+
+        main_sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 5)
+
+        # Checklist
+        self.checklist = wx.CheckListBox(self, choices=self.core_levels)
+
+        # Select all by default
+        for i in range(self.checklist.GetCount()):
+            self.checklist.Check(i, True)
+
+        main_sizer.Add(self.checklist, 1, wx.ALL | wx.EXPAND, 10)
+
+        # OK/Cancel buttons
+        btn_sizer = self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+        main_sizer.Add(btn_sizer, 0, wx.ALL | wx.EXPAND, 10)
+
+        self.SetSizer(main_sizer)
+
+    def on_select_all(self, event):
+        """Select all items"""
+        for i in range(self.checklist.GetCount()):
+            self.checklist.Check(i, True)
+
+    def on_unselect_all(self, event):
+        """Unselect all items"""
+        for i in range(self.checklist.GetCount()):
+            self.checklist.Check(i, False)
+
+    def get_selected_core_levels(self):
+        """Get list of selected core levels"""
+        selected = []
+        for i in range(self.checklist.GetCount()):
+            if self.checklist.IsChecked(i):
+                selected.append(self.core_levels[i])
+        return selected
+
+    def center_on_parent(self):
+        """Center dialog on parent window"""
+        if self.GetParent():
+            parent_pos = self.GetParent().GetPosition()
+            parent_size = self.GetParent().GetSize()
+            dialog_size = self.GetSize()
+
+            pos_x = parent_pos.x + (parent_size.width - dialog_size.width) // 2
+            pos_y = parent_pos.y + (parent_size.height - dialog_size.height) // 2
+
+            self.SetPosition((pos_x, pos_y))
+
+class CoreLevelPreviewDialog(wx.Dialog):
+    def __init__(self, parent, title, core_levels_data, operation_type):
+        super().__init__(parent, title=title, size=(290, 400))
+
+        self.core_levels_data = core_levels_data
+        self.operation_type = operation_type  # "copy", "paste", or "delete"
+
+        panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title label
+        if operation_type == "copy":
+            label_text = f"Core levels to copy ({len(core_levels_data)}):"
+        elif operation_type == "paste":
+            label_text = f"Core levels to paste ({len(core_levels_data)}):"
+        else:  # delete
+            label_text = f"Core levels to delete ({len(core_levels_data)}):"
+
+        title_label = wx.StaticText(panel, label=label_text)
+        main_sizer.Add(title_label, 0, wx.ALL, 10)
+
+        # List control
+        self.list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.list_ctrl.AppendColumn("Name", width=50)
+        self.list_ctrl.AppendColumn("N# Pts", width=50)
+        self.list_ctrl.AppendColumn("BE Range", width=80)
+        self.list_ctrl.AppendColumn("Fitting?", width=70)
+
+        # Populate list
+        for i, (sheet_name, core_level) in enumerate(core_levels_data.items()):
+            index = self.list_ctrl.InsertItem(i, sheet_name)
+
+            # Data points count
+            data_points = len(core_level.get('Raw Data', []))
+            self.list_ctrl.SetItem(index, 1, str(data_points))
+
+            # BE range
+            be_values = core_level.get('B.E.', [])
+            if be_values:
+                be_range = f"{min(be_values):.1f} - {max(be_values):.1f}"
+            else:
+                be_range = "N/A"
+            self.list_ctrl.SetItem(index, 2, be_range)
+
+            # Has peaks
+            has_peaks = "Yes" if 'Fitting' in core_level and 'Peaks' in core_level['Fitting'] else "No"
+            self.list_ctrl.SetItem(index, 3, has_peaks)
+
+        main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Buttons
+        btn_sizer = wx.StdDialogButtonSizer()
+        if operation_type == "delete":
+            ok_btn = wx.Button(panel, wx.ID_OK, "Delete")
+            ok_btn.SetBackgroundColour(wx.Colour(255, 100, 100))  # Red background for delete
+        else:
+            ok_btn = wx.Button(panel, wx.ID_OK)
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        btn_sizer.AddButton(ok_btn)
+        btn_sizer.AddButton(cancel_btn)
+        btn_sizer.Realize()
+
+        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        panel.SetSizer(main_sizer)
+        self.CenterOnParent()
+
+
+
+class ExperimentalDescriptionWindow(wx.Frame):
+    def __init__(self, parent, sheet_name):
+        super().__init__(parent, title=f"Experimental Description - {sheet_name}",
+                         size=(450, 340), style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+
+        self.parent = parent
+        self.sheet_name = sheet_name
+
+        self.panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Create toolbar
+        self.create_toolbar()
+        main_sizer.Add(self.toolbar, 0, wx.EXPAND)
+
+
+        # Create grid with more rows for expansion
+        self.grid = wx.grid.Grid(self.panel)
+        self.grid.CreateGrid(13, 2)
+
+        self.grid.SetColLabelValue(0, "Parameter")
+        self.grid.SetColLabelValue(1, "Value")
+        self.grid.SetColSize(0, 180)  # Smaller width for Parameter column
+        self.grid.SetColSize(1, 200)  # Narrower width for Value column
+        self.grid.SetRowLabelSize(30)
+
+        # Make all cells editable and set formatting
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                self.grid.SetCellAlignment(row, col, wx.ALIGN_LEFT, wx.ALIGN_CENTER)
+                # Make Value column (column 1) bold
+                if col == 0:
+                    font = self.grid.GetCellFont(row, col)
+                    font.SetWeight(wx.FONTWEIGHT_BOLD)
+                    self.grid.SetCellFont(row, col, font)
+
+        self.populate_grid()
+        self.setup_grid_rendering()
+
+        main_sizer.Add(self.grid, 1, wx.EXPAND | wx.ALL, 10)
+
+        self.panel.SetSizer(main_sizer)
+        self.CenterOnParent()
+
+        # Bind grid events
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
+        self.grid.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_hover)
+
+        from libraries.ConfigFile import set_consistent_fonts
+        set_consistent_fonts(self)
+
+    def on_cell_hover(self, event):
+        """Show tooltip for cells with long content"""
+        row = event.GetRow()
+        col = event.GetCol()
+        if col == 1:  # Value column
+            cell_value = self.grid.GetCellValue(row, col)
+            if len(cell_value) > 13:
+                self.grid.SetToolTip(cell_value)
+            else:
+                self.grid.SetToolTip("")
+        event.Skip()
+
+    def create_toolbar(self):
+        """Create toolbar with icons similar to FileManager"""
+        self.toolbar = wx.ToolBar(self.panel, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+        self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+        # Get icon path
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+
+        # Add Row button
+        add_icon = os.path.join(icon_path, "add-3.png")
+        if os.path.exists(add_icon):
+            add_bmp = wx.Bitmap(add_icon)
+        else:
+            add_bmp = wx.ArtProvider.GetBitmap(wx.ART_PLUS, wx.ART_TOOLBAR)
+        add_tool = self.toolbar.AddTool(wx.ID_ANY, "Add Row", add_bmp, "Add new row")
+        self.Bind(wx.EVT_TOOL, self.on_add_row, add_tool)
+
+        # Remove Row button
+        remove_icon = os.path.join(icon_path, "delete-rows-25.png")
+        if os.path.exists(remove_icon):
+            remove_bmp = wx.Bitmap(remove_icon)
+        else:
+            remove_bmp = wx.ArtProvider.GetBitmap(wx.ART_MINUS, wx.ART_TOOLBAR)
+        remove_tool = self.toolbar.AddTool(wx.ID_ANY, "Remove Row", remove_bmp, "Remove selected row")
+        self.Bind(wx.EVT_TOOL, self.on_remove_row, remove_tool)
+
+        self.toolbar.AddSeparator()
+
+        # Save JSON button (auto-save on Enter, but also manual save)
+        save_json_icon = os.path.join(icon_path, "Save_Json-3.png")
+        if os.path.exists(save_json_icon):
+            save_json_bmp = wx.Bitmap(save_json_icon)
+        else:
+            save_json_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_TOOLBAR)
+        save_json_tool = self.toolbar.AddTool(wx.ID_ANY, "Save Data", save_json_bmp,
+                                              "Save data to JSON (also auto-saves on Enter)")
+        self.Bind(wx.EVT_TOOL, self.on_save_json, save_json_tool)
+
+        # Export to Excel button
+        export_excel_icon = os.path.join(icon_path, "Save-excel-3.png")
+        if os.path.exists(export_excel_icon):
+            export_excel_bmp = wx.Bitmap(export_excel_icon)
+        else:
+            export_excel_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
+        export_excel_tool = self.toolbar.AddTool(wx.ID_ANY, "Export to Excel", export_excel_bmp,
+                                                 "Export to Excel file at column 45")
+        self.Bind(wx.EVT_TOOL, self.on_export_to_excel, export_excel_tool)
+
+        # self.toolbar.AddStretchableSpace()
+        #
+        # # Close button
+        # close_icon = os.path.join(icon_path, "close-3.png")
+        # if os.path.exists(close_icon):
+        #     close_bmp = wx.Bitmap(close_icon)
+        # else:
+        #     close_bmp = wx.ArtProvider.GetBitmap(wx.ART_QUIT, wx.ART_TOOLBAR)
+        # close_tool = self.toolbar.AddTool(wx.ID_ANY, "Close", close_bmp, "Close window")
+        # self.Bind(wx.EVT_TOOL, self.on_close, close_tool)
+
+        self.toolbar.Realize()
+
+    def setup_grid_rendering(self):
+        """Setup better rendering for multi-line text"""
+        # Enable text wrapping for better visualization of long content
+        for row in range(self.grid.GetNumberRows()):
+            for col in range(self.grid.GetNumberCols()):
+                self.grid.SetCellAlignment(row, col, wx.ALIGN_LEFT, wx.ALIGN_TOP)
+                if col == 0:  # Value column
+                    font = self.grid.GetCellFont(row, col)
+                    font.SetWeight(wx.FONTWEIGHT_BOLD)
+                    self.grid.SetCellFont(row, col, font)
+
+        # Set default row height and enable auto-sizing
+        self.grid.SetDefaultRowSize(25, True)
+        self.grid.EnableDragRowSize(True)
+
+    def populate_grid(self):
+        """Populate the grid with experimental description data"""
+        # First try to get data from window.Data (stored experimental info)
+        core_levels = self.parent.Data.get('Core levels', {})  # Fixed: removed extra .parent
+        sheet_data = core_levels.get(self.sheet_name, {})
+        experimental_info = sheet_data.get('ExperimentalInfo', {})
+
+        if experimental_info:
+            # Populate from stored data in window.Data
+            row_index = 0
+            for param_name, param_value in experimental_info.items():
+                if row_index >= self.grid.GetNumberRows():
+                    self.grid.AppendRows(1)
+                self.grid.SetCellValue(row_index, 0, str(param_name))
+
+                # Handle multi-line content
+                value_str = ""
+                if isinstance(param_value, (int, float)):
+                    value_str = f"{param_value:.2f}"
+                else:
+                    value_str = str(param_value)
+
+                self.grid.SetCellValue(row_index, 1, value_str)
+
+                # Auto-adjust row height based on actual content
+                new_height = self.calculate_cell_height(value_str, row_index)
+                if new_height > 25:  # Only adjust if taller than default
+                    self.grid.SetRowSize(row_index, new_height)
+
+                # Apply formatting
+                font = self.grid.GetCellFont(row_index, 0)
+                font.SetWeight(wx.FONTWEIGHT_BOLD)
+                self.grid.SetCellFont(row_index, 0, font)
+
+                row_index += 1
+
+            # Hide unused rows
+            for i in range(row_index, self.grid.GetNumberRows()):
+                self.grid.SetRowSize(i, 0)
+            return
+
+        # Fallback to reading from Excel file if no data in window.Data
+        file_path = self.parent.Data.get('FilePath', '')  # Fixed: removed extra .parent
+        if not file_path or not os.path.exists(file_path):
+            return
+
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            if self.sheet_name not in wb.sheetnames:
+                return
+
+            sheet = wb[self.sheet_name]
+
+            # Find experimental description column (typically column 45/AS)
+            exp_col = None
+            for col in range(40, min(60, sheet.max_column + 1)):
+                if sheet.cell(row=1, column=col).value == "Experimental Description":
+                    exp_col = col
+                    break
+
+            if not exp_col:
+                return
+
+            # Populate grid with data and auto-sizing
+            row_index = 0
+            for row in range(2, sheet.max_row + 1):
+                param_cell = sheet.cell(row=row, column=exp_col)
+                value_cell = sheet.cell(row=row, column=exp_col + 1)
+
+                if param_cell.value is not None and str(param_cell.value).strip():
+                    if row_index >= self.grid.GetNumberRows():
+                        self.grid.AppendRows(1)
+
+                    self.grid.SetCellValue(row_index, 0, str(param_cell.value))
+
+                    # Handle value formatting and multi-line content
+                    value_str = ""
+                    if isinstance(value_cell.value, (int, float)):
+                        value_str = f"{value_cell.value:.2f}"
+                    else:
+                        value_str = str(value_cell.value) if value_cell.value is not None else ""
+
+                    self.grid.SetCellValue(row_index, 1, value_str)
+
+                    # Auto-adjust row height for long content
+                    if len(value_str) > 50 or '\n' in value_str:
+                        lines = value_str.count('\n') + 1
+                        char_lines = len(value_str) // 50 + 1
+                        needed_lines = max(lines, char_lines)
+                        new_height = max(25, min(150, needed_lines * 20))
+                        self.grid.SetRowSize(row_index, new_height)
+
+                    # Apply bold formatting to Value column
+                    font = self.grid.GetCellFont(row_index, 0)
+                    font.SetWeight(wx.FONTWEIGHT_BOLD)
+                    self.grid.SetCellFont(row_index, 0, font)
+
+                    row_index += 1
+
+            # Hide unused rows
+            for i in range(row_index, self.grid.GetNumberRows()):
+                self.grid.SetRowSize(i, 0)
+
+        except Exception as e:
+            print(f"Error reading experimental description: {e}")
+
+    def calculate_cell_height(self, text, row):
+        """Calculate optimal cell height based on text content and column width"""
+        if not text or text.strip() == "":
+            return 25  # Default height for empty cells
+
+        # Get column width in pixels
+        col_width = self.grid.GetColSize(1)  # Value column
+
+        # Get font metrics
+        dc = wx.MemoryDC()
+        dc.SelectObject(wx.Bitmap(1, 1))
+        font = self.grid.GetCellFont(row, 1)
+        dc.SetFont(font)
+
+        # Calculate character width and height
+        char_width = dc.GetTextExtent("W")[0]  # Use 'W' as average character width
+        line_height = dc.GetTextExtent("W")[1] + 4  # Add some padding
+
+        # Account for cell padding (approximately 10 pixels on each side)
+        usable_width = max(col_width - 20, 50)
+        chars_per_line = max(usable_width // char_width, 1)
+
+        # Count explicit line breaks
+        explicit_lines = text.count('\n') + 1
+
+        # Calculate wrapped lines for each segment
+        total_lines = 0
+        segments = text.split('\n')
+
+        for segment in segments:
+            if len(segment) == 0:
+                total_lines += 1  # Empty line
+            else:
+                # Calculate how many lines this segment will need when wrapped
+                wrapped_lines = max(1, (len(segment) + chars_per_line - 1) // chars_per_line)
+                total_lines += wrapped_lines
+
+        # Calculate total height needed
+        total_height = total_lines * line_height + 10  # Add some top/bottom padding
+
+        # Set reasonable limits
+        min_height = 25
+        max_height = 200  # Increased max height for very long content
+
+        return max(min_height, min(max_height, total_height))
+
+    def on_cell_changed(self, event):
+        """Handle cell value changes - auto-save and resize if needed"""
+        row = event.GetRow()
+        col = event.GetCol()
+
+        if col == 1:  # Value column - check if height needs adjustment
+            cell_value = self.grid.GetCellValue(row, col)
+            new_height = self.calculate_cell_height(cell_value, row)
+            if new_height != self.grid.GetRowSize(row):
+                self.grid.SetRowSize(row, new_height)
+                self.grid.ForceRefresh()
+
+        self.auto_save_to_data()
+        event.Skip()
+
+    def on_key_down(self, event):
+        """Handle key events - auto-save on Enter"""
+        if event.GetKeyCode() == wx.WXK_RETURN or event.GetKeyCode() == wx.WXK_NUMPAD_ENTER:
+            # Auto-save to window.Data when Enter is pressed
+            self.auto_save_to_data()
+        event.Skip()
+
+    def auto_save_to_data(self):
+        """Automatically save grid data to window.Data"""
+        experimental_info = {}
+
+        for row in range(self.grid.GetNumberRows()):
+            param = self.grid.GetCellValue(row, 0).strip()
+            value = self.grid.GetCellValue(row, 1).strip()
+
+            if param:  # Only save non-empty parameters
+                # Try to convert to float if it's a number
+                try:
+                    if value and '.' in value:
+                        value = float(value)
+                    elif value and value.isdigit():
+                        value = int(value)
+                except ValueError:
+                    pass  # Keep as string
+
+                experimental_info[param] = value
+
+        # Store in window.Data
+        if 'Core levels' not in self.parent.Data:  # Fixed
+            self.parent.Data['Core levels'] = {}
+
+        if self.sheet_name not in self.parent.Data['Core levels']:  # Fixed
+            self.parent.Data['Core levels'][self.sheet_name] = {}
+
+        self.parent.Data['Core levels'][self.sheet_name]['ExperimentalInfo'] = experimental_info  # Fixed
+
+    def on_add_row(self, event):
+        """Add a new row to the grid"""
+        # Find the last row with data
+        last_row = 0
+        for row in range(self.grid.GetNumberRows()):
+            if (self.grid.GetCellValue(row, 0).strip() or
+                    self.grid.GetCellValue(row, 1).strip()):
+                last_row = row
+
+        # Show the next row and position cursor there
+        next_row = last_row + 1
+        if next_row < self.grid.GetNumberRows():
+            self.grid.SetRowSize(next_row, -1)  # Show the row
+            self.grid.SetGridCursor(next_row, 0)
+            self.grid.MakeCellVisible(next_row, 0)
+        else:
+            # Add more rows if needed
+            self.grid.AppendRows(10)
+            self.grid.SetGridCursor(next_row, 0)
+
+        # Apply bold formatting to the new Value cell
+        font = self.grid.GetCellFont(next_row, 0)
+        font.SetWeight(wx.FONTWEIGHT_BOLD)
+        self.grid.SetCellFont(next_row, 0, font)
+
+    def on_remove_row(self, event):
+        """Remove the currently selected row"""
+        selected_row = self.grid.GetGridCursorRow()
+        if selected_row >= 0:
+            # Clear the row content
+            self.grid.SetCellValue(selected_row, 0, "")
+            self.grid.SetCellValue(selected_row, 1, "")
+
+            # Shift all rows up
+            for row in range(selected_row, self.grid.GetNumberRows() - 1):
+                param_val = self.grid.GetCellValue(row + 1, 0)
+                value_val = self.grid.GetCellValue(row + 1, 1)
+                self.grid.SetCellValue(row, 0, param_val)
+                self.grid.SetCellValue(row, 1, value_val)
+
+                # Maintain bold formatting for Value column
+                font = self.grid.GetCellFont(row, 0)
+                font.SetWeight(wx.FONTWEIGHT_BOLD)
+                self.grid.SetCellFont(row, 0, font)
+
+            # Clear the last row
+            last_row = self.grid.GetNumberRows() - 1
+            self.grid.SetCellValue(last_row, 0, "")
+            self.grid.SetCellValue(last_row, 1, "")
+
+            # Auto-save after removing
+            self.auto_save_to_data()
+
+    def on_cell_changed(self, event):
+        """Handle cell value changes - auto-save"""
+        self.auto_save_to_data()
+        event.Skip()
+
+    def on_save_json(self, event):
+        """Save JSON using the save_json_only function"""
+        from libraries.FileMenu.Save import save_json_only
+        save_json_only(self.parent)
+
+    def on_export_to_excel(self, event):
+        """Export the experimental description to Excel file"""
+        file_path = self.parent.Data.get('FilePath', '')  # Fixed
+        if not file_path:
+            wx.MessageBox("No Excel file is currently loaded.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        try:
+            import openpyxl
+            from openpyxl.utils import get_column_letter
+
+            wb = openpyxl.load_workbook(file_path)
+
+            if self.sheet_name not in wb.sheetnames:
+                wx.MessageBox(f"Sheet '{self.sheet_name}' not found in Excel file.", "Error", wx.OK | wx.ICON_ERROR)
+                return
+
+            sheet = wb[self.sheet_name]
+
+            # Use column 45 (AS) for experimental description
+            exp_col = 45
+
+            # Clear existing experimental description data
+            for row in range(1, sheet.max_row + 1):
+                if sheet.cell(row=row, column=exp_col).value is not None:
+                    sheet.cell(row=row, column=exp_col, value=None)
+                    sheet.cell(row=row, column=exp_col + 1, value=None)
+
+            # Add header
+            sheet.cell(row=1, column=exp_col, value="Experimental Description")
+
+            # Add data from grid
+            current_row = 2
+            for row in range(self.grid.GetNumberRows()):
+                param = self.grid.GetCellValue(row, 0).strip()
+                value = self.grid.GetCellValue(row, 1).strip()
+
+                if param:  # Only export non-empty parameters
+                    sheet.cell(row=current_row, column=exp_col, value=param)
+
+                    # Format numeric values to .2f
+                    try:
+                        if value and ('.' in value or value.isdigit()):
+                            numeric_value = float(value)
+                            sheet.cell(row=current_row, column=exp_col + 1, value=f"{numeric_value:.2f}")
+                        else:
+                            sheet.cell(row=current_row, column=exp_col + 1, value=value)
+                    except ValueError:
+                        sheet.cell(row=current_row, column=exp_col + 1, value=value)
+
+                    current_row += 1
+
+            # Set column widths
+            sheet.column_dimensions[get_column_letter(exp_col)].width = 25
+            sheet.column_dimensions[get_column_letter(exp_col + 1)].width = 40
+
+            # Save the workbook
+            wb.save(file_path)
+            wb.close()
+
+            # Also save to window.Data
+            self.auto_save_to_data()
+
+            wx.MessageBox(f"Experimental description exported successfully to {self.sheet_name} sheet, column {get_column_letter(exp_col)}!",
+                          "Success", wx.OK | wx.ICON_INFORMATION)
+
+        except Exception as e:
+            wx.MessageBox(f"Error exporting to Excel: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_close(self, event):
+        """Close the window"""
+        self.Close()
+
+import wx
+import os
+import sys
+import re
+
+# Import necessary functions
+from libraries.FileMenu.Open import (
+    open_xlsx_file,
+    open_vamas_file,
+    open_kal_file,
+    # open_avg_file_direct, # moved to AVG_Import
+    open_spe_file,
+    open_mrs_file,
+    open_vg_microtech_file,
+    import_avantage_file_direct,
+    import_avantage_file_direct_xls
+)
+
+
+class FileManagerDropTarget(wx.FileDropTarget):
+    def __init__(self, file_manager_window):
+        wx.FileDropTarget.__init__(self)
+        self.file_manager_window = file_manager_window
+        self.main_window = file_manager_window.parent
+
+    def OnDropFiles(self, x, y, filenames):
+
+
+        try:
+            import openpyxl
+            import xlrd
+        except ImportError as e:
+            wx.MessageBox(f"Required module missing: {e}", "Import Error", wx.OK | wx.ICON_ERROR)
+            return False
+
+        # Check all files are valid first
+        for file in filenames:
+            if not any(file.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.vms', '.kal',
+                                                              '.avg', '.spe', '.mrs', '.1', '.asc']):
+                wx.MessageBox(f"Only .xlsx/.xls (Khervefitting or Avantage), .vms (Vamas), "
+                              f".kal (Kratos), .avg (Thermo), .mrs, .1 (VG-Microtech), .asc and .spe "
+                              f"(Phi) files can be dropped.", "Invalid File Type",
+                              wx.OK | wx.ICON_ERROR)
+                return False
+
+        # Special handling for single KherveFitting file
+        if len(filenames) == 1:
+            file = filenames[0]
+            if file.lower().endswith('.xlsx'):
+                if self._is_khervefitting_file(file):
+                    return self._handle_khervefitting_drop(file)
+
+        # Process each file normally for non-KherveFitting or multiple files
+        for file in filenames:
+            self._process_file(file)
+
+        return True
+
+    def _is_khervefitting_file(self, file_path):
+        """Check if the Excel file is a KherveFitting file (not Avantage)"""
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            is_khervefitting = "Titles" not in wb.sheetnames
+            wb.close()
+            return is_khervefitting
+        except Exception:
+            return False
+
+    def _handle_khervefitting_drop(self, file_path):
+        """Handle dropping a KherveFitting file with Open/Add dialog"""
+        file_name = os.path.basename(file_path)
+        current_file_name = "untitled"
+
+        # Get current file name if available
+        if hasattr(self.main_window, 'Data') and 'FilePath' in self.main_window.Data:
+            current_path = self.main_window.Data['FilePath']
+            if current_path:
+                current_file_name = os.path.splitext(os.path.basename(current_path))[0]
+
+        # Create dialog - use file_manager_window as parent to appear on top of it
+        dlg = wx.MessageDialog(
+            self.file_manager_window,
+            f"What would you like to do with {file_name}?",
+            "File Action",
+            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION | wx.STAY_ON_TOP
+        )
+
+        dlg.SetYesNoLabels(f"Open {file_name}", f"Add {file_name} to {current_file_name}")
+
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+        if result == wx.ID_YES:
+            # Open file normally
+            from libraries.FileMenu.Open import open_xlsx_file
+            wx.CallAfter(open_xlsx_file, self.main_window, file_path)
+        elif result == wx.ID_NO:
+            # Add to current file
+            wx.CallAfter(self._add_file_to_current, file_path)
+
+        return True
+
+    def _copy_sample_name(self, json_data_to_add, original_sample_row, target_row, file_path):
+        """Copy SampleName from source file or use filename"""
+        target_row_str = str(target_row)
+
+
+        # Check if source file has SampleNames data
+        if 'SampleNames' in json_data_to_add and str(original_sample_row) in json_data_to_add['SampleNames']:
+            # Copy the existing SampleName from the source file
+            source_sample_name = json_data_to_add['SampleNames'][str(original_sample_row)]
+            self.main_window.Data['SampleNames'][target_row_str] = source_sample_name
+
+        else:
+            # Use filename as SampleName (without extension)
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+            self.main_window.Data['SampleNames'][target_row_str] = filename
+
+
+    def _add_file_to_current(self, file_path):
+        """Add the dropped file's data to the current file, keeping sample rows together"""
+        try:
+            import openpyxl
+            import json
+            import os
+            import wx
+            from libraries.FileMenu.Save import convert_to_serializable_and_round
+            from libraries.Sheet_Operations import on_sheet_selected
+            from libraries.FileMenu.Open import open_xlsx_file  # Use open_xlsx_file instead of refresh_sheets
+
+            # Check if we have a current file open
+            if not hasattr(self.main_window, 'Data') or not self.main_window.Data.get('FilePath'):
+                wx.MessageBox("No file is currently open to add data to.", "Error", wx.OK | wx.ICON_ERROR)
+                return
+
+            current_file_path = self.main_window.Data['FilePath']
+            current_json_path = os.path.splitext(current_file_path)[0] + '.json'
+
+            # Load the file to be added
+            wb_to_add = openpyxl.load_workbook(file_path)
+            json_path_to_add = os.path.splitext(file_path)[0] + '.json'
+
+            # Load JSON data if it exists
+            json_data_to_add = {}
+            if os.path.exists(json_path_to_add):
+                with open(json_path_to_add, 'r') as f:
+                    json_data_to_add = json.load(f)
+
+            # Load current file
+            current_wb = openpyxl.load_workbook(current_file_path)
+
+            # Group sheets by their original sample row
+            sheets_by_sample = self._group_sheets_by_sample(wb_to_add.sheetnames)
+
+            # Process all sheets and add to Excel
+            sheets_added = []
+            sample_names_to_add = {}  # Store new sample names to add later
+
+            for sample_row, sheet_names in sheets_by_sample.items():
+
+                # Ask user at which row to insert this sample
+                target_row = self._ask_user_for_row(sample_row, sheet_names)
+
+                if target_row is None:
+                    # User cancelled
+                    wb_to_add.close()
+                    current_wb.close()
+                    return
+
+
+
+                # Determine what SampleName to use for this target row
+                if 'SampleNames' in json_data_to_add and str(sample_row) in json_data_to_add['SampleNames']:
+                    sample_name = json_data_to_add['SampleNames'][str(sample_row)]
+
+                else:
+                    sample_name = os.path.splitext(os.path.basename(file_path))[0]
+
+                sample_names_to_add[str(target_row)] = sample_name
+
+                # Process each sheet in this sample row
+                for sheet_name in sheet_names:
+                    # Get the new sheet name for this target row
+                    new_sheet_name = self._get_sheet_name_for_row(sheet_name, target_row)
+
+                    # Copy sheet EXACTLY with all formatting, charts, etc.
+                    source_sheet = wb_to_add[sheet_name]
+                    self._copy_sheet_exactly(source_sheet, current_wb, new_sheet_name)
+
+                    # Add to window.Data with file_path parameter
+                    self._add_sheet_to_data(sheet_name, new_sheet_name, source_sheet, json_data_to_add, file_path)
+                    sheets_added.append(new_sheet_name)
+
+            # Save the updated Excel file
+            current_wb.save(current_file_path)
+            current_wb.close()
+            wb_to_add.close()
+
+            # Update SampleNames in window.Data
+            if 'SampleNames' not in self.main_window.Data:
+                self.main_window.Data['SampleNames'] = {}
+
+            self.main_window.Data['SampleNames'].update(sample_names_to_add)
+
+            # Update interface manually (DON'T use open_xlsx_file)
+            # Update sheet combobox
+            current_sheet = self.main_window.sheet_combobox.GetValue()
+            all_sheets = list(self.main_window.Data['Core levels'].keys())
+            self.main_window.sheet_combobox.Clear()
+            self.main_window.sheet_combobox.AppendItems(all_sheets)
+
+            # Restore current sheet or set to first new sheet
+            if current_sheet in all_sheets:
+                self.main_window.sheet_combobox.SetValue(current_sheet)
+            elif sheets_added:
+                self.main_window.sheet_combobox.SetValue(sheets_added[0])
+                on_sheet_selected(self.main_window, sheets_added[0])
+
+            # Update number of core levels
+            self.main_window.Data['Number of Core levels'] = len(self.main_window.Data['Core levels'])
+
+            # Save JSON with final data
+            json_data = convert_to_serializable_and_round(self.main_window.Data)
+            with open(current_json_path, 'w') as json_file:
+                json.dump(json_data, json_file, indent=2)
+
+            # Refresh all sheets to update everything properly
+            from libraries.FileMenu.Save import refresh_sheets
+            from libraries.Sheet_Operations import on_sheet_selected
+
+            wx.CallAfter(refresh_sheets, self.main_window, on_sheet_selected)
+
+            # Close and reopen the file manager after refresh
+            if hasattr(self.main_window, 'file_manager') and self.main_window.file_manager is not None:
+                def reopen_file_manager():
+                    try:
+                        if self.main_window.file_manager is not None:
+                            self.main_window.file_manager.Close()
+                            self.main_window.file_manager.Destroy()
+                            self.main_window.file_manager = None
+                        wx.CallAfter(self.main_window.on_open_file_manager, None)
+                    except Exception as e:
+                        print(f"Error refreshing file manager: {e}")
+
+                wx.CallLater(500, reopen_file_manager)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            wx.MessageBox(f"Error adding file data: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _ask_user_for_row(self, sample_row, sheet_names):
+        """Ask user at which row to insert the sample's core levels"""
+        import re
+
+        # Get base names for display
+        base_names = []
+        for sheet_name in sheet_names:
+            base_name = re.sub(r'\d+$', '', sheet_name)
+            base_names.append(base_name)
+
+        core_levels_str = ", ".join(base_names)
+
+        # Find next available row as default suggestion
+        suggested_row = self._find_next_available_row(sheet_names)
+
+        # Create dialog - use file_manager_window as parent to appear on top of it
+        dlg = wx.TextEntryDialog(
+            self.file_manager_window,
+            f"Enter row number to insert sample {sample_row}\nCore levels: {core_levels_str}\n\nSuggested next available row: {suggested_row}",
+            "Select Row",
+            str(suggested_row),
+            style=wx.OK | wx.CANCEL | wx.STAY_ON_TOP
+        )
+
+        while True:
+            if dlg.ShowModal() == wx.ID_OK:
+                try:
+                    target_row = int(dlg.GetValue())
+                    if target_row < 0:
+                        wx.MessageBox("Row number must be 0 or greater.", "Invalid Row", wx.OK | wx.ICON_ERROR | wx.STAY_ON_TOP, parent=self.file_manager_window)
+                        continue
+                    if target_row > 500:
+                        wx.MessageBox("Row number must be 500 or less.", "Invalid Row", wx.OK | wx.ICON_ERROR | wx.STAY_ON_TOP)
+                        continue
+
+                    # Check if row is occupied
+                    row_occupied = False
+                    for base_name in base_names:
+                        if target_row == 0:
+                            if base_name in self.main_window.Data.get('Core levels', {}) or \
+                                    f"{base_name}0" in self.main_window.Data.get('Core levels', {}):
+                                row_occupied = True
+                                break
+                        else:
+                            if f"{base_name}{target_row}" in self.main_window.Data.get('Core levels', {}):
+                                row_occupied = True
+                                break
+
+                    if row_occupied:
+                        response = wx.MessageBox(
+                            f"Row {target_row} already contains some core levels.\nOverwrite?",
+                            "Row Occupied",
+                            wx.YES_NO | wx.ICON_WARNING
+                        )
+                        if response == wx.NO:
+                            continue
+
+                    dlg.Destroy()
+                    return target_row
+
+                except ValueError:
+                    wx.MessageBox("Please enter a valid integer.", "Invalid Input", wx.OK | wx.ICON_ERROR)
+                    continue
+            else:
+                dlg.Destroy()
+                return None
+
+    def _get_new_sheet_name(self, base_sheet_name):
+        """Get the proper new sheet name following the naming convention"""
+        existing_sheets = list(self.main_window.Data.get('Core levels', {}).keys())
+
+        # If the base name doesn't exist, use it as-is
+        if base_sheet_name not in existing_sheets:
+            return base_sheet_name
+
+        # If base name exists, find the next available number
+        # Start from 1 (C1s -> C1s1, C1s2, etc.)
+        counter = 1
+        while f"{base_sheet_name}{counter}" in existing_sheets:
+            counter += 1
+
+        return f"{base_sheet_name}{counter}"
+
+    def _group_sheets_by_sample(self, sheet_names):
+        """Group sheets by their sample row number"""
+        import re
+        sheets_by_sample = {}
+
+        for sheet_name in sheet_names:
+            # Skip non-core level sheets
+            if sheet_name in ["Experimental description", "Results Table"]:
+                continue
+
+            # Extract sample number from sheet name (C1s2 -> 2, C1s -> 0)
+            match = re.search(r'(\d+)$', sheet_name)
+            if match:
+                sample_num = int(match.group(1))
+            else:
+                sample_num = 0  # Default to row 0 if no number
+
+            if sample_num not in sheets_by_sample:
+                sheets_by_sample[sample_num] = []
+            sheets_by_sample[sample_num].append(sheet_name)
+
+        return sheets_by_sample
+
+    def _find_next_available_row(self, sheet_names_to_add):
+        """Find the next completely empty row that can fit all the core levels"""
+        existing_sheets = list(self.main_window.Data.get('Core levels', {}).keys())
+
+        # Extract base names from sheets to add (C1s2 -> C1s)
+        base_names_to_add = []
+        import re
+        for sheet_name in sheet_names_to_add:
+            # Remove number suffix to get base name
+            base_name = re.sub(r'\d+$', '', sheet_name)
+            base_names_to_add.append(base_name)
+
+        # Check each row starting from 0
+        row = 0
+        while True:
+            row_is_available = True
+
+            # Check if this row can accommodate all our core levels
+            for base_name in base_names_to_add:
+                if row == 0:
+                    # For row 0, check both "C1s" and "C1s0" formats
+                    if base_name in existing_sheets or f"{base_name}0" in existing_sheets:
+                        row_is_available = False
+                        break
+                else:
+                    # For other rows, check "C1s1", "C1s2", etc.
+                    if f"{base_name}{row}" in existing_sheets:
+                        row_is_available = False
+                        break
+
+            if row_is_available:
+                return row
+
+            row += 1
+
+    def _get_sheet_name_for_row(self, original_sheet_name, target_row):
+        """Get the proper sheet name for the target row"""
+        import re
+
+        # Remove number suffix to get base name
+        base_name = re.sub(r'\d+$', '', original_sheet_name)
+
+        if target_row == 0:
+            return base_name  # C1s, O1s, etc.
+        else:
+            return f"{base_name}{target_row}"  # C1s1, O1s1, etc.
+
+    def _get_next_sample_number(self):
+        """Find the next available sample number"""
+        max_sample_num = -1
+
+        if 'Core levels' in self.main_window.Data:
+            for sheet_name in self.main_window.Data['Core levels'].keys():
+                # Extract number from sheet names like "C1s0", "O1s1", etc.
+                import re
+                match = re.search(r'(\d+)$', sheet_name)
+                if match:
+                    sample_num = int(match.group(1))
+                    max_sample_num = max(max_sample_num, sample_num)
+
+        return max_sample_num + 1
+
+    def _add_sheet_to_data(self, original_sheet_name, new_sheet_name, source_sheet, json_data, file_path):
+        """Add sheet data to window.Data structure without individual descriptions"""
+        # Extract B.E. and Raw Data columns
+        be_values = []
+        raw_data = []
+
+        for row in range(2, source_sheet.max_row + 1):  # Skip header row
+            be_cell = source_sheet.cell(row=row, column=1)  # Column A
+            raw_cell = source_sheet.cell(row=row, column=2)  # Column B
+
+            if be_cell.value is not None and raw_cell.value is not None:
+                try:
+                    # Ensure all values are properly converted to float
+                    be_val = float(be_cell.value)
+                    raw_val = float(raw_cell.value)
+
+                    # Skip invalid values
+                    if not (isinstance(be_val, (int, float)) and isinstance(raw_val, (int, float))):
+                        continue
+
+                    be_values.append(be_val)
+                    raw_data.append(raw_val)
+                except (ValueError, TypeError):
+                    # Skip rows with invalid data
+                    continue
+
+        if not be_values or not raw_data:
+            print(f"Warning: No valid data found in sheet {original_sheet_name}")
+            return
+
+        # Extract experimental description data from Excel sheet
+        experimental_info = {}
+
+        # Find experimental description column (search columns 40-60)
+        exp_col = None
+        for col in range(40, min(61, source_sheet.max_column + 1)):
+            if source_sheet.cell(row=1, column=col).value == "Experimental Description":
+                exp_col = col
+                break
+
+        if exp_col:
+            # Read experimental description data
+            for row in range(2, source_sheet.max_row + 1):
+                param_cell = source_sheet.cell(row=row, column=exp_col)
+                value_cell = source_sheet.cell(row=row, column=exp_col + 1)
+
+                if param_cell.value is not None and str(param_cell.value).strip():
+                    param_name = str(param_cell.value).strip()
+                    param_value = str(value_cell.value).strip() if value_cell.value is not None else ""
+                    experimental_info[param_name] = param_value
+
+        # Create the data structure WITH experimental info
+        sheet_data = {
+            'B.E.': [f"{val:.2f}" for val in be_values],
+            'Raw Data': [f"{val:.2f}" for val in raw_data],
+            'Background': {'Bkg Y': [f"{val:.2f}" for val in raw_data]},
+            'Name': new_sheet_name
+        }
+
+        # Add experimental info if available
+        if experimental_info:
+            sheet_data['ExperimentalInfo'] = experimental_info
+
+        # Copy peak fitting data from JSON if available
+        if 'Core levels' in json_data and original_sheet_name in json_data['Core levels']:
+            original_data = json_data['Core levels'][original_sheet_name]
+
+            # Copy peak fitting information with data type validation
+            if 'Fitting' in original_data:
+                sheet_data['Fitting'] = original_data['Fitting']
+            if 'Peaks' in original_data:
+                sheet_data['Peaks'] = original_data['Peaks']
+            if 'Background' in original_data:
+                # Ensure background data is properly formatted
+                bg_data = original_data['Background']
+                if isinstance(bg_data, dict) and 'Bkg Y' in bg_data:
+                    try:
+                        # Convert background values to float
+                        bkg_y = [float(val) for val in bg_data['Bkg Y'] if val is not None]
+                        if len(bkg_y) == len(be_values):
+                            sheet_data['Background']['Bkg Y'] = bkg_y
+                    except (ValueError, TypeError):
+                        # Keep default background if conversion fails
+                        pass
+
+        # Add to window.Data
+        if 'Core levels' not in self.main_window.Data:
+            self.main_window.Data['Core levels'] = {}
+
+        self.main_window.Data['Core levels'][new_sheet_name] = sheet_data
+        self.main_window.Data['Number of Core levels'] = len(self.main_window.Data['Core levels'])
+
+    def _process_file(self, file):
+        """Process file normally (original logic)"""
+        from libraries.FileMenu.Open import import_avantage_file_direct, import_avantage_file_direct_xls
+
+        try:
+            if file.lower().endswith('.xlsx'):
+                try:
+                    import openpyxl
+                    wb = openpyxl.load_workbook(file)
+                    if "Titles" in wb.sheetnames:
+                        wx.CallAfter(import_avantage_file_direct, self.main_window, file)
+                    else:
+                        wx.CallAfter(open_xlsx_file, self.main_window, file)
+                    wb.close()
+                except Exception as e:
+                    print(f"Error processing .xlsx file {file}: {e}")
+
+            elif file.lower().endswith('.xls'):
+                try:
+                    import xlrd
+                    wb = xlrd.open_workbook(file)
+                    if "Titles" in wb.sheet_names():
+                        wx.CallAfter(import_avantage_file_direct_xls, self.main_window, file)
+                    else:
+                        wx.CallAfter(open_xlsx_file, self.main_window, file)
+                    wb.close()
+                except Exception as e:
+                    print(f"Error processing .xls file {file}: {e}")
+
+            elif file.lower().endswith('.asc'):
+                from libraries.FileMenu.Open import import_xps_asc_file_direct
+                wx.CallAfter(import_xps_asc_file_direct, self.main_window, file)
+
+            # Handle other file types as before...
+            elif file.lower().endswith('.vms'):
+                from libraries.FileMenu.Open import open_vamas_file
+                wx.CallAfter(open_vamas_file, self.main_window, file)
+            # ... (add other file types as in previous implementation)
+
+        except Exception as e:
+            wx.MessageBox(f"Error processing file {os.path.basename(file)}: {str(e)}",
+                          "File Processing Error", wx.OK | wx.ICON_ERROR)
+
+    def _copy_sheet_exactly(self, source_sheet, target_wb, new_sheet_name):
+        """Copy sheet exactly with all formatting, charts, fonts, colors, etc."""
+        from copy import copy
+        from openpyxl.utils import get_column_letter
+
+        # Create new sheet
+        target_sheet = target_wb.create_sheet(new_sheet_name)
+
+        # Copy all cell values and formatting
+        for row in source_sheet.iter_rows():
+            for cell in row:
+                new_cell = target_sheet.cell(row=cell.row, column=cell.column)
+
+                # Copy value
+                new_cell.value = cell.value
+
+                # Copy formatting if available
+                if cell.has_style:
+                    new_cell.font = copy(cell.font)
+                    new_cell.border = copy(cell.border)
+                    new_cell.fill = copy(cell.fill)
+                    new_cell.number_format = copy(cell.number_format)
+                    new_cell.protection = copy(cell.protection)
+                    new_cell.alignment = copy(cell.alignment)
+
+        # Copy column dimensions
+        for col in source_sheet.column_dimensions:
+            target_sheet.column_dimensions[col] = copy(source_sheet.column_dimensions[col])
+
+        # Copy row dimensions
+        for row in source_sheet.row_dimensions:
+            target_sheet.row_dimensions[row] = copy(source_sheet.row_dimensions[row])
+
+        # Copy merged cells
+        for merged_range in source_sheet.merged_cells.ranges:
+            target_sheet.merge_cells(str(merged_range))
+
+        # Copy charts and images
+        for chart in source_sheet._charts:
+            new_chart = copy(chart)
+            target_sheet.add_chart(new_chart, chart.anchor)
+
+        for image in source_sheet._images:
+            new_image = copy(image)
+            target_sheet.add_image(new_image, image.anchor)
+
+        # Copy sheet properties
+        target_sheet.sheet_format = copy(source_sheet.sheet_format)
+        target_sheet.sheet_properties = copy(source_sheet.sheet_properties)
+        target_sheet.page_setup = copy(source_sheet.page_setup)
+        target_sheet.print_options = copy(source_sheet.print_options)
+
+        # Copy conditional formatting
+        target_sheet.conditional_formatting = copy(source_sheet.conditional_formatting)
+
+        # Copy data validation
+        target_sheet.data_validations = copy(source_sheet.data_validations)

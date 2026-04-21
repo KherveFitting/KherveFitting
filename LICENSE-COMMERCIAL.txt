@@ -1,0 +1,123 @@
+KherveFitting Commercial Licence
+================================
+
+Copyright (C) 2024-2026 Gwilherm Kerherve <gwilherm.kerherve@gmail.com>
+All rights reserved.
+
+KherveFitting is dual-licensed. This file contains the terms of the
+COMMERCIAL licence. The alternative open-source licence (GNU General
+Public Licence v3.0) is provided in LICENSE-GPL.txt.
+
+This Commercial Licence is required for any use of KherveFitting that
+is incompatible with the terms of the GNU GPL v3.0, including (but not
+limited to) incorporation of KherveFitting source code or derivatives
+into closed-source, proprietary, or commercially distributed software.
+
+A Commercial Licence is granted only by written agreement with the
+copyright holder. To enquire about a Commercial Licence, contact:
+
+    Gwilherm Kerherve
+    gwilherm.kerherve@gmail.com
+
+
+1. Definitions
+--------------
+"Software" means KherveFitting, including its source code, compiled
+binaries, documentation, and any associated files distributed under
+this licence.
+
+"Licensor" means Gwilherm Kerherve, the sole copyright holder of the
+Software (subject to contributions licensed to the Licensor under a
+Contributor Licence Agreement).
+
+"Licensee" means the individual or legal entity that has entered into
+a written Commercial Licence agreement with the Licensor.
+
+
+2. Grant of Rights
+------------------
+Subject to payment of any applicable fees and to the Licensee's full
+compliance with the terms of its written Commercial Licence agreement
+with the Licensor, the Licensor grants the Licensee a non-exclusive,
+non-transferable licence to use, modify, and distribute the Software
+as part of the Licensee's own products, including in closed-source
+and commercial form, for the duration and within the scope specified
+in that written agreement.
+
+No rights under this licence are granted by implication, estoppel, or
+otherwise. Any rights not expressly granted in the written Commercial
+Licence agreement are reserved by the Licensor.
+
+
+3. Restrictions
+---------------
+Unless expressly permitted by a written Commercial Licence agreement
+with the Licensor, the Licensee shall not:
+
+  (a) resell, sublicense, or redistribute the Software itself as a
+      stand-alone product;
+
+  (b) remove, obscure, or alter any copyright notices, licence
+      notices, or attribution notices contained in the Software;
+
+  (c) use the name "KherveFitting", "Kherve", or the name of the
+      Licensor to endorse or promote the Licensee's products without
+      prior written permission;
+
+  (d) use the Software in a manner that would require it to be
+      re-licensed under the GNU GPL v3.0 while also relying on this
+      Commercial Licence.
+
+
+4. Intellectual Property
+------------------------
+Title, ownership rights, and all intellectual property rights in and
+to the Software remain with the Licensor. This licence does not
+transfer ownership of the Software or any part of it.
+
+
+5. Warranty Disclaimer
+----------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGE-
+MENT. THE LICENSOR MAKES NO WARRANTY THAT THE SOFTWARE WILL BE ERROR-
+FREE OR OPERATE WITHOUT INTERRUPTION.
+
+
+6. Limitation of Liability
+--------------------------
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL
+THE LICENSOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, ARISING IN ANY WAY OUT OF THE USE OF THE SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+7. Termination
+--------------
+This licence terminates automatically if the Licensee fails to comply
+with any of its terms, or with the terms of its written Commercial
+Licence agreement with the Licensor. Upon termination, the Licensee
+must cease all use and distribution of the Software under this
+Commercial Licence.
+
+
+8. Governing Law
+----------------
+This licence shall be governed by and construed in accordance with
+the laws of England and Wales. The courts of England and Wales shall
+have exclusive jurisdiction over any dispute arising out of or in
+connection with this licence.
+
+
+9. Enquiries
+------------
+For Commercial Licence enquiries, pricing, and terms, contact:
+
+    Gwilherm Kerherve
+    gwilherm.kerherve@gmail.com
+
+-- END OF COMMERCIAL LICENCE --

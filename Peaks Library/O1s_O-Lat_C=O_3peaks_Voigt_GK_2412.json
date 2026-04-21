@@ -1,0 +1,89 @@
+{
+  "Core levels": {
+    "O1s": {
+      "Fitting": {
+        "Peaks": {
+          "O1s O-Lat": {
+            "Position": 529.73,
+            "Height": 36000.02,
+            "FWHM": 0.99,
+            "L/G": 14.93,
+            "Area": 40595.31,
+            "Sigma": 0.91,
+            "Gamma": 0.16,
+            "Skew": 0.64,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 526.07,
+            "Bkg High": 538.07,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "526.07,538.07",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "15.0:25.0",
+              "Area": "1:1e7",
+              "Sigma": "0.01:3",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.64
+          },
+          "O1s C=O": {
+            "Position": 530.85,
+            "Height": 1746.34,
+            "FWHM": 1.38,
+            "L/G": 14.95,
+            "Area": 2742.02,
+            "Sigma": 1.26,
+            "Gamma": 0.22,
+            "Skew": 0.64,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 526.07,
+            "Bkg High": 538.07,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "526.07,538.07",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "A*1#0.4",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.64
+          },
+          "O1s C-O": {
+            "Position": 532.28,
+            "Height": 3823.46,
+            "FWHM": 1.38,
+            "L/G": 14.95,
+            "Area": 6003.6,
+            "Sigma": 1.26,
+            "Gamma": 0.22,
+            "Skew": 0.64,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 526.07,
+            "Bkg High": 538.07,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "526.07,538.07",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "A*1#0.4",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.64
+          }
+        },
+        "Model": "Voigt (Area, L/G, \u03c3)"
+      }
+    }
+  }
+}

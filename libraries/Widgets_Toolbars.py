@@ -1,0 +1,3221 @@
+# KherveFitting - XPS Data Analysis Software
+# Copyright (C) 2024-2026 Gwilherm Kerherve <g.kerherve@ic.ac.uk>
+#
+# KherveFitting is dual-licensed:
+#   - GNU GPL v3.0 (see LICENSE-GPL.txt) for open-source use
+#   - Commercial Licence (see LICENSE-COMMERCIAL.txt) for proprietary use
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KherveFitting-Commercial
+
+# In libraries/Widgets_Toolbars.py
+import os
+import sys
+import wx
+import webbrowser
+import subprocess
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from libraries.Sheet_Operations import CheckboxRenderer, on_sheet_selected
+from libraries.FileMenu.Open import ExcelDropTarget, open_xlsx_file, import_multiple_mrs_files, open_vg_microtech_file_dialog
+from libraries.Plot_Operations import PlotManager
+from libraries.FileMenu.Save import update_undo_redo_state
+from libraries.FileMenu.Save import save_state
+from libraries.FileMenu.Save import save_peaks_library, load_peaks_library
+from libraries.FileMenu.Save import on_save_as, save_plot_only_to_excel
+from libraries.FileMenu.Save import export_sheet_to_txt, export_sheet_to_csv, export_sheet_to_dat
+from libraries.FileMenu.Open import import_multiple_vg_microtech_files
+from libraries.FileMenu.Open import open_vamas_file_dialog, open_kal_file_dialog, import_mrs_file, open_spe_file_dialog, open_file_location
+from libraries.FileMenu.Open import import_raman_txt_file, import_multiple_raman_files, import_xps_asc_file, import_multiple_xps_asc_files
+from libraries.FileMenu.Open import import_xps_csv_file, import_multiple_xps_csv_files
+from libraries.FileMenu.Export import export_word_report
+from libraries.Utilities import CropWindow, on_delete_sheet, copy_sheet, JoinSheetsWindow
+from libraries.ToolsMenu.PlotModWindow import PlotModWindow
+from libraries.MarketResearch import launch_registration_form
+from libraries.HelpMenu.Help import report_bug
+from Functions import (on_save_plot_pdf, on_save_plot_svg, on_exit)
+from libraries.FileMenu.Open import import_avantage_file, import_multiple_avantage_files
+from libraries.FileMenu.AVG_Import import open_avg_file, import_multiple_avg_files
+from libraries.FileMenu.Save import save_all_sheets_with_plots, create_plot_script_from_excel, refresh_sheets, undo, redo
+from libraries.HelpMenu.Help import show_shortcuts, show_mini_game, on_about
+from libraries.Utilities import add_draggable_text
+from Functions import on_sheet_selected_wrapper, toggle_plot, on_save, on_save_plot, on_save_all_sheets, toggle_Col_1
+import wx.lib.agw.flatnotebook as fnb
+from libraries.FileMenu.Save import on_backup_main
+from libraries.FileMenu.Save import save_json_only
+from libraries.Utilities import sort_excel_sheets
+from libraries.HelpMenu.DownloadStats import show_download_stats_window
+from libraries.FileMenu.Open import import_multiple_kfitting_files
+from libraries.FileMenu.Save import save_vamas_file_dialog
+from libraries.ToolsMenu.VB_measurements import VB_measurements
+from libraries.ToolsMenu.PlotModWindow import PlotModWindow
+from libraries.UsageAnalytics import show_usage_stats_window
+from libraries.FileMenu.Open import import_generic_excel_file
+from libraries.FileMenu.Igor_Import import import_igor_dat_file, import_igor_itx_file, import_multiple_igor_files
+from libraries.FileMenu.VGD_Import import import_vgd_file, import_multiple_vgd_files
+from libraries.FileMenu.SDP_Import import import_sdp_file, import_multiple_sdp_files
+from libraries.FileMenu.Scienta_Import import import_scienta_map, import_scienta_file, import_h5_scienta_file
+
+# With conditional imports:
+import platform
+# IS_MAC = platform.system() == 'Darwin'
+IS_MAC = platform.system() in ('Darwin', 'Linux')
+
+# Only import games if not on Mac
+if not IS_MAC:
+    try:
+        print("Starting pygame as no macOS has been detected")
+        from libraries.Games.Asteroid import main as asteroid_main
+        from libraries.Games.Flappybird import main as flappybird_main
+        from libraries.Games.TetrisGame import Tetris
+        from libraries.Games.Solitaire import SolitaireGame
+        from libraries.Games.ChemistryLab import ChemistryLabGame
+    except ImportError:
+        # Fallback if games can't be imported
+        asteroid_main = None
+        flappybird_main = None
+        Tetris = None
+        SolitaireGame = None
+        ChemistryLabGame = None
+else:
+    # Set all game functions to None on Mac
+    asteroid_main = None
+    flappybird_main = None
+    Tetris = None
+    SolitaireGame = None
+    ChemistryLabGame = None
+
+def show_tetris_game(window):
+    """Launch the Tetris game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
+    try:
+        # from libraries.TetrisGame import Tetris
+        game = Tetris()
+        game.run()
+    except Exception as e:
+        print(f"Error launching Tetris game: {e}")
+
+def show_chemistry_lab_game(window):
+    """Launch the Chemistry Lab game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
+    try:
+        # from libraries.ChemistryLab import ChemistryLabGame
+        game = ChemistryLabGame()
+        game.run()
+    except Exception as e:
+        print(f"Error launching Chemistry Lab game: {e}")
+
+def show_flappybird_game(window):
+    """Launch the Flappybird game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
+    try:
+        from libraries.Games.Flappybird import main as flappybird_main
+        flappybird_main()
+    except Exception as e:
+        print(f"Error launching Flappybird game: {e}")
+
+def show_asteroid_game(window):
+    """Launch the Asteroid game"""
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
+    try:
+        if asteroid_main:
+            asteroid_main()
+    except Exception as e:
+        print(f"Error launching Asteroid game: {e}")
+
+def launch_solitaire(window):
+    if IS_MAC:
+        wx.MessageBox("Games are not available on Mac due to system compatibility issues.",
+                     "Not Available", wx.OK | wx.ICON_INFORMATION)
+        return
+    try:
+        # from libraries.Solitaire import SolitaireGame
+        game = SolitaireGame()
+        game.run()
+    except Exception as e:
+        wx.MessageBox(f"Error launching solitaire: {e}", "Error", wx.OK | wx.ICON_ERROR)
+def create_widgets(window):
+    # Main sizer
+    # main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+
+
+    # Create toolbar as a child of the parent panel
+    if window.panel_theme == 'None':
+        toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_NONE)
+    elif window.panel_theme == 'Sunken':
+        toolbar_panel = wx.Panel(window.panel, style=wx.BORDER_RAISED)
+    else:
+        toolbar_panel = wx.Panel(window.panel,  style=wx.TB_HORIZONTAL | window.get_panel_style())
+
+
+    # Set darker background for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        toolbar_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        toolbar_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+    if window.panel_theme == 'Simple Very Dark':
+        toolbar_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+
+    toolbar_sizer = wx.BoxSizer(wx.VERTICAL)
+    window.toolbar = create_horizontal_toolbar(toolbar_panel, window)  # Pass panel instead of window
+    toolbar_sizer.Add(window.toolbar, 0, wx.EXPAND,0)
+    toolbar_panel.SetSizer(toolbar_sizer)
+    main_sizer.Add(toolbar_panel, 0, wx.EXPAND,0)
+
+    # Content sizer for the rest (vertical toolbar and plot area)
+    content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+    # Create the vertical toolbar as a child of the panel
+    window.v_toolbar = create_vertical_toolbar(window.panel, window)
+
+    # Create a splitter window
+    window.splitter = wx.SplitterWindow(window.panel, style=wx.SP_LIVE_UPDATE)
+
+    # Right frame for the plot
+    if window.panel_theme == 'None':
+        window.right_frame = wx.Panel(window.splitter)
+    else:
+        window.right_frame = wx.Panel(window.splitter, style=window.get_panel_style())
+    # window.right_frame.SetBackgroundColour(wx.Colour(255, 255, 255)) # To change
+    right_frame_sizer = wx.BoxSizer(wx.VERTICAL)
+
+    if window.panel_theme == 'Simple Dark':
+        window.right_frame.SetBackgroundColour(wx.Colour(203, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        window.right_frame.SetBackgroundColour(wx.Colour(165, 165, 168))
+    if window.panel_theme == 'Simple Very Dark':
+        window.right_frame.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+
+    # Create the FigureCanvas
+    window.canvas = FigureCanvas(window.right_frame, -1, window.figure)
+
+    # Set up drag and drop for Excel files
+    file_drop_target = ExcelDropTarget(window)
+    window.canvas.SetDropTarget(file_drop_target)
+
+    # plt.tight_layout(pad=0.8)
+    plt.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1)
+    right_frame_sizer.Add(window.canvas, 1, wx.EXPAND | wx.ALL, 0)
+
+    # Initialize plot_manager
+    window.plot_manager = PlotManager(window.ax, window.canvas)
+    window.plot_manager.plot_initial_logo()
+
+    # Update plot manager with loaded or default values
+    window.update_plot_preferences()
+
+    # Create a hidden NavigationToolbar
+    # window.navigation_toolbar = NavigationToolbar(window.canvas)
+    # window.navigation_toolbar.Hide()
+    window.create_navigation_toolbar()
+
+    window.right_frame.SetSizer(right_frame_sizer)
+
+    # Create grids panel
+    grids_panel = create_grids_panel(window)
+
+    for grid in [window.peak_params_grid, window.results_grid]:
+        label_font = grid.GetLabelFont()
+        label_font.SetPointSize(8)
+        grid.SetLabelFont(label_font)
+
+        cell_font = grid.GetDefaultCellFont()
+        cell_font.SetPointSize(8)  # Change size as needed
+        grid.SetDefaultCellFont(cell_font)
+
+
+    # Set up the splitter
+    window.splitter.SplitVertically(window.right_frame, grids_panel)
+    window.splitter.SetMinimumPaneSize(0)
+    window.splitter.SetSashGravity(0.5)
+
+    # Set initial sash position
+    window.initial_sash_position = 800
+    window.splitter.SetSashPosition(window.initial_sash_position)
+
+    # Add splitter to content sizer
+    content_sizer.Add(window.v_toolbar, 0, wx.EXPAND)
+    content_sizer.Add(window.splitter, 1, wx.EXPAND | wx.ALL, 0)
+
+    # Add content sizer to main sizer
+    main_sizer.Add(content_sizer, 1, wx.EXPAND, 0)
+
+    window.panel.SetSizer(main_sizer)
+
+    # # Create the horizontal toolbar .... IT WAS USED JUST BEFORE HORIZ
+    # window.toolbar = create_horizontal_toolbar(window)
+
+    update_undo_redo_state(window)
+    toggle_Col_1(window)
+
+    # Bind events
+    bind_events_widgets(window)
+
+
+def create_grids_panel_OLD(window):
+    grids_panel = wx.Panel(window.splitter)
+    if window.panel_theme == 'Simple Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        grids_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+    elif window.panel_theme == 'Simple Very Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+    print(f'Creating grids panel with layout: {window.grid_layout}')
+
+    # Check layout type
+    if window.grid_layout == 'tabbed':
+        # Create FlatNotebook for tabbed layout
+        notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_TABS_BORDER_SIMPLE) # | nb.FNB_BOTTOM )
+        notebook.SetActiveTabColour(wx.Colour(200,245,228))
+
+        # Set notebook background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            notebook.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            notebook.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            notebook.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create peak params panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(notebook)
+        else:
+            peak_params_panel = wx.Panel(notebook, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=False)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create results panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(notebook)
+        else:
+            results_panel = wx.Panel(notebook, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=False)
+        results_panel.SetSizer(results_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Add panels to notebook
+        notebook.AddPage(peak_params_panel, "Peak Parameters")
+        notebook.AddPage(results_panel, "Results")
+
+        # Add notebook to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(notebook, 1, wx.EXPAND)
+        grids_panel.SetSizer(sizer)
+
+        # Store reference for later access
+        window.inner_splitter = None
+        window.grid_notebook = notebook
+
+    else:
+        # Original split layout (WITH STATIC BOX)
+        inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
+
+        # Store reference to inner_splitter for later access
+        window.inner_splitter = inner_splitter
+
+        # Create peak params panel and grid
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(inner_splitter)
+        else:
+            peak_params_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=True)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165,168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create results panel and grid
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(inner_splitter)
+        else:
+            results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=True)
+        results_panel.SetSizer(results_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Add splitter to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(inner_splitter, 1, wx.EXPAND)
+        grids_panel.SetSizer(sizer)
+
+        # Split horizontally
+        window_height = grids_panel.GetSize().GetHeight()
+        split_position = window_height // 2
+        inner_splitter.SplitHorizontally(peak_params_panel, results_panel, split_position)
+        inner_splitter.SetMinimumPaneSize(100)
+
+        # Bind size event to maintain 60-40 split
+        def on_size(event):
+            size = inner_splitter.GetSize()
+            inner_splitter.SetSashPosition(int(size.GetHeight() * 0.6))
+            event.Skip()
+
+        inner_splitter.Bind(wx.EVT_SIZE, on_size)
+
+    return grids_panel
+
+
+def create_grids_panel(window):
+    grids_panel = wx.Panel(window.splitter)
+    if window.panel_theme == 'Simple Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        grids_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+    elif window.panel_theme == 'Simple Very Dark':
+        grids_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+    print(f'Creating grids panel with layout: {window.grid_layout}')
+
+    # Check layout type
+    if window.grid_layout == 'tabbed':
+        # Create FlatNotebook for tabbed layout
+        notebook = fnb.FlatNotebook(grids_panel, agwStyle=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_TABS_BORDER_SIMPLE)
+        notebook.SetActiveTabColour(wx.Colour(200, 245, 228))
+        # Set notebook colors based on theme
+        if window.panel_theme == 'Simple Dark':
+            # notebook.SetActiveTabColour(wx.Colour(200, 203, 205))
+            notebook.SetTabAreaColour(wx.Colour(200, 203, 205))
+            # notebook.SetNonActiveTabTextColour(wx.Colour(80, 80, 80))
+            notebook.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            # notebook.SetActiveTabColour(wx.Colour(165, 165, 168))
+            notebook.SetTabAreaColour(wx.Colour(165, 165, 168))
+            # notebook.SetNonActiveTabTextColour(wx.Colour(60, 60, 60))
+            notebook.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            # notebook.SetActiveTabColour(wx.Colour(140, 140, 142))
+            notebook.SetTabAreaColour(wx.Colour(140, 140, 142))
+            # notebook.SetNonActiveTabTextColour(wx.Colour(40, 40, 40))
+            notebook.SetBackgroundColour(wx.Colour(140, 140, 142))
+        else:
+            notebook.SetActiveTabColour(wx.Colour(200, 245, 228))
+
+        # Create peak params panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(notebook)
+        else:
+            peak_params_panel = wx.Panel(notebook, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=False)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create results panel and grid (NO STATIC BOX)
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(notebook)
+        else:
+            results_panel = wx.Panel(notebook, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=False)
+        results_panel.SetSizer(results_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Add panels to notebook
+        notebook.AddPage(peak_params_panel, "Peak Parameters")
+        notebook.AddPage(results_panel, "Results")
+
+        # Add notebook to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(notebook, 1, wx.EXPAND,0)
+        grids_panel.SetSizer(sizer)
+
+        # Store reference for later access
+        window.inner_splitter = None
+        window.grid_notebook = notebook
+
+    else:
+        # Original split layout (WITH STATIC BOX)
+        inner_splitter = wx.SplitterWindow(grids_panel, style=wx.SP_LIVE_UPDATE)
+
+        # Store reference to inner_splitter for later access
+        window.inner_splitter = inner_splitter
+
+        # Create peak params panel and grid
+        if window.panel_theme == 'None':
+            peak_params_panel = wx.Panel(inner_splitter)
+        else:
+            peak_params_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        peak_params_sizer = create_peak_params_grid(window, peak_params_panel, use_static_box=True)
+        peak_params_panel.SetSizer(peak_params_sizer)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            peak_params_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            peak_params_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Create results panel and grid
+        if window.panel_theme == 'None':
+            results_panel = wx.Panel(inner_splitter)
+        else:
+            results_panel = wx.Panel(inner_splitter, style=window.get_panel_style())
+        results_sizer = create_results_grid(window, results_panel, use_static_box=True)
+        results_panel.SetSizer(results_sizer)
+
+        # Set background colors for Simple-based themes
+        if window.panel_theme == 'Simple Dark':
+            results_panel.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            results_panel.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            results_panel.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+        # Add splitter to main sizer
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(inner_splitter, 1, wx.EXPAND,0)
+        grids_panel.SetSizer(sizer)
+
+        # Split horizontally
+        window_height = grids_panel.GetSize().GetHeight()
+        split_position = window_height // 2
+        inner_splitter.SplitHorizontally(peak_params_panel, results_panel, split_position)
+        inner_splitter.SetMinimumPaneSize(100)
+
+        # Bind size event to maintain 60-40 split
+        def on_size(event):
+            size = inner_splitter.GetSize()
+            inner_splitter.SetSashPosition(int(size.GetHeight() * 0.6))
+            event.Skip()
+
+        inner_splitter.Bind(wx.EVT_SIZE, on_size)
+
+    return grids_panel
+
+
+def create_peak_params_grid(window, parent, use_static_box=True):
+    if use_static_box:
+        peak_params_frame_box = wx.StaticBox(parent, label="Peak Fitting Parameters")
+        peak_params_sizer = wx.StaticBoxSizer(peak_params_frame_box, wx.VERTICAL)
+        window.peak_params_frame = wx.Panel(peak_params_frame_box)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.peak_params_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
+    else:
+        peak_params_sizer = wx.BoxSizer(wx.VERTICAL)
+        window.peak_params_frame = wx.Panel(parent)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.peak_params_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
+
+    peak_params_sizer_inner = wx.BoxSizer(wx.VERTICAL)
+
+    window.peak_params_grid = wx.grid.Grid(window.peak_params_frame)
+    window.peak_params_grid.CreateGrid(0, 19)
+
+    # Set column labels and sizes
+    column_labels = ["ID", "Peak\nLabel", "Position\n(eV)", "Height\n(CPS)", "FWHM\n(eV)", "\u03c3/\u03b3 (%)\nL/G \n", "Area\n(CPS.eV)",
+                     "\u03c3\nW_g", "\u03b3\nW_l", "W_g\nSkew",
+                     "Conc.\n(%)", "A/A\u1D00", "Split\n(eV)", "Fitting Model", "Bkg Type", "Bkg Low\n(eV)",
+                     "Bkg High\n(eV)", "Bkg Offset Low\n(CPS)", "Bkg Offset High\n(CPS)"]
+    for i, label in enumerate(column_labels):
+        window.peak_params_grid.SetColLabelValue(i, label)
+
+    # Set grid properties
+    default_row_size = 25
+    window.peak_params_grid.SetDefaultRowSize(default_row_size)
+    window.peak_params_grid.SetColLabelSize(35)
+    window.peak_params_grid.SetDefaultColSize(60)
+    window.peak_params_grid.SetRowLabelSize(17)
+
+    # Set header colors based on theme
+    if window.panel_theme == 'Simple Dark':
+        window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(200, 203, 205))
+        window.peak_params_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Darker':
+        window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(165, 165, 168))
+        window.peak_params_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Very Dark':
+        window.peak_params_grid.SetLabelBackgroundColour(wx.Colour(140, 140, 142))
+        # window.peak_params_grid.SetLabelTextColour(wx.Colour(255, 255, 255))
+
+    # Ensure all cells have white background
+    for row in range(window.peak_params_grid.GetNumberRows()):
+        for col in range(window.peak_params_grid.GetNumberCols()):
+            window.peak_params_grid.SetCellBackgroundColour(row, col, wx.WHITE)
+
+    # Adjust individual column sizes
+    col_sizes = [20, 90, 80, 60, 60, 50, 70, 45, 45, 50, 40, 40, 40, 130, 130, 80, 80, 100, 100]
+    for i, size in enumerate(col_sizes):
+        window.peak_params_grid.SetColSize(i, size)
+
+    # Store the fitting models as a window attribute
+    window.fitting_models = [
+        "GL (Area)",
+        "SGL (Area)",
+        "LA (Area, \u03c3/\u03b3, \u03b3)",
+        "Voigt (Area, L/G, \u03c3)",
+        "Voigt (Area, \u03c3, \u03b3)",
+        "Voigt (Area, L/G, \u03c3, S)",
+        "LA (Area, \u03c3, \u03b3)",
+        "LA*G (Area, \u03c3/\u03b3, \u03b3)",
+        "Pseudo-Voigt (Area)",
+        "ExpGauss.(Area, \u03c3, \u03b3)",
+        "GL (Height)",
+        "SGL (Height)"
+    ]
+
+    # For initial setup, create a new editor for each cell
+    for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+        fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
+        window.peak_params_grid.SetCellEditor(row, 13, fresh_editor)
+
+    def set_model_choice_editors(window):
+        """Apply choice editors to the fitting model column (13) for all parameter rows."""
+        for row in range(0, window.peak_params_grid.GetNumberRows(), 2):
+            fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
+            window.peak_params_grid.SetCellEditor(row, 13, fresh_editor)
+
+    window.set_model_choice_editors = set_model_choice_editors
+
+    def add_choice_editor_to_new_row(grid, row_num):
+        if row_num % 2 == 0:
+            fresh_editor = wx.grid.GridCellChoiceEditor(window.fitting_models.copy(), allowOthers=False)
+            grid.SetCellEditor(row_num, 13, fresh_editor)
+
+    window.add_choice_editor_to_new_row = add_choice_editor_to_new_row
+
+    peak_params_sizer_inner.Add(window.peak_params_grid, 1, wx.EXPAND | wx.ALL, 0)
+    window.peak_params_frame.SetSizer(peak_params_sizer_inner)
+    peak_params_sizer.Add(window.peak_params_frame, 1, wx.EXPAND | wx.ALL, 0)
+
+    return peak_params_sizer
+
+
+def create_results_grid(window, parent, use_static_box=True):
+    # Get current row number for dynamic label
+    current_sheet = getattr(window, 'current_sheet', 'Sheet0')
+    row_number = 0
+    import re
+    match = re.search(r'(\d+)$', current_sheet)
+    if match:
+        row_number = int(match.group(1))
+
+    if use_static_box:
+        results_frame_box = wx.StaticBox(parent, label=f"Results [Row {row_number}]")
+        results_sizer = wx.StaticBoxSizer(results_frame_box, wx.VERTICAL)
+        window.results_frame_box = results_frame_box
+        window.results_frame = wx.Panel(results_frame_box)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.results_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
+    else:
+        results_sizer = wx.BoxSizer(wx.VERTICAL)
+        window.results_frame_box = None
+        window.results_frame = wx.Panel(parent)
+
+        # Set background for Simple theme
+        if window.panel_theme == 'Simple Dark':
+            window.results_frame.SetBackgroundColour(wx.Colour(200, 203, 205))
+
+    results_sizer_inner = wx.BoxSizer(wx.VERTICAL)
+
+    window.results_grid = wx.grid.Grid(window.results_frame)
+    window.results_grid.CreateGrid(0, 31)
+
+    # Set column labels and properties for results grid
+    column_labels = ["Peak\nLabel", "Position\n(eV)", "Height\n(CPS)", "FWHM\n(eV)", "L/G \n\u03c3/\u03b3 (%)",
+                     "Area\n(CPS.eV)", "Atomic\n(%)", " ", "RSF", "TXFN", "ECF", "Instr.", "Fitting Model",
+                     "Corr. Area\n(a.u.)",
+                     "\u03c3 or \u03B1\nW_g", "\u03b3 or \u03B2\nW_l", "Bkg Type", "Bkg Low\n(eV)", "Bkg High\n(eV)", "Bkg Offset Low\n(CPS)",
+                     "Bkg Offset High\n(CPS)", "Sheetname", "Position\nConstraint", "Height\nConstraint",
+                     "FWHM\nConstraint", "L/G\nConstraint", "Area\nConstraint", "\u03c3\nConstraint",
+                     "\u03b3\nConstraint", "Weight\n(%)", "Mass\n(amu)"]
+    for i, label in enumerate(column_labels):
+        window.results_grid.SetColLabelValue(i, label)
+
+    window.results_grid.SetDefaultRowSize(25)
+    window.results_grid.SetDefaultColSize(60)
+    window.results_grid.SetRowLabelSize(17)
+    window.results_grid.SetColLabelSize(35)
+
+    # Set header colors based on theme
+    if window.panel_theme == 'Simple Dark':
+        window.results_grid.SetLabelBackgroundColour(wx.Colour(200, 203, 205))
+        window.results_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Darker':
+        window.results_grid.SetLabelBackgroundColour(wx.Colour(165, 165, 168))
+        window.results_grid.SetLabelTextColour(wx.Colour(0, 0, 0))
+    elif window.panel_theme == 'Simple Very Dark':
+        window.results_grid.SetLabelBackgroundColour(wx.Colour(140, 140, 142))
+        # window.results_grid.SetLabelTextColour(wx.Colour(255, 255, 255))
+
+    # Adjust specific column sizes
+    col_sizes = [100, 55, 55, 50, 50, 80, 50, 20, 30, 30, 50, 80, 120, 60, 80, 70, 70, 100, 100, 80, 80, 80, 120, 120,
+                 120, 70, 70, 70, 50, 45, 40]
+    for i, size in enumerate(col_sizes):
+        window.results_grid.SetColSize(i, size)
+
+    # Set renderer for checkbox column
+    checkbox_renderer = CheckboxRenderer()
+    for row in range(window.results_grid.GetNumberRows()):
+        window.results_grid.SetCellRenderer(row, 7, checkbox_renderer)
+
+    results_sizer_inner.Add(window.results_grid, 1, wx.EXPAND | wx.ALL, 0)
+    window.results_frame.SetSizer(results_sizer_inner)
+    results_sizer.Add(window.results_frame, 1, wx.EXPAND | wx.ALL, 0)
+
+    return results_sizer
+
+
+def bind_events_widgets(window):
+    window.results_grid.Bind(wx.EVT_KEY_DOWN, window.on_key_down)
+    window.peak_params_grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, window.on_grid_select)
+    window.splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, window.on_splitter_changed)
+    window.results_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, window.on_checkbox_update)
+    window.canvas.mpl_connect('button_release_event', window.on_plot_mouse_release)
+    window.peak_params_grid.Bind(wx.EVT_LEFT_UP, window.on_peak_params_mouse_release)
+
+    # Add right-click context menus
+    window.results_grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, window.on_results_grid_right_click)
+
+
+
+def create_menu(window):
+    menubar = wx.MenuBar()
+
+    # Create menus
+    file_menu = wx.Menu()
+    import_menu = wx.Menu()
+    export_menu = wx.Menu()
+    edit_menu = wx.Menu()
+    view_menu = wx.Menu()
+    tools_menu = wx.Menu()
+    help_menu = wx.Menu()
+    save_menu = wx.Menu()
+
+    # File menu items
+
+    # Add "New Instance" option to File menu
+    new_instance_item = file_menu.Append(wx.NewId(), "New Window\tCtrl+N")
+    window.Bind(wx.EVT_MENU, lambda event: launch_new_instance(), new_instance_item)
+
+    # open_item = file_menu.Append(wx.ID_OPEN, "Open \tCtrl+O")
+    # window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_item)
+
+    # Open KherveFitting submenu
+    open_kfitting_menu = wx.Menu()
+
+    open_single_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open KFitting file (.xlsx) \tCtrl+O")
+    window.Bind(wx.EVT_MENU, lambda event: open_xlsx_file(window), open_single_kfitting_item)
+
+    open_multiple_kfitting_item = open_kfitting_menu.Append(wx.NewId(), "Open Multiple KFitting files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_kfitting_files(window), open_multiple_kfitting_item)
+
+    file_menu.AppendSubMenu(open_kfitting_menu, "Open")
+
+    # Recent files submenu
+    window.recent_files_menu = wx.Menu()
+    file_menu.AppendSubMenu(window.recent_files_menu, "Recent Files")
+
+    # Save submenu items
+    save_json_item = save_menu.Append(wx.NewId(), "Save Data (.json)")
+    window.Bind(wx.EVT_MENU, lambda event: save_json_only(window), save_json_item)
+
+    save_Excel_item = save_menu.Append(wx.NewId(), "Export/Save this Core Level to Excel")
+    window.Bind(wx.EVT_MENU, lambda event: on_save(window), save_Excel_item)
+
+    save_all_item = save_menu.Append(wx.NewId(), "Export/Save all Core Levels to Excel")
+    window.Bind(wx.EVT_MENU, lambda event: save_all_sheets_with_plots(window), save_all_item)
+
+    save_plot_only_item = save_menu.Append(wx.NewId(), "Save Plot Only in Excel")
+    window.Bind(wx.EVT_MENU, lambda event: save_plot_only_to_excel(window), save_plot_only_item)
+
+    file_menu.AppendSubMenu(save_menu, "Save\tCtrl+S")
+
+    save_as_item = file_menu.Append(wx.ID_SAVEAS, "Save As...")
+    window.Bind(wx.EVT_MENU, lambda event: on_save_as(window), save_as_item)
+
+    # Import submenu items
+    import_generic_excel_item = import_menu.Append(wx.NewId(), "Generic Excel File (Interactive)")
+    window.Bind(wx.EVT_MENU, lambda event: import_generic_excel_file(window), import_generic_excel_item)
+
+    Import_xps_header = import_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬ XPS Technique ▬▬▬▬▬▬▬▬▬▬")
+    Import_xps_header.Enable(False)
+
+    # Thermo submenu
+    thermo_menu = wx.Menu()
+    vgd_item = thermo_menu.Append(wx.ID_ANY, "VGD file (.vgd)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_vgd_file(window), vgd_item)
+    vgd_multi = thermo_menu.Append(wx.ID_ANY, "VGD Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_multiple_vgd_files(window), vgd_multi)
+    import_avg_item = thermo_menu.Append(wx.NewId(), "AVG file (.avg)")
+    window.Bind(wx.EVT_MENU, lambda event: open_avg_file(window), import_avg_item)
+    import_multiple_avg_item = thermo_menu.Append(wx.NewId(), "AVG Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_avg_files(window), import_multiple_avg_item)
+    import_avantage_item = thermo_menu.Append(wx.NewId(), "Avantage Data file (.xlsx or .xls)")
+    window.Bind(wx.EVT_MENU, lambda event: import_avantage_file(window), import_avantage_item)
+    import_multiple_avantage_item = thermo_menu.Append(wx.NewId(), "Avantage Multiple xlsx files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_avantage_files(window), import_multiple_avantage_item)
+    import_menu.AppendSubMenu(thermo_menu, "Thermo")
+
+    # Scienta submenu
+    scienta_menu = wx.Menu()
+    scienta_item = scienta_menu.Append(wx.ID_ANY, "Map file (.txt)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_scienta_map(window), scienta_item)
+    scienta_file_item = scienta_menu.Append(wx.ID_ANY, "Plot file (.txt)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_scienta_file(window), scienta_file_item)
+    import_scienta_h5_item = scienta_menu.Append(wx.NewId(), "Scienta HDF5 Map (.h5)")
+    window.Bind(wx.EVT_MENU, lambda event: import_h5_scienta_file(window), import_scienta_h5_item)
+    import_menu.AppendSubMenu(scienta_menu, "Scienta Omicron")
+
+    # MRS submenu
+    mrs_menu = wx.Menu()
+    import_mrs_item = mrs_menu.Append(wx.NewId(), "Data file (.mrs)")
+    window.Bind(wx.EVT_MENU, lambda event: import_mrs_file(window), import_mrs_item)
+    import_multiple_mrs_item = mrs_menu.Append(wx.NewId(), "Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_mrs_files(window), import_multiple_mrs_item)
+    import_menu.AppendSubMenu(mrs_menu, "MRS")
+
+    # VG-Microtech submenu
+    vg_menu = wx.Menu()
+    import_vg_microtech_item = vg_menu.Append(wx.NewId(), "File (.1)")
+    window.Bind(wx.EVT_MENU, lambda event: open_vg_microtech_file_dialog(window), import_vg_microtech_item)
+    import_multiple_vg_microtech_item = vg_menu.Append(wx.NewId(), "Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_vg_microtech_files(window), import_multiple_vg_microtech_item)
+    import_menu.AppendSubMenu(vg_menu, "VG-Microtech")
+
+    # Igor submenu
+    igor_menu = wx.Menu()
+    igor_itx_item = igor_menu.Append(wx.ID_ANY, "ITX file (*.itx)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_igor_itx_file(window), igor_itx_item)
+    igor_dat_item = igor_menu.Append(wx.ID_ANY, "Data file (*.dat)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_igor_dat_file(window), igor_dat_item)
+    igor_multiple_item = igor_menu.Append(wx.ID_ANY, "Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda evt: import_multiple_igor_files(window), igor_multiple_item)
+    import_menu.AppendSubMenu(igor_menu, "Igor")
+
+    # Single items
+    import_vamas_item = import_menu.Append(wx.NewId(), "Vamas Data file (.vms)")
+    window.Bind(wx.EVT_MENU, lambda event: open_vamas_file_dialog(window), import_vamas_item)
+
+    import_kal_item = import_menu.Append(wx.NewId(), "Kratos Data file (.kal)")
+    window.Bind(wx.EVT_MENU, lambda event: open_kal_file_dialog(window), import_kal_item)
+
+    import_spe_item = import_menu.Append(wx.NewId(), "Phi Data file (.spe)")
+    window.Bind(wx.EVT_MENU, lambda event: open_spe_file_dialog(window), import_spe_item)
+
+    Import_gen_header = import_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬ Generic XPS ▬▬▬▬▬▬▬▬▬▬▬▬")
+    Import_gen_header.Enable(False)
+
+    # Generic ASC submenu
+    asc_menu = wx.Menu()
+    import_xps_asc_item = asc_menu.Append(wx.NewId(), "File (.asc)")
+    window.Bind(wx.EVT_MENU, lambda event: import_xps_asc_file(window), import_xps_asc_item)
+    import_multiple_xps_asc_item = asc_menu.Append(wx.NewId(), "Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_xps_asc_files(window), import_multiple_xps_asc_item)
+    import_menu.AppendSubMenu(asc_menu, "Generic .asc (Surface Science Spectra)")
+
+    # Generic CSV submenu
+    csv_menu = wx.Menu()
+    import_xps_csv_item = csv_menu.Append(wx.NewId(), "File (.csv)")
+    window.Bind(wx.EVT_MENU, lambda event: import_xps_csv_file(window), import_xps_csv_item)
+    import_multiple_xps_csv_item = csv_menu.Append(wx.NewId(), "Multiple files (folder)")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_xps_csv_files(window), import_multiple_xps_csv_item)
+    import_menu.AppendSubMenu(csv_menu, "Generic .csv")
+
+    Import_Other_header = import_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬ Other Techniques ▬▬▬▬▬▬▬▬▬")
+    Import_Other_header.Enable(False)
+
+    # # Raman submenu
+    # raman_menu = wx.Menu()
+    # import_raman_item = raman_menu.Append(wx.NewId(), "File (.txt)")
+    # window.Bind(wx.EVT_MENU, lambda event: import_raman_txt_file(window), import_raman_item)
+    # import_multiple_raman_item = raman_menu.Append(wx.NewId(), "Multiple files (folder)")
+    # window.Bind(wx.EVT_MENU, lambda event: import_multiple_raman_files(window), import_multiple_raman_item)
+    # import_menu.AppendSubMenu(raman_menu, "Raman")
+
+    # XAS Diamond-B07 submenu
+    from libraries.FileMenu.XAS_Import import import_xas_file, import_multiple_xas_files
+
+    xas_menu = wx.Menu()
+    import_xas_item = xas_menu.Append(wx.NewId(), "Diamond-B07 file (.txt/.dat)")
+    window.Bind(wx.EVT_MENU, lambda event: import_xas_file(window), import_xas_item)
+    import_multiple_xas_item = xas_menu.Append(wx.NewId(), "Diamond-B07 Multiple files")
+    window.Bind(wx.EVT_MENU, lambda event: import_multiple_xas_files(window), import_multiple_xas_item)
+    import_menu.AppendSubMenu(xas_menu, "XAS")
+
+    # # Single items for other techniques
+    # import_edx_map_item = import_menu.Append(wx.NewId(), "EDX Map (.hdf5)")
+    # window.Bind(wx.EVT_MENU, lambda event: import_edx_map_file(window), import_edx_map_item)
+    #
+    # import_eels_map_item = import_menu.Append(wx.NewId(), "EELS Map (.dm3/.dm4)")
+    # window.Bind(wx.EVT_MENU, lambda event: import_eels_map_file(window), import_eels_map_item)
+
+    # Export submenu items
+    export_vamas_item = export_menu.Append(wx.ID_ANY, "Export as VAMAS (.vms)",
+                                           "Export all data as VAMAS file")
+    window.Bind(wx.EVT_MENU, lambda event: save_vamas_file_dialog(window), export_vamas_item)
+
+
+    export_python_plot_item = export_menu.Append(wx.NewId(), "Python Plot")
+    window.Bind(wx.EVT_MENU, lambda event: create_plot_script_from_excel(window), export_python_plot_item)
+
+    save_plot_item = export_menu.Append(wx.NewId(), "Export plot as PNG")
+    window.Bind(wx.EVT_MENU, lambda event: on_save_plot(window), save_plot_item)
+
+    save_plot_item_pdf = export_menu.Append(wx.NewId(), "Export plot as PDF")
+    window.Bind(wx.EVT_MENU, lambda event: on_save_plot_pdf(window), save_plot_item_pdf)
+
+    save_plot_item_svg = export_menu.Append(wx.NewId(), "Export plot as SVG")
+    window.Bind(wx.EVT_MENU, lambda event: on_save_plot_svg(window), save_plot_item_svg)
+
+    export_txt_item = export_menu.Append(wx.ID_ANY, "Export data as TXT",
+                                         "Export current core level to TXT file")
+    export_csv_item = export_menu.Append(wx.ID_ANY, "Export data as CSV",
+                                         "Export current core level to CSV file")
+    export_dat_item = export_menu.Append(wx.ID_ANY, "Export data as DAT",
+                                         "Export current core level to DAT file")
+
+    window.Bind(wx.EVT_MENU, lambda event: export_sheet_to_txt(window), export_txt_item)
+    window.Bind(wx.EVT_MENU, lambda event: export_sheet_to_csv(window), export_csv_item)
+    window.Bind(wx.EVT_MENU, lambda event: export_sheet_to_dat(window), export_dat_item)
+
+    export_menu.AppendSeparator()
+    word_report_item = export_menu.Append(wx.NewId(), "Create Report (.docx)")
+    window.Bind(wx.EVT_MENU, lambda event: export_word_report(window), word_report_item)
+
+    folder_header = file_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    folder_header.Enable(False)  # Make it non-clickable
+
+    open_location_item = file_menu.Append(wx.NewId(), "Open File Location")
+    window.Bind(wx.EVT_MENU, lambda event: open_file_location(window), open_location_item)
+
+    # Open Examples submenu
+    open_examples_menu = create_examples_menu(window)
+    file_menu.AppendSubMenu(open_examples_menu, "Open Examples")
+
+    import_header = file_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    import_header.Enable(False)  # Make it non-clickable
+
+    # Append submenus to file menu
+    file_menu.AppendSubMenu(import_menu, "Import")
+    file_menu.AppendSubMenu(export_menu, "Export")
+
+    # Exit item
+    # file_menu.AppendSeparator()
+    exit_header = file_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    exit_header.Enable(False)  # Make it non-clickable
+    exit_item = file_menu.Append(wx.ID_EXIT, "Exit\tCtrl+Q")
+    window.Bind(wx.EVT_MENU, lambda event: on_exit(window, event), exit_item)
+
+    # Edit menu items
+    undo_item = edit_menu.Append(wx.ID_UNDO, "Undo\tCtrl+Z")
+    redo_item = edit_menu.Append(wx.ID_REDO, "Redo\tCtrl+Y")
+    window.Bind(wx.EVT_MENU, lambda event: undo(window), undo_item)
+    window.Bind(wx.EVT_MENU, lambda event: redo(window), redo_item)
+
+    # Add a text separator for Results operations
+    # edit_menu.AppendSeparator()
+    results_header = edit_menu.Append(wx.ID_ANY, "▬▬▬ Results Grid ▬▬▬▬")
+    results_header.Enable(False)  # Make it non-clickable
+
+    # Add export and remove functions to Edit menu
+    export_results_item = edit_menu.Append(wx.NewId(), "Export Fitting Grid")
+    from libraries.FileMenu.Export import export_results
+    window.Bind(wx.EVT_MENU, lambda event: export_results(window), export_results_item)
+
+    remove_all_item = edit_menu.Append(wx.NewId(), "Remove All Lines")
+    window.Bind(wx.EVT_MENU, lambda event: on_clear_all_results(window, event), remove_all_item)
+
+    remove_first_item = edit_menu.Append(wx.NewId(), "Remove First Line")
+    window.Bind(wx.EVT_MENU, lambda event: on_delete_first(window, event), remove_first_item)
+
+    remove_last_item = edit_menu.Append(wx.NewId(), "Remove Last Line")
+    window.Bind(wx.EVT_MENU, lambda event: on_delete_last(window, event), remove_last_item)
+
+    # edit_menu.AppendSeparator()
+    pref_header = edit_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    pref_header.Enable(False)  # Make it non-clickable
+    preferences_item = edit_menu.Append(wx.ID_PREFERENCES, "Preferences")
+    window.Bind(wx.EVT_MENU, window.on_preferences, preferences_item)
+
+
+    # View menu items
+    sample_manager_item = view_menu.Append(wx.NewId(), "Sample Manager")
+    window.Bind(wx.EVT_MENU, window.on_open_file_manager, sample_manager_item)
+
+    labels_manager_item = view_menu.Append(wx.NewId(), "Labels Manager")
+    window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
+
+    labels_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Toggles ▬▬▬▬▬▬")
+    labels_header.Enable(False)  # Make it non-clickable
+
+    ToggleFitting_item = view_menu.Append(wx.NewId(), "Toggle Peak Fitting")
+    window.Bind(wx.EVT_MENU, lambda event: toggle_plot(window), ToggleFitting_item)
+
+    ToggleLegend_item = view_menu.Append(wx.NewId(), "Toggle Legend")
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_legend(), ToggleLegend_item)
+
+    ToggleFit_item = view_menu.Append(wx.NewId(), "Toggle Fit Results")
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_fitting_results(), ToggleFit_item)
+
+    ToggleRes_item = view_menu.Append(wx.NewId(), "Toggle Residuals")
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_residuals(), ToggleRes_item)
+
+    # Theme/Style submenu
+    theme_style_menu = wx.Menu()
+
+    # Panel Theme submenu
+    panel_theme_menu = wx.Menu()
+
+    # Create all theme IDs FIRST
+    window.theme_none_id = wx.NewId()
+    window.theme_simple_id = wx.NewId()
+    window.theme_simpledark_id = wx.NewId()
+    window.theme_dark_id = wx.NewId()
+    window.theme_verydark_id = wx.NewId()
+    window.theme_raised_id = wx.NewId()
+    window.theme_raised2_id = wx.NewId()
+
+    # Theme items
+    theme_none_item = panel_theme_menu.AppendRadioItem(window.theme_none_id, "None")
+    theme_simple_item = panel_theme_menu.AppendRadioItem(window.theme_simple_id, "Simple")
+    theme_simpledark_item = panel_theme_menu.AppendRadioItem(window.theme_simpledark_id, "Simple Dark")
+    theme_dark_item = panel_theme_menu.AppendRadioItem(window.theme_dark_id, "Simple Darker")
+    theme_verydark_item = panel_theme_menu.AppendRadioItem(window.theme_verydark_id, "Simple Very Dark")
+    theme_raised_item = panel_theme_menu.AppendRadioItem(window.theme_raised_id, "Raised")
+    theme_raised2_item = panel_theme_menu.AppendRadioItem(window.theme_raised2_id, "Sunken")
+
+    # Bind layout events
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_none_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simple_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_simpledark_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_dark_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_verydark_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised_item)
+    window.Bind(wx.EVT_MENU, window.on_theme_change, theme_raised2_item)
+
+    # Check the current theme
+    if hasattr(window, 'panel_theme'):
+        if window.panel_theme == 'None':
+            theme_none_item.Check(True)
+        elif window.panel_theme == 'Simple':
+            theme_simple_item.Check(True)
+        elif window.panel_theme == 'Simple Dark':
+            theme_simpledark_item.Check(True)
+        elif window.panel_theme == 'Simple Darker':
+            theme_dark_item.Check()
+        elif window.panel_theme == 'Simple Very Dark':
+            theme_verydark_item.Check()
+        elif window.panel_theme == 'Raised':
+            theme_raised_item.Check(True)
+        elif window.panel_theme == 'Sunken':
+            theme_raised2_item.Check(True)
+    else:
+        theme_raised_item.Check(True)
+
+    # Grid Layout submenu
+    grid_layout_menu = wx.Menu()
+
+    # Create layout IDs
+    window.layout_split_id = wx.NewId()
+    window.layout_tabbed_id = wx.NewId()
+
+    # Layout items
+    layout_split_item = grid_layout_menu.AppendRadioItem(window.layout_split_id, "Side by Side")
+    layout_tabbed_item = grid_layout_menu.AppendRadioItem(window.layout_tabbed_id, "Tabbed")
+
+    # Bind layout events
+    window.Bind(wx.EVT_MENU, window.on_grid_layout_change, layout_split_item)
+    window.Bind(wx.EVT_MENU, window.on_grid_layout_change, layout_tabbed_item)
+
+    # Check the current layout
+    if hasattr(window, 'grid_layout'):
+        if window.grid_layout == 'split':
+            layout_split_item.Check(True)
+        elif window.grid_layout == 'tabbed':
+            layout_tabbed_item.Check(True)
+    else:
+        layout_split_item.Check(True)
+
+    style_header = view_menu.Append(wx.ID_ANY, "▬▬▬Style▬▬▬▬▬▬▬▬")
+    style_header.Enable(False)  # Make it non-clickable
+
+    # Add submenus to Theme/Style menu
+    theme_style_menu.AppendSubMenu(panel_theme_menu, "Panel Theme")
+    theme_style_menu.AppendSubMenu(grid_layout_menu, "Grid Layout")
+
+    view_menu.AppendSubMenu(theme_style_menu, "Theme / Style")
+
+    kin_header = view_menu.Append(wx.ID_ANY, "▬▬▬ Beta ▬▬▬▬▬▬▬▬")
+    kin_header.Enable(False)  # Make it non-clickable
+
+    toggle_energy_item = view_menu.AppendCheckItem(wx.NewId(), "Show Kinetic Energy (Beta)\tCtrl+B")
+    window.Bind(wx.EVT_MENU, lambda event: window.toggle_energy_scale(), toggle_energy_item)
+    window.toggle_energy_item = toggle_energy_item
+
+    # Tools menu items
+    Area_item = tools_menu.Append(wx.NewId(), "Calculate Area Under Curve")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_background_window(), Area_item)
+
+    Fitting_item = tools_menu.Append(wx.NewId(), "Create Peak Model\tCtrl+P")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_fitting_window(), Fitting_item)
+
+    # Add mini peak fitting
+    mini_fitting_item = tools_menu.Append(wx.NewId(), "Mini Peak Fitting")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_fitting_window(normal=False), mini_fitting_item)
+
+    other_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Others ▬▬▬▬▬▬▬▬")
+    other_header.Enable(False)  # Make it non-clickable
+
+    PCA_item = tools_menu.Append(wx.NewId(), "PCA Analysis")
+    window.Bind(wx.EVT_MENU, lambda event: open_pca_window(window), PCA_item)
+
+    Dparam_item = tools_menu.Append(wx.NewId(), "D-parameter\tCtrl+D")
+    window.Bind(wx.EVT_MENU, window.on_differentiate, Dparam_item)
+
+    # Thickogram and Tougaard
+    # thickogram_item = tools_menu.Append(wx.NewId(), "Thickogram Calculator - beta")
+    thickogram_item = tools_menu.Append(wx.NewId(), "Thickness analysis - beta")
+    window.Bind(wx.EVT_MENU, lambda event: open_thickogram_window(window), thickogram_item)
+
+    # # Tougaard Quantitative Analysis
+    # tougaard_analysis_item = tools_menu.Append(wx.NewId(), "Tougaard Depth Analysis")
+    # window.Bind(wx.EVT_MENU, lambda event: open_tougaard_analysis_window(window), tougaard_analysis_item)
+
+    # Add VBM and Auto ID to Tools menu
+    VBM_item = tools_menu.Append(wx.NewId(), "VBM / Fermi / Cut-Off")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_vbm_window(), VBM_item)
+
+    plot_mod_item = tools_menu.Append(wx.NewId(), "Plot Modifications")
+    window.Bind(wx.EVT_MENU, lambda event: PlotModWindow(window).Show(), plot_mod_item)
+
+    # edx_menu_item = tools_menu.Append(wx.ID_ANY, "EDX HeatMap", "Open EDX HeatMap window")
+    # window.Bind(wx.EVT_MENU, lambda event: on_open_edx_sem(window), edx_menu_item)
+    #
+    # eels_item = tools_menu.Append(wx.ID_ANY, "EELS HeatMap", "Open EELS HeatMap Window")
+    # window.Bind(wx.EVT_MENU, lambda event, w=window: on_open_eels_window(w, event), eels_item)
+
+    # Add profiling items
+    profiling_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Profiling ▬▬▬▬▬▬▬▬")
+    profiling_header.Enable(False)  # Make it non-clickable
+
+    create_profiling_item = tools_menu.Append(wx.NewId(), "Create Profiling")
+    window.Bind(wx.EVT_MENU, lambda event: open_profile_creator(event), create_profiling_item)
+
+    edit_profiling_item = tools_menu.Append(wx.NewId(), "Edit Profiling")
+    window.Bind(wx.EVT_MENU, lambda event: open_profile_editor(event), edit_profiling_item)
+
+    pID_header = tools_menu.Append(wx.ID_ANY, "▬▬▬ Peak ID ▬▬▬▬▬▬▬▬")
+    pID_header.Enable(False)  # Make it non-clickable
+
+    AutoID_item = tools_menu.Append(wx.NewId(), "Auto Peak ID -- (Beta)")
+    window.Bind(wx.EVT_MENU, lambda event: window.on_open_auto_id(), AutoID_item)
+
+    # Manual Element Identifications / Labels
+    ID_item = tools_menu.Append(wx.NewId(), "Manual Peak ID / Labels\tCtrl+I")
+    window.Bind(wx.EVT_MENU, window.open_periodic_table, ID_item)
+
+    Label2_header = tools_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    Label2_header.Enable(False)  # Make it non-clickable
+
+    labels_manager_item = tools_menu.Append(wx.NewId(), "Labels Manager")
+    window.Bind(wx.EVT_MENU, window.open_labels_window, labels_manager_item)
+
+    # Noise_item = tools_menu.Append(wx.NewId(), "Noise Analysis")
+    # window.Bind(wx.EVT_MENU, lambda event: window.on_open_noise_analysis_window, Noise_item)
+
+    # Help menu items
+    # mini_help_item = help_menu.Append(wx.NewId(), "Help")
+    # window.Bind(wx.EVT_MENU, window.on_mini_help, mini_help_item)
+
+    shortcuts_item = help_menu.Append(wx.NewId(), "List of Shortcuts\tCtrl+K")
+    window.Bind(wx.EVT_MENU, lambda event: show_shortcuts(window), shortcuts_item)
+
+    paper_item = help_menu.Append(wx.NewId(), "KherveFitting Paper")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("http://doi.org/10.1002/sia.70032"), paper_item)
+
+    manual_item = help_menu.Append(wx.NewId(), "Open Full Manual \tCtrl+M")
+    window.Bind(wx.EVT_MENU, lambda event: open_manual(window), manual_item)
+
+    yt_videos_item = help_menu.Append(wx.NewId(), "KherveFitting Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
+                yt_videos_item)
+
+
+    # Create a submenu for Knowledge links
+    knowledge_menu = wx.Menu()
+
+    paper_menu = wx.Menu()
+
+
+    multiplet_item = paper_menu.Append(wx.NewId(), "Explanation of the Multiplet splitting")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7383"),
+                multiplet_item)
+
+    coster_kronig_item = paper_menu.Append(wx.NewId(), "Explanation of the Coster-Kronig effect")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.7410"),
+                coster_kronig_item)
+
+    peak_shape_item = paper_menu.Append(wx.NewId(), "Strategies for Obtaining Peak Shapes")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/epdf/10.1002/sia.70014"),
+                peak_shape_item)
+
+
+    d_parameter_item = paper_menu.Append(wx.NewId(), "Measuring the D-parameter")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.mdpi.com/2311-5629/7/3/51"),
+                d_parameter_item)
+
+    Carbonpeaktable_item = paper_menu.Append(wx.NewId(), "Fitting of the C1s Peak")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1fyXNfX46cN7q2sYRqwBM-jaj7C2cNSPA/view"),
+                Carbonpeaktable_item)
+
+    Fepeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Transition Metal Cr/Mn/Fe/Co/Ni")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1Kxx_j2kCpj8Hrd3XwbmEcJ16qHpgDmuN/view"),
+                Fepeaktable_item)
+
+    Fepeaktable_item = paper_menu.Append(wx.NewId(), "Fitting Transition Metal Cu/Ti/V/Sc/Zn")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://drive.google.com/file/d/1YYw7O1JVW4Ni_3GJv72uTE9KVE4Cg1S9/view"),
+                Fepeaktable_item)
+
+
+
+
+    knowledge_menu.AppendSubMenu(paper_menu, "Useful papers")
+
+
+
+    # Add items to the Knowledge submenu
+    dream_nist_item = knowledge_menu.Append(wx.NewId(), "KherveDB")
+    window.Bind(wx.EVT_MENU, lambda event: window.open_kherve_db(), dream_nist_item)
+
+    biesinger_item = knowledge_menu.Append(wx.NewId(), "XPSfitting by M. Biesinger")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.xpsfitting.com/"),
+                biesinger_item)
+
+    harwell_item = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.harwellxps.guru/"),
+                harwell_item)
+
+    thermo_item = knowledge_menu.Append(wx.NewId(), "Thermo Knowledge")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://www.thermofisher.com/uk/en/home/materials-science/learning-center/periodic-table.html"),
+                thermo_item)
+
+    nist_item = knowledge_menu.Append(wx.NewId(), "NIST XPS")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://srdata.nist.gov/xps"), nist_item)
+
+    xpsoasis_item = knowledge_menu.Append(wx.NewId(), "XPSOasis")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://xpsoasis.org/"), xpsoasis_item)
+
+    guide_xps_item = knowledge_menu.Append(wx.NewId(), "Guide to XPS")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open(
+        "https://pubs.aip.org/jva/collection/1440/Special-Topic-Collection-Reproducibility"),
+                guide_xps_item)
+
+    Label3_header = knowledge_menu.Append(wx.ID_ANY, "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")
+    Label3_header.Enable(False)  # Make it non-clickable
+
+    yt_videos_item = knowledge_menu.Append(wx.NewId(), "KherveFitting Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@xpsexamples-imperialcolleg6571"),
+                yt_videos_item)
+
+    yt_videos_item2 = knowledge_menu.Append(wx.NewId(), "M. Biesinger Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@markbiesinger/videos"),
+                yt_videos_item2)
+
+
+    yt_videos_item3 = knowledge_menu.Append(wx.NewId(), "HarwellXPS Guru Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@HarwellXPS"),
+                yt_videos_item3)
+
+    yt_videos_item4 = knowledge_menu.Append(wx.NewId(), "Casa XPS Videos")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://www.youtube.com/@casaxpscasasoftware4605/videos"),
+                yt_videos_item4)
+
+
+    # Add the Knowledge submenu to the Help menu
+    help_menu.AppendSubMenu(knowledge_menu, "Knowledge")
+
+    # Create Bored submenu
+    bored_menu = wx.Menu()
+
+    # Create Bored submenu only if not on Mac
+    if not IS_MAC:
+        bored_menu = wx.Menu()
+
+        atoms_item = bored_menu.Append(wx.NewId(), "Atoms")
+        window.Bind(wx.EVT_MENU, lambda event: show_mini_game(window), atoms_item)
+
+        chemistry_lab_item = bored_menu.Append(wx.NewId(), "Material Lab")
+        window.Bind(wx.EVT_MENU, lambda event: show_chemistry_lab_game(window), chemistry_lab_item)
+
+        asteroid_item = bored_menu.Append(wx.NewId(), "Meteors Smash")
+        window.Bind(wx.EVT_MENU, lambda event: show_asteroid_game(window), asteroid_item)
+
+        solitaire_item = bored_menu.Append(wx.NewId(), "Kherve Solitaire")
+        window.Bind(wx.EVT_MENU, lambda event: launch_solitaire(window), solitaire_item)
+
+        tetris_item = bored_menu.Append(wx.NewId(), "Kherve Tetris")
+        window.Bind(wx.EVT_MENU, lambda event: show_tetris_game(window), tetris_item)
+
+        flappybird_item = bored_menu.Append(wx.NewId(), "Khervey the Flappy Bird")
+        window.Bind(wx.EVT_MENU, lambda event: show_flappybird_game(window), flappybird_item)
+
+        help_menu.AppendSubMenu(bored_menu, "Take a Break")
+
+    resubmit_form_item = help_menu.Append(wx.NewId(), "Registration Form")
+    window.Bind(wx.EVT_MENU, lambda event: launch_registration_form(window), resubmit_form_item)
+
+    report_bug_item = help_menu.Append(wx.NewId(), "Report Bug")
+    window.Bind(wx.EVT_MENU, lambda event: report_bug(window), report_bug_item)
+
+    # version_log_item = help_menu.Append(wx.NewId(), "Version Log")
+    # window.Bind(wx.EVT_MENU, lambda event: show_version_log(window), version_log_item)
+
+    # Add this line where other help menu items are created
+    usage_stats_item = help_menu.Append(wx.NewId(), "Usage Stats")
+    window.Bind(wx.EVT_MENU, lambda event: show_usage_stats_window(window), usage_stats_item)
+
+    download_stats_item = help_menu.Append(wx.NewId(), "Download Stats")
+    window.Bind(wx.EVT_MENU, lambda event: show_download_stats_window(window), download_stats_item)
+
+    coffee_item = help_menu.Append(wx.NewId(), "Buy Me a Coffee")
+    window.Bind(wx.EVT_MENU, lambda event: webbrowser.open("https://buymeacoffee.com/gkerherve"), coffee_item)
+
+    # libraries_item = help_menu.Append(wx.NewId(), "Libraries Used")
+    # window.Bind(wx.EVT_MENU, lambda event: show_libraries_used(window), libraries_item)
+
+    about_item = help_menu.Append(wx.ID_ABOUT, "About")
+    window.Bind(wx.EVT_MENU, lambda event: on_about(window, event), about_item)
+
+
+
+    # Add menus to menubar
+    menubar.Append(file_menu, "&File")
+    menubar.Append(edit_menu, "&Edit")
+    menubar.Append(view_menu, "&View")
+    menubar.Append(tools_menu, "&Tools")
+    menubar.Append(help_menu, "&Help")
+
+    window.SetMenuBar(menubar)
+
+    # Set menubar background color for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        menubar.SetBackgroundColour(wx.Colour(200, 203, 205))
+
+
+def create_rightside_toolbar(parent, window):
+    r_toolbar = wx.ToolBar(parent, style= wx.TB_RIGHT)
+    r_toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    icon_path = os.path.join(current_dir, "Icons")
+
+    r_save_peaks_tool = r_toolbar.AddTool(wx.ID_ANY, 'Save Peaks Library',
+                                          wx.Bitmap(os.path.join(icon_path, "LibSave.png"), wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Save peaks parameters to library")
+
+    r_open_peaks_tool = r_toolbar.AddTool(wx.ID_ANY, 'Open Peaks Library',
+                                          wx.Bitmap(os.path.join(icon_path, "LibOpen.png"), wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Load peaks parameters from library")
+
+    r_toolbar.Realize()
+    window.Bind(wx.EVT_TOOL, lambda event: save_peaks_library(window), r_save_peaks_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), r_open_peaks_tool)
+
+    return r_toolbar
+
+def launch_new_instance():
+    """Launch a new instance of the application"""
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        executable = sys.executable
+        subprocess.Popen([executable])
+    else:
+        # Running as script
+        script_path = sys.argv[0]
+        subprocess.Popen([sys.executable, script_path])
+
+
+def on_open_eels_window(window, event):
+    from libraries.ToolsMenu.EELS_Analysis import open_eels_window
+    if not hasattr(window, 'eels_window') or window.eels_window is None:
+        window.eels_window = open_eels_window(window)
+    else:
+        window.eels_window.Raise()
+
+def open_profile_creator(event):
+    from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow
+    window = event.GetEventObject().GetWindow()
+    if not hasattr(window, 'profile_creator_window') or window.profile_creator_window is None or not window.profile_creator_window:
+        window.profile_creator_window = ProfileCreatorWindow(window)
+        window.profile_creator_window.Show()
+    else:
+        window.profile_creator_window.Raise()
+
+def open_profile_editor(event):
+    from libraries.ViewMenu.ProfileEditor import ProfileEditWindow
+    window = event.GetEventObject().GetWindow()
+    if not hasattr(window, 'profile_editor_window') or window.profile_editor_window is None or not window.profile_editor_window:
+        window.profile_editor_window = ProfileEditWindow(window)
+        window.profile_editor_window.Show()
+    else:
+        window.profile_editor_window.Raise()
+
+
+def create_horizontal_toolbar(parent, window):
+    # # To use with normal toolbar
+    # toolbar = window.CreateToolBar(style=  wx.TB_FLAT)
+    # toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    # Create toolbar as a child of the parent panel
+    if window.panel_theme == 'None':
+        toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | wx.BORDER_NONE)
+    if window.panel_theme == 'Sunken':
+        toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | wx.BORDER_RAISED)
+    else:
+        toolbar = wx.ToolBar(parent, style=wx.TB_HORIZONTAL | window.get_panel_style())
+
+    toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    # Set toolbar background color for Simple theme
+    if window.panel_theme == 'Simple Dark':
+        toolbar.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif window.panel_theme == 'Simple Darker':
+        toolbar.SetBackgroundColour(wx.Colour(165, 165,168))
+    elif window.panel_theme == 'Simple Very Dark':
+        toolbar.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    icon_path = os.path.join(current_dir, "Icons")
+
+    separators = []
+
+    # File operations
+    open_file_tool = toolbar.AddTool(wx.ID_ANY, 'Open File', wx.Bitmap(os.path.join(icon_path, "open-folder-3.png"),
+                                                                       wx.BITMAP_TYPE_PNG), shortHelp="Open File\tCtrl+O")
+
+    # Change the default save tool
+    quick_save_tool = toolbar.AddTool(wx.ID_ANY, 'Save Data',
+                                      wx.Bitmap(os.path.join(icon_path, "Save_Json-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Save Data - Default (JSON only)\tCtrl+S")
+    window.Bind(wx.EVT_TOOL, lambda event: save_json_only(window), quick_save_tool)
+
+    save_tool = toolbar.AddTool(wx.ID_ANY, 'Export to Excel', wx.Bitmap(os.path.join(icon_path, "Save-excel-3.png"),
+                                wx.BITMAP_TYPE_PNG), shortHelp="Export this core level to Excel")
+
+    save_all_tool = toolbar.AddTool(wx.ID_ANY, 'Save All Sheets',
+                                wx.Bitmap(os.path.join(icon_path, "save-Multi-3.png"), wx.BITMAP_TYPE_PNG),
+                                    shortHelp="Export all core level to Excel (Not recommended for 50 above core "
+                                              "levels)")
+
+    # save_plot_tool = toolbar.AddTool(wx.ID_ANY, 'Export Plot as PNG', wx.Bitmap(os.path.join(icon_path, "save-PNG-25.png"), wx.BITMAP_TYPE_PNG), shortHelp="Export Plot as PNG")
+
+    # toolbar.AddSeparator()
+    window.undo_tool = toolbar.AddTool(wx.ID_ANY, 'Undo', wx.Bitmap(os.path.join(icon_path, "undo-3.png"),
+                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Undo -- For peaks properties only")
+    window.redo_tool = toolbar.AddTool(wx.ID_ANY, 'Redo', wx.Bitmap(os.path.join(icon_path, "redo-3.png"),
+                                                                    wx.BITMAP_TYPE_PNG), shortHelp="Redo -- For peaks properties only")
+    # toolbar.AddSeparator()
+
+    # Add sort sheets button
+    sort_icon = os.path.join(icon_path, "Sort-3.png")
+    if os.path.exists(sort_icon):
+        sort_bmp = wx.Bitmap(sort_icon)
+    else:
+        sort_bmp = wx.ArtProvider.GetBitmap(wx.ART_SORT_ASC, wx.ART_TOOLBAR)
+    sort_tool = toolbar.AddTool(wx.ID_ANY, "Sort Sheets", sort_bmp, "Sort sheets by sample groups")
+    window.Bind(wx.EVT_TOOL, lambda event: sort_excel_sheets(window), sort_tool)
+
+    # Add File Manager button to toolbar
+    file_manager_bmp = wx.Bitmap(os.path.join(icon_path, "list-view-3.png"), wx.BITMAP_TYPE_PNG)
+    file_manager_tool = toolbar.AddTool(wx.ID_ANY, "Sample/Experiment Manager", file_manager_bmp,
+                                        "Open Sample/Experiment Manager. Make sure to use F2 or Ctrl+2 to plot with peak models")
+    window.Bind(wx.EVT_TOOL, window.on_open_file_manager, file_manager_tool)
+
+
+    # Sheet selection
+    window.sheet_combobox = wx.ComboBox(toolbar, style=wx.CB_READONLY)
+    window.sheet_combobox.SetToolTip("Select Sheet")
+    toolbar.AddControl(window.sheet_combobox)
+    window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected(window, event))
+
+    refresh_folder_tool = toolbar.AddTool(wx.ID_ANY, 'Refresh Excel File', wx.Bitmap(os.path.join(icon_path,
+                                                                                                  "Refresh-3.png"),
+                                                                                     wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Refresh Excel File and json file. Used when the Excel File has "
+                                                    "more sheets or when the file does not work well")
+
+    delete_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Delete Core Level/Survey',
+                                        wx.Bitmap(os.path.join(icon_path, "delete-3.png"), wx.BITMAP_TYPE_PNG),
+                                        shortHelp="Delete current Core Level/Survey")
+    window.Bind(wx.EVT_TOOL, lambda event: on_delete_sheet(window, event), delete_sheet_tool)
+
+    copy_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Copy/Paste Core Level',
+                                      wx.Bitmap(os.path.join(icon_path, "copy-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Copy/Paste this Core Level/Survey at the end of this file")
+
+    join_sheets_tool = toolbar.AddTool(wx.ID_ANY, 'Join Core Level/Survey',
+                                       wx.Bitmap(os.path.join(icon_path, "join-3.png"), wx.BITMAP_TYPE_PNG),
+                                       shortHelp="Join Multiple Core Level/Survey")
+
+
+    rename_sheet_tool = toolbar.AddTool(wx.ID_ANY, 'Rename Core Level/Survey',
+                                        wx.Bitmap(os.path.join(icon_path, "rename-3.png"), wx.BITMAP_TYPE_PNG),
+                                        shortHelp="Rename current Core Level/Survey")
+    window.Bind(wx.EVT_TOOL, lambda evt: _show_rename_dialog(window), rename_sheet_tool)
+
+    def _show_rename_dialog(window):
+        # Get the current sheet name
+        current_sheet_name = window.sheet_combobox.GetValue()
+
+        if hasattr(window, 'file_manager') and window.file_manager is not None:
+            try:
+                # Close existing file manager
+                window.file_manager.Close()
+                window.file_manager.Destroy()
+                window.file_manager = None
+            except Exception as e:
+                print(f"Error refreshing file manager: {e}")
+                pass
+
+        # Show dialog with current sheet name pre-populated
+        dlg = wx.TextEntryDialog(window, 'Enter new sheet name (single word only):', 'Rename Sheet', current_sheet_name)
+        if dlg.ShowModal() == wx.ID_OK:
+            new_name = dlg.GetValue()
+            if new_name and new_name != current_sheet_name:
+                # Check for single word validation
+                if len(new_name.split()) > 1:
+                    window.show_popup_message2("Invalid Name", "Only a single word is allowed for sheet names or core levels.")
+                else:
+                    from libraries.Utilities import rename_sheet
+                    rename_sheet(window, new_name)
+        dlg.Destroy()
+
+    crop_tool = toolbar.AddTool(wx.ID_ANY, 'Crop',
+                                wx.Bitmap(os.path.join(icon_path, "Crop-3.png"), wx.BITMAP_TYPE_PNG),
+                                shortHelp="Crop data to new sheet")
+    window.Bind(wx.EVT_TOOL, lambda event: show_crop_window(window), crop_tool)
+
+    def show_crop_window(cropwin): #Helper function, crop window is only shown if data is present
+        win = CropWindow(cropwin)
+        if win.init_values():
+            win.Show()
+        else:
+            win.Destroy()
+
+    toolbar.AddSeparator()
+
+    # BE correction
+    window.be_correction_spinbox = wx.SpinCtrlDouble(toolbar, value='0.00', min=-10000.00, max=10000.00, inc=0.01,
+                                                     size=(70, -1))
+    window.be_correction_spinbox.SetDigits(2)
+    window.be_correction_spinbox.SetToolTip("BE Correction")
+    toolbar.AddControl(window.be_correction_spinbox)
+
+    auto_be_button = toolbar.AddTool(wx.ID_ANY, 'Auto BE', wx.Bitmap(os.path.join(icon_path, "BEcorrect-3.png"),
+                                                                     wx.BITMAP_TYPE_PNG), shortHelp="Automatic binding energy correction")
+
+
+    toolbar.AddSeparator()
+
+    # Analysis tools
+    bkg_tool = toolbar.AddTool(wx.ID_ANY, 'Background', wx.Bitmap(os.path.join(icon_path, "BKG-3.png"),
+                                                                  wx.BITMAP_TYPE_PNG), shortHelp="Calculate Area "
+                                                                                                 "Under Curve")
+    fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1s-3.png"),
+                                                                   wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
+                                                                                                  "Model \tCtrl+P")
+
+    mini_fitting_tool = toolbar.AddTool(wx.ID_ANY, 'Fitting', wx.Bitmap(os.path.join(icon_path, "C1sMini-3.png"),
+                                                                   wx.BITMAP_TYPE_PNG), shortHelp="Create Peaks "
+                                                                                                  "Model / Simplified Version")
+
+    toolbar.AddSeparator()
+
+    diff_tool = toolbar.AddTool(wx.ID_ANY, 'Differentiate',
+                                wx.Bitmap(os.path.join(icon_path, "Dpara-3.png"), wx.BITMAP_TYPE_PNG),
+                                shortHelp="D-parameter Calculation")
+
+    plot_mod_tool = toolbar.AddTool(wx.ID_ANY, 'Plot Modifications',
+                                    wx.Bitmap(os.path.join(icon_path, "Mod-3.png"), wx.BITMAP_TYPE_PNG),
+                                    shortHelp="Plot modifications window")
+    window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
+    window.Bind(wx.EVT_TOOL, window.on_differentiate, diff_tool)
+
+    # Add thickogram tool using d-par icon and existing function
+    thickogram_tool = toolbar.AddTool(wx.ID_ANY, 'Thickogram',
+                                      wx.Bitmap(os.path.join(icon_path, "Thicko-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Open Thickogram Calculator")
+
+    window.Bind(wx.EVT_TOOL, lambda evt: PlotModWindow(window).Show(), plot_mod_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: open_thickogram_window(window), thickogram_tool)
+
+    # Add tool to toolbar
+    vb_tool = toolbar.AddTool(wx.ID_ANY, 'VB',
+                                   wx.Bitmap(os.path.join(icon_path, "VBM-3.png"), wx.BITMAP_TYPE_PNG),
+                                   shortHelp='VB Measurements')
+
+    # Add PCA Analysis tool
+    pca_tool = toolbar.AddTool(wx.ID_ANY, 'PCA',
+                               wx.Bitmap(os.path.join(icon_path, "PCA-3.png"), wx.BITMAP_TYPE_PNG),
+                               shortHelp='Principal Component Analysis')
+
+    def open_pca_analysis(event):
+        from libraries.ToolsMenu.PCA_Analysis import launch_pca_analysis
+        if not hasattr(window, 'pca_analysis_window') or window.pca_analysis_window is None:
+            window.pca_analysis_window = launch_pca_analysis(window)
+        else:
+            try:
+                window.pca_analysis_window.Raise()
+            except RuntimeError:
+                # Window was deleted, create new one
+                window.pca_analysis_window = launch_pca_analysis(window)
+
+    window.Bind(wx.EVT_TOOL, open_pca_analysis, pca_tool)
+
+    def open_profile_creator(event):
+        from libraries.ViewMenu.ProfileEditor import ProfileCreatorWindow
+        if not hasattr(window, 'profile_creator_window') or window.profile_creator_window is None or not window.profile_creator_window:
+            window.profile_creator_window = ProfileCreatorWindow(window)
+            window.profile_creator_window.Show()
+        else:
+            window.profile_creator_window.Raise()
+
+    def open_profile_editor(event):
+        from libraries.ViewMenu.ProfileEditor import ProfileEditWindow
+        if not hasattr(window, 'profile_editor_window') or window.profile_editor_window is None or not window.profile_editor_window:
+            window.profile_editor_window = ProfileEditWindow(window)
+            window.profile_editor_window.Show()
+        else:
+            window.profile_editor_window.Raise()
+
+    def open_vb_measurements(event):
+        if not hasattr(window, 'vb_measurements_window') or window.vb_measurements_window is None:
+            window.vb_measurements_window = VB_measurements(window, window)
+        else:
+            window.vb_measurements_window.Raise()
+
+    window.Bind(wx.EVT_TOOL, open_vb_measurements, vb_tool)
+
+    toolbar.AddSeparator()
+
+    # Profile Creator tool
+    profile_creator_tool = toolbar.AddTool(wx.ID_ANY, 'Profile Creator',
+                                           wx.Bitmap(os.path.join(icon_path, "Profile_Create-3.png"), wx.BITMAP_TYPE_PNG),
+                                           shortHelp="Open Profile Data Creator")
+    window.Bind(wx.EVT_TOOL, open_profile_creator, profile_creator_tool)
+
+    # Profile Editor tool
+    profile_editor_tool = toolbar.AddTool(wx.ID_ANY, 'Profile Editor',
+                                          wx.Bitmap(os.path.join(icon_path, "Profile_Edit-3.png"), wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Open Profile Data Editor")
+    window.Bind(wx.EVT_TOOL, open_profile_editor, profile_editor_tool)
+
+    toolbar.AddSeparator()
+
+
+    # Add AutoID tool
+    auto_id_tool = toolbar.AddTool(wx.ID_ANY, 'Auto ID',
+                                   wx.Bitmap(os.path.join(icon_path, "IDauto-3.png"), wx.BITMAP_TYPE_PNG),
+                                   shortHelp="Automatic element identification for survey scans")
+    window.Bind(wx.EVT_TOOL, lambda event: window.on_auto_id(event), auto_id_tool)
+
+
+    id_tool = toolbar.AddTool(wx.ID_ANY, 'ID', wx.Bitmap(os.path.join(icon_path, "ID-3.png"), wx.BITMAP_TYPE_PNG),
+                              shortHelp="Element identifications (ID)")
+
+    nist_tool = toolbar.AddTool(wx.ID_ANY, 'NIST Database',
+                                wx.Bitmap(os.path.join(icon_path, "NIST-3.png"), wx.BITMAP_TYPE_PNG),
+                                shortHelp="Open KherveDB database")
+    # window.Bind(wx.EVT_TOOL, lambda event: window.open_dream_nist(), nist_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: open_dream_nist_handler(window), nist_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.open_kherve_db(), nist_tool)
+
+    toolbar.AddStretchableSpace()
+
+
+
+
+    # Export and toggle tools
+    save_peaks_tool = toolbar.AddTool(wx.ID_ANY, 'Save Peaks Library',
+                                      wx.Bitmap(os.path.join(icon_path, "LibSave-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Save peaks parameters to library")
+
+    open_peaks_tool = toolbar.AddTool(wx.ID_ANY, 'Open Peaks Library',
+                                      wx.Bitmap(os.path.join(icon_path, "LibOpen-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Load peaks parameters from library")
+
+    export_tool = toolbar.AddTool(wx.ID_ANY, 'Export Results', wx.Bitmap(os.path.join(icon_path, "Export-3.png"),
+                                                                         wx.BITMAP_TYPE_PNG), shortHelp="Export to Results Grid")
+
+    # Create delete toolbar instance
+    window.delete_toolbar = DeleteToolbar(window)
+
+    # Add delete master toggle tool
+    delete_master_tool = toolbar.AddTool(wx.ID_ANY, 'Delete',
+                                         wx.Bitmap(os.path.join(icon_path, "DeleteRow-3.png"), wx.BITMAP_TYPE_PNG),
+                                         shortHelp="Delete Options for Results Grid")
+
+    # Add backup tool
+    backup_icon = os.path.join(icon_path, "backup-3.png")
+    if os.path.exists(backup_icon):
+        backup_bmp = wx.Bitmap(backup_icon)
+    else:
+        backup_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_TOOLBAR)
+    backup_tool = toolbar.AddTool(wx.ID_ANY, "Backup", backup_bmp, "Create a backup of current files")
+    window.Bind(wx.EVT_TOOL, lambda event: on_backup_main(window), backup_tool)
+
+    # Add quick settings if enabled
+    if hasattr(window, 'enable_quick_settings') and window.enable_quick_settings:
+        window.quick_settings.create_quick_settings_tool(toolbar)
+
+    Setting_tool = toolbar.AddTool(wx.ID_ANY, 'Load Settings',
+                                      wx.Bitmap(os.path.join(icon_path, "Settings-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Open Preference Window")
+
+
+    toggle_Col_1_tool = toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',
+                                        wx.Bitmap(os.path.join(icon_path, "HideColumn-3.png"), wx.BITMAP_TYPE_PNG),
+                                        shortHelp="Toggle Columns Peak Fitting Parameters")
+    window.toggle_right_panel_tool = window.add_toggle_tool(toolbar, "Toggle Right Panel",
+                                                            wx.ArtProvider.GetBitmap(wx.ART_GO_BACK, wx.ART_TOOLBAR))
+
+
+    def show_delete_toolbar(event):
+        if not window.delete_toolbar.IsShown():
+            pos = toolbar.GetScreenPosition()
+            window.delete_toolbar.SetPosition((pos.x + toolbar.GetSize().width - 100, pos.y + 30))
+            window.delete_toolbar.Show()
+        else:
+            window.delete_toolbar.Hide()
+
+
+    window.Bind(wx.EVT_TOOL, show_delete_toolbar, delete_master_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: on_delete_all(window, evt), window.delete_toolbar.delete_all_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: on_delete_last(window, evt), window.delete_toolbar.delete_last_tool)
+    window.Bind(wx.EVT_TOOL, lambda evt: on_delete_first(window, evt), window.delete_toolbar.delete_first_tool)
+
+    toolbar.Realize()
+
+    # Bind events
+    bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool, mini_fitting_tool,
+                        # noise_analysis_tool,
+                        # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, plot_tool, toggle_peak_fill_tool,
+                        save_tool, #save_plot_tool,
+                        save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool)
+    # toolbar.Bind(wx.EVT_TOOL, lambda event: window.plot_manager.toggle_y_axis(), toggle_y_axis_tool)
+    window.Bind(wx.EVT_MENU, window.on_preferences, Setting_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: save_peaks_library(window), save_peaks_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), open_peaks_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: copy_sheet(window), copy_sheet_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: JoinSheetsWindow(window).Show(), join_sheets_tool)
+    window.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, window.on_be_correction_change)
+    # window.Bind(wx.EVT_TOOL, lambda event: save_peaks_to_github(window), save_peaks_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: load_peaks_library(window), open_peaks_tool)
+
+    toolbar.Realize()
+
+    # Mac-specific styling
+    if 'wxMac' in wx.PlatformInfo:
+        # Remove default border and set background color
+        toolbar.SetWindowStyle(toolbar.GetWindowStyle() | wx.BORDER_NONE)
+        toolbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+        # Add custom grey border on the bottom side
+        border_panel = wx.Panel(toolbar)
+        border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
+
+        def on_toolbar_size(event):
+            # Set the border panel to be full width but only 1px tall on the bottom
+            size = toolbar.GetSize()
+            border_panel.SetSize(0, size.height - 1, size.width, 1)
+            event.Skip()
+
+        toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
+
+    return toolbar
+
+
+# Bind the delete toolbar tools
+def on_delete_all(window, event):
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = "0"
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = match.group(1)
+
+    results_table_key = f'Results Table{row_number}'
+
+    # Check if table exists
+    if results_table_key in window.Data:
+        window.results_grid.DeleteRows(0, window.results_grid.GetNumberRows())
+        window.Data[results_table_key]['Peak'] = {}
+        save_state(window)
+
+
+def on_delete_last(window, event):
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = "0"
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = match.group(1)
+
+    results_table_key = f'Results Table{row_number}'
+
+    last_row = window.results_grid.GetNumberRows() - 1
+    if last_row >= 0:
+        window.results_grid.DeleteRows(last_row)
+
+        if results_table_key in window.Data:
+            peak_keys = list(window.Data[results_table_key]['Peak'].keys())
+            if peak_keys:
+                del window.Data[results_table_key]['Peak'][peak_keys[-1]]
+        save_state(window)
+
+
+def on_delete_first(window, event):
+    # Get current sheet's row number
+    sheet_name = window.sheet_combobox.GetValue()
+    row_number = "0"
+
+    import re
+    match = re.search(r'(\d+)$', sheet_name)
+    if match:
+        row_number = match.group(1)
+
+    results_table_key = f'Results Table{row_number}'
+
+    if window.results_grid.GetNumberRows() > 0:
+        window.results_grid.DeleteRows(0)
+
+        if results_table_key in window.Data:
+            peak_keys = list(window.Data[results_table_key]['Peak'].keys())
+            if peak_keys:
+                del window.Data[results_table_key]['Peak'][peak_keys[0]]
+
+                # Renumber remaining peaks
+                new_data = {}
+                for i, (key, value) in enumerate(window.Data[results_table_key]['Peak'].items()):
+                    if i > 0:  # Skip the first one that was deleted
+                        new_key = f"Peak_{i - 1}"
+                        new_data[new_key] = value
+
+                window.Data[results_table_key]['Peak'] = new_data
+        save_state(window)
+
+def add_vertical_separator(toolbar, separators):
+    separators.append(wx.StaticLine(toolbar, style=wx.LI_VERTICAL))
+    separators[-1].SetSize((2, 24))
+    toolbar.AddControl(separators[-1])
+
+def bind_toolbar_events(window, open_file_tool, refresh_folder_tool, bkg_tool, fitting_tool, mini_fitting_tool,
+                        # noise_analysis_tool,
+                        save_tool, #save_plot_tool,
+                        save_all_tool, toggle_Col_1_tool, export_tool, auto_be_button, id_tool
+                        # toggle_legend_tool, toggle_fit_results_tool, toggle_residuals_tool, toggle_peak_fill_tool, plot_tool,
+                        ):
+    window.Bind(wx.EVT_TOOL, lambda event: open_xlsx_file(window), open_file_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper), refresh_folder_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: refresh_sheets(window, on_sheet_selected_wrapper, reopen_file=True), refresh_folder_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.on_open_background_window(), bkg_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(normal=True), fitting_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.on_open_fitting_window(normal=False), mini_fitting_tool)
+    window.sheet_combobox.Bind(wx.EVT_COMBOBOX, lambda event: on_sheet_selected_wrapper(window, event))
+    window.Bind(wx.EVT_TOOL, lambda event: on_save(window), save_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: on_save_plot(window), save_plot_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: on_save_all_sheets(window, event), save_all_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: toggle_Col_1(window), toggle_Col_1_tool)
+    # window.Bind(wx.EVT_TOOL, lambda event: window.export_results(), export_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: window.open_export_results_window(), export_tool)
+    # window.be_correction_spinbox.Bind(wx.EVT_SPINCTRLDOUBLE, window.on_be_correction_change)
+    window.Bind(wx.EVT_TOOL, window.on_auto_be, auto_be_button)
+    window.Bind(wx.EVT_TOOL, lambda event: undo(window), window.undo_tool)
+    window.Bind(wx.EVT_TOOL, lambda event: redo(window), window.redo_tool)
+    window.Bind(wx.EVT_TOOL, window.open_periodic_table, id_tool)
+    window.Bind(wx.EVT_TOOL, window.on_toggle_right_panel, window.toggle_right_panel_tool)
+
+
+def create_vertical_toolbar(parent, frame):
+    v_toolbar = wx.ToolBar(parent, style=wx.TB_VERTICAL | wx.TB_FLAT )
+    v_toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+    if frame.panel_theme == 'Simple Dark':
+        v_toolbar.SetBackgroundColour(wx.Colour(200, 203, 205))
+    elif frame.panel_theme == 'Simple Darker':
+       v_toolbar.SetBackgroundColour(wx.Colour(165, 165,168))
+    elif frame.panel_theme == 'Simple Very Dark':
+        v_toolbar.SetBackgroundColour(wx.Colour(140, 140, 142))
+
+    # Check if running on macOS
+    is_mac = 'wxMac' in wx.PlatformInfo
+
+    # Only apply the custom border styling on Mac
+    if is_mac:
+        # Remove default border and set background color
+        v_toolbar.SetWindowStyle(v_toolbar.GetWindowStyle() | wx.BORDER_NONE)
+        v_toolbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+        # Add custom grey border on the right side
+        border_panel = wx.Panel(v_toolbar)
+        # border_panel = wx.Panel(v_toolbar, style=wx.BORDER_SUNKEN)
+        border_panel.SetBackgroundColour(wx.Colour(200, 200, 200))  # Light grey
+
+        def on_toolbar_size(event):
+            # Set the border panel to be full height but only 1px wide on the right side
+            size = v_toolbar.GetSize()
+            border_panel.SetSize(size.width - 1, 0, 1, size.height)
+            event.Skip()
+
+        v_toolbar.Bind(wx.EVT_SIZE, on_toolbar_size)
+
+    # Get the correct path for icons
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    icon_path = os.path.join(current_dir, "Icons")
+
+    # Create toggle toolbar instance
+    frame.toggle_toolbar = ToggleToolbar(frame)
+
+    # Add master toggle tool
+    toggle_master_tool = v_toolbar.AddTool(wx.ID_ANY, 'Toggles',
+                                           wx.Bitmap(os.path.join(icon_path, "Toggles-3.png"), wx.BITMAP_TYPE_PNG),
+                                           shortHelp="Toggle Options")
+
+    def show_toggle_toolbar(event):
+        if not frame.toggle_toolbar.IsShown():
+            pos = v_toolbar.GetScreenPosition()
+            frame.toggle_toolbar.SetPosition((pos.x + v_toolbar.GetSize().width, pos.y))
+            frame.toggle_toolbar.Show()
+        else:
+            frame.toggle_toolbar.Hide()
+    frame.Bind(wx.EVT_TOOL, show_toggle_toolbar, toggle_master_tool)
+
+    # Bind the toggle toolbar tools
+    frame.Bind(wx.EVT_TOOL, lambda event: toggle_plot(frame), frame.toggle_toolbar.plot_tool)
+    frame.Bind(wx.EVT_TOOL, frame.on_toggle_peak_fill, frame.toggle_toolbar.peak_fill_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.plot_manager.toggle_y_axis(), frame.toggle_toolbar.y_axis_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.plot_manager.toggle_legend(), frame.toggle_toolbar.legend_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.plot_manager.toggle_fitting_results(), frame.toggle_toolbar.fit_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.plot_manager.toggle_residuals(frame), frame.toggle_toolbar.residuals_tool)
+
+
+    # v_toolbar.AddSeparator()
+
+    # Zoom tools
+    zoom_in_tool = v_toolbar.AddTool(wx.ID_ANY, 'Zoom In',
+                                     wx.Bitmap(os.path.join(icon_path, "ZoomIN-3.png"), wx.BITMAP_TYPE_PNG),
+                                     shortHelp="Zoom In")
+    zoom_out_tool = v_toolbar.AddTool(wx.ID_ANY, 'Zoom Out',
+                                      wx.Bitmap(os.path.join(icon_path, "ZoomOUT-3.png"), wx.BITMAP_TYPE_PNG),
+                                      shortHelp="Zoom Out")
+    drag_tool = v_toolbar.AddTool(wx.ID_ANY, 'Drag',
+                                  wx.Bitmap(os.path.join(icon_path, "Drag-25.png"), wx.BITMAP_TYPE_PNG),
+                                  shortHelp="Drag Plot")
+
+    # Plot limits tool
+    plot_limits_tool = v_toolbar.AddTool(wx.ID_ANY, 'Plot Limits',
+                                         wx.Bitmap(os.path.join(icon_path, "PlotLimits-3.png"), wx.BITMAP_TYPE_PNG),
+                                         shortHelp="Set Plot Limits")
+
+    # Bind the plot limits tool
+    frame.Bind(wx.EVT_TOOL, lambda event: show_plot_limits_window(frame), plot_limits_tool)
+
+    # Add green vertical line tool
+    frame.green_line_tool = v_toolbar.AddCheckTool(wx.ID_ANY, 'Green Line',
+                                                   wx.Bitmap(os.path.join(icon_path, "GreenLine-25.png"), wx.BITMAP_TYPE_PNG),
+                                                   wx.Bitmap(os.path.join(icon_path, "GreenLine-Selected-25.png"), wx.BITMAP_TYPE_PNG),
+                                                   shortHelp="Toggle draggable green vertical line")
+
+    # Bind green line tool
+    frame.Bind(wx.EVT_TOOL, lambda evt: toggle_green_vline(frame), frame.green_line_tool)
+
+    v_toolbar.AddSeparator()
+
+    # BE adjustment tools
+    high_be_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'High BE +',
+                                              wx.Bitmap(os.path.join(icon_path, "Right-Red-25g.png"), wx.BITMAP_TYPE_PNG),
+                                              shortHelp="Decrease High BE")
+    high_be_decrease_tool = v_toolbar.AddTool(wx.ID_ANY, 'High BE -',
+                                              wx.Bitmap(os.path.join(icon_path, "Left-Red-25g.png"), wx.BITMAP_TYPE_PNG),
+                                              shortHelp="Increase High BE")
+
+    # v_toolbar.AddSeparator()
+
+    low_be_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low BE +',
+                                             wx.Bitmap(os.path.join(icon_path, "Left-blue-25g.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="Increase Low BE")
+    low_be_decrease_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low BE -',
+                                             wx.Bitmap(os.path.join(icon_path, "Right-blue-25g.png"),
+                                                       wx.BITMAP_TYPE_PNG),
+                                             shortHelp="Decrease Low BE")
+
+    # v_toolbar.AddSeparator()
+
+    # Intensity adjustment tools
+    high_int_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'High Int +',
+                                               wx.Bitmap(os.path.join(icon_path, "Up-Red-25g.png"), wx.BITMAP_TYPE_PNG),
+                                               shortHelp="Increase High Intensity")
+    high_int_decrease_tool = v_toolbar.AddTool(wx.ID_ANY, 'High Int -',
+                                               wx.Bitmap(os.path.join(icon_path, "Down-Red-25g.png"), wx.BITMAP_TYPE_PNG),
+                                               shortHelp="Decrease High Intensity")
+
+    # v_toolbar.AddSeparator()
+
+    low_int_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low Int +',
+                                              wx.Bitmap(os.path.join(icon_path, "Up-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
+                                              shortHelp="Increase Low Intensity")
+    low_int_decrease_tool = v_toolbar.AddTool(wx.ID_ANY, 'Low Int -',
+                                              wx.Bitmap(os.path.join(icon_path, "Down-Blue-25g.png"), wx.BITMAP_TYPE_PNG),
+                                              shortHelp="Decrease Low Intensity")
+    v_toolbar.AddSeparator()
+
+
+
+    # Add text size increase/decrease tools
+    text_increase_tool = v_toolbar.AddTool(wx.ID_ANY, 'Increase Font Size',
+                                          wx.Bitmap(os.path.join(icon_path, "A+_25.png"), wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Increase All Font Sizes")
+    text_decrease_tool = v_toolbar.AddTool(wx.ID_ANY, 'Decrease Font Size',
+                                          wx.Bitmap(os.path.join(icon_path, "A-_25.png"), wx.BITMAP_TYPE_PNG),
+                                          shortHelp="Decrease All Font Sizes")
+
+    # v_toolbar.AddSeparator()
+
+    # Add text annotation tool after other tools
+    text_tool = v_toolbar.AddTool(wx.ID_ANY, 'Add Text',
+        wx.Bitmap(os.path.join(icon_path, "AddText-25.png"), wx.BITMAP_TYPE_PNG),
+        shortHelp="Add draggable text annotation")
+
+    # Add to the binding section
+    frame.Bind(wx.EVT_TOOL, lambda evt: add_draggable_text(frame), text_tool)
+
+
+
+    labels_tool = v_toolbar.AddTool(wx.ID_ANY, 'Labels Manager',
+                                    wx.Bitmap(os.path.join(icon_path, "ListText2-25.png"), wx.BITMAP_TYPE_PNG),
+                                    # wx.Bitmap(os.path.join(icon_path, "AddText-25.png"), wx.BITMAP_TYPE_PNG),
+                                    shortHelp="Open Labels Manager")
+    frame.Bind(wx.EVT_TOOL, frame.open_labels_window, labels_tool)
+
+
+    # v_toolbar.AddSeparator()
+
+    v_toolbar.Realize()
+
+    # Bind events to the frame
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('high_be', 'increase'), high_be_increase_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('high_be', 'decrease'), high_be_decrease_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('low_be', 'increase'), low_be_increase_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('low_be', 'decrease'), low_be_decrease_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('high_int', 'increase'), high_int_increase_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('high_int', 'decrease'), high_int_decrease_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('low_int', 'increase'), low_int_increase_tool)
+    frame.Bind(wx.EVT_TOOL, lambda event: frame.adjust_plot_limits('low_int', 'decrease'), low_int_decrease_tool)
+    frame.Bind(wx.EVT_TOOL, frame.on_text_size_increase, text_increase_tool)
+    frame.Bind(wx.EVT_TOOL, frame.on_text_size_decrease, text_decrease_tool)
+    frame.Bind(wx.EVT_TOOL, frame.on_zoom_in_tool, zoom_in_tool)
+    frame.Bind(wx.EVT_TOOL, frame.on_zoom_out, zoom_out_tool)
+    frame.Bind(wx.EVT_TOOL, frame.on_drag_tool, drag_tool)
+
+    return v_toolbar
+
+
+def create_examples_menu_OLD(window):
+    """Create dynamic examples menu from Open Examples folder structure"""
+    examples_menu = wx.Menu()
+
+    # Get the path to Data-Examples folder (same level as executable)
+    import sys
+    import platform
+
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        if platform.system() == 'Darwin':
+            # Mac: .app bundle - go up to parent directory where Data-Examples is
+            # sys.executable is at KherveFitting.app/Contents/MacOS/KherveFitting
+            # We need to go to the directory containing KherveFitting.app
+            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        else:
+            # Windows: executable is in same directory as Data-Examples
+            executable_dir = os.path.dirname(sys.executable)
+    else:
+        # Running from source
+        executable_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    examples_path = os.path.join(executable_dir, "Data-Examples")
+
+    if not os.path.exists(examples_path):
+        no_examples_item = examples_menu.Append(wx.NewId(), "No Examples Folder Found")
+        no_examples_item.Enable(False)
+        return examples_menu
+
+    try:
+        # Get all subdirectories in Open Examples
+        subdirs = [d for d in os.listdir(examples_path)
+                   if os.path.isdir(os.path.join(examples_path, d))]
+        subdirs.sort()
+
+        if not subdirs:
+            no_examples_item = examples_menu.Append(wx.NewId(), "No Example Categories Found")
+            no_examples_item.Enable(False)
+            return examples_menu
+
+        # Create submenu for each subdirectory
+        for subdir in subdirs:
+            subdir_path = os.path.join(examples_path, subdir)
+            subdir_menu = wx.Menu()
+
+            # Get all xlsx files in this subdirectory
+            xlsx_files = [f for f in os.listdir(subdir_path)
+                          if f.lower().endswith('.xlsx')]
+            xlsx_files.sort()
+
+            if xlsx_files:
+                # Add each xlsx file as menu item
+                for xlsx_file in xlsx_files:
+                    file_path = os.path.join(subdir_path, xlsx_file)
+                    # Remove .xlsx extension for cleaner menu display
+                    display_name = os.path.splitext(xlsx_file)[0]
+
+                    menu_item = subdir_menu.Append(wx.NewId(), display_name)
+                    window.Bind(wx.EVT_MENU,
+                                lambda event, path=file_path: open_example_file(window, path),
+                                menu_item)
+            else:
+                no_files_item = subdir_menu.Append(wx.NewId(), "No xlsx files found")
+                no_files_item.Enable(False)
+
+            examples_menu.AppendSubMenu(subdir_menu, subdir)
+
+    except Exception as e:
+        error_item = examples_menu.Append(wx.NewId(), f"Error loading examples: {str(e)}")
+        error_item.Enable(False)
+
+    return examples_menu
+
+
+def create_examples_menu(window):
+    """Create dynamic examples menu from Open Examples folder structure"""
+    examples_menu = wx.Menu()
+
+    # Get the path to Data-Examples folder (same level as executable)
+    import sys
+    import platform
+
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        if platform.system() == 'Darwin':
+            # Mac: .app bundle - go up to parent directory where Data-Examples is
+            # sys.executable is at KherveFitting.app/Contents/MacOS/KherveFitting
+            # We need to go to the directory containing KherveFitting.app
+            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        else:
+            # Windows: executable is in same directory as Data-Examples
+            executable_dir = os.path.dirname(sys.executable)
+    else:
+        # Running from source
+        executable_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    examples_path = os.path.join(executable_dir, "Data-Examples")
+
+    if not os.path.exists(examples_path):
+        no_examples_item = examples_menu.Append(wx.NewId(), "No Examples Folder Found")
+        no_examples_item.Enable(False)
+        return examples_menu
+
+    def add_files_to_menu(menu, directory):
+        """Recursively add files and subdirectories to menu"""
+        try:
+            items = sorted(os.listdir(directory))
+
+            # Separate files and directories
+            files = []
+            subdirs = []
+
+            for item in items:
+                item_path = os.path.join(directory, item)
+                if os.path.isfile(item_path):
+                    if item.lower().endswith(('.xlsx', '.vgd')):
+                        files.append(item)
+                elif os.path.isdir(item_path):
+                    subdirs.append(item)
+
+            # Add files first
+            for file_name in files:
+                file_path = os.path.join(directory, file_name)
+                display_name = os.path.splitext(file_name)[0]
+
+                menu_item = menu.Append(wx.NewId(), display_name)
+                window.Bind(wx.EVT_MENU,
+                            lambda event, path=file_path: open_example_file(window, path),
+                            menu_item)
+
+            # Then add subdirectories
+            for subdir_name in subdirs:
+                subdir_path = os.path.join(directory, subdir_name)
+                subdir_menu = wx.Menu()
+
+                add_files_to_menu(subdir_menu, subdir_path)
+
+                # Only add submenu if it has items
+                if subdir_menu.GetMenuItemCount() > 0:
+                    menu.AppendSubMenu(subdir_menu, subdir_name)
+
+        except Exception as e:
+            error_item = menu.Append(wx.NewId(), f"Error: {str(e)}")
+            error_item.Enable(False)
+
+    try:
+        # Get all top-level subdirectories in Data-Examples
+        subdirs = [d for d in os.listdir(examples_path)
+                   if os.path.isdir(os.path.join(examples_path, d))]
+        subdirs.sort()
+
+        if not subdirs:
+            no_examples_item = examples_menu.Append(wx.NewId(), "No Example Categories Found")
+            no_examples_item.Enable(False)
+            return examples_menu
+
+        # Create submenu for each subdirectory
+        for subdir in subdirs:
+            subdir_path = os.path.join(examples_path, subdir)
+            subdir_menu = wx.Menu()
+
+            add_files_to_menu(subdir_menu, subdir_path)
+
+            if subdir_menu.GetMenuItemCount() > 0:
+                examples_menu.AppendSubMenu(subdir_menu, subdir)
+            else:
+                # Add disabled item if no valid files found
+                temp_menu = wx.Menu()
+                no_files_item = temp_menu.Append(wx.NewId(), "No xlsx or VGD files found")
+                no_files_item.Enable(False)
+                examples_menu.AppendSubMenu(temp_menu, subdir)
+
+    except Exception as e:
+        error_item = examples_menu.Append(wx.NewId(), f"Error loading examples: {str(e)}")
+        error_item.Enable(False)
+
+    return examples_menu
+
+
+
+def open_example_file(window, file_path):
+    """Open an example xlsx file"""
+    try:
+        from libraries.FileMenu.Open import open_xlsx_file
+        open_xlsx_file(window, file_path)
+    except Exception as e:
+        window.show_popup_message2("Error", f"Error opening example file: {str(e)}")
+
+
+def create_statusbar(window):
+    """
+    Create or update a status bar for the main window.
+
+    Args:
+    window: The main application window.
+    """
+    # Get existing statusbar or create new one
+    statusbar = window.GetStatusBar()
+
+    if not statusbar:
+        # Create a status bar with two fields
+        window.CreateStatusBar(2)
+        statusbar = window.GetStatusBar()
+
+        # Set the widths of the status bar fields
+        window.SetStatusWidths([-1, 200])
+
+        # Set initial text for the status bar fields
+        window.SetStatusText("Working Directory: " + window.Working_directory, 0)
+        window.SetStatusText("BE: 0 eV, I: 0 CPS", 1)
+
+    # Update statusbar colors for themes
+    if statusbar:
+        if window.panel_theme == 'Simple Dark':
+            statusbar.SetBackgroundColour(wx.Colour(200, 203, 205))
+        elif window.panel_theme == 'Simple Darker':
+            statusbar.SetBackgroundColour(wx.Colour(165, 165, 168))
+        elif window.panel_theme == 'Simple Very Dark':
+            statusbar.SetBackgroundColour(wx.Colour(140, 140, 142))
+        else:
+            # Reset to default colors for other themes
+            statusbar.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+        statusbar.Refresh()
+
+def update_statusbar(window, message):
+    """
+    Update the first field of the status bar with a new message.
+
+    Args:
+    window: The main application window.
+    message: The new message to display in the status bar.
+    """
+    window.SetStatusText("Working Directory: " + message)
+
+
+def open_manual(window):
+    import os
+    import sys
+    import platform
+    import subprocess
+    import datetime
+
+    # Log file setup
+    log_path = os.path.expanduser("~/khervefitting_log.txt")
+    with open(log_path, "a") as log:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log.write(f"\n--- {timestamp} ---\n")
+
+        # Get the correct base path
+        if getattr(sys, 'frozen', False):
+            base_path = os.path.dirname(sys.executable)
+            log.write(f"Running from binary: {base_path}\n")
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            log.write(f"Running from source: {base_path}\n")
+
+        # Check possible manual locations
+        possible_paths = [
+            os.path.join(base_path, "Manual.pdf"),
+            os.path.join(base_path, "resources", "Manual.pdf"),
+            os.path.join(os.path.dirname(base_path), "Manual.pdf"),
+            os.path.join(base_path, "..", "Resources", "Manual.pdf")  # Mac app bundle path
+        ]
+
+        log.write(f"Checking paths: {possible_paths}\n")
+
+        manual_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                manual_path = path
+                log.write(f"Found manual at: {path}\n")
+                break
+
+        if manual_path:
+            try:
+                if platform.system() == 'Darwin':
+                    log.write(f"Attempting to open with 'open' command\n")
+                    result = subprocess.run(['open', manual_path], capture_output=True, text=True)
+                    log.write(f"Result: {result.returncode}, Output: {result.stdout}, Error: {result.stderr}\n")
+                elif platform.system() == 'Windows':
+                    log.write(f"Attempting to open with startfile\n")
+                    os.startfile(manual_path)
+                else:
+                    log.write(f"Attempting to open with xdg-open\n")
+                    result = subprocess.run(['xdg-open', manual_path], capture_output=True, text=True)
+                    log.write(f"Result: {result.returncode}, Output: {result.stdout}, Error: {result.stderr}\n")
+                return True
+            except Exception as e:
+                log.write(f"Error opening manual: {e}\n")
+                return False
+        else:
+            log.write("Manual not found in any expected locations\n")
+            return False
+
+def show_plot_limits_window(window):
+    from libraries.PlotConfig import PlotLimitsWindow
+    if not hasattr(window, 'plot_limits_window') or not window.plot_limits_window:
+        window.plot_limits_window = PlotLimitsWindow(window)
+    window.plot_limits_window.Show()
+    window.plot_limits_window.Raise()
+
+def open_thickogram_window(parent_window):
+    """Open the thickogram calculator window"""
+    # from libraries.ToolsMenu.ThickogramWindow import ThickogramWindow
+    # thickogram_window = ThickogramWindow(parent_window)
+    from libraries.ToolsMenu.ThicknessAnalysisWindow import ThicknessAnalysisWindow
+    thickogram_window = ThicknessAnalysisWindow(parent_window)
+    thickogram_window.Show()
+
+def open_tougaard_analysis_window(parent_window):
+    """Open the Tougaard Quantitative XPS Depth Analysis window"""
+    from libraries.ToolsMenu.TougaardAnalysisWindow import TougaardAnalysisWindow
+    tougaard_window = TougaardAnalysisWindow(parent_window)
+    tougaard_window.Show()
+
+
+def toggle_green_vline(frame):
+    """Toggle the green vertical line on/off"""
+    frame.green_vline_active = not frame.green_vline_active
+
+    if frame.green_vline_active:
+        # Activate green line mode
+        frame.v_toolbar.ToggleTool(frame.green_line_tool.GetId(), True)
+
+        # Always create a fresh green line at center
+        xlim = frame.ax.get_xlim()
+        center_x = (xlim[0] + xlim[1]) / 2
+
+        # Remove old line if it exists
+        if hasattr(frame, 'green_vline') and frame.green_vline is not None:
+            try:
+                frame.green_vline.remove()
+            except:
+                pass
+
+        # Remove old text if it exists
+        if hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None:
+            try:
+                frame.green_vline_text.remove()
+            except:
+                pass
+
+        # Create new green line
+        frame.green_vline = frame.ax.axvline(center_x, color='green', linestyle='-', linewidth=1, alpha=0.7)
+
+        # Add text label
+        add_green_vline_text_label(frame)
+
+        frame.canvas.draw_idle()
+    else:
+        # Deactivate green line mode
+        frame.v_toolbar.ToggleTool(frame.green_line_tool.GetId(), False)
+
+        # Remove green line completely
+        if hasattr(frame, 'green_vline') and frame.green_vline is not None:
+            try:
+                frame.green_vline.remove()
+            except:
+                pass
+            frame.green_vline = None
+
+        # Remove text label
+        if hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None:
+            try:
+                frame.green_vline_text.remove()
+            except:
+                pass
+            frame.green_vline_text = None
+
+        frame.canvas.draw_idle()
+
+
+def add_green_vline_text_label(frame):
+    """Add text label to green vertical line showing its BE value."""
+    if frame.green_vline is not None:
+        # Get vline position and round to 2 digits
+        vline_x = round(frame.green_vline.get_xdata()[0], 2)
+
+        # Remove existing text if any
+        if hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None:
+            try:
+                frame.green_vline_text.remove()
+            except:
+                pass
+
+        # Create text label using mixed transform
+        # x in data coordinates, y in axes coordinates (0-1 range)
+        from matplotlib.transforms import blended_transform_factory
+        trans = blended_transform_factory(frame.ax.transData, frame.ax.transAxes)
+
+        # Position text at 95% of axes height (always visible)
+        frame.green_vline_text = frame.ax.text(vline_x, 0.95, f'{vline_x:.2f}',
+                                               transform=trans,
+                                               ha='center', va='top',
+                                               color='darkgreen', fontsize=10,
+                                               bbox=dict(boxstyle='round,pad=0.2', facecolor='lightgreen',
+                                                         alpha=0.8))
+
+def update_green_vline_text_label(frame):
+    """Update the text label when green vline is moved."""
+    if (frame.green_vline is not None and frame.green_vline.get_visible() and
+            hasattr(frame, 'green_vline_text') and frame.green_vline_text is not None):
+        # Get current vline position and round to 2 digits
+        vline_x = round(frame.green_vline.get_xdata()[0], 2)
+
+        # Update position (x in data coords, y stays at 0.95 in axes coords)
+        frame.green_vline_text.set_position((vline_x, 0.95))
+        frame.green_vline_text.set_text(f'{vline_x:.2f}')
+
+def open_pca_window(window):
+    """Open PCA Analysis window"""
+    from libraries.ToolsMenu.PCA_Analysis import PCAnalysisWindow
+    pca_window = PCAnalysisWindow(window)
+    pca_window.Show()
+
+def import_edx_map_file(window):
+    """Import EDX map file and open EDX/SEM analysis window"""
+    import numpy as np
+    import openpyxl
+    from openpyxl.drawing.image import Image as OpenpyxlImage
+    from io import BytesIO
+    import matplotlib.pyplot as plt
+    from libraries.ToolsMenu.EDX_SEM_Analysis import open_edx_sem_window
+    import shutil
+    import json
+
+    # Import standalone EDX utilities instead of HyperSpy
+    from libraries.EDX_Utilities import Signal1D
+    from libraries.BCF_Reader import load_bcf
+
+    wildcard = "HDF5 files (*.hdf5;*.h5)|*.hdf5;*.h5|BCF files (*.bcf)|*.bcf|All files (*.*)|*.*"
+
+    with wx.FileDialog(window, "Open EDX Map file",
+                       wildcard=wildcard,
+                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+        if dlg.ShowModal() != wx.ID_OK:
+            return
+
+        file_path = dlg.GetPath()
+
+    try:
+        # Initialize window.Data if needed
+        if not hasattr(window, 'Data'):
+            from libraries.ConfigFile import Init_Measurement_Data
+            window.Data = Init_Measurement_Data(window)
+
+        if 'Core levels' not in window.Data:
+            window.Data['Core levels'] = {}
+
+        # Load data based on file type
+        loaded_data = None
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext == '.bcf':
+            # Use BCF Reader
+            try:
+                bcf_data = load_bcf(file_path)
+                if bcf_data.maps:
+                    # Convert BCF map to compatible format
+                    bcf_map = bcf_data.maps[0]
+                    loaded_data = _create_edx_signal_from_bcf(bcf_map)
+                    print("Successfully loaded BCF file with BCF_Reader")
+                elif bcf_data.spectra:
+                    bcf_spec = bcf_data.spectra[0]
+                    loaded_data = _create_edx_signal_from_bcf_spectrum(bcf_spec)
+                    print("Successfully loaded BCF spectrum with BCF_Reader")
+            except Exception as e:
+                print(f"BCF_Reader failed: {e}")
+
+        elif ext in ['.hdf5', '.h5']:
+            # Try to load HDF5 directly
+            try:
+                import h5py
+                loaded_data = _load_hdf5_edx(file_path)
+                print("Successfully loaded HDF5 file")
+            except Exception as e:
+                print(f"HDF5 load failed: {e}")
+
+        if loaded_data is None:
+            wx.MessageBox("Could not load file. Supported formats: BCF, HDF5",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Create file paths
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        excel_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.xlsx")
+        json_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.json")
+        hdf5_copy_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EDX.hdf5")
+
+        # SET FILEPATH EARLY
+        window.Data['FilePath'] = excel_path
+        window.current_file_path = excel_path
+
+        # Update Working_directory
+        if hasattr(window, 'Working_directory'):
+            window.Working_directory = os.path.dirname(excel_path)
+
+        # Copy HDF5 file
+        if file_path.lower().endswith(('.hdf5', '.h5')):
+            shutil.copy2(file_path, hdf5_copy_path)
+            print(f"HDF5 copy saved to: {hdf5_copy_path}")
+
+        # Create workbook
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        # Get energy axis from loaded data
+        energy_axis = loaded_data.get('energy_axis', None)
+        data_cube = loaded_data.get('data', None)
+
+        if data_cube is None:
+            wx.MessageBox("No data found in file.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        if energy_axis is not None:
+            energy_min = f"{np.min(energy_axis):.2f}"
+            energy_max = f"{np.max(energy_axis):.2f}"
+            energy_range = f"{energy_min} - {energy_max} keV"
+        else:
+            energy_range = "N/A"
+
+        # EDX~Plot sheet - sum spectrum
+        if data_cube.ndim == 3:
+            # Hyperspectral data cube (y, x, energy)
+            spectrum_data = np.sum(data_cube, axis=(0, 1))
+            map_data = np.sum(data_cube, axis=2)
+        elif data_cube.ndim == 2:
+            # Either a map or a spectrum
+            if data_cube.shape[0] > 100 and data_cube.shape[1] > 100:
+                # Likely a map
+                spectrum_data = np.sum(data_cube, axis=(0, 1)) if data_cube.ndim > 1 else data_cube
+                map_data = data_cube
+            else:
+                # Likely a spectrum
+                spectrum_data = data_cube.flatten()
+                map_data = None
+        else:
+            spectrum_data = data_cube.flatten()
+            map_data = None
+
+        if energy_axis is None:
+            energy_axis = np.arange(len(spectrum_data))
+
+        ws_plot = wb.create_sheet("EDX~Plot")
+        ws_plot.append(['Energy (keV)', 'Intensity', f'Range: {energy_range}'])
+
+        for i, intensity in enumerate(spectrum_data):
+            if i < len(energy_axis):
+                ws_plot.append([f"{energy_axis[i]:.2f}", f"{intensity:.2f}"])
+            else:
+                ws_plot.append([f"{i:.2f}", f"{intensity:.2f}"])
+
+        # EDX~Map sheet (if map data exists)
+        if map_data is not None:
+            ws_map = wb.create_sheet("EDX~Map")
+
+            ws_map.append([f'EDX Intensity Map - Range: {energy_range}'])
+            ws_map.append([''] * (map_data.shape[1] + 1))
+
+            for row in map_data:
+                ws_map.append([f"{val:.2f}" for val in row])
+
+            # Create map image
+            fig, ax = plt.subplots(figsize=(map_data.shape[1] / 100, map_data.shape[0] / 100), dpi=100)
+            im = ax.imshow(map_data, cmap='plasma')
+            ax.set_title(f'EDX Map - {energy_range}')
+            plt.colorbar(im, ax=ax)
+            ax.axis('off')
+
+            img_buffer = BytesIO()
+            fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+
+            img = OpenpyxlImage(img_buffer)
+            ws_map.add_image(img, f'A{map_data.shape[0] + 5}')
+
+        # Save Excel
+        wb.save(excel_path)
+        print(f"EDX data exported to: {excel_path}")
+
+        # ========== Add to window.Data - USE SAME STRUCTURE AS XPS ==========
+        energy_values = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
+
+        # Convert eV to keV if needed (EDX should be in keV, typically 0-20 range)
+        if np.max(energy_values) > 100:
+            energy_values = energy_values / 100.0
+            print(f"Converted energy axis from eV to keV: {np.min(energy_values):.2f} - {np.max(energy_values):.2f} keV")
+
+        # Add EDX~Plot sheet - SAME STRUCTURE AS XPS
+        window.Data['Core levels']['EDX~Plot'] = {
+            'Name': 'EDX~Plot',
+            'B.E.': list(energy_values),
+            'Raw Data': list(spectrum_data),
+            '_EDX_display_max': 20,
+            '_EDX_type': 'plot',
+            'Background': {}
+        }
+
+        # Add EDX~Map sheet
+        if map_data is not None:
+            window.Data['Core levels']['EDX~Map'] = {
+                'Name': 'EDX~Map',
+                'Map_Intensity': map_data.tolist(),
+                'Map_Shape': list(map_data.shape),
+                'Energy_Range': energy_range,
+                '_EDX_type': 'map'
+            }
+
+        # ========== Create JSON file ==========
+        json_data = {
+            'FilePath': excel_path,
+            'Core levels': {}
+        }
+
+        json_data['Core levels']['EDX~Plot'] = {
+            'Name': 'EDX~Plot',
+            'B.E.': [float(f"{v:.2f}") for v in energy_values],
+            'Raw Data': [float(f"{v:.2f}") for v in spectrum_data],
+            '_EDX_display_max': 20,
+            '_EDX_type': 'plot'
+        }
+
+        if map_data is not None:
+            json_data['Core levels']['EDX~Map'] = {
+                'Name': 'EDX~Map',
+                'Map_Intensity': [[float(f"{val:.2f}") for val in row] for row in map_data],
+                'Map_Shape': list(map_data.shape),
+                'Energy_Range': energy_range,
+                '_EDX_type': 'map'
+            }
+
+        with open(json_path, 'w') as jf:
+            json.dump(json_data, jf, indent=2)
+        print(f"JSON data saved to: {json_path}")
+
+        # Update status bar
+        if hasattr(window, 'SetStatusText'):
+            window.SetStatusText(f"Working Directory: {os.path.dirname(excel_path)}", 0)
+
+        # Update window title
+        if hasattr(window, 'SetTitle'):
+            window.SetTitle(f"KherveFitting - {os.path.basename(excel_path)}")
+
+        # Update sheet selector
+        window.sheet_combobox.Append('EDX~Plot')
+        if map_data is not None:
+            window.sheet_combobox.Append('EDX~Map')
+        window.sheet_combobox.SetValue('EDX~Plot')
+
+        # Update file location at bottom
+        if hasattr(window, 'file_path_text'):
+            window.file_path_text.SetLabel(f"File: {excel_path}")
+
+        # Open EDX/SEM analysis window
+        edx_window = open_edx_sem_window(window)
+        if edx_window:
+            window.edx_window = edx_window
+            edx_window.load_file(file_path, 'EDX Map')
+
+    except Exception as e:
+        wx.MessageBox(f"Error importing EDX map:\n{str(e)}",
+                      "Error", wx.OK | wx.ICON_ERROR)
+        import traceback
+        traceback.print_exc()
+
+
+def _create_edx_signal_from_bcf(bcf_map):
+    """Convert BCF map data to dictionary format"""
+    result = {
+        'data': bcf_map.data,
+        'energy_axis': bcf_map.energy if hasattr(bcf_map, 'energy') else None,
+        'metadata': bcf_map.metadata if hasattr(bcf_map, 'metadata') else {}
+    }
+    return result
+
+
+def _create_edx_signal_from_bcf_spectrum(bcf_spec):
+    """Convert BCF spectrum data to dictionary format"""
+    result = {
+        'data': bcf_spec.data,
+        'energy_axis': bcf_spec.energy if hasattr(bcf_spec, 'energy') else None,
+        'metadata': bcf_spec.metadata if hasattr(bcf_spec, 'metadata') else {}
+    }
+    return result
+
+
+def _load_hdf5_edx(file_path):
+    """Load EDX data from HDF5 file directly"""
+    import h5py
+    import numpy as np
+
+    result = {
+        'data': None,
+        'energy_axis': None,
+        'metadata': {}
+    }
+
+    with h5py.File(file_path, 'r') as f:
+        # Common HDF5 structures for EDX data
+        data_paths = [
+            'EDX/data', 'edx/data', 'Data/data',
+            'Experiments/EDX/data', 'entry/data/data',
+            'spectrum', 'data', 'counts'
+        ]
+
+        energy_paths = [
+            'EDX/energy', 'edx/energy', 'Data/energy',
+            'Experiments/EDX/energy', 'entry/data/energy',
+            'energy', 'axis', 'x'
+        ]
+
+        # Find data
+        for path in data_paths:
+            if path in f:
+                result['data'] = np.array(f[path])
+                print(f"Found data at: {path}")
+                break
+
+        # If not found, search recursively
+        if result['data'] is None:
+            def find_largest_dataset(group, path=''):
+                largest = None
+                largest_size = 0
+                for key in group.keys():
+                    item = group[key]
+                    if isinstance(item, h5py.Dataset):
+                        if item.size > largest_size and item.ndim >= 1:
+                            largest = np.array(item)
+                            largest_size = item.size
+                    elif isinstance(item, h5py.Group):
+                        sub_largest = find_largest_dataset(item, f"{path}/{key}")
+                        if sub_largest is not None and sub_largest.size > largest_size:
+                            largest = sub_largest
+                            largest_size = sub_largest.size
+                return largest
+
+            result['data'] = find_largest_dataset(f)
+
+        # Find energy axis
+        for path in energy_paths:
+            if path in f:
+                result['energy_axis'] = np.array(f[path])
+                print(f"Found energy at: {path}, range: {result['energy_axis'].min():.4f} - {result['energy_axis'].max():.4f}")
+                break
+
+        # Generate energy axis if not found
+        if result['energy_axis'] is None and result['data'] is not None:
+            if result['data'].ndim == 3:
+                n_channels = result['data'].shape[2]
+            else:
+                n_channels = result['data'].shape[-1]
+            # Default 10 eV per channel, starting at 0 (in keV)
+            result['energy_axis'] = np.arange(n_channels) * 0.01
+            print(f"Generated default energy axis: 0 - {(n_channels - 1) * 0.01:.2f} keV")
+
+        # Check if energy axis needs scaling to keV
+        # Typical EDX range is 0-20 keV
+        if result['energy_axis'] is not None:
+            max_energy = np.max(result['energy_axis'])
+            print(f"Energy axis max before conversion: {max_energy:.4f}")
+
+            if max_energy > 1000:  # Likely in eV (values like 20000)
+                result['energy_axis'] = result['energy_axis'] / 1000.0
+                print(f"Divided by 1000 (eV to keV)")
+            elif max_energy > 100:  # Likely in units of 100 eV or similar
+                result['energy_axis'] = result['energy_axis'] / 100.0
+                print(f"Divided by 100")
+            elif max_energy > 40:  # Likely in units of 10 eV
+                result['energy_axis'] = result['energy_axis'] / 10.0
+                print(f"Divided by 10")
+
+            print(f"Final energy range: {result['energy_axis'].min():.2f} - {result['energy_axis'].max():.2f} keV")
+
+    return result
+
+def import_eels_map_file(window):
+    """Import EELS map file and open EELS analysis window"""
+    import numpy as np
+    import openpyxl
+    from openpyxl.drawing.image import Image as OpenpyxlImage
+    from io import BytesIO
+    import matplotlib.pyplot as plt
+    from libraries.ToolsMenu.EELS_Analysis import open_eels_window
+    import shutil
+    import json
+
+    # Import standalone EELS utilities instead of HyperSpy
+    try:
+        from libraries.EELS_Utilities import load_eels
+        EELS_UTILITIES_AVAILABLE = True
+    except ImportError:
+        EELS_UTILITIES_AVAILABLE = False
+
+    if not EELS_UTILITIES_AVAILABLE:
+        wx.MessageBox("EELS_Utilities library not available. Please ensure it is installed.",
+                      "Error", wx.OK | wx.ICON_ERROR)
+        return
+
+    wildcard = "DM3 files (*.dm3)|*.dm3|DM4 files (*.dm4)|*.dm4|HDF5 files (*.hdf5;*.h5)|*.hdf5;*.h5|All files (*.*)|*.*"
+
+    with wx.FileDialog(window, "Open EELS Map file",
+                       wildcard=wildcard,
+                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+        if dlg.ShowModal() != wx.ID_OK:
+            return
+
+        file_path = dlg.GetPath()
+
+    try:
+        # RESET window.Data completely for new import
+        from libraries.ConfigFile import Init_Measurement_Data
+        window.Data = Init_Measurement_Data(window)
+
+        if 'Core levels' not in window.Data:
+            window.Data['Core levels'] = {}
+
+        # Clear sheet combobox
+        window.sheet_combobox.Clear()
+
+        # Load data with EELS_Utilities
+        loaded_data = load_eels(file_path)
+
+        if loaded_data is None:
+            wx.MessageBox("Could not load file.",
+                          "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Create file paths - DM3 file stays in same location with same name
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        excel_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EELS.xlsx")
+        json_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EELS.json")
+
+        # SET FILEPATH EARLY
+        window.Data['FilePath'] = excel_path
+        window.current_file_path = excel_path
+
+        # Update Working_directory
+        if hasattr(window, 'Working_directory'):
+            window.Working_directory = os.path.dirname(excel_path)
+
+        # Copy DM3/DM4 file with _EELS suffix (like EDX does with HDF5)
+        dm3_copy_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EELS.dm3")
+        if file_path.lower().endswith('.dm3'):
+            shutil.copy2(file_path, dm3_copy_path)
+            print(f"DM3 copy saved to: {dm3_copy_path}")
+        elif file_path.lower().endswith('.dm4'):
+            dm3_copy_path = os.path.join(os.path.dirname(file_path), f"{base_name}_EELS.dm4")
+            shutil.copy2(file_path, dm3_copy_path)
+            print(f"DM4 copy saved to: {dm3_copy_path}")
+
+        # Create workbook
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        # Get energy axis from signal
+        energy_axis = None
+        if hasattr(loaded_data, 'axes_manager') and len(loaded_data.axes_manager.signal_axes) > 0:
+            signal_axis = loaded_data.axes_manager.signal_axes[0]
+            # Create energy axis: offset + index * scale
+            energy_axis = signal_axis.offset + np.arange(signal_axis.size) * signal_axis.scale
+            print(f"Energy axis: offset={signal_axis.offset:.2f}, scale={signal_axis.scale:.4f}, size={signal_axis.size}")
+
+        if energy_axis is not None:
+            energy_min = f"{np.min(energy_axis):.2f}"
+            energy_max = f"{np.max(energy_axis):.2f}"
+            energy_range = f"{energy_min} - {energy_max} eV"
+        else:
+            energy_range = "N/A"
+
+        # Get data
+        data = loaded_data.data
+
+        # EELS~Plot sheet - sum spectrum
+        if len(data.shape) == 3:
+            # Sum over spatial dimensions (Y, X)
+            spectrum_data = np.sum(data, axis=(0, 1))
+            map_data = np.sum(data, axis=2)
+        elif len(data.shape) == 1:
+            spectrum_data = data
+            map_data = None
+        else:
+            spectrum_data = data.flatten()
+            map_data = None
+
+        if energy_axis is None:
+            energy_axis = np.arange(len(spectrum_data))
+
+        ws_plot = wb.create_sheet("EELS~Plot")
+        ws_plot.append(['Energy Loss (eV)', 'Intensity', f'Range: {energy_range}'])
+
+        for i, intensity in enumerate(spectrum_data):
+            if i < len(energy_axis):
+                ws_plot.append([f"{energy_axis[i]:.2f}", f"{intensity:.2f}"])
+            else:
+                ws_plot.append([f"{i:.2f}", f"{intensity:.2f}"])
+
+        # EELS~Map sheet (if map data exists)
+        if map_data is not None:
+            ws_map = wb.create_sheet("EELS~Map")
+
+            ws_map.append([f'EELS Intensity Map - Range: {energy_range}'])
+            ws_map.append([''] * (map_data.shape[1] + 1))
+
+            for row in map_data:
+                ws_map.append([f"{val:.2f}" for val in row])
+
+            # Create map image
+            fig, ax = plt.subplots(figsize=(map_data.shape[1] / 100, map_data.shape[0] / 100), dpi=100)
+            im = ax.imshow(map_data, cmap='plasma')
+            ax.set_title(f'EELS Map - {energy_range}')
+            plt.colorbar(im, ax=ax)
+            ax.axis('off')
+
+            img_buffer = BytesIO()
+            fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+
+            img = OpenpyxlImage(img_buffer)
+            ws_map.add_image(img, f'A{map_data.shape[0] + 5}')
+
+        # Save Excel
+        wb.save(excel_path)
+        print(f"EELS data exported to: {excel_path}")
+
+        # ========== Add to window.Data - USE SAME STRUCTURE AS XPS/EDX ==========
+        energy_values = energy_axis if energy_axis is not None else np.arange(len(spectrum_data))
+
+        # Add EELS~Plot sheet - SAME STRUCTURE AS XPS
+        window.Data['Core levels']['EELS~Plot'] = {
+            'Name': 'EELS~Plot',
+            'B.E.': [float(f"{v:.2f}") for v in energy_values],
+            'Raw Data': [float(f"{v:.2f}") for v in spectrum_data],
+            '_EELS_type': 'plot',
+            'Background': {}
+        }
+
+        # Add EELS~Map sheet (NO _DM3_Path - file is same name in same directory)
+        if map_data is not None:
+            window.Data['Core levels']['EELS~Map'] = {
+                'Name': 'EELS~Map',
+                'Map_Intensity': [[float(f"{val:.2f}") for val in row] for row in map_data],
+                'Map_Shape': list(map_data.shape),
+                'Energy_Range': energy_range,
+                '_EELS_type': 'map'
+            }
+
+        # ========== Create FRESH JSON file (no old data) ==========
+        json_data = {
+            'FilePath': excel_path,
+            'Core levels': {}
+        }
+
+        json_data['Core levels']['EELS~Plot'] = {
+            'Name': 'EELS~Plot',
+            'B.E.': [float(f"{v:.2f}") for v in energy_values],
+            'Raw Data': [float(f"{v:.2f}") for v in spectrum_data],
+            '_EELS_type': 'plot'
+        }
+
+        if map_data is not None:
+            json_data['Core levels']['EELS~Map'] = {
+                'Name': 'EELS~Map',
+                'Map_Intensity': [[float(f"{val:.2f}") for val in row] for row in map_data],
+                'Map_Shape': list(map_data.shape),
+                'Energy_Range': energy_range,
+                '_EELS_type': 'map'
+            }
+
+        with open(json_path, 'w') as jf:
+            json.dump(json_data, jf, indent=2)
+        print(f"JSON data saved to: {json_path}")
+
+        # Update status bar
+        if hasattr(window, 'SetStatusText'):
+            window.SetStatusText(f"Working Directory: {os.path.dirname(excel_path)}", 0)
+
+        # Update window title
+        if hasattr(window, 'SetTitle'):
+            window.SetTitle(f"KherveFitting - {os.path.basename(excel_path)}")
+
+        # Update sheet selector
+        window.sheet_combobox.Append('EELS~Plot')
+        if map_data is not None:
+            window.sheet_combobox.Append('EELS~Map')
+        window.sheet_combobox.SetValue('EELS~Plot')
+
+        # Update file location at bottom
+        if hasattr(window, 'file_path_text'):
+            window.file_path_text.SetLabel(f"File: {excel_path}")
+
+        # Open EELS analysis window
+        eels_window = open_eels_window(window)
+        if eels_window:
+            window.eels_window = eels_window
+            eels_window.load_file(file_path)
+
+    except Exception as e:
+        wx.MessageBox(f"Error importing EELS map:\n{str(e)}",
+                      "Error", wx.OK | wx.ICON_ERROR)
+        import traceback
+        traceback.print_exc()
+
+
+class ToggleToolbar(wx.Frame):
+    def __init__(self, parent):
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Icons")
+        super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
+        if 'wxGTK' in wx.PlatformInfo:  # adapted for Linux
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.SetToolBar(self.toolbar)  # Required for GTK to behave nicely
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+            def safe_bitmap(filename):  # Load bitmaps safely
+                filepath = os.path.join(icon_path, filename)
+                if os.path.exists(filepath):
+                    bmp = wx.Bitmap(filepath, wx.BITMAP_TYPE_PNG)
+                    if bmp.IsOk():  # check that bmp loading worked, bmp loading might silently fail on GTK/Linux and Mac
+                        return bmp
+
+            # Add tools
+            self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot', safe_bitmap(os.path.join(icon_path, "scatter-plot-25.png")))
+            self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill', safe_bitmap(os.path.join(icon_path, "STO-25-2.png")))
+            self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis', safe_bitmap(os.path.join(icon_path, "Y-25.png")))
+            self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',safe_bitmap(os.path.join(icon_path, "Legend-25.png")))
+            self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',safe_bitmap(os.path.join(icon_path, "ToggleFit-25.png")))
+            self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',safe_bitmap(os.path.join(icon_path, "Res-25.png")))
+        else:
+
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+
+
+            # Add tools
+            self.plot_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Plot',
+                                              wx.Bitmap(os.path.join(icon_path, "scatter-plot-25.png"),
+                                                        wx.BITMAP_TYPE_PNG))
+            self.peak_fill_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Peak Fill',
+                                                   wx.Bitmap(os.path.join(icon_path, "STO-25-2.png"),
+                                                             wx.BITMAP_TYPE_PNG))
+            self.y_axis_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Y Axis',
+                                                wx.Bitmap(os.path.join(icon_path, "Y-25.png"), wx.BITMAP_TYPE_PNG))
+            self.legend_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Legend',
+                                                wx.Bitmap(os.path.join(icon_path, "Legend-25.png"), wx.BITMAP_TYPE_PNG))
+            self.fit_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Fit Results',
+                                             wx.Bitmap(os.path.join(icon_path, "ToggleFit-25.png"), wx.BITMAP_TYPE_PNG))
+            self.residuals_tool = self.toolbar.AddTool(wx.ID_ANY, 'Toggle Residuals',
+                                                   wx.Bitmap(os.path.join(icon_path, "Res-25.png"), wx.BITMAP_TYPE_PNG))
+
+        self.toolbar.Realize()
+        if 'wxGTK' in wx.PlatformInfo:  # adapted for Linux
+            x, y = self.toolbar.GetBestSize()
+            self.SetSize(x, y)
+        else:
+            self.SetSize(self.toolbar.GetBestSize())
+
+        # Bind close event
+        self.Bind(wx.EVT_KILL_FOCUS, self.on_lose_focus)
+
+
+
+    def on_lose_focus(self, event):
+        self.Hide()
+        event.Skip()
+
+
+class DeleteToolbar(wx.Frame):
+    def __init__(self, parent):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(current_dir, "Icons")
+        super().__init__(parent, style=wx.FRAME_NO_TASKBAR | wx.FRAME_FLOAT_ON_PARENT)
+
+        if 'wxGTK' in wx.PlatformInfo: #adapt for Linux
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.SetToolBar(self.toolbar)  # Required for GTK to behave nicely
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+
+            def safe_bitmap(filename): # Load bitmaps safely
+                filepath = os.path.join(icon_path, filename)
+                if os.path.exists(filepath):
+                    bmp = wx.Bitmap(filepath, wx.BITMAP_TYPE_PNG)
+                    if bmp.IsOk(): # check that bmp loading worked, bmp loading might silently fail on GTK/Linux and Mac
+                        return bmp
+
+            self.delete_all_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete All Results',
+                safe_bitmap(os.path.join(icon_path, "AllRow-25.png")),
+                shortHelp="Delete All Rows of the Results Grid")
+
+            self.delete_last_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete Last Row',
+                safe_bitmap(os.path.join(icon_path, "LastRow-25.png")),
+                shortHelp="Delete Last Row of the Results Grid")
+
+            self.delete_first_tool = self.toolbar.AddTool(
+                wx.ID_ANY, 'Delete First Row',
+                safe_bitmap(os.path.join(icon_path, "TopRow-25.png")),
+                shortHelp="Delete First Row of the Results Grid")
+        else:
+            self.toolbar = wx.ToolBar(self, style=wx.TB_HORIZONTAL | wx.TB_FLAT)
+            self.toolbar.SetToolBitmapSize(wx.Size(25, 25))
+            # Add tools
+            self.delete_all_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete All Results',
+                                                    wx.Bitmap(os.path.join(icon_path, "AllRow-25.png"),
+                                                              wx.BITMAP_TYPE_PNG), shortHelp="Delete All Rows of "
+                                                                                             "the Results Grid")
+
+            self.delete_last_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete Last Row',
+                                                     wx.Bitmap(os.path.join(icon_path, "LastRow-25.png"),
+                                                               wx.BITMAP_TYPE_PNG), shortHelp="Delete Last Row of "
+                                                                                              "the Results Grid")
+
+            self.delete_first_tool = self.toolbar.AddTool(wx.ID_ANY, 'Delete First Row',
+                                                      wx.Bitmap(os.path.join(icon_path, "TopRow-25.png"),
+                                                                wx.BITMAP_TYPE_PNG), shortHelp="Delete First Row of "
+                                                                                               "the Results Grid")
+        self.toolbar.Realize()
+        if 'wxGTK' in wx.PlatformInfo:  # adapt for Linux
+            x,y=self.toolbar.GetBestSize()
+            self.SetSize(x,y)
+        else:
+            self.SetSize(self.toolbar.GetBestSize())
+
+        self.Bind(wx.EVT_KILL_FOCUS, self.on_lose_focus)
+
+    def on_lose_focus(self, event):
+        self.Hide()
+        event.Skip()

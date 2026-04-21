@@ -1,0 +1,253 @@
+{
+  "Core levels": {
+    "Ce3d": {
+      "Fitting": {
+        "Peaks": {
+          "Ce3d5/2 (IV) M": {
+            "Position": 882.51,
+            "Height": 62.58,
+            "FWHM": 1.61,
+            "L/G": 25.0,
+            "Area": 120.0,
+            "Sigma": 1.61,
+            "Gamma": 1.61,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "872.07,928.07",
+              "Height": "0",
+              "FWHM": "0.3:3.5",
+              "L/G": "15.0:25.0",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d3/2(IV)M": {
+            "Position": 901.01,
+            "Height": 44.85,
+            "FWHM": 1.61,
+            "L/G": 25.0,
+            "Area": 86.0,
+            "Sigma": 1.61,
+            "Gamma": 1.61,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "A+18.3#0.2",
+              "Height": "0",
+              "FWHM": "A*1",
+              "L/G": "A*1",
+              "Area": "A*0.667#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d5/2 (IV) S1": {
+            "Position": 888.84,
+            "Height": 28.61,
+            "FWHM": 4.37,
+            "L/G": 17.26,
+            "Area": 144.0,
+            "Sigma": 4.37,
+            "Gamma": 4.37,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "872.07,928.07",
+              "Height": "0",
+              "FWHM": "0.3:5.5",
+              "L/G": "15.0:45.0",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d3/2(IV)S1": {
+            "Position": 907.16,
+            "Height": 20.46,
+            "FWHM": 4.37,
+            "L/G": 17.26,
+            "Area": 103.0,
+            "Sigma": 4.37,
+            "Gamma": 4.37,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "C+18.3#0.2",
+              "Height": "0",
+              "FWHM": "C*1",
+              "L/G": "C*1",
+              "Area": "C*0.667#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d5/2 (IV) S2": {
+            "Position": 898.5600000000001,
+            "Height": 79.17,
+            "FWHM": 1.91,
+            "L/G": 74.5,
+            "Area": 218.0,
+            "Sigma": 1.91,
+            "Gamma": 1.91,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "872.07,928.07",
+              "Height": "0",
+              "FWHM": "0.3:3.5",
+              "L/G": "15.0:75.0",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d3/2(IV)S2": {
+            "Position": 916.97,
+            "Height": 54.84,
+            "FWHM": 1.91,
+            "L/G": 74.5,
+            "Area": 151.0,
+            "Sigma": 1.91,
+            "Gamma": 1.91,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "E+18.3#0.2",
+              "Height": "0",
+              "FWHM": "E*1",
+              "L/G": "E*1",
+              "Area": "E*0.667#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d5/2 (III) M": {
+            "Position": 880.64,
+            "Height": 9.39,
+            "FWHM": 1.61,
+            "L/G": 25.0,
+            "Area": 18.0,
+            "Sigma": 1.61,
+            "Gamma": 1.61,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "872.07,928.07",
+              "Height": "0",
+              "FWHM": "A*1",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d3/2(III)M": {
+            "Position": 898.74,
+            "Height": 5.79,
+            "FWHM": 1.61,
+            "L/G": 25.0,
+            "Area": 11.11,
+            "Sigma": 1.61,
+            "Gamma": 1.61,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "G+18.3#0.2",
+              "Height": "0",
+              "FWHM": "G*1",
+              "L/G": "G*1",
+              "Area": "G*0.667#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d5/2 (III) S1": {
+            "Position": 884.42,
+            "Height": 35.62,
+            "FWHM": 3.99,
+            "L/G": 24.59,
+            "Area": 169.0,
+            "Sigma": 3.99,
+            "Gamma": 3.99,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "872.07,928.07",
+              "Height": "0",
+              "FWHM": "0.3:5",
+              "L/G": "-15.0:65.0",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d3/2(III)S1": {
+            "Position": 902.92,
+            "Height": 22.13,
+            "FWHM": 3.99,
+            "L/G": 24.59,
+            "Area": 105.0,
+            "Sigma": 3.99,
+            "Gamma": 3.99,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "I+18.3#0.2",
+              "Height": "0",
+              "FWHM": "I*1",
+              "L/G": "I*1",
+              "Area": "I*0.667#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          },
+          "Ce3d loss?": {
+            "Position": 911.72,
+            "Height": 9.66,
+            "FWHM": 5.0,
+            "L/G": 80.0,
+            "Area": 71.0,
+            "Sigma": 5.0,
+            "Gamma": 5.0,
+            "Skew": 0.0,
+            "Fitting Model": "SGL (Area)",
+            "Constraints": {
+              "Position": "910.72:911.72",
+              "Height": "0",
+              "FWHM": "0.3:5",
+              "L/G": "2:80",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            },
+            "fwhm_g": 0.0
+          }
+        },
+        "Model": "SGL (Area)"
+      }
+    }
+  }
+}

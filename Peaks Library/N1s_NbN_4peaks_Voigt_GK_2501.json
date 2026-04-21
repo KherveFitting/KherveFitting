@@ -1,0 +1,115 @@
+{
+  "Core levels": {
+    "N1s": {
+      "Fitting": {
+        "Peaks": {
+          "N1s NbN or TiN": {
+            "Position": 397.7,
+            "Height": 45417.86,
+            "FWHM": 0.97,
+            "L/G": 23.35,
+            "Area": 51917.42,
+            "Sigma": 0.82,
+            "Gamma": 0.25,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 392.08,
+            "Bkg High": 404.08,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "397.48:397.88",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "Fixed",
+              "Area": "1:1e7",
+              "Sigma": "0.01:3",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.0
+          },
+          "N1s TiN or NbN": {
+            "Position": 396.96,
+            "Height": 11450.95,
+            "FWHM": 0.97,
+            "L/G": 23.01,
+            "Area": 13118.8,
+            "Sigma": 0.83,
+            "Gamma": 0.25,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 392.08,
+            "Bkg High": 404.08,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "396.12:397.12",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "A*1",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.0
+          },
+          "N1s O-Nitride": {
+            "Position": 398.76,
+            "Height": 4004.28,
+            "FWHM": 1.7,
+            "L/G": 23.03,
+            "Area": 8049.65,
+            "Sigma": 1.46,
+            "Gamma": 0.44,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 392.08,
+            "Bkg High": 404.08,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "392.08,404.08",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "0.01:1.8",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.0
+          },
+          "N1s N-C": {
+            "Position": 400.63,
+            "Height": 1227.35,
+            "FWHM": 1.69,
+            "L/G": 23.47,
+            "Area": 2454.93,
+            "Sigma": 1.44,
+            "Gamma": 0.44,
+            "Skew": 0.0,
+            "Fitting Model": "Voigt (Area, L/G, \u03c3)",
+            "Bkg Type": "Multi-Regions Smart",
+            "Bkg Low": 392.08,
+            "Bkg High": 404.08,
+            "Bkg Offset Low": 0,
+            "Bkg Offset High": 0,
+            "Constraints": {
+              "Position": "392.08,404.08",
+              "Height": "1:1e7",
+              "FWHM": "0.3:3.5",
+              "L/G": "A*1",
+              "Area": "1:1e7",
+              "Sigma": "C*1",
+              "Gamma": "0.01:3"
+            },
+            "fwhm_g": 0.0
+          }
+        },
+        "Model": "Voigt (Area, L/G, \u03c3)"
+      }
+    }
+  }
+}

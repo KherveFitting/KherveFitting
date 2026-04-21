@@ -1,0 +1,20 @@
+KherveFitting is DUAL-LICENSED.
+
+See LICENSE.md for a human-readable summary of your options:
+
+  1. GNU General Public Licence v3.0  (see LICENSE-GPL.txt)
+     - for open-source, academic, and non-commercial use.
+
+  2. Commercial Licence                (see LICENSE-COMMERCIAL.txt)
+     - required for use in proprietary or closed-source products.
+     - contact: Gwilherm Kerherve <gwilherm.kerherve@gmail.com>
+
+Copyright (C) 2024-2026 Gwilherm Kerherve <gwilherm.kerherve@gmail.com>.
+
+Note: versions of KherveFitting released before the dual-licence
+transition were distributed under the BSD 3-Clause Licence. Those
+earlier versions remain under BSD-3-Clause. The dual licence above
+applies from the commit following the `last-bsd3-release` git tag
+onwards. See LICENCE-CHANGE-NOTICE.md for details.
+
+SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KherveFitting-Commercial

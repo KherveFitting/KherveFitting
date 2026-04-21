@@ -1,0 +1,200 @@
+{
+  "Core levels": {
+    "Pt4f": {
+      "Fitting": {
+        "Peaks": {
+          "Pt4f7/2 Pt(0)": {
+            "Position": 71.07,
+            "Height": 2429.7,
+            "FWHM": 1.02,
+            "L/G": 30.61,
+            "Area": 3281.27,
+            "Sigma": 1.16,
+            "Gamma": 2.62,
+            "Skew": 0.0,
+            "Fitting Model": "LA (Area, \u03c3/\u03b3, \u03b3)",
+            "Constraints": {
+              "Position": "71.0:71.2",
+              "Height": "0",
+              "FWHM": "0.3:3.5",
+              "L/G": "Fixed",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "2.62:2.82",
+              "Skew": "0"
+            }
+          },
+          "Pt4f5/2_p2": {
+            "Position": 74.37,
+            "Height": 1854.12,
+            "FWHM": 1.02,
+            "L/G": 30.61,
+            "Area": 2460.95,
+            "Sigma": 1.16,
+            "Gamma": 2.62,
+            "Skew": 0.0,
+            "Fitting Model": "LA (Area, \u03c3/\u03b3, \u03b3)",
+            "Constraints": {
+              "Position": "A+3.3#0.2",
+              "Height": "0",
+              "FWHM": "A*1",
+              "L/G": "A*1",
+              "Area": "A*0.75#0.05",
+              "Sigma": "0",
+              "Gamma": "A*1",
+              "Skew": "0"
+            }
+          },
+          "Pt4f7/2 PtO2": {
+            "Position": 74.0,
+            "Height": 16133.52,
+            "FWHM": 1.25,
+            "L/G": 40.0,
+            "Area": 21467.0,
+            "Sigma": 2.73,
+            "Gamma": 5.24,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "A+2.93#0.1",
+              "Height": "0",
+              "FWHM": "0.3:3.5",
+              "L/G": "2:40",
+              "Area": "A*6.54#0.01",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          },
+          "Pt4f5/2_p4": {
+            "Position": 77.3,
+            "Height": 12100.14,
+            "FWHM": 1.25,
+            "L/G": 40.0,
+            "Area": 16100.25,
+            "Sigma": 6.43,
+            "Gamma": 10.48,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "C+3.3#0.2",
+              "Height": "0",
+              "FWHM": "C*1",
+              "L/G": "C*1",
+              "Area": "C*0.75#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          },
+          "Pt4f7/2 PtO": {
+            "Position": 72.54,
+            "Height": 1796.96,
+            "FWHM": 1.25,
+            "L/G": 40.0,
+            "Area": 2391.0,
+            "Sigma": 15.14,
+            "Gamma": 20.96,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "A+1.47#0.1",
+              "Height": "0",
+              "FWHM": "C*1",
+              "L/G": "C*1",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          },
+          "Pt4f5/2_p6": {
+            "Position": 75.84,
+            "Height": 1347.72,
+            "FWHM": 1.25,
+            "L/G": 40.0,
+            "Area": 1793.25,
+            "Sigma": 35.65,
+            "Gamma": 41.92,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "E+3.3#0.2",
+              "Height": "0",
+              "FWHM": "E*1",
+              "L/G": "E*1",
+              "Area": "E*0.75#0.05",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          },
+          "Pt4f7/2 Sat 1": {
+            "Position": 76.26,
+            "Height": 1666.19,
+            "FWHM": 1.25,
+            "L/G": 40.0,
+            "Area": 2217.0,
+            "Sigma": 83.96,
+            "Gamma": 83.84,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "A+5.19#0.1",
+              "Height": "0",
+              "FWHM": "C*1",
+              "L/G": "C*1",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          },
+          "Pt4f5/2_p8": {
+            "Position": 78.87,
+            "Height": 1249.64,
+            "FWHM": 1.25,
+            "L/G": 40.0,
+            "Area": 1662.75,
+            "Sigma": 197.73,
+            "Gamma": 167.68,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "G+2.61#0.1",
+              "Height": "0",
+              "FWHM": "G*1",
+              "L/G": "G*1",
+              "Area": "G*0.75",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          },
+          "Pt4f Sat 2": {
+            "Position": 79.98,
+            "Height": 410.89,
+            "FWHM": 1.07,
+            "L/G": 30.0,
+            "Area": 468.0,
+            "Sigma": 465.65,
+            "Gamma": 335.36,
+            "Skew": 0.0,
+            "Fitting Model": "GL (Area)",
+            "Constraints": {
+              "Position": "A+8.91#0.1",
+              "Height": "0",
+              "FWHM": "0.3:3.5",
+              "L/G": "2:80",
+              "Area": "1:1e7",
+              "Sigma": "0",
+              "Gamma": "0",
+              "Skew": "0"
+            }
+          }
+        },
+        "Model": "GL (Area)"
+      }
+    }
+  }
+}

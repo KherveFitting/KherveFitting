@@ -1,0 +1,3056 @@
+# KherveFitting - XPS Data Analysis Software
+# Copyright (C) 2024-2026 Gwilherm Kerherve <g.kerherve@ic.ac.uk>
+#
+# KherveFitting is dual-licensed:
+#   - GNU GPL v3.0 (see LICENSE-GPL.txt) for open-source use
+#   - Commercial Licence (see LICENSE-COMMERCIAL.txt) for proprietary use
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KherveFitting-Commercial
+
+import wx
+import wx.lib.agw.flatnotebook as fnb
+import numpy as np
+import os
+import sys
+
+# Import the ElementTile class and try to import KherveDB methods
+try:
+    from libraries.HelpMenu.kherveDB_wxpython import ElementTile, PeriodicTableXPS
+    KHERVE_AVAILABLE = True
+except ImportError:
+    KHERVE_AVAILABLE = False
+    print("Warning: Could not import from kherveDB_wxpython")
+
+def get_libraryid_path():
+    """Get the path to the LibraryID.py file"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # Running as script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        base_path = os.path.dirname(current_dir)  # Go up one level to the root
+
+    # Try both locations - root directory and libraries directory
+    possible_paths = [
+        os.path.join(base_path, "LibraryID.py"),
+        os.path.join(base_path, "libraries", "LibraryID.py")
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+
+    return None
+
+
+class PeriodicTableHelper:
+    """Helper class to use KherveDB methods without importing the full class"""
+
+    def __init__(self):
+        pass
+
+    def get_element_positions(self):
+        """Define positions for elements in the periodic table grid"""
+        positions = {}
+        # Period 1
+        positions['H'] = (0, 0)
+        positions['He'] = (0, 17)
+        # Period 2
+        positions['Li'] = (1, 0)
+        positions['Be'] = (1, 1)
+        positions['B'] = (1, 12)
+        positions['C'] = (1, 13)
+        positions['N'] = (1, 14)
+        positions['O'] = (1, 15)
+        positions['F'] = (1, 16)
+        positions['Ne'] = (1, 17)
+        # Period 3
+        positions['Na'] = (2, 0)
+        positions['Mg'] = (2, 1)
+        positions['Al'] = (2, 12)
+        positions['Si'] = (2, 13)
+        positions['P'] = (2, 14)
+        positions['S'] = (2, 15)
+        positions['Cl'] = (2, 16)
+        positions['Ar'] = (2, 17)
+        # Period 4
+        positions['K'] = (3, 0)
+        positions['Ca'] = (3, 1)
+        for i, symbol in enumerate(['Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn']):
+            positions[symbol] = (3, i + 2)
+        positions['Ga'] = (3, 12)
+        positions['Ge'] = (3, 13)
+        positions['As'] = (3, 14)
+        positions['Se'] = (3, 15)
+        positions['Br'] = (3, 16)
+        positions['Kr'] = (3, 17)
+        # Period 5
+        positions['Rb'] = (4, 0)
+        positions['Sr'] = (4, 1)
+        for i, symbol in enumerate(['Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd']):
+            positions[symbol] = (4, i + 2)
+        positions['In'] = (4, 12)
+        positions['Sn'] = (4, 13)
+        positions['Sb'] = (4, 14)
+        positions['Te'] = (4, 15)
+        positions['I'] = (4, 16)
+        positions['Xe'] = (4, 17)
+        # Period 6
+        positions['Cs'] = (5, 0)
+        positions['Ba'] = (5, 1)
+        positions['La'] = (5, 2)
+        for i, symbol in enumerate(['Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg']):
+            positions[symbol] = (5, i + 3)
+        positions['Tl'] = (5, 12)
+        positions['Pb'] = (5, 13)
+        positions['Bi'] = (5, 14)
+        positions['Po'] = (5, 15)
+        positions['At'] = (5, 16)
+        positions['Rn'] = (5, 17)
+        # Period 7
+        positions['Fr'] = (6, 0)
+        positions['Ra'] = (6, 1)
+        positions['Ac'] = (6, 2)
+        for i, symbol in enumerate(['Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn']):
+            positions[symbol] = (6, i + 3)
+        positions['Nh'] = (6, 12)
+        positions['Fl'] = (6, 13)
+        positions['Mc'] = (6, 14)
+        positions['Lv'] = (6, 15)
+        positions['Ts'] = (6, 16)
+        positions['Og'] = (6, 17)
+        # Lanthanides
+        lanthanides = ['La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+        for i, symbol in enumerate(lanthanides):
+            positions[symbol] = (8, i + 2)
+        # Actinides
+        actinides = ['Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr']
+        for i, symbol in enumerate(actinides):
+            positions[symbol] = (9, i + 2)
+        return positions
+
+    def get_element_categories(self):
+        """Return element categories for coloring"""
+        element_categories = {
+            'H': 'nonmetal', 'He': 'noble_gas',
+            'Li': 'alkali_metal', 'Be': 'alkaline_earth',
+            'B': 'metalloid', 'C': 'nonmetal', 'N': 'nonmetal', 'O': 'nonmetal',
+            'F': 'halogen', 'Ne': 'noble_gas',
+            'Na': 'alkali_metal', 'Mg': 'alkaline_earth',
+            'Al': 'post_transition', 'Si': 'metalloid', 'P': 'nonmetal',
+            'S': 'nonmetal', 'Cl': 'halogen', 'Ar': 'noble_gas',
+            'K': 'alkali_metal', 'Ca': 'alkaline_earth',
+            'Sc': 'transition_metal', 'Ti': 'transition_metal', 'V': 'transition_metal',
+            'Cr': 'transition_metal', 'Mn': 'transition_metal', 'Fe': 'transition_metal',
+            'Co': 'transition_metal', 'Ni': 'transition_metal', 'Cu': 'transition_metal',
+            'Zn': 'transition_metal', 'Ga': 'post_transition', 'Ge': 'metalloid',
+            'As': 'metalloid', 'Se': 'nonmetal', 'Br': 'halogen', 'Kr': 'noble_gas',
+            'Rb': 'alkali_metal', 'Sr': 'alkaline_earth',
+            'Y': 'transition_metal', 'Zr': 'transition_metal', 'Nb': 'transition_metal',
+            'Mo': 'transition_metal', 'Tc': 'transition_metal', 'Ru': 'transition_metal',
+            'Rh': 'transition_metal', 'Pd': 'transition_metal', 'Ag': 'transition_metal',
+            'Cd': 'transition_metal', 'In': 'post_transition', 'Sn': 'post_transition',
+            'Sb': 'metalloid', 'Te': 'metalloid', 'I': 'halogen', 'Xe': 'noble_gas',
+            'Cs': 'alkali_metal', 'Ba': 'alkaline_earth',
+            'Hf': 'transition_metal', 'Ta': 'transition_metal', 'W': 'transition_metal',
+            'Re': 'transition_metal', 'Os': 'transition_metal', 'Ir': 'transition_metal',
+            'Pt': 'transition_metal', 'Au': 'transition_metal', 'Hg': 'transition_metal',
+            'Tl': 'post_transition', 'Pb': 'post_transition', 'Bi': 'post_transition',
+            'Po': 'metalloid', 'At': 'halogen', 'Rn': 'noble_gas',
+            'Fr': 'alkali_metal', 'Ra': 'alkaline_earth',
+            'Rf': 'transition_metal', 'Db': 'transition_metal', 'Sg': 'transition_metal',
+            'Bh': 'transition_metal', 'Hs': 'transition_metal', 'Mt': 'transition_metal',
+            'Ds': 'transition_metal', 'Rg': 'transition_metal', 'Cn': 'transition_metal',
+            'Nh': 'post_transition', 'Fl': 'post_transition', 'Mc': 'post_transition',
+            'Lv': 'post_transition', 'Ts': 'halogen', 'Og': 'noble_gas'
+        }
+
+        # Add lanthanides and actinides
+        lanthanides = ['La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+        actinides = ['Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr']
+
+        for element in lanthanides:
+            element_categories[element] = 'lanthanide'
+        for element in actinides:
+            element_categories[element] = 'actinide'
+
+        return element_categories
+
+import platform
+class PeriodicTableWindow(wx.Frame):
+    def __init__(self, parent):
+        # Get OS-dependent window size
+        os_name = platform.system()
+        if os_name == "Windows":
+            # window_size = (940, 420)
+            window_size = (925, 415)
+        elif os_name == "Darwin":  # macOS
+            # window_size = (940, 400)
+            window_size = (925, 395)
+        elif os_name == "Linux":
+            window_size = (980, 445)
+        else:
+            window_size = (960, 425)  # Default fallback
+
+        super().__init__(parent, title="Survey Identification / Labelling",
+                         style=(wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)) | wx.STAY_ON_TOP,
+                         size=window_size)
+
+        # Set window properties with OS-dependent sizing
+        self.SetMinSize(window_size)
+        self.SetMaxSize(window_size)
+        self.Centre()
+
+        self.parent_window = parent
+        self.library_data = self.parent_window.library_data
+        self.button_states = {}
+        self.element_lines = {}
+        self.element_buttons = {}
+        self.original_colors = {}
+        self.element_lines = {}  # For plot lines
+        self.core_level_data = {}  # For list box data
+
+        self.intensity_scale = 0.6
+
+        self.core_level_list_window = None
+
+        # Create a KherveDB instance to access its methods
+        if KHERVE_AVAILABLE:
+            self.kherve_instance = PeriodicTableXPS()
+            # We need to initialize some attributes that KherveDB expects
+            self.kherve_instance.elements = set(self.get_available_elements())
+
+        self.InitUI()
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+        # ADD THESE DRAGGING STATE VARIABLES
+        self.selected_text = None
+        self.selection_box = None
+        self.drag_offset = None
+        self.is_dragging = False
+
+
+    def get_available_elements(self):
+        """Get list of elements available in your library data"""
+        elements = set()
+        for (elem, orbital), data in self.library_data.items():
+            elements.add(elem)
+        return elements
+
+
+    def InitUI(self):
+        panel = wx.Panel(self)
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            panel.SetBackgroundColour(wx.Colour(45, 45, 45))
+        else:
+            panel.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Create notebook with tabs on left
+        notebook = wx.Notebook(panel, style=wx.NB_LEFT | fnb.FNB_VC8)
+
+        # TAB 1: ID by Element (original PeriodicTableWindow layout)
+        tab1 = wx.Panel(notebook)
+        tab1_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Left side: Periodic table
+        if KHERVE_AVAILABLE:
+            self.create_kherve_periodic_table(tab1, tab1_sizer)
+        else:
+            self.create_fallback_periodic_table(tab1, tab1_sizer)
+
+        # Right side: Core Level List and Buttons
+        right_panel = wx.Panel(tab1, style=wx.BORDER_RAISED)
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.core_level_list = wx.ListBox(right_panel, style=wx.LB_MULTIPLE, size=(170, -1))
+        right_sizer.Add(self.core_level_list, 1, wx.EXPAND | wx.ALL, 0)
+
+        # Simplified periodic table checkbox
+        self.simple_pt_check = wx.CheckBox(right_panel, label="Simplified Periodic Table")
+        self.simple_pt_check.SetValue(self._load_simplified_config())
+        self.simple_pt_check.Bind(wx.EVT_CHECKBOX, self.on_toggle_simple_pt_survey)
+        right_sizer.Add(self.simple_pt_check, 0, wx.ALL | wx.EXPAND, 0)
+
+        # Buttons
+        button_sizer = wx.GridBagSizer(1, 1)
+        self.add_labels_btn = wx.Button(right_panel, label="Add Labels")
+        self.remove_selected_btn = wx.Button(right_panel, label="Clear Selected")
+        self.remove_all_btn = wx.Button(right_panel, label="Clear All List")
+        self.auto_id_button = wx.Button(right_panel, label="Auto ID")
+        # self.core_levels_btn = wx.Button(right_panel, label="Core Level List")
+
+        # Bind events
+        self.add_labels_btn.Bind(wx.EVT_BUTTON, self.OnAddLabels)
+        self.remove_selected_btn.Bind(wx.EVT_BUTTON, self.OnRemoveSelected)
+        self.remove_all_btn.Bind(wx.EVT_BUTTON, self.OnRemoveAll)
+        self.auto_id_button.Bind(wx.EVT_BUTTON, self.on_auto_id)
+        # self.core_levels_btn.Bind(wx.EVT_BUTTON, self.on_show_core_levels)
+
+        button_sizer.Add(self.add_labels_btn, pos=(0, 0), flag=wx.EXPAND)
+        button_sizer.Add(self.remove_selected_btn, pos=(0, 1), flag=wx.EXPAND)
+        button_sizer.Add(self.remove_all_btn, pos=(1, 0), flag=wx.EXPAND)
+        button_sizer.Add(self.auto_id_button, pos=(1, 1), flag=wx.EXPAND)
+        # button_sizer.Add(self.core_levels_btn, pos=(2, 0), span=(1, 2), flag=wx.EXPAND)
+
+        right_sizer.Add(button_sizer, 0, wx.ALL | wx.EXPAND, 0)
+
+        # Intensity control
+        intensity_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        intensity_label = wx.StaticText(right_panel, label="Line Intensity:")
+        intensity_sizer.Add(intensity_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+        self.intensity_down_btn = wx.Button(right_panel, label="-", size=(25, 25))
+        self.intensity_down_btn.Bind(wx.EVT_BUTTON, self.OnIntensityDecrease)
+        intensity_sizer.Add(self.intensity_down_btn, 0, wx.ALL, 2)
+
+        self.intensity_display = wx.StaticText(right_panel, label="0.6", size=(30, -1), style=wx.ALIGN_CENTER)
+        self.intensity_display.SetBackgroundColour(wx.WHITE)
+        intensity_sizer.Add(self.intensity_display, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+        self.intensity_up_btn = wx.Button(right_panel, label="+", size=(25, 25))
+        self.intensity_up_btn.Bind(wx.EVT_BUTTON, self.OnIntensityIncrease)
+        intensity_sizer.Add(self.intensity_up_btn, 0, wx.ALL, 2)
+        right_sizer.Add(intensity_sizer, 0, wx.ALL | wx.EXPAND, 0)
+
+        right_panel.SetSizer(right_sizer)
+        tab1_sizer.Add(right_panel, 0, wx.EXPAND, 0)
+
+        tab1.SetSizer(tab1_sizer)
+        notebook.AddPage(tab1, "ID by Element")
+
+        # TAB 2: ID by Range (CoreLevelListWindow layout)
+        tab2 = wx.Panel(notebook)
+        tab2_main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Left panel - Controls (Orbital filters, Usual suspects, Center/Range)
+        left_box = wx.StaticBoxSizer(wx.StaticBox(tab2, label="Controls"), wx.VERTICAL)
+
+        # Instructions
+        instruction_text = wx.StaticText(tab2, label="Drag vLines | Wheel to resize")
+        left_box.Add(instruction_text, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
+
+        # Orbital type filters
+        orbital_label = wx.StaticText(tab2, label="Orbital Types:")
+        orbital_label.SetFont(orbital_label.GetFont().Bold())
+        left_box.Add(orbital_label, 0, wx.ALL, 5)
+
+        self.auger_checkbox = wx.CheckBox(tab2, label="Auger Peaks")
+        self.auger_checkbox.SetValue(False)
+        self.auger_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.doublets_checkbox = wx.CheckBox(tab2, label="Doublets")
+        self.doublets_checkbox.SetValue(False)
+        self.doublets_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.core_levels_checkbox = wx.CheckBox(tab2, label="Core Levels")
+        self.core_levels_checkbox.SetValue(True)
+        self.core_levels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        left_box.Add(self.auger_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.doublets_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.core_levels_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Separator
+        left_box.Add(wx.StaticLine(tab2), 0, wx.EXPAND | wx.ALL, 5)
+
+        # Usual suspects checkbox
+        self.usual_suspects_checkbox = wx.CheckBox(tab2, label="Most common elements Only")
+        self.usual_suspects_checkbox.SetValue(False)
+        self.usual_suspects_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+        left_box.Add(self.usual_suspects_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Separator
+        left_box.Add(wx.StaticLine(tab2), 0, wx.EXPAND | wx.ALL, 5)
+
+        # Center control
+        center_label = wx.StaticText(tab2, label="Center (eV):")
+        self.center_ctrl = wx.SpinCtrlDouble(tab2, min=0, max=7000, initial=500, inc=0.1)
+        self.center_ctrl.SetDigits(2)
+        self.center_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_center_change_tab2)
+        left_box.Add(center_label, 0, wx.ALL, 5)
+        left_box.Add(self.center_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Range control
+        range_label = wx.StaticText(tab2, label="Range (eV):")
+        self.range_ctrl = wx.SpinCtrlDouble(tab2, min=5, max=500, initial=50, inc=1)
+        self.range_ctrl.SetDigits(2)
+        self.range_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change_tab2)
+        left_box.Add(range_label, 0, wx.ALL, 5)
+        left_box.Add(self.range_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Center button
+        self.center_button = wx.Button(tab2, label="Center to Plot")
+        self.center_button.Bind(wx.EVT_BUTTON, self.on_center_to_plot_tab2)
+        left_box.Add(self.center_button, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Middle panel - Element Groups
+        middle_box = wx.StaticBoxSizer(wx.StaticBox(tab2, label="Element Groups"), wx.VERTICAL)
+
+        self.actinides_checkbox = wx.CheckBox(tab2, label="Actinides")
+        self.actinides_checkbox.SetValue(False)
+        self.actinides_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.alkali_metals_checkbox = wx.CheckBox(tab2, label="Alkali Metals")
+        self.alkali_metals_checkbox.SetValue(True)
+        self.alkali_metals_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.alkaline_earth_checkbox = wx.CheckBox(tab2, label="Alkaline Earth Metals")
+        self.alkaline_earth_checkbox.SetValue(True)
+        self.alkaline_earth_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.halogens_checkbox = wx.CheckBox(tab2, label="Halogens")
+        self.halogens_checkbox.SetValue(True)
+        self.halogens_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.lanthanides_checkbox = wx.CheckBox(tab2, label="Lanthanides")
+        self.lanthanides_checkbox.SetValue(False)
+        self.lanthanides_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.metalloids_checkbox = wx.CheckBox(tab2, label="Metalloids")
+        self.metalloids_checkbox.SetValue(True)
+        self.metalloids_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.noble_gases_checkbox = wx.CheckBox(tab2, label="Noble Gases")
+        self.noble_gases_checkbox.SetValue(False)
+        self.noble_gases_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.non_metals_checkbox = wx.CheckBox(tab2, label="Non-Metals")
+        self.non_metals_checkbox.SetValue(True)
+        self.non_metals_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.post_transition_checkbox = wx.CheckBox(tab2, label="Post-Transition Metals")
+        self.post_transition_checkbox.SetValue(True)
+        self.post_transition_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        self.transition_metals_checkbox = wx.CheckBox(tab2, label="Transition Metals")
+        self.transition_metals_checkbox.SetValue(True)
+        self.transition_metals_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change_tab2)
+
+        middle_box.Add(self.actinides_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.alkali_metals_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.alkaline_earth_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.halogens_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.lanthanides_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.metalloids_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.noble_gases_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.non_metals_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.post_transition_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        middle_box.Add(self.transition_metals_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Right panel - List
+        right_box = wx.StaticBoxSizer(wx.StaticBox(tab2, label="Core Levels"), wx.VERTICAL)
+
+        # Create list control
+        self.list_ctrl = wx.ListCtrl(tab2, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.list_ctrl.InsertColumn(0, "Core Level", width=85)
+        self.list_ctrl.InsertColumn(1, "BE Center", width=70)
+        self.list_ctrl.InsertColumn(2, "RSF", width=60)
+        self.list_ctrl.InsertColumn(3, "Distance", width=65)
+
+        right_box.Add(self.list_ctrl, 1, wx.EXPAND)
+
+        # Add all three boxes to tab2 main sizer
+        tab2_main_sizer.Add(left_box, 0, wx.EXPAND)
+        tab2_main_sizer.Add(middle_box, 0, wx.EXPAND)
+        tab2_main_sizer.Add(right_box, 1, wx.EXPAND)
+
+        tab2.SetSizer(tab2_main_sizer)
+        notebook.AddPage(tab2, "ID by Range")
+
+        # Initialize tab2 vlines and filters
+        self.show_auger = False
+        self.show_doublets = False
+        self.show_core_levels = True
+        self.show_usual_suspects_only = False
+        self.show_non_metals = True
+        self.show_halogens = True
+        self.show_noble_gases = False
+        self.show_alkali_metals = True
+        self.show_alkaline_earth = True
+        self.show_transition_metals = True
+        self.show_post_transition = True
+        self.show_metalloids = True
+        self.show_lanthanides = False
+        self.show_actinides = False
+
+        self.vline1 = None
+        self.vline2 = None
+        self.vline_center = None
+        self.vline_center_text = None
+        self.core_level_lines = []
+        self.core_level_texts = []
+        self.dragging_vline = None
+        self.drag_offset = 0
+        self.max_line_intensity = 0.6
+
+        # Element category lists for tab2 filtering
+        self.non_metals = ['H', 'C', 'N', 'O', 'P', 'S', 'Se']
+        self.halogens = ['F', 'Cl', 'Br', 'I', 'At']
+        self.noble_gases = ['He', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn']
+        self.alkali_metals = ['Li', 'Na', 'K', 'Rb', 'Cs', 'Fr']
+        self.alkaline_earth = ['Be', 'Mg', 'Ca', 'Sr', 'Ba', 'Ra']
+        self.transition_metals = ['Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+                                  'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+                                  'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg',
+                                  'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn']
+        self.post_transition = ['Al', 'Ga', 'In', 'Sn', 'Tl', 'Pb', 'Bi', 'Nh', 'Fl', 'Mc', 'Lv']
+        self.metalloids = ['B', 'Si', 'Ge', 'As', 'Sb', 'Te', 'Po']
+        self.lanthanides = ['La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+        self.actinides = ['Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr']
+
+        # Usual suspects list
+        self.usual_suspects = ['C', 'O', 'N', 'Si', 'F', 'S', 'Cl', 'Na', 'Ca', 'Al', 'Fe', 'Cu', 'Zn', 'Ni', 'Cr', 'Ti']
+
+        main_sizer.Add(notebook, 1, wx.EXPAND, 0)
+        panel.SetSizer(main_sizer)
+
+        # Bind notebook tab change to initialize vlines when switching to tab2
+        notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_changed)
+
+    def on_tab_changed(self, event):
+        """Handle notebook tab change."""
+        if event.GetSelection() == 1:  # Tab 2 (ID by Range)
+            # Initialize vlines and update list when switching TO tab2
+            wx.CallAfter(self.initialize_vlines_tab2)
+            wx.CallAfter(self.update_list_and_lines_tab2)
+
+            # Connect mouse events for tab2 if not already connected
+            if not hasattr(self, 'canvas_press_id_tab2'):
+                self.canvas_press_id_tab2 = self.parent_window.canvas.mpl_connect('button_press_event', self.on_canvas_press_tab2)
+                self.canvas_release_id_tab2 = self.parent_window.canvas.mpl_connect('button_release_event', self.on_canvas_release_tab2)
+                self.canvas_motion_id_tab2 = self.parent_window.canvas.mpl_connect('motion_notify_event', self.on_canvas_motion_tab2)
+                self.canvas_scroll_id_tab2 = self.parent_window.canvas.mpl_connect('scroll_event', self.on_scroll_tab2)
+        else:  # Tab 1 (ID by Element)
+            # Remove vlines and core level lines when switching TO tab1
+            self.remove_vlines_tab2()
+            self.remove_core_level_lines_tab2()
+            if hasattr(self.parent_window, 'canvas'):
+                self.parent_window.canvas.draw_idle()
+
+        event.Skip()
+
+    def _load_simplified_config(self):
+        """Read simplified_periodic_table from the main config.json"""
+        try:
+            import json, os
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            config_path = os.path.join(base_path, 'config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    return json.load(f).get('simplified_periodic_table', False)
+        except Exception:
+            pass
+        return False
+
+    def on_toggle_simple_pt_survey(self, event):
+        """Toggle simplified mode and save to config"""
+        import json, os
+        simplified = self.simple_pt_check.IsChecked()
+        try:
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            config_path = os.path.join(base_path, 'config.json')
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            config['simplified_periodic_table'] = simplified
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+        except Exception as e:
+            print(f"Could not save config: {e}")
+        for btn in self.element_buttons.values():
+            btn.simplified = simplified
+            btn.Refresh()
+
+    def initialize_vlines_tab2(self):
+        """Initialize the three vertical lines for tab2."""
+        if not hasattr(self.parent_window, 'ax'):
+            return
+
+        ax = self.parent_window.ax
+        xlim = ax.get_xlim()
+
+        center_pos = (xlim[0] + xlim[1]) / 2
+        plot_range = abs(xlim[1] - xlim[0])
+        range_width = plot_range * 0.05
+
+        vline1_x = center_pos - range_width
+        vline2_x = center_pos + range_width
+
+        ylim = ax.get_ylim()
+        text_y = ylim[1] - (ylim[1] - ylim[0]) * 0.05
+
+        # Create vLines (green dashed for limits, NO TEXT)
+        self.vline1 = ax.axvline(vline1_x, color='g', linestyle='--', alpha=0.6, linewidth=0.9)
+        self.vline2 = ax.axvline(vline2_x, color='g', linestyle='--', alpha=0.6, linewidth=0.9)
+
+        # Create center vLine (blue dotted, WITH TEXT)
+        self.vline_center = ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.5, linewidth=1.5)
+
+        # Create text label ONLY for center
+        self.vline_center_text = ax.text(center_pos, text_y, f'{center_pos:.2f}',
+                                         ha='center', va='top', fontsize=9, color='blue',
+                                         bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+
+        self.parent_window.canvas.draw_idle()
+
+    def on_filter_change_tab2(self, event):
+        """Handle checkbox changes for tab2."""
+        self.show_auger = self.auger_checkbox.GetValue()
+        self.show_doublets = self.doublets_checkbox.GetValue()
+        self.show_core_levels = self.core_levels_checkbox.GetValue()
+        self.show_usual_suspects_only = self.usual_suspects_checkbox.GetValue()
+
+        self.show_non_metals = self.non_metals_checkbox.GetValue()
+        self.show_halogens = self.halogens_checkbox.GetValue()
+        self.show_noble_gases = self.noble_gases_checkbox.GetValue()
+        self.show_alkali_metals = self.alkali_metals_checkbox.GetValue()
+        self.show_alkaline_earth = self.alkaline_earth_checkbox.GetValue()
+        self.show_transition_metals = self.transition_metals_checkbox.GetValue()
+        self.show_post_transition = self.post_transition_checkbox.GetValue()
+        self.show_metalloids = self.metalloids_checkbox.GetValue()
+        self.show_lanthanides = self.lanthanides_checkbox.GetValue()
+        self.show_actinides = self.actinides_checkbox.GetValue()
+
+        self.update_list_and_lines_tab2()
+
+    def on_center_change_tab2(self, event):
+        """Handle manual center position change for tab2."""
+        new_center = self.center_ctrl.GetValue()
+        if self.vline1 and self.vline2 and self.vline_center:
+            vline1_x = self.vline1.get_xdata()[0]
+            vline2_x = self.vline2.get_xdata()[0]
+            current_range = abs(vline2_x - vline1_x)
+
+            half_range = current_range / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+
+            self.vline1.set_xdata([new_center - half_range, new_center - half_range])
+            self.vline2.set_xdata([new_center + half_range, new_center + half_range])
+
+            self.update_list_and_lines_tab2()
+
+    def on_range_change_tab2(self, event):
+        """Handle manual range change for tab2."""
+        new_range = self.range_ctrl.GetValue()
+        if new_range < 5.0:
+            new_range = 5.0
+        if self.vline1 and self.vline2 and self.vline_center:
+            center_x = self.vline_center.get_xdata()[0]
+            half_range = new_range / 2
+
+            self.vline1.set_xdata([center_x - half_range, center_x - half_range])
+            self.vline2.set_xdata([center_x + half_range, center_x + half_range])
+
+            self.update_list_and_lines_tab2()
+
+    def on_center_to_plot_tab2(self, event):
+        """Center the vlines to the middle of the plot for tab2."""
+        if not hasattr(self.parent_window, 'ax'):
+            return
+
+        ax = self.parent_window.ax
+        xlim = ax.get_xlim()
+        center_pos = (xlim[0] + xlim[1]) / 2
+
+        if self.vline1 and self.vline2 and self.vline_center:
+            vline1_x = self.vline1.get_xdata()[0]
+            vline2_x = self.vline2.get_xdata()[0]
+            current_range = abs(vline2_x - vline1_x)
+            half_range = current_range / 2
+
+            self.vline_center.set_xdata([center_pos, center_pos])
+            self.vline_center_text.set_x(center_pos)
+            self.vline_center_text.set_text(f'{center_pos:.2f}')
+
+            self.vline1.set_xdata([center_pos - half_range, center_pos - half_range])
+            self.vline2.set_xdata([center_pos + half_range, center_pos + half_range])
+
+            self.center_ctrl.SetValue(center_pos)
+            self.update_list_and_lines_tab2()
+
+    def is_auger_tab2(self, orbital):
+        """Check if orbital is an Auger transition."""
+        orbital_lower = orbital.lower()
+        if any(orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm']):
+            return True
+        import re
+        auger_patterns = [r'kll\d*', r'kl\d+', r'lmm\d*', r'lm\d+', r'mnn\d*', r'mn\d+',
+                          r'mvv\d*', r'mv\d+', r'mnv\d*', r'noo\d*', r'no\d+']
+        for pattern in auger_patterns:
+            if re.search(pattern, orbital_lower):
+                return True
+        return False
+
+    def is_doublet_tab2(self, orbital):
+        """Check if orbital is a doublet."""
+        return '/' in orbital or any(x in orbital.lower() for x in ['1/2', '3/2', '5/2', '7/2'])
+
+    def is_core_level_tab2(self, orbital):
+        """Check if orbital is a main core level."""
+        return not self.is_auger_tab2(orbital) and not self.is_doublet_tab2(orbital)
+
+    def update_list_and_lines_tab2(self):
+        """Update the list to show only core levels within range and draw their lines."""
+        # Clear previous lines
+        self.remove_core_level_lines_tab2()
+
+        # Clear list
+        self.list_ctrl.DeleteAllItems()
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Get vLine positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Update numeric controls
+        current_range = abs(vline2_x - vline1_x)
+        self.center_ctrl.SetValue(center_x)
+        self.range_ctrl.SetValue(current_range)
+
+        # Ensure correct order (vline2 should be higher BE)
+        low_limit = min(vline1_x, vline2_x)
+        high_limit = max(vline1_x, vline2_x)
+
+        # Get photon energy
+        photon_energy = getattr(self.parent_window, 'photons', 1486.6)
+
+        # Get y-axis limits
+        ax = self.parent_window.ax
+        ymin, ymax = ax.get_ylim()
+
+        # Define exclusion lists
+        excluded_elements = ['Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Po', 'Rn', 'At', 'Fr', 'Ra', 'Og', 'He']
+        allowed_orbitals = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f']
+
+        # Collect core levels within range
+        core_levels_data = []
+
+        for (elem, orbital), data in self.library_data.items():
+            # Filter excluded elements
+            if elem in excluded_elements:
+                continue
+
+            # Filter by element group
+            element_allowed = False
+            if elem in self.non_metals and self.show_non_metals:
+                element_allowed = True
+            elif elem in self.halogens and self.show_halogens:
+                element_allowed = True
+            elif elem in self.noble_gases and self.show_noble_gases:
+                element_allowed = True
+            elif elem in self.alkali_metals and self.show_alkali_metals:
+                element_allowed = True
+            elif elem in self.alkaline_earth and self.show_alkaline_earth:
+                element_allowed = True
+            elif elem in self.transition_metals and self.show_transition_metals:
+                element_allowed = True
+            elif elem in self.post_transition and self.show_post_transition:
+                element_allowed = True
+            elif elem in self.metalloids and self.show_metalloids:
+                element_allowed = True
+            elif elem in self.lanthanides and self.show_lanthanides:
+                element_allowed = True
+            elif elem in self.actinides and self.show_actinides:
+                element_allowed = True
+
+            if not element_allowed:
+                continue
+
+            # Filter by usual suspects if enabled
+            if self.show_usual_suspects_only and elem not in self.usual_suspects:
+                continue
+
+            # Filter orbitals - extract main orbital part
+            main_orbital = orbital.split('/')[0].rstrip('0123456789')
+            if not self.is_auger_tab2(orbital) and main_orbital not in allowed_orbitals:
+                continue
+
+            # Apply filters
+            is_aug = self.is_auger_tab2(orbital)
+            is_doub = self.is_doublet_tab2(orbital)
+            is_core = self.is_core_level_tab2(orbital)
+
+            # Skip based on filter settings
+            if is_aug and not self.show_auger:
+                continue
+            if is_doub and not self.show_doublets:
+                continue
+            if is_core and not self.show_core_levels:
+                continue
+
+            # Choose instrument
+            if 'C-Any' in data:
+                instrument = 'C-Any'
+            elif 'Al1486' in data:
+                instrument = 'Al1486'
+            else:
+                instrument = next(iter(data))
+
+            if 'position' in data[instrument]:
+                position = float(data[instrument]['position'])
+
+                # Get RSF value
+                rsf = 1.0
+                if 'rsf' in data[instrument]:
+                    try:
+                        rsf = float(data[instrument]['rsf'])
+                    except (ValueError, TypeError):
+                        rsf = 1.0
+
+                # Check if Auger and convert BE
+                orbital_lower = orbital.lower()
+                is_auger_ke = instrument == 'C-Any' or any(
+                    orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm'])
+
+                if is_auger_ke and instrument == 'C-Any':
+                    be_center = photon_energy - position
+                else:
+                    be_center = position
+
+                # Check if within range
+                if low_limit <= be_center <= high_limit:
+                    distance = abs(be_center - center_x)
+                    core_level_name = f"{elem} {orbital}"
+
+                    # Check if usual suspect
+                    is_usual_suspect = elem in self.usual_suspects
+
+                    core_levels_data.append({
+                        'name': core_level_name,
+                        'center': be_center,
+                        'rsf': rsf,
+                        'distance': distance,
+                        'elem': elem,
+                        'orbital': orbital,
+                        'is_usual_suspect': is_usual_suspect
+                    })
+
+        # Find maximum RSF in the filtered list
+        max_rsf = 1.0
+        if core_levels_data:
+            max_rsf = max(cl['rsf'] for cl in core_levels_data)
+            if max_rsf <= 0:
+                max_rsf = 1.0
+
+        # Sort by distance from center
+        core_levels_data.sort(key=lambda x: x['distance'])
+
+        # Add to list control with .2f format
+        for i, cl_data in enumerate(core_levels_data):
+            index = self.list_ctrl.InsertItem(i, cl_data['name'])
+            self.list_ctrl.SetItem(index, 1, f"{cl_data['center']:.2f}")
+            self.list_ctrl.SetItem(index, 2, f"{cl_data['rsf']:.2f}")
+            self.list_ctrl.SetItem(index, 3, f"{cl_data['distance']:.2f}")
+
+            # Highlight closest match
+            if i == 0:
+                self.list_ctrl.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))
+
+            # Determine color and intensity based on usual suspects
+            if cl_data['is_usual_suspect']:
+                line_color = 'red'
+                line_intensity = self.max_line_intensity
+            else:
+                line_color = 'blue'
+                line_intensity = (cl_data['rsf'] / max_rsf) * self.max_line_intensity
+
+            # Draw vertical line
+            line = ax.axvline(cl_data['center'], color=line_color, linestyle='-', alpha=0.9, linewidth=0.9,
+                              ymin=0, ymax=line_intensity)
+            self.core_level_lines.append(line)
+
+            # Add text label
+            line_height = ymin + (ymax - ymin) * line_intensity
+            text = ax.text(cl_data['center'], line_height, cl_data['name'],
+                           rotation=90, va='bottom', ha='right',
+                           fontsize=8, color=line_color, alpha=1)
+            self.core_level_texts.append(text)
+
+        self.parent_window.canvas.draw_idle()
+
+    def on_canvas_press_tab2(self, event):
+        """Handle mouse press for tab2."""
+        if event.inaxes != self.parent_window.ax:
+            return
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        click_tolerance = (self.parent_window.ax.get_xlim()[0] - self.parent_window.ax.get_xlim()[1]) * 0.01
+
+        # Check center first (priority when lines are close)
+        if abs(event.xdata - center_x) < click_tolerance:
+            self.dragging_vline = 'center'
+            self.drag_offset = event.xdata - center_x
+        elif abs(event.xdata - vline1_x) < click_tolerance:
+            self.dragging_vline = 'vline1'
+            self.drag_offset = event.xdata - vline1_x
+        elif abs(event.xdata - vline2_x) < click_tolerance:
+            self.dragging_vline = 'vline2'
+            self.drag_offset = event.xdata - vline2_x
+
+    def on_canvas_release_tab2(self, event):
+        """Handle mouse release for tab2."""
+        self.dragging_vline = None
+        self.drag_offset = 0
+
+    def on_canvas_motion_tab2(self, event):
+        """Handle mouse motion for tab2."""
+        if not self.dragging_vline or not event.inaxes:
+            return
+
+        new_x = event.xdata - self.drag_offset
+
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        if self.dragging_vline == 'vline1':
+            self.vline1.set_xdata([new_x, new_x])
+            new_center = (new_x + vline2_x) / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+        elif self.dragging_vline == 'vline2':
+            self.vline2.set_xdata([new_x, new_x])
+            new_center = (vline1_x + new_x) / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+        elif self.dragging_vline == 'center':
+            offset = new_x - center_x
+            self.vline_center.set_xdata([new_x, new_x])
+            self.vline_center_text.set_x(new_x)
+            self.vline_center_text.set_text(f'{new_x:.2f}')
+
+            new_vline1_x = vline1_x + offset
+            new_vline2_x = vline2_x + offset
+            self.vline1.set_xdata([new_vline1_x, new_vline1_x])
+            self.vline2.set_xdata([new_vline2_x, new_vline2_x])
+
+        self.update_list_and_lines_tab2()
+
+    def on_scroll_tab2(self, event):
+        """Handle mouse wheel for tab2."""
+        if event.inaxes != self.parent_window.ax:
+            return
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        current_range = abs(vline2_x - vline1_x)
+        range_change = 2.0 if event.button == 'up' else -2.0
+        new_range = max(5.0, current_range + range_change)
+
+        half_range = new_range / 2
+        new_vline1_x = center_x - half_range
+        new_vline2_x = center_x + half_range
+
+        self.vline1.set_xdata([new_vline1_x, new_vline1_x])
+        self.vline2.set_xdata([new_vline2_x, new_vline2_x])
+
+        self.update_list_and_lines_tab2()
+
+    def remove_core_level_lines_tab2(self):
+        """Remove all core level reference lines from the plot for tab2."""
+        for line in self.core_level_lines:
+            try:
+                line.remove()
+            except (ValueError, AttributeError):
+                pass
+        for text in self.core_level_texts:
+            try:
+                text.remove()
+            except (ValueError, AttributeError):
+                pass
+
+        self.core_level_lines.clear()
+        self.core_level_texts.clear()
+
+    def remove_vlines_tab2(self):
+        """Remove the vLines and their text labels for tab2."""
+        if self.vline1:
+            self.vline1.remove()
+            self.vline1 = None
+        if self.vline2:
+            self.vline2.remove()
+            self.vline2 = None
+        if self.vline_center:
+            self.vline_center.remove()
+            self.vline_center = None
+        if self.vline_center_text:
+            self.vline_center_text.remove()
+            self.vline_center_text = None
+
+    def on_show_core_levels(self, event):
+        """Open the core level list window."""
+        if not hasattr(self, 'core_level_list_window') or self.core_level_list_window is None:
+            self.core_level_list_window = CoreLevelListWindow(self)
+            self.core_level_list_window.Show()
+        else:
+            self.core_level_list_window.Raise()
+
+    def create_kherve_periodic_table(self, parent, sizer):
+        """Create periodic table using actual KherveDB ElementTiles"""
+        # Create frame for periodic table
+        pt_panel = wx.Panel(parent, style=wx.BORDER_RAISED)
+
+        # Handle macOS dark mode
+        import platform
+        is_macos_dark = platform.system() == 'Darwin' and wx.SystemSettings.GetAppearance().IsDark()
+
+        if is_macos_dark:
+            pt_panel.SetBackgroundColour(wx.Colour(40, 40, 40))
+        else:
+            pt_panel.SetBackgroundColour(wx.Colour(230, 230, 230))
+
+        # Use grid sizer for periodic table layout
+        pt_sizer = wx.GridBagSizer(1, 1)
+
+        # Get data using KherveDB methods
+        element_positions = self.kherve_instance.get_element_positions()
+        element_categories = self.kherve_instance.get_element_categories()
+
+        # Define color schemes (from KherveDB)
+        colors = {
+            'alkali_metal': "#FF6666",
+            'alkaline_earth': "#FFDEAD",
+            'transition_metal': "#FFC0CB",
+            'post_transition': "#CCCCCC",
+            'metalloid': "#97FFFF",
+            'nonmetal': "#A0FFA0",
+            'halogen': "#FFFF99",
+            'noble_gas': "#C8A2C8",
+            'lanthanide': "#FFBFFF",
+            'actinide': "#FF99CC",
+            'unknown': "#E8E8E8"
+        }
+
+        # Create ElementTiles for each element
+        for element, (row, col) in element_positions.items():
+            category = element_categories.get(element, 'unknown')
+            color = colors.get(category, colors['unknown'])
+
+            # Use KherveDB's methods to get element data
+            atomic_number = self.kherve_instance.get_atomic_number(element)
+            core_level = self.kherve_instance.get_main_core_level(element)
+            binding_energy = self.kherve_instance.get_main_core_binding_energy(element)
+
+            # Check if element is in our dataset
+            enabled = element in self.get_available_elements()
+
+            # Create ElementTile using KherveDB's ElementTile class
+            tile = ElementTile(pt_panel, element, color, enabled, atomic_number, core_level, binding_energy)
+
+            tile.simplified = self._load_simplified_config()
+
+            # Set callbacks to use our methods instead of KherveDB's
+            tile.set_click_callback(self.on_element_click_survey)
+            tile.set_double_click_callback(self.on_element_double_click_survey)
+
+            # Bind hover events
+            tile.Bind(wx.EVT_ENTER_WINDOW, self.OnElementHover)
+            tile.Bind(wx.EVT_LEAVE_WINDOW, self.OnElementLeave)
+
+            # Add to grid
+            pt_sizer.Add(tile, pos=(row, col), flag=wx.EXPAND)
+            self.element_buttons[element] = tile
+
+            # Store original color and button state
+            self.original_colors[element] = color
+            self.button_states[element] = False
+
+        # Set the sizer for the panel
+        pt_panel.SetSizer(pt_sizer)
+        sizer.Add(pt_panel, 0, wx.EXPAND | wx.ALL, 0)
+
+    def on_element_click_survey(self, element):
+        """Handle element tile clicks - pass element directly"""
+        print(f"DEBUG: on_element_click_survey called with element: '{element}'")
+
+        if not element or element.strip() == '':
+            print("DEBUG: Element is empty in callback!")
+            return
+
+        # Instead of creating a mock event, let's call the logic directly
+        self.handle_element_selection(element, is_tile=True)
+
+    def handle_element_selection(self, element, is_tile=True):
+        """Handle element selection logic - matches backup.py"""
+        print(f"Element clicked: {element}")
+
+        # Excluded elements
+        excluded_elements = ['Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es']
+        if element in excluded_elements:
+            print(f"Element {element} is excluded")
+            return
+
+        # Get the actual object
+        if element in self.element_buttons:
+            obj = self.element_buttons[element]
+        else:
+            print(f"DEBUG: Element {element} not found in element_buttons")
+            return
+
+        # Initialize button state if not exists
+        if element not in self.button_states:
+            self.button_states[element] = False
+
+        # Toggle the button state
+        self.button_states[element] = not self.button_states[element]
+
+        if self.button_states[element]:
+            # Set to selected color (green) and show lines
+            if is_tile:
+                obj.color = wx.Colour(0, 255, 0)  # Green
+                obj.Refresh()
+            else:
+                obj.SetBackgroundColour(wx.GREEN)
+
+            # Show red lines on plot
+            self.plot_element_lines(element)
+
+            # Get filtered transitions (this is the key fix)
+            transitions = self.get_element_transitions(element)
+
+            # # Get all transitions including Auger
+            # transitions = []
+            # for (elem, orbital), data in self.library_data.items():
+            #     if elem == element:
+            #         instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
+            #         if 'position' in data[instrument]:
+            #             transitions.append((orbital, float(data[instrument]['position'])))
+            # transitions.sort(key=lambda x: x[1])
+
+            # Add transitions to list without clearing existing items (like backup.py)
+            existing_items = [self.core_level_list.GetString(i) for i in range(self.core_level_list.GetCount())]
+            for orbital, be in transitions:
+                item = f"{element}{orbital}: {be:.1f} eV"
+                if item not in existing_items:
+                    self.core_level_list.Append(item)
+
+        else:
+            # Reset to original color and remove lines
+            if is_tile:
+                obj.color = self.original_colors.get(element, wx.Colour(200, 200, 200))
+                obj.Refresh()
+            else:
+                obj.SetBackgroundColour(self.original_colors.get(element, wx.Colour(200, 200, 200)))
+
+            # Remove element lines from plot
+            self.remove_element_lines(element)
+
+            # Remove core levels from list
+            i = 0
+            while i < self.core_level_list.GetCount():
+                item = self.core_level_list.GetString(i)
+                # Check if this item belongs to the deselected element
+                if item.startswith(f"{element}") or item.startswith(f"{element} "):
+                    self.core_level_list.Delete(i)
+                else:
+                    i += 1
+
+        # Clean up any excluded items from the list
+        self.remove_excluded_items_from_list()
+
+        # # Update element info
+        # self.UpdateElementInfo(element)
+
+    def remove_excluded_items_from_list(self):
+        """Remove any excluded elements or orbitals from the core level list."""
+        excluded_elements = ['Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es']
+        excluded_orbitals = ['5s']
+
+        # Get all current items
+        i = 0
+        while i < self.core_level_list.GetCount():
+            item = self.core_level_list.GetString(i)
+
+            # Parse element from item (format: "Element orbital: BE eV")
+            # Example: "Pa 5p: 123.4 eV"
+            parts = item.split(':')[0].strip()  # Get "Pa 5p"
+            element_orbital = parts.split()  # Split into ["Pa", "5p"]
+
+            if len(element_orbital) >= 2:
+                element = element_orbital[0]
+                orbital = element_orbital[1]
+
+                # Check if element or orbital is excluded
+                if element in excluded_elements or orbital in excluded_orbitals:
+                    self.core_level_list.Delete(i)
+                    continue  # Don't increment i since we deleted an item
+
+            i += 1
+
+    def OnElementClick_ElementTile(self, event):
+        """Modified OnElementClick to work with ElementTiles"""
+        tile = event.GetEventObject()
+        element = tile.element  # ElementTile stores element as .element attribute
+
+        print(f"Element clicked: {element}")
+
+        # Handle tile color changes (ElementTiles use different methods)
+        if self.button_states.get(element, False):
+            # Reset to original color
+            tile.color = self.original_colors[element]
+            self.button_states[element] = False
+        else:
+            # Set to selected color (green)
+            tile.color = wx.Colour(0, 255, 0)  # Green
+            self.button_states[element] = True
+
+        # Refresh the tile to show color change
+        tile.Refresh()
+
+        # Clear the core level list
+        self.core_level_list.Clear()
+        self.element_lines.clear()
+
+        # Find transitions for this element
+        transitions = []
+        for (elem, orbital), data in self.library_data.items():
+            if elem == element:
+                # Check if 'Al1486' key exists, if not, use the first available instrument
+                instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
+                if 'position' in data[instrument]:
+                    be_value = float(data[instrument]['position'])
+                    transitions.append((orbital, be_value))
+
+        # Sort by binding energy
+        transitions.sort(key=lambda x: x[1])
+
+        # Add to list
+        for orbital, be in transitions:
+            display_text = f"{element} {orbital}: {be:.1f} eV"
+            self.core_level_list.Append(display_text)
+            self.element_lines[display_text] = (element, orbital, be)
+
+        # Update element info
+        self.UpdateElementInfo(element)
+
+    def on_element_right_click(self, event):
+        """Handle right-click on an element button"""
+        button = event.GetEventObject()
+        element = button.GetLabel()
+
+        # Create a context menu
+        menu = wx.Menu()
+        item = menu.Append(wx.ID_ANY, f"Show {element} Properties")
+        self.Bind(wx.EVT_MENU, lambda evt: self.show_element_properties(element), item)
+
+        # Show the context menu at the button position
+        button_pos = button.GetPosition()
+        self.PopupMenu(menu, button_pos)
+        menu.Destroy()
+
+    def on_element_double_click_survey(self, element):
+        """Handle element tile double-clicks if needed"""
+        pass
+
+    def create_fallback_periodic_table(self, parent, sizer):
+        """Fallback if KherveDB import fails - use simple buttons"""
+        # Your existing simple button code as fallback
+        pass
+
+
+    def show_element_properties(self, element):
+        """Show properties for the given element using a wxPython window"""
+        try:
+            # Get element data using the static method from LibraryID
+            element_data = PeriodicTableXPS.get_element_properties(None, element)
+
+            # Create a wxPython dialog
+            properties_window = wx.Dialog(self, title=f"Properties for {element}", size=(580, 600))
+
+            # Create a panel
+            panel = wx.Panel(properties_window)
+
+            # Main sizer
+            main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            # Header with element symbol and name
+            header_panel = wx.Panel(panel, style=wx.BORDER_NONE)
+            header_panel.SetBackgroundColour("#f0f0f0")
+
+            header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+            # Element symbol in large font
+            symbol_label = wx.StaticText(header_panel, label=element)
+            symbol_label.SetFont(wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+            header_sizer.Add(symbol_label, 0, wx.ALL, 20)
+
+            # Element name and atomic number
+            info_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            name_label = wx.StaticText(header_panel, label=element_data["Name"])
+            name_label.SetFont(wx.Font(20, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+            info_sizer.Add(name_label, 0, wx.BOTTOM, 5)
+
+            atomic_label = wx.StaticText(header_panel, label=f"Atomic Number: {element_data['Atomic Number']}")
+            atomic_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+            info_sizer.Add(atomic_label, 0)
+
+            header_sizer.Add(info_sizer, 0, wx.TOP, 20)
+            header_panel.SetSizer(header_sizer)
+
+            main_sizer.Add(header_panel, 0, wx.EXPAND)
+
+            # Create a scrolled window for properties
+            scroll_win = wx.ScrolledWindow(panel, style=wx.VSCROLL)
+            scroll_win.SetScrollRate(0, 10)
+
+            scroll_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            # Define property groups
+            property_groups = {
+                "Physical Properties": ["Atomic Mass", "Density", "Melting Point", "Boiling Point", "State at 20°C"],
+                "Atomic Properties": ["Electron Configuration", "Electronegativity", "Atomic Radius",
+                                      "Ionization Energy"],
+                "General Information": ["Group", "Period", "Category", "Discovered By", "Year of Discovery"],
+                "XPS Information": ["Common Core Levels", "Most Intense Line", "Typical FWHM", "Chemical Shift Range"]
+            }
+
+            # Add each property group
+            for group_name, properties in property_groups.items():
+                # Group header
+                group_label = wx.StaticText(scroll_win, label=group_name)
+                group_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+                group_label.SetBackgroundColour("#e0e0e0")
+                scroll_sizer.Add(group_label, 0, wx.EXPAND | wx.ALL, 5)
+
+                # Properties grid
+                grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
+                grid.AddGrowableCol(1)
+
+                for prop in properties:
+                    prop_label = wx.StaticText(scroll_win, label=f"{prop}:")
+                    value = element_data.get(prop, "N/A")
+                    value_text = wx.StaticText(scroll_win, label=str(value))
+
+                    grid.Add(prop_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+                    grid.Add(value_text, 0, wx.EXPAND | wx.ALL, 3)
+
+                scroll_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
+
+            # XPS Binding Energies Summary Section
+            be_label = wx.StaticText(scroll_win, label="XPS Binding Energies")
+            be_label.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+            be_label.SetBackgroundColour("#e0e0e0")
+            scroll_sizer.Add(be_label, 0, wx.EXPAND | wx.ALL, 5)
+
+            # Get transitions from core levels
+            transitions = self.get_element_transitions(element)
+            if transitions:
+                # Create table header (similar to LibraryID implementation)
+                table_sizer = wx.BoxSizer(wx.VERTICAL)
+
+                # Headers
+                header_grid = wx.FlexGridSizer(rows=1, cols=5, vgap=0, hgap=0)
+
+                headers = ["Line", "Avg BE (eV)", "Min BE (eV)", "Max BE (eV)", "Count"]
+                header_widths = [80, 80, 80, 80, 60]
+
+                for i, header_text in enumerate(headers):
+                    header_panel = wx.Panel(scroll_win, size=(header_widths[i], -1))
+                    header_panel.SetBackgroundColour("#e8e8e8")
+                    header_sizer = wx.BoxSizer(wx.VERTICAL)
+                    header = wx.StaticText(header_panel, label=header_text, style=wx.ALIGN_CENTER)
+                    header.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+                    header_sizer.Add(header, 1, wx.EXPAND | wx.ALL, 2)
+                    header_panel.SetSizer(header_sizer)
+                    header_grid.Add(header_panel, 0, wx.EXPAND | wx.ALL, 1)
+
+                table_sizer.Add(header_grid, 0, wx.EXPAND)
+
+                # Group transitions by line
+                lines_data = {}
+                for orbital, be in transitions:
+                    line = orbital
+                    if line not in lines_data:
+                        lines_data[line] = {'values': [], 'count': 0}
+                    lines_data[line]['values'].append(be)
+                    lines_data[line]['count'] += 1
+
+                # Create table rows
+                for line, data in lines_data.items():
+                    values = data['values']
+                    avg_be = sum(values) / len(values) if values else 0
+                    min_be = min(values) if values else 0
+                    max_be = max(values) if values else 0
+                    count = data['count']
+
+                    row_grid = wx.FlexGridSizer(rows=1, cols=5, vgap=0, hgap=0)
+
+                    # Create each cell in the row
+                    cell_data = [
+                        line,
+                        f"{avg_be:.2f}",
+                        f"{min_be:.2f}",
+                        f"{max_be:.2f}",
+                        str(count)
+                    ]
+
+                    for i, text in enumerate(cell_data):
+                        cell_panel = wx.Panel(scroll_win, size=(header_widths[i], -1))
+                        cell_panel.SetBackgroundColour(wx.WHITE)
+                        cell_sizer = wx.BoxSizer(wx.VERTICAL)
+                        cell = wx.StaticText(cell_panel, label=text)
+                        cell_sizer.Add(cell, 1, wx.EXPAND | wx.ALL, 2)
+                        cell_panel.SetSizer(cell_sizer)
+                        row_grid.Add(cell_panel, 0, wx.EXPAND | wx.ALL, 1)
+
+                    table_sizer.Add(row_grid, 0, wx.EXPAND)
+
+                scroll_sizer.Add(table_sizer, 0, wx.EXPAND | wx.ALL, 5)
+
+                # Now add individual transitions grid
+                grid_label = wx.StaticText(scroll_win, label="Individual Core Level Transitions")
+                grid_label.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+                scroll_sizer.Add(grid_label, 0, wx.EXPAND | wx.ALL, 5)
+
+                transitions_grid = wx.FlexGridSizer(rows=0, cols=2, vgap=5, hgap=10)
+                transitions_grid.AddGrowableCol(1)
+
+                for orbital, be in transitions:
+                    orbital_label = wx.StaticText(scroll_win, label=f"{orbital}:")
+                    be_text = wx.StaticText(scroll_win, label=f"{be:.2f} eV")
+
+                    transitions_grid.Add(orbital_label, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+                    transitions_grid.Add(be_text, 0, wx.EXPAND | wx.ALL, 3)
+
+                scroll_sizer.Add(transitions_grid, 0, wx.EXPAND | wx.ALL, 5)
+            else:
+                no_data = wx.StaticText(scroll_win, label="No XPS data available for this element")
+                scroll_sizer.Add(no_data, 0, wx.ALL, 10)
+
+            scroll_win.SetSizer(scroll_sizer)
+            main_sizer.Add(scroll_win, 1, wx.EXPAND | wx.ALL, 10)
+
+            # Close button
+            close_btn = wx.Button(panel, wx.ID_CLOSE, "Close")
+            close_btn.Bind(wx.EVT_BUTTON, lambda evt: properties_window.Close())
+            main_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+
+            panel.SetSizer(main_sizer)
+            properties_window.ShowModal()
+            properties_window.Destroy()
+
+        except Exception as e:
+            wx.MessageBox(f"Error showing element properties: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+
+
+
+    def OnRemoveLastLabel(self, event):
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+        if 'Labels' in self.parent_window.Data['Core levels'][sheet_name]:
+            labels = self.parent_window.Data['Core levels'][sheet_name]['Labels']
+            if labels:
+                labels.pop()
+                # Clear all existing text annotations
+                for text in self.parent_window.ax.texts[:]:
+                    text.remove()
+                # Redraw remaining labels
+                maxY = max(self.parent_window.y_values)
+                for label_data in labels:
+                    self.parent_window.ax.text(
+                        label_data['x'],
+                        label_data['y'],
+                        label_data['text'],
+                        rotation=90,
+                        va='bottom',
+                        ha='center'
+                    )
+                self.parent_window.canvas.draw_idle()
+
+    def OnRemoveAllLabels(self, event):
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+        if 'Labels' in self.parent_window.Data['Core levels'][sheet_name]:
+            self.parent_window.Data['Core levels'][sheet_name]['Labels'] = []
+            # Clear all text annotations
+            for text in self.parent_window.ax.texts[:]:
+                text.remove()
+            self.parent_window.canvas.draw_idle()
+
+    def get_element_transitions(self, element):
+        """Get filtered transitions for an element - matches backup.py filtering"""
+        # Excluded elements
+        excluded_elements = ['Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es']
+        if element in excluded_elements:
+            return []
+
+        # Removed '5s' from allowed orbitals
+        allowed_orbitals = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f']#, '5p', '5d', '5f']
+        transitions = {}
+        photon_energy = getattr(self.parent_window, 'photons', 1486.6)  # Default Al Ka energy
+
+        for (elem, orbital), data in self.library_data.items():
+            if elem == element:
+                orbital_lower = orbital.lower()
+                is_auger = any(x in orbital_lower for x in ['kll', 'lmm', 'mnn', 'mvv', 'mnv'])
+                # Filter out non-Auger orbitals not in allowed list
+                if not is_auger and orbital not in allowed_orbitals:
+                    continue
+                # Choose instrument based on whether it's an Auger line
+                if 'C-Any' in data:
+                    instrument = 'C-Any'  # For Auger lines
+                elif 'Al1486' in data:
+                    instrument = 'Al1486'
+                else:
+                    instrument = next(iter(data))
+
+                if 'position' in data[instrument] and float(data[instrument]['position']) >= 20:
+                    orbital_lower = orbital.lower()
+
+                    # Check if it's an Auger transition
+                    is_auger = instrument == 'C-Any' or any(
+                        orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm'])
+
+                    if is_auger:
+                        # For Auger lines - filter to main types only (KLL not KLL1)
+                        auger_main = None
+                        if 'kll' in orbital_lower:
+                            auger_main = 'kll'
+                        elif 'mnn' in orbital_lower:
+                            auger_main = 'mnn'
+                        elif 'mvv' in orbital_lower:
+                            auger_main = 'mvv'
+                        elif 'mnv' in orbital_lower:
+                            auger_main = 'mnv'
+                        elif 'lmm' in orbital_lower:
+                            auger_main = 'lmm'
+
+                        if auger_main:
+                            if instrument == 'C-Any':
+                                # Kinetic energy for Auger
+                                kinetic_energy = float(data[instrument]['position'])
+                                binding_energy = photon_energy - kinetic_energy
+                            else:
+                                binding_energy = float(data[instrument]['position'])
+
+                            # Only keep the highest energy for each main Auger type
+                            if auger_main not in transitions or binding_energy > transitions[auger_main]:
+                                transitions[auger_main] = binding_energy
+                    else:
+                        # For core levels - extract main orbital only (4p not 4p3/2)
+                        main_orbital = ''.join([c for c in orbital_lower if c.isalpha() or c.isdigit()])
+
+                        # Further filter to get just the main part (e.g., "4p" from "4p3/2")
+                        import re
+                        match = re.match(r'(\d+[spdf])', main_orbital)
+                        if match:
+                            main_orbital = match.group(1)
+
+                            if main_orbital in allowed_orbitals:
+                                energy = float(data[instrument]['position'])
+                                # Only keep the highest energy for each main orbital
+                                if main_orbital not in transitions or energy > transitions[main_orbital]:
+                                    transitions[main_orbital] = energy
+
+        # Sort transitions by binding energy
+        photon_energy = getattr(self.parent_window, 'photons', 1486.6)
+        sorted_transitions = sorted(
+            [(orb, be) for orb, be in transitions.items() if 0 < be < photon_energy],
+            key=lambda x: x[1]
+        )
+        return sorted_transitions
+
+    def OnElementClick(self, event):
+        """Handle element clicks - works with both buttons and ElementTiles"""
+        obj = event.GetEventObject()
+
+        print(f"DEBUG: Object type: {type(obj)}")
+        print(f"DEBUG: Object attributes: {dir(obj)}")
+
+        # Determine if it's a button or ElementTile and get the element
+        if hasattr(obj, 'element'):  # ElementTile
+            element = obj.element
+            is_tile = True
+            print(f"DEBUG: ElementTile element: '{element}'")
+        elif hasattr(obj, 'GetLabel'):  # Regular button
+            element = obj.GetLabel()
+            is_tile = False
+            print(f"DEBUG: Button label: '{element}'")
+        else:
+            print("DEBUG: Unknown object type in OnElementClick")
+            return
+
+        # Check if element is empty or None
+        if not element or element.strip() == '':
+            print("DEBUG: Element is empty! Aborting.")
+            return
+
+        print(f"Element clicked: {element}")
+
+        # Initialize button state if not exists
+        if element not in self.button_states:
+            self.button_states[element] = False
+
+        # Handle color changes based on object type
+        if self.button_states[element]:
+            # Reset to original color
+            if is_tile:
+                obj.color = self.original_colors.get(element, wx.Colour(200, 200, 200))
+                obj.Refresh()
+            else:
+                obj.SetBackgroundColour(self.original_colors.get(element, wx.Colour(200, 200, 200)))
+            self.button_states[element] = False
+        else:
+            # Set to selected color (green)
+            if is_tile:
+                obj.color = wx.Colour(0, 255, 0)  # Green
+                obj.Refresh()
+            else:
+                obj.SetBackgroundColour(wx.GREEN)
+            self.button_states[element] = True
+
+        # Clear the core level list
+        self.core_level_list.Clear()
+        self.element_lines.clear()
+
+        # Find transitions for this element
+        transitions = []
+        for (elem, orbital), data in self.library_data.items():
+            if elem == element:
+                # Check if 'Al1486' key exists, if not, use the first available instrument
+                instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
+                if 'position' in data[instrument]:
+                    be_value = float(data[instrument]['position'])
+                    transitions.append((orbital, be_value))
+
+        # Sort by binding energy
+        transitions.sort(key=lambda x: x[1])
+
+        # Add to list
+        for orbital, be in transitions:
+            display_text = f"{element} {orbital}: {be:.1f} eV"
+            self.core_level_list.Append(display_text)
+            self.element_lines[display_text] = (element, orbital, be)
+
+        # Update element info
+        self.UpdateElementInfo(element)
+
+    def OnAddLabels(self, event):
+        selections = self.core_level_list.GetSelections()
+
+        if not hasattr(self.parent_window, 'ax') or not hasattr(self.parent_window, 'x_values'):
+            print("ERROR: Parent window doesn't have plot data")
+            return
+
+        for selection in selections:
+            label = self.core_level_list.GetString(selection)
+            element_orbital, be_str = label.split(':')
+            print(f'Element Orbital: {element_orbital}')
+            be = float(be_str.replace(' eV', '').strip())
+
+            # Extract element and orbital correctly
+            import re
+            match = re.match(r'([A-Z][a-z]*)(\s*)(\d*[spdf]+)', element_orbital.strip())
+            if match:
+                element, space, orbital = match.groups()
+                formatted_label = f"{element} {orbital}"
+            else:
+                formatted_label = element_orbital.strip()
+
+            print(f"Adding label: {formatted_label} at {be} eV")
+
+            # Get max intensity in ±5 eV range
+            try:
+                x_values = self.parent_window.x_values
+                y_values = self.parent_window.y_values
+                maxY = max(y_values)
+
+                # Create mask for the region around the peak
+                mask = (x_values >= be - 5) & (x_values <= be + 5)
+                if np.any(mask):
+                    local_max = np.max(y_values[mask])
+                    # Add label at 1.2 times the local maximum height
+                    label_y = local_max + 0.05 * maxY
+
+                    self.parent_window.ax.text(be, label_y, formatted_label,
+                                               rotation=90, va='bottom', ha='center',
+                                               fontsize=8, color='blue')
+                    self.parent_window.canvas.draw_idle()
+
+                    # Store label data
+                    sheet_name = self.parent_window.sheet_combobox.GetValue()
+                    if 'Labels' not in self.parent_window.Data['Core levels'][sheet_name]:
+                        self.parent_window.Data['Core levels'][sheet_name]['Labels'] = []
+
+                    self.parent_window.Data['Core levels'][sheet_name]['Labels'].append({
+                        'text': formatted_label,
+                        'x': be,
+                        'y': label_y,
+                        'rotation': 90
+                    })
+
+                    print(f"Successfully added label {formatted_label} at ({be}, {label_y})")
+                else:
+                    print(f"No data points found near {be} eV")
+
+            except Exception as e:
+                print(f"Error adding label: {str(e)}")
+
+
+    def add_peak_to_grid(self, peak_name):
+
+        # Add peak to window.Data first
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+
+        # Initialize the full structure if it doesn't exist
+        if 'Fitting' not in self.parent_window.Data['Core levels'][sheet_name]:
+            self.parent_window.Data['Core levels'][sheet_name]['Fitting'] = {}
+        if 'Peaks' not in self.parent_window.Data['Core levels'][sheet_name]['Fitting']:
+            self.parent_window.Data['Core levels'][sheet_name]['Fitting']['Peaks'] = {}
+
+        # Better element and orbital extraction
+        import re
+        match = re.match(r'([A-Z][a-z]*)(\d+[spdf])', peak_name)
+        if match:
+            element, orbital = match.groups()
+        else:
+            return False
+
+        position = None
+        for (elem, orb), data in self.library_data.items():
+            if elem == element and orb.lower() == orbital.lower():
+                instrument = 'Al' if 'Al' in data else next(iter(data))
+                if 'position' in data[instrument]:
+                    position = float(data[instrument]['position'])
+                    break
+
+        if position:
+            # Add to window.Data
+            peak_data = {
+                'Position': position,
+                'Height': 0,
+                'FWHM': 2.0,
+                'L/G': 30,
+                'Area': 0,
+                'Fitting Model': 'SurveyID'
+            }
+            self.parent_window.Data['Core levels'][sheet_name]['Fitting']['Peaks'][peak_name] = peak_data
+
+            # Add to grid
+            current_rows = self.parent_window.peak_params_grid.GetNumberRows()
+
+            self.parent_window.peak_params_grid.AppendRows(2)
+
+            # Make sure to add the letter ID
+            letter_id = chr(65 + (current_rows // 2))  # A, B, C, etc.
+
+            self.parent_window.peak_params_grid.SetCellValue(current_rows, 0, letter_id)
+            self.parent_window.peak_params_grid.SetCellValue(current_rows, 1, peak_name)
+            self.parent_window.peak_params_grid.SetCellValue(current_rows, 2, f"{position:.2f}")
+            self.parent_window.peak_params_grid.SetCellValue(current_rows, 4, "2.0")  # FWHM
+            self.parent_window.peak_params_grid.SetCellValue(current_rows, 5, "30")  # L/G
+            self.parent_window.peak_params_grid.SetCellValue(current_rows, 13, "SurveyID")
+
+            # Set constraint row background color
+            for col in range(self.parent_window.peak_params_grid.GetNumberCols()):
+                self.parent_window.peak_params_grid.SetCellBackgroundColour(current_rows + 1, col,
+                                                                            wx.Colour(200, 245, 228))
+
+            # Update peak count
+            self.parent_window.peak_count = current_rows // 2 + 1
+
+            self.parent_window.peak_params_grid.ForceRefresh()
+            return True
+        else:
+            print(f"No position found for peak {peak_name}")
+            return False
+
+    def OnAddPeak(self, event):
+        selections = self.core_level_list.GetSelections()
+        sheet_name = self.parent_window.sheet_combobox.GetValue().lower()
+
+        if any(x in sheet_name for x in ['survey', 'wide']):
+            for selection in selections:
+                label = self.core_level_list.GetString(selection)
+                element = label.split(':')[0]
+                # Check if it's a main core level
+                if any(element.endswith(x) for x in ['1s', '2p', '3d', '4f']):
+                    self.add_peak_to_grid(element)
+
+    def OnRemoveSelected(self, event):
+        selections = list(self.core_level_list.GetSelections())
+        selections.reverse()  # Remove from bottom to top to avoid index issues
+        for selection in selections:
+            self.core_level_list.Delete(selection)
+
+    def OnRemoveAll(self, event):
+        self.core_level_list.Clear()
+
+
+    def get_main_core_level(self, element):
+        main_core_levels = {
+            'Li': '1s', 'Be': '1s', 'B': '1s', 'C': '1s', 'N': '1s', 'O': '1s', 'F': '1s', 'Ne': '1s',
+            'Na': '1s', 'Mg': '1s', 'Al': '2p', 'Si': '2p', 'P': '2p', 'S': '2p', 'Cl': '2p',
+            'K': '2p', 'Ca': '2p', 'Sc': '2p', 'Ti': '2p', 'V': '2p', 'Cr': '2p', 'Mn': '2p',
+            'Fe': '2p', 'Co': '2p', 'Ni': '2p', 'Cu': '2p', 'Zn': '2p', 'Ga': '2p', 'Ge': '3d',
+            'As': '3d', 'Se': '3d', 'Br': '3d', 'Sr': '3d', 'Y': '3d', 'Zr': '3d', 'Nb': '3d',
+            'Mo': '3d', 'Tc': '3d', 'Ru': '3d', 'Rh': '3d', 'Pd': '3d', 'Ag': '3d', 'Cd': '3d',
+            'In': '3d', 'Sn': '3d', 'Sb': '3d', 'Te': '3d', 'I': '3d', 'Xe': '3d', 'Cs': '3d',
+            'Ba': '3d', 'La': '3d', 'W': '4f'
+        }
+        return main_core_levels.get(element)
+
+    def plot_element_lines(self, element):
+        transitions = self.get_element_transitions(element)
+
+        if transitions:
+            xmin, xmax = self.parent_window.ax.get_xlim()
+            ymin, ymax = self.parent_window.ax.get_ylim()
+
+            # Filter transitions within xmin and xmax
+            photon_energy = getattr(self.parent_window, 'photons', 1486.6)
+            valid_transitions = [t for t in transitions if xmax <= t[1] <= xmin and t[1] < photon_energy]
+
+            if valid_transitions:
+                # Get RSF values for each transition
+                orbital_list = [t[0] for t in valid_transitions]
+                rsf_values = self.get_rsf_values(element, orbital_list)
+
+                if rsf_values:
+                    max_rsf = max(rsf_values)
+
+                    # Initialize element_lines if not exists
+                    if element not in self.element_lines:
+                        self.element_lines[element] = []
+
+                    for (orbital, be), rsf in zip(valid_transitions, rsf_values):
+                        orbital_lower = orbital.lower()
+                        is_auger = any(x in orbital_lower for x in ['kll', 'lmm', 'mnn', 'mvv', 'mnv'])
+                        if is_auger:
+                            # Auger lines fixed at 0.3 of the biggest line height
+                            intensity = 0.3 * self.intensity_scale * (ymax - ymin)
+                        elif rsf == 0:
+                            intensity = 0.1 * self.intensity_scale * (ymax - ymin)
+                        else:
+                            intensity = (rsf / max_rsf) * self.intensity_scale * (ymax - ymin)
+
+                        # Draw the vertical line
+                        line = self.parent_window.ax.vlines(be, ymin - intensity, ymin + intensity,
+                                                            color='blue', linewidth=1)
+                        self.element_lines[element].append(line)
+
+                        # Add text label
+                        text_y = ymin + 0.01 * (ymax - ymin)
+                        text_label = f"{element}{orbital}"
+
+                        text = self.parent_window.ax.text(
+                            be + 0.1,  # Slightly to the right of the line
+                            text_y,  # At the bottom of the plot
+                            text_label,
+                            rotation=90,
+                            va='bottom',
+                            ha='right',
+                            fontsize=7,
+                            color='black'
+                        )
+                        self.element_lines[element].append(text)
+
+                    self.parent_window.canvas.draw_idle()
+
+    def remove_element_lines(self, element):
+        if element in self.element_lines:
+            for line in self.element_lines[element]:
+                try:
+                    line.remove()
+                except ValueError:
+                    # Line already removed or not in the axes anymore
+                    pass
+            del self.element_lines[element]
+            self.parent_window.canvas.draw_idle()
+
+    def reset_all_buttons(self):
+        for element, button in self.button_states.items():
+            if button:
+                self.button_states[element] = False
+                btn = self.FindWindowByLabel(element)
+                if btn:
+                    # Restore original color
+                    original_color = self.original_colors.get(element, wx.WHITE)
+                    btn.SetBackgroundColour(original_color)
+                    btn.Refresh()
+
+        # Safe removal of matplotlib objects
+        for element, lines in self.element_lines.items():
+            for line in lines:
+                try:
+                    # Check if the line is still in a valid axes
+                    if hasattr(line, 'axes') and line.axes is not None:
+                        line.remove()
+                except (ValueError, AttributeError):
+                    # Line already removed or axes changed
+                    pass
+        self.element_lines.clear()
+
+    def clear_element_lines(self):
+        """Clear all element lines when changing sheets"""
+        self.element_lines.clear()
+        for element in self.button_states:
+            self.button_states[element] = False
+            btn = self.FindWindowByLabel(element)
+            if btn:
+                original_color = self.original_colors.get(element, wx.WHITE)
+                btn.SetBackgroundColour(original_color)
+                btn.Refresh()
+
+    # Get RSF values for the requested orbitals of an element
+
+    def get_rsf_values(self, element, orbitals):
+        rsf_values = []
+
+        for requested_orbital in orbitals:
+            found_rsf = None
+
+            for (elem, orbital), data in self.library_data.items():
+                if elem == element:
+                    orbital_lower = orbital.lower()
+                    requested_lower = requested_orbital.lower()
+
+                    if orbital_lower == requested_lower or requested_lower in orbital_lower:
+                        # Check if 'Al1486' key exists, if not, use the first available instrument
+                        instrument = 'Al1486' if 'Al1486' in data else next(iter(data))
+
+                        if 'rsf' in data[instrument]:
+                            rsf_value = float(data[instrument]['rsf'])
+                            found_rsf = rsf_value
+                            break
+
+            if found_rsf is not None:
+                rsf_values.append(found_rsf)
+            else:
+                rsf_values.append(0.1)  # Default value
+
+        return rsf_values
+
+    def OnElementHover(self, event):
+        obj = event.GetEventObject()
+
+        # Handle both ElementTiles and regular buttons
+        if hasattr(obj, 'element'):  # ElementTile
+            element = obj.element
+        elif hasattr(obj, 'GetLabel'):  # Regular button
+            element = obj.GetLabel()
+        else:
+            return
+
+        self.UpdateElementInfo(element)
+
+    def OnElementLeave(self, event):
+        # self.info_text1.SetLabelMarkup("")
+        # self.info_text2.SetLabelMarkup("")
+        self.Layout()
+
+    def OnIntensityIncrease(self, event):
+        """Increase the intensity scaling factor by 0.1"""
+        self.intensity_scale = min(2.0, self.intensity_scale + 0.1)  # Cap at 2.0
+        self.intensity_display.SetLabel(f"{self.intensity_scale:.1f}")
+        self.update_all_element_lines()
+
+    def OnIntensityDecrease(self, event):
+        """Decrease the intensity scaling factor by 0.1"""
+        self.intensity_scale = max(0.1, self.intensity_scale - 0.1)  # Minimum 0.1
+        self.intensity_display.SetLabel(f"{self.intensity_scale:.1f}")
+        self.update_all_element_lines()
+
+    def update_all_element_lines(self):
+        """Redraw all currently visible element lines with new intensity"""
+        # Get all currently selected elements
+        selected_elements = [element for element, state in self.button_states.items() if state]
+
+        if selected_elements:
+            # Remove all existing lines
+            for element in selected_elements:
+                if element in self.element_lines:
+                    for line_obj in self.element_lines[element]:
+                        line_obj.remove()
+                    del self.element_lines[element]
+
+            # Redraw with new intensity
+            for element in selected_elements:
+                self.plot_element_lines(element)
+
+            print(f"Updated line intensities to scale factor: {self.intensity_scale}")
+
+    def UpdateElementInfo(self, element):
+        element_names = {
+            'H': 'Hydrogen', 'He': 'Helium', 'Li': 'Lithium', 'Be': 'Beryllium', 'B': 'Boron',
+            'C': 'Carbon', 'N': 'Nitrogen', 'O': 'Oxygen', 'F': 'Fluorine', 'Ne': 'Neon',
+            'Na': 'Sodium', 'Mg': 'Magnesium', 'Al': 'Aluminum', 'Si': 'Silicon', 'P': 'Phosphorus',
+            'S': 'Sulfur', 'Cl': 'Chlorine', 'Ar': 'Argon', 'K': 'Potassium', 'Ca': 'Calcium',
+            'Sc': 'Scandium', 'Ti': 'Titanium', 'V': 'Vanadium', 'Cr': 'Chromium', 'Mn': 'Manganese',
+            'Fe': 'Iron', 'Co': 'Cobalt', 'Ni': 'Nickel', 'Cu': 'Copper', 'Zn': 'Zinc',
+            'Ga': 'Gallium', 'Ge': 'Germanium', 'As': 'Arsenic', 'Se': 'Selenium', 'Br': 'Bromine',
+            'Kr': 'Krypton', 'Rb': 'Rubidium', 'Sr': 'Strontium', 'Y': 'Yttrium', 'Zr': 'Zirconium',
+            'Nb': 'Niobium', 'Mo': 'Molybdenum', 'Ru': 'Ruthenium', 'Rh': 'Rhodium', 'Pd': 'Palladium',
+            'Ag': 'Silver', 'Cd': 'Cadmium', 'In': 'Indium', 'Sn': 'Tin', 'Sb': 'Antimony',
+            'Te': 'Tellurium', 'I': 'Iodine', 'Xe': 'Xenon', 'Cs': 'Cesium', 'Ba': 'Barium',
+            'La': 'Lanthanum', 'Ce': 'Cerium', 'Pr': 'Praseodymium', 'Nd': 'Neodymium', 'Pm': 'Promethium',
+            'Sm': 'Samarium', 'Eu': 'Europium', 'Gd': 'Gadolinium', 'Tb': 'Terbium', 'Dy': 'Dysprosium',
+            'Ho': 'Holmium', 'Er': 'Erbium', 'Tm': 'Thulium', 'Yb': 'Ytterbium', 'Lu': 'Lutetium',
+            'Hf': 'Hafnium', 'Ta': 'Tantalum', 'W': 'Tungsten', 'Re': 'Rhenium', 'Os': 'Osmium',
+            'Ir': 'Iridium', 'Pt': 'Platinum', 'Au': 'Gold', 'Hg': 'Mercury', 'Tl': 'Thallium',
+            'Pb': 'Lead', 'Bi': 'Bismuth', 'At': 'Astatine', 'Rn': 'Radon', 'Ra': 'Radium',
+            'Th': 'Thorium', 'U': 'Uranium', 'Np': 'Neptunium', 'Pu': 'Plutonium', 'Am': 'Americium',
+            'Cm': 'Curium'
+        }
+
+        transitions = self.get_element_transitions(element)
+        if transitions:
+            info1 = f"<b>{element_names.get(element, element)}</b>: "
+            info2 = ", ".join(f"{orbital}: {be:.1f} eV" for orbital, be in transitions)
+
+            # Split info2 into two lines if it's too long
+            max_line_length = 60
+            if len(info2) > max_line_length:
+                split_point = info2.rfind(", ", 0, max_line_length) + 2
+                info1 += info2[:split_point]
+                info2 = info2[split_point:]
+            else:
+                info1 += info2
+                info2 = ""
+
+            # self.info_text1.SetLabelMarkup(info1)
+            # self.info_text2.SetLabelMarkup(info2)
+        # else:
+        #     self.info_text1.SetLabelMarkup(f"<b>{element_names.get(element, element)}</b>: No BE transitions found")
+        #     self.info_text2.SetLabelMarkup("")
+        self.Layout()
+
+    def on_canvas_click(self, event):
+        if not event.inaxes:
+            self.clear_selection()
+            return
+
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+        if 'Labels' not in self.parent_window.Data['Core levels'][sheet_name]:
+            return
+
+        # Get axis ranges for clickable area calculation
+        xlim = self.parent_window.ax.get_xlim()
+        ylim = self.parent_window.ax.get_ylim()
+        x_range = abs(xlim[1] - xlim[0])
+        y_range = abs(ylim[1] - ylim[0])
+
+        # Find clicked text
+        clicked_text = None
+        clicked_index = None
+
+        for i, label_data in enumerate(self.parent_window.Data['Core levels'][sheet_name]['Labels']):
+            text_x = label_data['x']
+            text_y = label_data['y']
+
+            # Create clickable area (3% of axis range)
+            bbox_width = x_range * 0.03
+            bbox_height = y_range * 0.03
+
+            if (abs(event.xdata - text_x) < bbox_width and
+                    abs(event.ydata - text_y) < bbox_height):
+                clicked_text = label_data
+                clicked_index = i
+                break
+
+        if clicked_text:
+            self.select_text(clicked_text, clicked_index)
+            self.drag_offset = (event.xdata - clicked_text['x'], event.ydata - clicked_text['y'])
+            self.is_dragging = True
+
+    def on_canvas_motion(self, event):
+        if not self.is_dragging or not event.inaxes:
+            return
+
+        if self.selected_text:
+            # Update label position
+            new_x = event.xdata - self.drag_offset[0]
+            new_y = event.ydata - self.drag_offset[1]
+
+            self.selected_text['x'] = new_x
+            self.selected_text['y'] = new_y
+
+            # Update selection box position if it exists
+            if self.selection_box:
+                # Get axis ranges
+                xlim = self.parent_window.ax.get_xlim()
+                ylim = self.parent_window.ax.get_ylim()
+                x_range = abs(xlim[1] - xlim[0])
+                y_range = abs(ylim[1] - ylim[0])
+
+                # Triangle dimensions - same as select_text
+                triangle_width = x_range * 0.03  # 3% of x-axis range
+                triangle_height = y_range * 0.03  # 3% of y-axis range
+
+                # Triangle positioned slightly lower (BELOW the text)
+                triangle_y = new_y - y_range * 0.005  # 0.5% below text
+
+                triangle_points = [
+                    [new_x, triangle_y],  # Top point
+                    [new_x - triangle_width / 2, triangle_y - triangle_height],  # Bottom left
+                    [new_x + triangle_width / 2, triangle_y - triangle_height]  # Bottom right
+                ]
+                self.selection_box.set_xy(triangle_points)
+
+            # Redraw labels
+            self.redraw_labels()
+
+    def on_canvas_release(self, event):
+        self.is_dragging = False
+
+    def select_text(self, text_data, index):
+        self.selected_text = text_data
+        self.selected_index = index
+
+        # Remove previous selection box
+        if self.selection_box:
+            self.selection_box.remove()
+
+        # Create triangle selection indicator
+        x = text_data['x']
+        y = text_data['y']
+
+        # Get axis ranges
+        xlim = self.parent_window.ax.get_xlim()
+        ylim = self.parent_window.ax.get_ylim()
+        x_range = abs(xlim[1] - xlim[0])
+        y_range = abs(ylim[1] - ylim[0])
+
+        # Triangle dimensions - smaller and more consistent
+        triangle_width = x_range * 0.03  # 3% of x-axis range
+        triangle_height = y_range * 0.03  # 3% of y-axis range
+
+        # Triangle positioned slightly lower (BELOW the text, not above)
+        triangle_y = y - y_range * 0.005  # 0.5% below text
+
+        from matplotlib.patches import Polygon
+        triangle_points = [
+            [x, triangle_y],  # Top point
+            [x - triangle_width / 2, triangle_y - triangle_height],  # Bottom left
+            [x + triangle_width / 2, triangle_y - triangle_height]  # Bottom right
+        ]
+
+        self.selection_box = Polygon(
+            triangle_points,
+            linewidth=1,
+            edgecolor='black',
+            facecolor=(200 / 255, 245 / 255, 228 / 255),
+            linestyle='-'
+        )
+
+        self.parent_window.ax.add_patch(self.selection_box)
+        self.parent_window.canvas.draw_idle()
+
+    def clear_selection(self):
+        if self.selection_box:
+            self.selection_box.remove()
+            self.selection_box = None
+        self.selected_text = None
+        self.parent_window.canvas.draw_idle()
+
+    def redraw_labels(self):
+        # Clear existing text
+        for txt in self.parent_window.ax.texts[:]:
+            txt.remove()
+
+        # Redraw all labels
+        sheet_name = self.parent_window.sheet_combobox.GetValue()
+        if 'Labels' in self.parent_window.Data['Core levels'][sheet_name]:
+            for label_data in self.parent_window.Data['Core levels'][sheet_name]['Labels']:
+                self.parent_window.ax.text(
+                    label_data['x'],
+                    label_data['y'],
+                    label_data['text'],
+                    rotation=label_data.get('rotation', 90),
+                    fontsize=label_data.get('fontsize', 10),
+                    fontfamily=label_data.get('fontfamily', 'Arial'),
+                    va='bottom',
+                    ha='center'
+                )
+
+        self.parent_window.canvas.draw_idle()
+
+    def on_auto_id_OLD(self, event):
+        """Launch automatic survey identification"""
+        from libraries.ToolsMenu.AutoID import AutoSurveyID
+        auto_id = AutoSurveyID(self.parent_window)
+        auto_id.run()
+        self.Close()
+
+    def on_auto_id(self, event):
+        """Launch automatic survey identification"""
+        try:
+            sheet_name = self.parent_window.sheet_combobox.GetValue()
+
+            # Check if this is a survey or wide scan
+            if not any(x in sheet_name.lower() for x in ['survey', 'wide']):
+                wx.MessageBox("Auto ID is only available for Survey or Wide scan sheets", "Info",
+                              wx.OK | wx.ICON_INFORMATION)
+                return
+
+            # Import and open AutoID window
+            from libraries.ToolsMenu.AutoID import AutoIDWindow
+            auto_id_window = AutoIDWindow(self.parent_window)
+            auto_id_window.Show()
+
+            # Close the survey window
+            self.Close()
+
+        except ImportError:
+            wx.MessageBox("AutoID module not found", "Error", wx.OK | wx.ICON_ERROR)
+        except Exception as e:
+            wx.MessageBox(f"Auto ID failed: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def Close(self, force=False):
+        self.reset_all_buttons()
+        super().Close(force)
+
+    def OnClose_OLD(self, event):
+        # # Disconnect mouse events
+        # if hasattr(self, 'canvas_click_id'):
+        #     self.parent_window.canvas.mpl_disconnect(self.canvas_click_id)
+        # if hasattr(self, 'canvas_release_id'):
+        #     self.parent_window.canvas.mpl_disconnect(self.canvas_release_id)
+        # if hasattr(self, 'canvas_motion_id'):
+        #     self.parent_window.canvas.mpl_disconnect(self.canvas_motion_id)
+
+        # Clear selection
+        self.clear_selection()
+
+        # Reset all element buttons (your existing functionality)
+        self.reset_all_buttons()
+        self.Destroy()
+
+    def OnClose(self, event):
+        """Handle window close event."""
+        # Disconnect mouse events for tab1
+        if hasattr(self, 'canvas_click_id'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_click_id)
+        if hasattr(self, 'canvas_release_id'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_release_id)
+        if hasattr(self, 'canvas_motion_id'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_motion_id)
+
+        # Disconnect mouse events for tab2
+        if hasattr(self, 'canvas_press_id_tab2'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_press_id_tab2)
+        if hasattr(self, 'canvas_release_id_tab2'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_release_id_tab2)
+        if hasattr(self, 'canvas_motion_id_tab2'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_motion_id_tab2)
+        if hasattr(self, 'canvas_scroll_id_tab2'):
+            self.parent_window.canvas.mpl_disconnect(self.canvas_scroll_id_tab2)
+
+        # Remove lines from tab2
+        self.remove_core_level_lines_tab2()
+        self.remove_vlines_tab2()
+
+        # Remove any element lines from tab1
+        for element, line_list in self.element_lines.items():
+            for line in line_list:
+                try:
+                    line.remove()
+                except (ValueError, AttributeError):
+                    pass
+        self.element_lines.clear()
+
+        if hasattr(self.parent_window, 'canvas'):
+            self.parent_window.canvas.draw_idle()
+
+        self.Destroy()
+
+
+class CoreLevelListWindow(wx.Frame):
+    def __init__(self, parent):
+        self.parent = parent
+        self.max_line_intensity = 0.6
+        self.core_level_lines = []
+        self.core_level_texts = []
+
+        # Define usual suspects - common XPS elements
+        self.usual_suspects = ['C', 'O', 'N', 'Si', 'S', 'P', 'F', 'Cl', 'Ca', 'Na', 'Al', 'K'
+                               'Ti', 'Fe', 'Ni', 'Cu', 'Zn', 'Ag', 'Au', 'Mg']
+
+        # Define element groups by periodic table categories
+        self.non_metals = ['C', 'N', 'O', 'P', 'S', 'Se']
+
+        self.halogens = ['F', 'Cl', 'Br', 'I']
+
+        self.noble_gases = ['He', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn']
+
+        self.alkali_metals = ['Li', 'Na', 'K', 'Rb', 'Cs', 'Fr']
+
+        self.alkaline_earth = ['Be', 'Mg', 'Ca', 'Sr', 'Ba', 'Ra']
+
+        self.transition_metals = ['Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+                                  'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+                                  'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg']
+
+        self.post_transition = ['Al', 'Ga', 'In', 'Sn', 'Tl', 'Pb', 'Bi']
+
+        self.metalloids = ['B', 'Si', 'Ge', 'As', 'Sb', 'Te', 'Po']
+
+        self.lanthanides = ['La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy',
+                            'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+
+        self.actinides = ['Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf',
+                          'Es', 'Fm', 'Md', 'No', 'Lr']
+
+        # Initialize vLines
+        self.vline1 = None
+        self.vline2 = None
+        self.vline_center = None
+        self.vline1_text = None
+        self.vline2_text = None
+        self.vline_center_text = None
+
+        # Track dragging state
+        self.dragging_vline = None
+        self.drag_offset = 0
+
+        # Filter options
+        self.show_auger = False
+        self.show_doublets = False
+        self.show_core_levels = True
+        self.show_usual_suspects_only = False
+
+        # Element group filters - default settings
+        self.show_non_metals = True
+        self.show_halogens = True
+        self.show_noble_gases = False
+        self.show_alkali_metals = True
+        self.show_alkaline_earth = True
+        self.show_transition_metals = True
+        self.show_post_transition = True
+        self.show_metalloids = True
+        self.show_lanthanides = False
+        self.show_actinides = False
+
+        super().__init__(None, title="Core Level Reference List",
+                         style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP)
+
+        self.init_ui()
+        self.SetSize((490, 580))
+        self.SetMinSize((400, 300))
+        self.position_window()
+        self.initialize_vlines()
+        self.update_list_and_lines()
+
+        # Connect mouse events
+        self.canvas_press_id = self.parent.parent_window.canvas.mpl_connect('button_press_event', self.on_canvas_press)
+        self.canvas_release_id = self.parent.parent_window.canvas.mpl_connect('button_release_event', self.on_canvas_release)
+        self.canvas_motion_id = self.parent.parent_window.canvas.mpl_connect('motion_notify_event', self.on_canvas_motion)
+        self.canvas_scroll_id = self.parent.parent_window.canvas.mpl_connect('scroll_event', self.on_scroll)
+
+    def init_ui(self):
+        """Initialize the user interface."""
+        panel = wx.Panel(self)
+        # panel.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW))
+
+        # Main horizontal sizer
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Left panel - Controls
+        left_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Controls"), wx.VERTICAL)
+        # left_box.GetStaticBox().SetWindowStyle(wx.BORDER_RAISED)
+
+        # Instructions
+        instruction_text = wx.StaticText(panel, label="Drag vLines | Wheel to resize")
+        left_box.Add(instruction_text, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
+
+        # Orbital type filters
+        orbital_label = wx.StaticText(panel, label="Orbital Types:")
+        orbital_label.SetFont(orbital_label.GetFont().Bold())
+        left_box.Add(orbital_label, 0, wx.ALL, 5)
+
+        self.auger_checkbox = wx.CheckBox(panel, label="Auger Peaks")
+        self.auger_checkbox.SetValue(self.show_auger)
+        self.auger_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.doublets_checkbox = wx.CheckBox(panel, label="Doublets")
+        self.doublets_checkbox.SetValue(self.show_doublets)
+        self.doublets_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.core_levels_checkbox = wx.CheckBox(panel, label="Core Levels")
+        self.core_levels_checkbox.SetValue(self.show_core_levels)
+        self.core_levels_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        left_box.Add(self.auger_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.doublets_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.core_levels_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Separator
+        left_box.Add(wx.StaticLine(panel), 0, wx.EXPAND | wx.ALL, 5)
+
+        self.usual_suspects_checkbox = wx.CheckBox(panel, label="Most common elements Only")
+        self.usual_suspects_checkbox.SetValue(self.show_usual_suspects_only)
+        self.usual_suspects_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        left_box.Add(self.usual_suspects_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Separator
+        left_box.Add(wx.StaticLine(panel), 0, wx.EXPAND | wx.ALL, 5)
+
+        # Element group filters
+        element_label = wx.StaticText(panel, label="Element Groups:")
+        element_label.SetFont(element_label.GetFont().Bold())
+        left_box.Add(element_label, 0, wx.ALL, 5)
+
+        self.actinides_checkbox = wx.CheckBox(panel, label="Actinides")
+        self.actinides_checkbox.SetValue(self.show_actinides)
+        self.actinides_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.alkali_metals_checkbox = wx.CheckBox(panel, label="Alkali Metals")
+        self.alkali_metals_checkbox.SetValue(self.show_alkali_metals)
+        self.alkali_metals_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.alkaline_earth_checkbox = wx.CheckBox(panel, label="Alkaline Earth Metals")
+        self.alkaline_earth_checkbox.SetValue(self.show_alkaline_earth)
+        self.alkaline_earth_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.halogens_checkbox = wx.CheckBox(panel, label="Halogens")
+        self.halogens_checkbox.SetValue(self.show_halogens)
+        self.halogens_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.lanthanides_checkbox = wx.CheckBox(panel, label="Lanthanides")
+        self.lanthanides_checkbox.SetValue(self.show_lanthanides)
+        self.lanthanides_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.metalloids_checkbox = wx.CheckBox(panel, label="Metalloids")
+        self.metalloids_checkbox.SetValue(self.show_metalloids)
+        self.metalloids_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.noble_gases_checkbox = wx.CheckBox(panel, label="Noble Gases")
+        self.noble_gases_checkbox.SetValue(self.show_noble_gases)
+        self.noble_gases_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.non_metals_checkbox = wx.CheckBox(panel, label="Non-Metals")
+        self.non_metals_checkbox.SetValue(self.show_non_metals)
+        self.non_metals_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.post_transition_checkbox = wx.CheckBox(panel, label="Post-Transition Metals")
+        self.post_transition_checkbox.SetValue(self.show_post_transition)
+        self.post_transition_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+        self.transition_metals_checkbox = wx.CheckBox(panel, label="Transition Metals")
+        self.transition_metals_checkbox.SetValue(self.show_transition_metals)
+        self.transition_metals_checkbox.Bind(wx.EVT_CHECKBOX, self.on_filter_change)
+
+
+        left_box.Add(self.actinides_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.alkali_metals_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.alkaline_earth_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.halogens_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.lanthanides_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.metalloids_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.noble_gases_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.non_metals_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.post_transition_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        left_box.Add(self.transition_metals_checkbox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Separator
+        left_box.Add(wx.StaticLine(panel), 0, wx.EXPAND | wx.ALL, 5)
+
+        # Center control
+        center_label = wx.StaticText(panel, label="Center (eV):")
+        self.center_ctrl = wx.SpinCtrlDouble(panel, min=0, max=7000, initial=500, inc=0.1)
+        self.center_ctrl.SetDigits(2)
+        self.center_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_center_change)
+        left_box.Add(center_label, 0, wx.ALL, 5)
+        left_box.Add(self.center_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Range control
+        range_label = wx.StaticText(panel, label="Range (eV):")
+        self.range_ctrl = wx.SpinCtrlDouble(panel, min=5, max=500, initial=50, inc=1)
+        self.range_ctrl.SetDigits(2)
+        self.range_ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_range_change)
+        left_box.Add(range_label, 0, wx.ALL, 5)
+        left_box.Add(self.range_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Center button
+        self.center_button = wx.Button(panel, label="Center to Plot")
+        self.center_button.Bind(wx.EVT_BUTTON, self.on_center_to_plot)
+        left_box.Add(self.center_button, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Right panel - List
+        right_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Core Levels"), wx.VERTICAL)
+        # right_box.GetStaticBox().SetWindowStyle(wx.BORDER_RAISED)
+
+        # Create list control
+        self.list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.list_ctrl.InsertColumn(0, "Core Level", width=85)
+        self.list_ctrl.InsertColumn(1, "BE Center", width=70)
+        self.list_ctrl.InsertColumn(2, "RSF", width=60)
+        self.list_ctrl.InsertColumn(3, "Distance", width=65)
+
+        right_box.Add(self.list_ctrl, 1, wx.EXPAND)
+
+        # Add both boxes to main sizer
+        main_sizer.Add(left_box, 0, wx.EXPAND)
+        main_sizer.Add(right_box, 1, wx.EXPAND)
+
+        panel.SetSizer(main_sizer)
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+    def on_center_change(self, event):
+        """Handle manual center position change."""
+        new_center = self.center_ctrl.GetValue()
+        if self.vline1 and self.vline2 and self.vline_center:
+            # Calculate current range
+            vline1_x = self.vline1.get_xdata()[0]
+            vline2_x = self.vline2.get_xdata()[0]
+            current_range = abs(vline2_x - vline1_x)
+
+            # Update positions
+            half_range = current_range / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+
+            self.vline1.set_xdata([new_center - half_range, new_center - half_range])
+            self.vline2.set_xdata([new_center + half_range, new_center + half_range])
+
+            self.update_list_and_lines()
+
+    def on_range_change(self, event):
+        """Handle manual range change."""
+        new_range = self.range_ctrl.GetValue()
+        if new_range < 5.0:
+            new_range = 5.0
+        if self.vline1 and self.vline2 and self.vline_center:
+            center_x = self.vline_center.get_xdata()[0]
+            half_range = new_range / 2
+
+            self.vline1.set_xdata([center_x - half_range, center_x - half_range])
+            self.vline2.set_xdata([center_x + half_range, center_x + half_range])
+
+            self.update_list_and_lines()
+
+    def on_center_to_plot(self, event):
+        """Center the vlines to the middle of the plot."""
+        if not hasattr(self.parent.parent_window, 'ax'):
+            return
+
+        ax = self.parent.parent_window.ax
+        xlim = ax.get_xlim()
+        center_pos = (xlim[0] + xlim[1]) / 2
+
+        if self.vline1 and self.vline2 and self.vline_center:
+            # Calculate current range
+            vline1_x = self.vline1.get_xdata()[0]
+            vline2_x = self.vline2.get_xdata()[0]
+            current_range = abs(vline2_x - vline1_x)
+            half_range = current_range / 2
+
+            # Update positions
+            self.vline_center.set_xdata([center_pos, center_pos])
+            self.vline_center_text.set_x(center_pos)
+            self.vline_center_text.set_text(f'{center_pos:.2f}')
+
+            self.vline1.set_xdata([center_pos - half_range, center_pos - half_range])
+            self.vline2.set_xdata([center_pos + half_range, center_pos + half_range])
+
+            # Update the spin control to reflect new center
+            self.center_ctrl.SetValue(center_pos)
+
+            self.update_list_and_lines()
+
+    def on_filter_change(self, event):
+        """Handle checkbox changes."""
+        self.show_auger = self.auger_checkbox.GetValue()
+        self.show_doublets = self.doublets_checkbox.GetValue()
+        self.show_core_levels = self.core_levels_checkbox.GetValue()
+        self.show_usual_suspects_only = self.usual_suspects_checkbox.GetValue()
+
+        # Element group filters
+        self.show_non_metals = self.non_metals_checkbox.GetValue()
+        self.show_halogens = self.halogens_checkbox.GetValue()
+        self.show_noble_gases = self.noble_gases_checkbox.GetValue()
+        self.show_alkali_metals = self.alkali_metals_checkbox.GetValue()
+        self.show_alkaline_earth = self.alkaline_earth_checkbox.GetValue()
+        self.show_transition_metals = self.transition_metals_checkbox.GetValue()
+        self.show_post_transition = self.post_transition_checkbox.GetValue()
+        self.show_metalloids = self.metalloids_checkbox.GetValue()
+        self.show_lanthanides = self.lanthanides_checkbox.GetValue()
+        self.show_actinides = self.actinides_checkbox.GetValue()
+
+        self.update_list_and_lines()
+
+    def is_auger(self, orbital):
+        """Check if orbital is an Auger transition."""
+        orbital_lower = orbital.lower()
+
+        # Check for Auger patterns
+        # Pattern 1: Ends with specific Auger types
+        if any(orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm']):
+            return True
+
+        # Pattern 2: Contains Auger patterns with numbers (e.g., LM9, MN2, LMM1, KLL1, etc.)
+        import re
+        auger_patterns = [
+            r'kll\d*',  # KLL, KLL1, KLL2, etc.
+            r'kl\d+',  # KL1, KL2, etc. (require digit)
+            r'lmm\d*',  # LMM, LMM1, etc.
+            r'lm\d+',  # LM1, LM2, LM9, etc. (require digit)
+            r'mnn\d*',  # MNN, MNN1, etc.
+            r'mn\d+',  # MN1, MN2, MN5, etc. (require digit)
+            r'mvv\d*',  # MVV, MVV1, etc.
+            r'mv\d+',  # MV1, MV2, etc. (require digit)
+            r'mnv\d*',  # MNV, MNV1, etc.
+            r'noo\d*',  # NOO, NOO1, etc.
+            r'no\d+',  # NO1, NO2, etc. (require digit)
+        ]
+
+        for pattern in auger_patterns:
+            if re.search(pattern, orbital_lower):
+                return True
+
+        return False
+
+    def is_doublet(self, orbital):
+        """Check if orbital is a doublet (contains fractions like 1/2, 3/2, etc.)."""
+        return '/' in orbital or any(x in orbital.lower() for x in ['1/2', '3/2', '5/2', '7/2'])
+
+    def is_core_level(self, orbital):
+        """Check if orbital is a main core level (no fractions, no Auger)."""
+        return not self.is_auger(orbital) and not self.is_doublet(orbital)
+
+    def initialize_vlines(self):
+        """Initialize the three vertical lines (center and limits)."""
+        if not hasattr(self.parent.parent_window, 'ax'):
+            return
+
+        ax = self.parent.parent_window.ax
+        xlim = ax.get_xlim()
+
+        # Calculate initial positions (middle of plot with 10% of plot range)
+        center_pos = (xlim[0] + xlim[1]) / 2
+        plot_range = abs(xlim[1] - xlim[0])
+        range_width = plot_range * 0.05  # Half of 10% on each side
+
+        vline1_x = center_pos - range_width
+        vline2_x = center_pos + range_width
+
+        # Get y limits for text positioning
+        ylim = ax.get_ylim()
+        text_y = ylim[1] - (ylim[1] - ylim[0]) * 0.05
+
+        # Create vLines (red dashed for limits)
+        self.vline1 = ax.axvline(vline1_x, color='g', linestyle='--', alpha=0.6, linewidth=0.9)
+        self.vline2 = ax.axvline(vline2_x, color='g', linestyle='--', alpha=0.6, linewidth=0.9)
+
+        # Create center vLine (blue dotted)
+        self.vline_center = ax.axvline(center_pos, color='blue', linestyle=':', alpha=0.5, linewidth=1.5)
+
+        # Create text label only for center
+        self.vline_center_text = ax.text(center_pos, text_y, f'{center_pos:.2f}',
+                                         ha='center', va='top', fontsize=9, color='blue',
+                                         bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+
+        self.parent.parent_window.canvas.draw_idle()
+    def update_list_and_lines(self):
+        """Update the list to show only core levels within range and draw their lines."""
+        # Clear previous lines
+        self.remove_core_level_lines()
+
+        # Clear list
+        self.list_ctrl.DeleteAllItems()
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Get vLine positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Update numeric controls
+        current_range = abs(vline2_x - vline1_x)
+        self.center_ctrl.SetValue(center_x)
+        self.range_ctrl.SetValue(current_range)
+
+        # Ensure correct order (vline2 should be higher BE)
+        low_limit = min(vline1_x, vline2_x)
+        high_limit = max(vline1_x, vline2_x)
+
+        # Get photon energy
+        photon_energy = getattr(self.parent.parent_window, 'photons', 1486.6)
+
+        # Get y-axis limits
+        ax = self.parent.parent_window.ax
+        ymin, ymax = ax.get_ylim()
+
+        # Define exclusion lists
+        excluded_elements = ['Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Po', 'Rn', 'At', 'Fr', 'Ra', 'Og', 'He']
+        allowed_orbitals = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f']
+
+        # Collect core levels within range
+        core_levels_data = []
+
+        for (elem, orbital), data in self.parent.parent_window.library_data.items():
+            # Filter excluded elements
+            if elem in excluded_elements:
+                continue
+
+            # Filter by element group
+            element_allowed = False
+            if elem in self.non_metals and self.show_non_metals:
+                element_allowed = True
+            elif elem in self.halogens and self.show_halogens:
+                element_allowed = True
+            elif elem in self.noble_gases and self.show_noble_gases:
+                element_allowed = True
+            elif elem in self.alkali_metals and self.show_alkali_metals:
+                element_allowed = True
+            elif elem in self.alkaline_earth and self.show_alkaline_earth:
+                element_allowed = True
+            elif elem in self.transition_metals and self.show_transition_metals:
+                element_allowed = True
+            elif elem in self.post_transition and self.show_post_transition:
+                element_allowed = True
+            elif elem in self.metalloids and self.show_metalloids:
+                element_allowed = True
+            elif elem in self.lanthanides and self.show_lanthanides:
+                element_allowed = True
+            elif elem in self.actinides and self.show_actinides:
+                element_allowed = True
+
+            if not element_allowed:
+                continue
+
+            # Filter by usual suspects if enabled
+            if self.show_usual_suspects_only and elem not in self.usual_suspects:
+                continue
+            # Filter orbitals - extract main orbital part
+            main_orbital = orbital.split('/')[0].rstrip('0123456789')
+            if not self.is_auger(orbital) and main_orbital not in allowed_orbitals:
+                continue
+
+            # Apply filters
+            is_aug = self.is_auger(orbital)
+            is_doub = self.is_doublet(orbital)
+            is_core = self.is_core_level(orbital)
+
+            # Skip based on filter settings
+            if is_aug and not self.show_auger:
+                continue
+            if is_doub and not self.show_doublets:
+                continue
+            if is_core and not self.show_core_levels:
+                continue
+
+            # Choose instrument
+            orbital_lower = orbital.lower()
+            is_auger_orbital = any(x in orbital_lower for x in ['kll', 'lmm', 'mnn', 'mvv', 'mnv'])
+            if is_auger_orbital and 'C-Any' in data:
+                instrument = 'C-Any'
+            elif 'Al1486' in data:
+                instrument = 'Al1486'
+            else:
+                instrument = next(iter(data))
+
+            if 'position' in data[instrument]:
+                position = float(data[instrument]['position'])
+
+                # Get RSF value
+                rsf = 1.0
+                if 'rsf' in data[instrument]:
+                    try:
+                        rsf = float(data[instrument]['rsf'])
+                    except (ValueError, TypeError):
+                        rsf = 1.0
+
+                # Check if Auger and convert BE
+                orbital_lower = orbital.lower()
+                is_auger_ke = instrument == 'C-Any' or any(
+                    orbital_lower.endswith(x) for x in ['kll', 'mnn', 'mvv', 'mnv', 'lmm'])
+
+                if is_auger_ke and instrument == 'C-Any':
+                    be_center = photon_energy - position
+                else:
+                    be_center = position
+
+                # Check if within range
+                if low_limit <= be_center <= high_limit:
+                    distance = abs(be_center - center_x)
+                    core_level_name = f"{elem} {orbital}"
+
+                    # Check if usual suspect
+                    is_usual_suspect = elem in self.usual_suspects
+
+                    core_levels_data.append({
+                        'name': core_level_name,
+                        'center': be_center,
+                        'rsf': rsf,
+                        'distance': distance,
+                        'elem': elem,
+                        'orbital': orbital,
+                        'is_usual_suspect': is_usual_suspect
+                    })
+
+        # Find maximum RSF in the filtered list
+        max_rsf = 1.0
+        if core_levels_data:
+            max_rsf = max(cl['rsf'] for cl in core_levels_data)
+            if max_rsf <= 0:
+                max_rsf = 1.0
+
+        # Sort by distance from center
+        core_levels_data.sort(key=lambda x: x['distance'])
+
+        # Add to list control with .2f format
+        for i, cl_data in enumerate(core_levels_data):
+            index = self.list_ctrl.InsertItem(i, cl_data['name'])
+            self.list_ctrl.SetItem(index, 1, f"{cl_data['center']:.2f}")
+            self.list_ctrl.SetItem(index, 2, f"{cl_data['rsf']:.2f}")
+            self.list_ctrl.SetItem(index, 3, f"{cl_data['distance']:.2f}")
+
+            # Highlight closest match
+            if i == 0:
+                self.list_ctrl.SetItemBackgroundColour(index, wx.Colour(200, 255, 200))
+
+            # Determine color and intensity based on usual suspects
+            if cl_data['is_usual_suspect']:
+                line_color = 'red'
+                line_intensity = self.max_line_intensity
+            else:
+                line_color = 'blue'
+                line_intensity = (cl_data['rsf'] / max_rsf) * self.max_line_intensity
+
+            # Draw vertical line
+            line = ax.axvline(cl_data['center'], color=line_color, linestyle='-', alpha=0.9, linewidth=0.9,
+                              ymin=0, ymax=line_intensity)
+            self.core_level_lines.append(line)
+
+            # Add text label
+            line_height = ymin + (ymax - ymin) * line_intensity
+            text = ax.text(cl_data['center'], line_height, cl_data['name'],
+                           rotation=90, va='bottom', ha='right',
+                           fontsize=8, color=line_color, alpha=1)
+            self.core_level_texts.append(text)
+
+        self.parent.parent_window.canvas.draw_idle()
+
+    def on_canvas_press(self, event):
+        """Handle mouse press to start dragging vLines."""
+        if event.inaxes != self.parent.parent_window.ax:
+            return
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Check which vLine was clicked
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        xlim = self.parent.parent_window.ax.get_xlim()
+        plot_width = abs(xlim[1] - xlim[0])
+        click_tolerance = plot_width * 0.01
+
+        # Calculate distance between vlines as percentage of plot width
+        vline_separation = abs(vline2_x - vline1_x)
+        separation_percentage = vline_separation / plot_width
+
+        # Check distances to each vline
+        dist_to_vline1 = abs(event.xdata - vline1_x)
+        dist_to_vline2 = abs(event.xdata - vline2_x)
+        dist_to_center = abs(event.xdata - center_x)
+
+        # If vlines are close together (within 10% of plot width), prioritize center
+        if separation_percentage < 0.10:
+            if dist_to_center < click_tolerance:
+                self.dragging_vline = 'center'
+                self.drag_offset = event.xdata - center_x
+            elif dist_to_vline1 < click_tolerance:
+                self.dragging_vline = 'vline1'
+                self.drag_offset = event.xdata - vline1_x
+            elif dist_to_vline2 < click_tolerance:
+                self.dragging_vline = 'vline2'
+                self.drag_offset = event.xdata - vline2_x
+        else:
+            # Normal order when vlines are well separated
+            if dist_to_vline1 < click_tolerance:
+                self.dragging_vline = 'vline1'
+                self.drag_offset = event.xdata - vline1_x
+            elif dist_to_vline2 < click_tolerance:
+                self.dragging_vline = 'vline2'
+                self.drag_offset = event.xdata - vline2_x
+            elif dist_to_center < click_tolerance:
+                self.dragging_vline = 'center'
+                self.drag_offset = event.xdata - center_x
+
+    def on_canvas_release(self, event):
+        """Handle mouse release to stop dragging."""
+        self.dragging_vline = None
+        self.drag_offset = 0
+
+    def on_canvas_motion(self, event):
+        """Handle mouse motion to drag vLines."""
+        if not self.dragging_vline or not event.inaxes:
+            return
+
+        new_x = event.xdata - self.drag_offset
+
+        # Get current positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Update the dragged vLine
+        if self.dragging_vline == 'vline1':
+            self.vline1.set_xdata([new_x, new_x])
+            # Update center
+            new_center = (new_x + vline2_x) / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+        elif self.dragging_vline == 'vline2':
+            self.vline2.set_xdata([new_x, new_x])
+            # Update center
+            new_center = (vline1_x + new_x) / 2
+            self.vline_center.set_xdata([new_center, new_center])
+            self.vline_center_text.set_x(new_center)
+            self.vline_center_text.set_text(f'{new_center:.2f}')
+        elif self.dragging_vline == 'center':
+            # Move all three lines together
+            offset = new_x - center_x
+            self.vline_center.set_xdata([new_x, new_x])
+            self.vline_center_text.set_x(new_x)
+            self.vline_center_text.set_text(f'{new_x:.2f}')
+
+            new_vline1_x = vline1_x + offset
+            new_vline2_x = vline2_x + offset
+            self.vline1.set_xdata([new_vline1_x, new_vline1_x])
+            self.vline2.set_xdata([new_vline2_x, new_vline2_x])
+
+        self.update_list_and_lines()
+    def on_scroll(self, event):
+        """Handle mouse wheel to adjust range."""
+        if event.inaxes != self.parent.parent_window.ax:
+            return
+
+        if not self.vline1 or not self.vline2 or not self.vline_center:
+            return
+
+        # Get current positions
+        vline1_x = self.vline1.get_xdata()[0]
+        vline2_x = self.vline2.get_xdata()[0]
+        center_x = self.vline_center.get_xdata()[0]
+
+        # Calculate current range
+        current_range = abs(vline2_x - vline1_x)
+
+        # Adjust range (scroll up = increase, scroll down = decrease)
+        range_change = 2.0 if event.button == 'up' else -2.0
+        new_range = max(5.0, current_range + range_change)  # Minimum range of 5 eV
+
+        # Update vline positions symmetrically around center
+        half_range = new_range / 2
+        new_vline1_x = center_x - half_range
+        new_vline2_x = center_x + half_range
+
+        # Update vLines
+        self.vline1.set_xdata([new_vline1_x, new_vline1_x])
+        self.vline1_text.set_x(new_vline1_x)
+        self.vline1_text.set_text(f'{new_vline1_x:.2f}')
+
+        self.vline2.set_xdata([new_vline2_x, new_vline2_x])
+        self.vline2_text.set_x(new_vline2_x)
+        self.vline2_text.set_text(f'{new_vline2_x:.2f}')
+
+        self.update_list_and_lines()
+
+    def remove_core_level_lines(self):
+        """Remove all core level reference lines from the plot."""
+        for line in self.core_level_lines:
+            try:
+                line.remove()
+            except (ValueError, AttributeError):
+                pass
+        for text in self.core_level_texts:
+            try:
+                text.remove()
+            except (ValueError, AttributeError):
+                pass
+
+        self.core_level_lines.clear()
+        self.core_level_texts.clear()
+    def remove_vlines(self):
+        """Remove the vLines and their text labels."""
+        if self.vline1:
+            self.vline1.remove()
+            self.vline1 = None
+        if self.vline2:
+            self.vline2.remove()
+            self.vline2 = None
+        if self.vline_center:
+            self.vline_center.remove()
+            self.vline_center = None
+        if self.vline1_text:
+            self.vline1_text.remove()
+            self.vline1_text = None
+        if self.vline2_text:
+            self.vline2_text.remove()
+            self.vline2_text = None
+        if self.vline_center_text:
+            self.vline_center_text.remove()
+            self.vline_center_text = None
+
+    def position_window(self):
+        """Position window on top-right of parent window."""
+        parent_pos = self.parent.GetPosition()
+        parent_size = self.parent.GetSize()
+
+        new_x = parent_pos.x + parent_size.width + 10
+        new_y = parent_pos.y
+
+        self.SetPosition((new_x, new_y))
+
+    def on_close(self, event):
+        """Handle window close event."""
+        # Disconnect mouse events
+        if hasattr(self, 'canvas_press_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_press_id)
+        if hasattr(self, 'canvas_release_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_release_id)
+        if hasattr(self, 'canvas_motion_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_motion_id)
+        if hasattr(self, 'canvas_scroll_id'):
+            self.parent.parent_window.canvas.mpl_disconnect(self.canvas_scroll_id)
+
+        # Remove lines
+        self.remove_core_level_lines()
+        self.remove_vlines()
+
+        if hasattr(self.parent.parent_window, 'canvas'):
+            self.parent.parent_window.canvas.draw_idle()
+
+        self.parent.core_level_list_window = None
+        self.Destroy()
+
+
+def open_periodic_table(parent):
+    periodic_table = PeriodicTableWindow(parent)
+    periodic_table.Show()
