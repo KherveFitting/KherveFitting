@@ -799,8 +799,8 @@ class PlotManager:
 
                     # Determine fill type
                     fill_type = "Solid Fill"
-                    if hasattr(window, 'peak_fill_types') and peak_index < len(window.peak_fill_types):
-                        fill_type = window.peak_fill_types[peak_index]
+                    if hasattr(window, 'peak_fill_types') and len(window.peak_fill_types) > 0:
+                        fill_type = window.peak_fill_types[peak_index % len(window.peak_fill_types)]
 
                     if fill_type == "Solid Fill":
                         # Plot fill_between with solid fill
@@ -822,8 +822,8 @@ class PlotManager:
                     elif fill_type == "Hatch":
                         # Use fill_between with hatch pattern
                         hatch_pattern = "/"
-                        if hasattr(window, 'peak_hatch_patterns') and peak_index < len(window.peak_hatch_patterns):
-                            hatch_pattern = window.peak_hatch_patterns[peak_index]
+                        if hasattr(window, 'peak_hatch_patterns') and len(window.peak_hatch_patterns) > 0:
+                            hatch_pattern = window.peak_hatch_patterns[peak_index % len(window.peak_hatch_patterns)]
                         hatch_density = getattr(window, 'hatch_density', 2)
                         final_hatch = hatch_pattern * hatch_density
 
@@ -1012,21 +1012,23 @@ class PlotManager:
                 if doublets.index(peak_index) % 2 == 1:  # Second peak of doublet
                     peak_index = peak_index - 1  # Use first peak's settings
 
-            if window.peak_fill_types[peak_index] == "Solid Fill":
+            fill_idx = peak_index % len(window.peak_fill_types)
+            hatch_idx = peak_index % len(window.peak_hatch_patterns)
+            if window.peak_fill_types[fill_idx] == "Solid Fill":
                 fill_params = {
                     'color': color,
                     'alpha': alpha,
                     'edgecolor': 'none'
                 }
-            elif window.peak_fill_types[peak_index] == "Hatch":
+            elif window.peak_fill_types[fill_idx] == "Hatch":
                 fill_params = {
                     'color': 'none',
-                    'hatch': window.peak_hatch_patterns[peak_index] * window.hatch_density,
+                    'hatch': window.peak_hatch_patterns[hatch_idx] * window.hatch_density,
                     'linewidth': window.peak_line_thickness,
                     'edgecolor': color,
                     'alpha': alpha
                 }
-            elif window.peak_fill_types[peak_index] == "None":
+            elif window.peak_fill_types[fill_idx] == "None":
                 # Skip the fill_between call and only draw the line
                 if window.peak_line_style != "No Line":
                     # Determine line color
@@ -3947,8 +3949,8 @@ class PlotManager:
             for col, (data, width) in enumerate(zip(row_data, col_widths)):
                 # Set cell background color - peak name column gets peak color, others alternating
                 if col == 0:  # First column (peak name)
-                    if hasattr(self.window, 'peak_colors') and peak_idx < len(self.window.peak_colors):
-                        cell_color = self.window.peak_colors[peak_idx]
+                    if hasattr(self.window, 'peak_colors') and len(self.window.peak_colors) > 0:
+                        cell_color = self.window.peak_colors[peak_idx % len(self.window.peak_colors)]
                     else:
                         cell_color = 'white'
                 else:  # Other columns use alternating colors
@@ -4099,8 +4101,8 @@ class PlotManager:
             for col, (data, width) in enumerate(zip(row_data, col_widths)):
                 # Set cell background color - peak name column gets peak color, others alternating
                 if col == 0:  # First column (peak name)
-                    if hasattr(self.window, 'peak_colors') and peak_idx < len(self.window.peak_colors):
-                        cell_color = self.window.peak_colors[peak_idx]
+                    if hasattr(self.window, 'peak_colors') and len(self.window.peak_colors) > 0:
+                        cell_color = self.window.peak_colors[peak_idx % len(self.window.peak_colors)]
                     else:
                         cell_color = 'white'
                 else:  # Other columns use alternating colors
