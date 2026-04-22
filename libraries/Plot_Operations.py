@@ -2046,10 +2046,13 @@ class PlotManager:
                     self.plot_peak(window.x_values, window.background, peak_params, sheet_name, window,
                                                 color=color, alpha=alpha)
 
-        # Only plot background if it's different from raw data or if Bkg Type is not empty
-        if (core_level_data['Background'].get('Bkg Type') != "" and
+        # Only plot background if it's different from raw data or if Bkg Type is not empty.
+        # Skip for Fermi / D-parameter / VBM / Cut Off sheets — those tools draw their own
+        # fit overlays and a generic background line is misleading.
+        if (core_level_data['Background'].get('Bkg Type') not in ("", "None") and
                 core_level_data['Background'].get('Bkg Low') != "" and
-                core_level_data['Background'].get('Bkg High') != ""):
+                core_level_data['Background'].get('Bkg High') != "" and
+                cst_unfit not in ("Fermi", "D-parameter", "VBM", "Cut Off")):
 
             # Get background regions for masking
             bg_regions = self.get_background_regions(window)
