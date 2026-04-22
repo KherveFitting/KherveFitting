@@ -2865,7 +2865,15 @@ def open_xlsx_file(window, file_path=None):
         invalid_sheets = [name for name in sheet_names if name.startswith('Sheet')]
         if invalid_sheets:
             console_frame.Close()
-            wx.MessageBox(f"File contains invalid sheet names: {', '.join(invalid_sheets)}", "Invalid Sheet Names",
+            msg = (
+                f"Cannot open this file.\n\n"
+                f"The following sheet name(s) are not recognised by KherveFitting:\n"
+                f"    {', '.join(invalid_sheets)}\n\n"
+                f"Default Excel names like 'Sheet1', 'Sheet2', etc. are not allowed.\n"
+                f"Please rename each sheet to a valid core level (e.g. C1s, O1s, Si2p, "
+                f"Survey, Wide) or remove/rename the sheet, then try again."
+            )
+            wx.MessageBox(msg, "Cannot Open File - Invalid Sheet Names",
                           wx.OK | wx.ICON_WARNING)
             return
 
@@ -2903,7 +2911,26 @@ def open_xlsx_file(window, file_path=None):
 
             if not (xps_valid or raman_valid or xas_valid or edx_valid or eels_valid):
                 console_frame.Close()
-                wx.MessageBox(f"Sheet '{sheet_name}' has invalid column labels", "Invalid Column Labels",
+                found_col1 = str(df.iloc[0, 0]).strip() if df.shape[1] > 0 else "(empty)"
+                found_col2 = str(df.iloc[0, 1]).strip() if df.shape[1] > 1 else "(empty)"
+                msg = (
+                    f"Cannot open this file.\n\n"
+                    f"Sheet '{sheet_name}' has column headers that KherveFitting "
+                    f"does not recognise.\n\n"
+                    f"Found:\n"
+                    f"    Column 1 = '{found_col1}'\n"
+                    f"    Column 2 = '{found_col2}'\n\n"
+                    f"Expected one of these header pairs in row 1:\n"
+                    f"    XPS:   'BE' (or 'B.E.' / 'Binding Energy')  +  "
+                    f"'Raw Data' (or 'Corrected Data' / 'Intensity')\n"
+                    f"    Raman: 'Wavenumber' (or 'cm-1')  +  'Raw Data' / 'Intensity'\n"
+                    f"    XAS:   'Energy' (or 'Photon Energy')  +  'Intensity' / 'Raw Data'\n"
+                    f"    EDX:   'Energy (keV)'  +  'Intensity'\n"
+                    f"    EELS:  'Energy (eV)' or 'Energy Loss'  +  'Intensity'\n\n"
+                    f"Please fix the headers in sheet '{sheet_name}' (or remove the "
+                    f"sheet if it is not measurement data) and try again."
+                )
+                wx.MessageBox(msg, "Cannot Open File - Invalid Column Labels",
                               wx.OK | wx.ICON_WARNING)
                 return
 
