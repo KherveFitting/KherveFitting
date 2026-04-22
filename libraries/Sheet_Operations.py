@@ -525,6 +525,16 @@ def on_sheet_selected(window, event):
                 if hasattr(window, 'peak_manipulation'):
                     window.peak_manipulation.remove_cross_from_peak()
 
+    # If the VB Measurements window is open, restore its vLines on the freshly
+    # drawn axes at the user's last-known positions (axes were wiped above, so
+    # otherwise the lines vanish whenever you switch sheet via the sample
+    # manager / file manager / sheet combobox).
+    if getattr(window, 'vb_measurements_window', None) is not None:
+        try:
+            window.vb_measurements_window.restore_vlines_after_sheet_switch()
+        except Exception as e:
+            print(f"VB vLine restore failed: {e}")
+
     # window.plot_manager.clear_and_replot(window)
 
 def on_grid_left_click(window, event):

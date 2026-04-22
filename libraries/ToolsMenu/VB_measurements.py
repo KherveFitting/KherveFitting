@@ -26,7 +26,7 @@ except ImportError:
 class VB_measurements(wx.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, title="VB Measurements",
-                         size=(600, 430),
+                         size=(560, 480),
                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
         self.parent = parent  # Main frame
 
@@ -39,6 +39,9 @@ class VB_measurements(wx.Frame):
         self.fermi_fit_result = None
         self.thermal_fit_line = None
         self.vbm_lines = []
+        # Remember the user's chosen vLine positions across sheet switches.
+        # Set/updated from force_vlines_visible, _apply_vlines_at, on_motion.
+        self._last_vline_xs = None
 
         self.InitUI()
 
@@ -155,29 +158,28 @@ class VB_measurements(wx.Frame):
                     pass
                 self.parent.vline2_text = None
 
-            # Create new vLines at 10% and 90% of plot range
-            plot_range = self.get_vb_plot_range_positions()
-            if plot_range:
-                low_pos, high_pos = plot_range
-
-                # Create new vLines
+            # Prefer the user's last-known positions; fall back to 10/90.
+            if self._last_vline_xs is not None:
+                low_pos, high_pos = self._last_vline_xs
+            else:
+                plot_range = self.get_vb_plot_range_positions()
+                low_pos, high_pos = plot_range if plot_range else (None, None)
+            if low_pos is not None:
                 self.parent.vline1 = self.parent.ax.axvline(low_pos, color='r', linestyle='--', alpha=0.7)
                 self.parent.vline2 = self.parent.ax.axvline(high_pos, color='r', linestyle='--', alpha=0.7)
-
-                # Update VBM controls to match vLine positions (with .2f format)
                 self.vbm_edge_ctrl.SetValue(float(f"{low_pos:.2f}"))
                 self.vbm_bg_center_ctrl.SetValue(float(f"{high_pos:.2f}"))
         else:
-            # VLines are valid, just reposition them to 10% and 90%
-            plot_range = self.get_vb_plot_range_positions()
-            if plot_range:
-                low_pos, high_pos = plot_range
-
-                # Set vLines to 10% and 90% positions
+            # VLines exist on the current axes — keep their positions if we
+            # have remembered ones; otherwise reposition to 10/90.
+            if self._last_vline_xs is not None:
+                low_pos, high_pos = self._last_vline_xs
+            else:
+                plot_range = self.get_vb_plot_range_positions()
+                low_pos, high_pos = plot_range if plot_range else (None, None)
+            if low_pos is not None:
                 self.parent.vline1.set_xdata([low_pos, low_pos])
                 self.parent.vline2.set_xdata([high_pos, high_pos])
-
-                # Update VBM controls to match vLine positions (with .2f format)
                 self.vbm_edge_ctrl.SetValue(float(f"{low_pos:.2f}"))
                 self.vbm_bg_center_ctrl.SetValue(float(f"{high_pos:.2f}"))
 
@@ -192,6 +194,16 @@ class VB_measurements(wx.Frame):
 
         # Add text labels for vlines
         self.add_vline_text_labels()
+
+        # Remember positions so they survive future sheet switches
+        try:
+            if self.parent.vline1 is not None and self.parent.vline2 is not None:
+                self._last_vline_xs = (
+                    float(self.parent.vline1.get_xdata()[0]),
+                    float(self.parent.vline2.get_xdata()[0]),
+                )
+        except Exception:
+            pass
 
         # Force canvas redraw
         self.parent.canvas.draw_idle()
@@ -256,15 +268,20 @@ class VB_measurements(wx.Frame):
         fermi_sizer = wx.StaticBoxSizer(fermi_box, wx.VERTICAL)
 
         fermi_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        fit_btn = wx.Button(left_panel, label="Fit Fermi Edge")
-        fit_btn.Bind(wx.EVT_BUTTON, self.OnFitFermiEdge)
+        fit_btn = wx.Button(left_panel, label="Fit Selected Fermi")
+        fit_btn.Bind(wx.EVT_BUTTON, self.OnFitFermiSelected)
         fermi_btn_sizer.Add(fit_btn, 1, wx.ALL, 5)
 
-        remove_btn = wx.Button(left_panel, label="Remove Fermi")
-        remove_btn.Bind(wx.EVT_BUTTON, self.OnRemoveFermi)
+        remove_btn = wx.Button(left_panel, label="Remove Selected Fermi")
+        remove_btn.Bind(wx.EVT_BUTTON, self.OnRemoveFermiSelected)
         fermi_btn_sizer.Add(remove_btn, 1, wx.ALL, 5)
 
         fermi_sizer.Add(fermi_btn_sizer, 0, wx.EXPAND)
+
+        correct_be_btn = wx.Button(left_panel, label="Correct Binding Energy")
+        correct_be_btn.SetToolTip("Correct BE Using Fermi for selected data")
+        correct_be_btn.Bind(wx.EVT_BUTTON, self.OnCorrectBEFromFermi)
+        fermi_sizer.Add(correct_be_btn, 0, wx.EXPAND | wx.ALL, 5)
 
         left_sizer.Add(fermi_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
@@ -348,22 +365,35 @@ class VB_measurements(wx.Frame):
 
         left_panel.SetSizer(left_sizer)
 
-        # Right side - Results
+        # Right side - Sample sheet selector + Show Analysis Results button
         right_panel = wx.Panel(panel)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Right side - Results (replace entire right panel section)
-        right_panel = wx.Panel(panel)
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        sample_box = wx.StaticBox(right_panel, label="Sample Sheets")
+        sample_sizer = wx.StaticBoxSizer(sample_box, wx.VERTICAL)
 
-        # Single Results Box
-        result_box = wx.StaticBox(right_panel, label="Analysis Results")
-        result_sizer = wx.StaticBoxSizer(result_box, wx.VERTICAL)
-        self.results = wx.TextCtrl(right_panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(300, 350))
-        result_sizer.Add(self.results, 1, wx.EXPAND | wx.ALL, 5)
-        right_sizer.Add(result_sizer, 1, wx.EXPAND | wx.ALL, 5)
+        self.sheet_checklist = wx.CheckListBox(right_panel)
+        self.sheet_checklist.Bind(wx.EVT_RIGHT_DOWN, self.on_sheet_list_right_click)
+        sample_sizer.Add(self.sheet_checklist, 1, wx.EXPAND | wx.ALL, 5)
+
+        right_sizer.Add(sample_sizer, 1, wx.EXPAND | wx.ALL, 5)
+
+        show_results_btn = wx.Button(right_panel, label="Show Analysis Results")
+        show_results_btn.Bind(wx.EVT_BUTTON, self.OnShowResults)
+        right_sizer.Add(show_results_btn, 0, wx.EXPAND | wx.ALL, 5)
 
         right_panel.SetSizer(right_sizer)
+
+        # Hidden frame holding the results TextCtrl (shown on demand).
+        # self.results must exist because other methods write to it directly.
+        self._results_frame = wx.Frame(self, title="VB Analysis Results",
+                                       size=(500, 400),
+                                       style=wx.DEFAULT_FRAME_STYLE)
+        self.results = wx.TextCtrl(self._results_frame,
+                                   style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self._results_frame.Bind(wx.EVT_CLOSE, self._on_results_close)
+
+        self.populate_sheet_checklist()
 
         # Add panels to main sizer
         main_sizer.Add(left_panel, 0, wx.EXPAND | wx.ALL, 5)
@@ -389,6 +419,382 @@ class VB_measurements(wx.Frame):
         except:
             pass
         return None, None
+
+    # --- Sample sheet selector helpers ---------------------------------
+
+    SAMPLE_SHEET_PATTERNS = ('vb', 'valence', 'fermi', 'ups~', 'survey', 'wide')
+
+    # Display label -> matching token (lowercased substring)
+    SHEET_GROUP_LABELS = (
+        ('VB', 'vb'),
+        ('Valence', 'valence'),
+        ('Fermi', 'fermi'),
+        ('UPS', 'ups~'),
+        ('Survey', 'survey'),
+        ('Wide', 'wide'),
+    )
+
+    def _is_sample_sheet(self, name):
+        """Match sheets relevant to a VB/UPS workflow, case-insensitive."""
+        lname = name.lower()
+        return any(p in lname for p in self.SAMPLE_SHEET_PATTERNS)
+
+    def populate_sheet_checklist(self):
+        """Populate the checklist with VB-style sheets and check the active one."""
+        try:
+            sheets = list(self.parent.Data.get('Core levels', {}).keys())
+        except Exception:
+            sheets = []
+        matching = [s for s in sheets if self._is_sample_sheet(s)]
+        self.sheet_checklist.Clear()
+        if not matching:
+            return
+        self.sheet_checklist.AppendItems(matching)
+        try:
+            current = self.parent.sheet_combobox.GetValue()
+        except Exception:
+            current = None
+        if current and current in matching:
+            self.sheet_checklist.Check(matching.index(current), True)
+
+    def on_sheet_list_right_click(self, event):
+        """Build a dynamic Select-all/Unselect-all menu per sheet-type group."""
+        items = [self.sheet_checklist.GetString(i)
+                 for i in range(self.sheet_checklist.GetCount())]
+        menu = wx.Menu()
+        for label, token in self.SHEET_GROUP_LABELS:
+            indices = [i for i, name in enumerate(items) if token in name.lower()]
+            if not indices:
+                continue
+            sel_id = wx.NewIdRef()
+            unsel_id = wx.NewIdRef()
+            menu.Append(sel_id, f"Select all {label}")
+            menu.Append(unsel_id, f"Unselect all {label}")
+            self.Bind(wx.EVT_MENU,
+                      lambda evt, idx=indices: self._set_check_for(idx, True),
+                      id=sel_id)
+            self.Bind(wx.EVT_MENU,
+                      lambda evt, idx=indices: self._set_check_for(idx, False),
+                      id=unsel_id)
+        if menu.GetMenuItemCount():
+            menu.AppendSeparator()
+        sel_all_id = wx.NewIdRef()
+        unsel_all_id = wx.NewIdRef()
+        menu.Append(sel_all_id, "Select All")
+        menu.Append(unsel_all_id, "Unselect All")
+        self.Bind(wx.EVT_MENU, self.on_select_all_sheets, id=sel_all_id)
+        self.Bind(wx.EVT_MENU, self.on_unselect_all_sheets, id=unsel_all_id)
+        self.sheet_checklist.PopupMenu(menu)
+        menu.Destroy()
+
+    def _set_check_for(self, indices, value):
+        for i in indices:
+            self.sheet_checklist.Check(i, value)
+
+    def on_select_all_sheets(self, event):
+        for i in range(self.sheet_checklist.GetCount()):
+            self.sheet_checklist.Check(i, True)
+
+    def on_unselect_all_sheets(self, event):
+        for i in range(self.sheet_checklist.GetCount()):
+            self.sheet_checklist.Check(i, False)
+
+    def OnShowResults(self, event):
+        self._results_frame.Show()
+        self._results_frame.Raise()
+
+    def _on_results_close(self, event):
+        # Hide instead of destroy so self.results remains valid
+        self._results_frame.Hide()
+
+    def _selected_sheets(self):
+        return [self.sheet_checklist.GetString(i)
+                for i in range(self.sheet_checklist.GetCount())
+                if self.sheet_checklist.IsChecked(i)]
+
+    def _run_on_selected_sheets(self, action_method, action_label):
+        """Switch to each selected sheet and invoke action_method on it.
+
+        Captures the CURRENT active sheet's vline BE positions once, then
+        applies the same two BE positions on every selected sheet (creating
+        fresh axvlines after on_sheet_selected wipes the axes).
+        """
+        sheets = self._selected_sheets()
+        if not sheets:
+            wx.MessageBox("No sheets selected.", action_label,
+                          wx.OK | wx.ICON_INFORMATION)
+            return
+
+        # Capture current sheet's vline x-positions ONCE
+        v1_x = v2_x = None
+        try:
+            if self.parent.vline1 is not None:
+                v1_x = float(self.parent.vline1.get_xdata()[0])
+            if self.parent.vline2 is not None:
+                v2_x = float(self.parent.vline2.get_xdata()[0])
+        except Exception:
+            pass
+        if v1_x is None or v2_x is None:
+            wx.MessageBox("Set the red vLines on the current sheet first.",
+                          action_label, wx.OK | wx.ICON_WARNING)
+            return
+
+        original_sheet = self.parent.sheet_combobox.GetValue()
+        from libraries.Sheet_Operations import on_sheet_selected
+        failures = []
+        for sheet in sheets:
+            try:
+                self.parent.sheet_combobox.SetValue(sheet)
+                on_sheet_selected(self.parent, sheet)
+                self._apply_vlines_at(v1_x, v2_x)
+                action_method(None)
+            except Exception as e:
+                failures.append(f"{sheet}: {e}")
+                print(f"{action_label} failed for {sheet}: {e}")
+        try:
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+            self._apply_vlines_at(v1_x, v2_x)
+        except Exception:
+            pass
+        if failures:
+            wx.MessageBox(
+                f"{action_label} failed on:\n\n" + "\n".join(failures),
+                action_label, wx.OK | wx.ICON_WARNING)
+
+    def restore_vlines_after_sheet_switch(self):
+        """Called from on_sheet_selected when this window is open. Recreates
+        vLines on the freshly drawn axes at the user's last-known positions
+        instead of snapping to 10%/90%. Falls back to 10%/90% if we have no
+        memory of prior positions."""
+        if self._last_vline_xs is not None:
+            x1, x2 = self._last_vline_xs
+            self._apply_vlines_at(x1, x2, remember=True)
+        else:
+            self.force_vlines_visible()
+
+    def _apply_vlines_at(self, x1, x2, remember=True):
+        """Create / reposition vline1 & vline2 at the given BE positions on
+        the current axes, and update the VBM controls to match."""
+        # Clean stale references that aren't on the current axes
+        for attr in ('vline1', 'vline2', 'vline1_text', 'vline2_text'):
+            obj = getattr(self.parent, attr, None)
+            if obj is not None:
+                try:
+                    obj.remove()
+                except Exception:
+                    pass
+                setattr(self.parent, attr, None)
+        self.parent.vline1 = self.parent.ax.axvline(x1, color='r', linestyle='--', alpha=0.7)
+        self.parent.vline2 = self.parent.ax.axvline(x2, color='r', linestyle='--', alpha=0.7)
+        self.parent.vline1.set_visible(True)
+        self.parent.vline2.set_visible(True)
+        self.parent.background_tab_selected = True
+        try:
+            self.vbm_edge_ctrl.SetValue(float(f"{x1:.2f}"))
+            self.vbm_bg_center_ctrl.SetValue(float(f"{x2:.2f}"))
+        except Exception:
+            pass
+        try:
+            self.add_vline_text_labels()
+        except Exception:
+            pass
+        if remember:
+            self._last_vline_xs = (x1, x2)
+        self.parent.canvas.draw_idle()
+
+    def OnFitFermiSelected(self, event):
+        self._run_on_selected_sheets(self.OnFitFermiEdge, "Fit Fermi Selected")
+
+    def OnRemoveFermiSelected(self, event):
+        self._run_on_selected_sheets(self.OnRemoveFermi, "Remove Fermi Selected")
+
+    def OnCorrectBEFromFermi(self, event):
+        """For each selected sheet, find its Fermi peak and shift the sheet
+        so the Fermi position becomes 0. Same per-sheet shift logic as
+        On_BE_Corrections_Defs.apply_be_correction, plus the same bookkeeping
+        (window.be_correction, Data['BEcorrection'/'BEcorrections'], main
+        BE-correction spinbox, FileManager grid) so the correction is
+        actually recorded and visible in the main window."""
+        import re
+        from libraries.Sheet_Operations import on_sheet_selected
+
+        sheets = self._selected_sheets()
+        if not sheets:
+            wx.MessageBox("No sheets selected.", "Correct Binding Energy",
+                          wx.OK | wx.ICON_INFORMATION)
+            return
+
+        if 'BEcorrections' not in self.parent.Data:
+            self.parent.Data['BEcorrections'] = {}
+
+        original_sheet = self.parent.sheet_combobox.GetValue()
+        shifted, missing = [], []
+        per_row_correction = {}  # row -> new cumulative correction
+
+        for sheet in sheets:
+            sheet_data = self.parent.Data.get('Core levels', {}).get(sheet)
+            if not sheet_data:
+                missing.append(f"{sheet}: not found")
+                continue
+            fermi_pos = self._find_fermi_position(sheet_data)
+            if fermi_pos is None:
+                missing.append(sheet)
+                continue
+            delta = -float(fermi_pos)
+            if delta == 0:
+                shifted.append(f"{sheet}: already at 0")
+                continue
+
+            self._shift_sheet_be(sheet, sheet_data, delta)
+
+            # Bookkeeping: cumulative correction per row suffix
+            m = re.search(r'(\d+)$', sheet)
+            row = m.group(1) if m else "0"
+            existing = float(self.parent.Data['BEcorrections'].get(row, 0.0))
+            new_corr = existing + delta
+            self.parent.Data['BEcorrections'][row] = new_corr
+            per_row_correction[row] = new_corr
+
+            shifted.append(f"{sheet}: shifted by {delta:+.3f} eV "
+                           f"(row {row} BEcorrection = {new_corr:+.3f})")
+
+        # Update active-sheet correction state + spinbox
+        m = re.search(r'(\d+)$', original_sheet)
+        active_row = m.group(1) if m else "0"
+        if active_row in per_row_correction:
+            new_corr = per_row_correction[active_row]
+            self.parent.be_correction = new_corr
+            self.parent.Data['BEcorrection'] = new_corr
+            try:
+                if hasattr(self.parent, 'be_correction_spinbox'):
+                    self.parent.be_correction_spinbox.SetValue(new_corr)
+            except Exception:
+                pass
+
+        # Sync FileManager grid if open
+        if (hasattr(self.parent, 'file_manager')
+                and self.parent.file_manager is not None):
+            try:
+                grid = self.parent.file_manager.grid
+                if grid and grid.IsShown():
+                    be_col = len(self.parent.file_manager.core_levels) + 1
+                    for row_str, val in per_row_correction.items():
+                        try:
+                            r = int(row_str)
+                            if r < grid.GetNumberRows():
+                                grid.SetCellValue(r, be_col, str(val))
+                        except (ValueError, IndexError):
+                            pass
+                self.parent.file_manager.save_be_corrections()
+            except Exception:
+                pass
+
+        # Refresh active sheet display
+        try:
+            self.parent.sheet_combobox.SetValue(original_sheet)
+            on_sheet_selected(self.parent, original_sheet)
+        except Exception:
+            pass
+
+        msg = ""
+        if shifted:
+            msg += "Corrected:\n  " + "\n  ".join(shifted)
+        if missing:
+            msg += ("\n\nNo Fermi peak found:\n  "
+                    + "\n  ".join(missing))
+        wx.MessageBox(msg or "Nothing to do.",
+                      "Correct Binding Energy",
+                      wx.OK | wx.ICON_INFORMATION)
+
+    def _find_fermi_position(self, sheet_data):
+        """Return the BE position of the Fermi peak in sheet_data, or None."""
+        fitting = sheet_data.get('Fitting') if isinstance(sheet_data, dict) else None
+        if not fitting:
+            return None
+        peaks = fitting.get('Peaks', {}) if isinstance(fitting, dict) else {}
+        for label, peak in peaks.items():
+            if not isinstance(peak, dict):
+                continue
+            model = str(peak.get('Fitting Model', ''))
+            if 'Fermi' in model or 'Fermi' in str(label) or 'Fermi_Center' in peak:
+                for key in ('Fermi_Center', 'Position'):
+                    val = peak.get(key)
+                    if val in ('', None):
+                        continue
+                    try:
+                        return float(val)
+                    except (TypeError, ValueError):
+                        continue
+        return None
+
+    def _shift_sheet_be(self, sheet_name, sheet_data, delta):
+        """Apply the same per-sheet BE shift used by apply_be_correction."""
+        if 'B.E.' in sheet_data:
+            sheet_data['B.E.'] = [be + delta for be in sheet_data['B.E.']]
+
+        bg = sheet_data.get('Background')
+        if isinstance(bg, dict):
+            for k in ('Bkg Low', 'Bkg High'):
+                if bg.get(k) not in ('', None):
+                    try:
+                        bg[k] = round(float(bg[k]) + delta, 2)
+                    except (TypeError, ValueError):
+                        pass
+            if bg.get('Bkg X'):
+                bg['Bkg X'] = [x + delta for x in bg['Bkg X']]
+            if bg.get('Recorded_Ranges'):
+                shifted = []
+                for r in bg['Recorded_Ranges']:
+                    try:
+                        shifted.append((float(r[0]), float(r[1]),
+                                        float(r[2]) + delta,
+                                        float(r[3]) + delta))
+                    except (TypeError, ValueError, IndexError):
+                        shifted.append(r)
+                bg['Recorded_Ranges'] = shifted
+
+        fitting = sheet_data.get('Fitting')
+        if isinstance(fitting, dict):
+            for peak in fitting.get('Peaks', {}).values():
+                if not isinstance(peak, dict):
+                    continue
+                if peak.get('Position') not in ('', None):
+                    try:
+                        peak['Position'] = float(peak['Position']) + delta
+                    except (TypeError, ValueError):
+                        pass
+                for k in ('Bkg Low', 'Bkg High'):
+                    if peak.get(k) not in ('', None):
+                        try:
+                            peak[k] = round(float(peak[k]) + delta, 2)
+                        except (TypeError, ValueError):
+                            pass
+                if peak.get('Fitted_X'):
+                    peak['Fitted_X'] = [x + delta for x in peak['Fitted_X']]
+                if peak.get('x_data'):
+                    peak['x_data'] = [x + delta for x in peak['x_data']]
+                for k in ('Fermi_Center', 'Original_Position'):
+                    if peak.get(k) not in ('', None):
+                        try:
+                            peak[k] = round(float(peak[k]) + delta, 2)
+                        except (TypeError, ValueError):
+                            pass
+                cons = peak.get('Constraints')
+                if isinstance(cons, dict):
+                    pos_c = cons.get('Position', '')
+                    if (pos_c and ',' in pos_c and not any(
+                            c in pos_c for c in 'ABCDEFGHIJKLMNOP')):
+                        try:
+                            mn, mx = map(float, pos_c.split(','))
+                            cons['Position'] = f"{mn + delta:.2f},{mx + delta:.2f}"
+                        except ValueError:
+                            pass
+
+        if sheet_name in self.parent.plot_config.plot_limits:
+            limits = self.parent.plot_config.plot_limits[sheet_name]
+            limits['Xmin'] += delta
+            limits['Xmax'] += delta
 
     def OnFitFermiEdge(self, event):
         """Fit Fermi edge using lmfitxps FermiEdgeModel"""
@@ -1051,6 +1457,13 @@ Min Intensity: {np.min(y_data):.2f}"""
         # Ensure canvas is redrawn
         self.parent.canvas.draw_idle()
 
+        # Destroy the hidden results popup (we own it)
+        try:
+            if self._results_frame:
+                self._results_frame.Destroy()
+        except Exception:
+            pass
+
         self.Destroy()
 
     def OnRemoveFermi(self, event):
@@ -1152,6 +1565,9 @@ Min Intensity: {np.min(y_data):.2f}"""
 
             # vline2 controls BG Center
             self.vbm_bg_center_ctrl.SetValue(round(vline2_pos, 2))
+
+            # Remember dragged positions so they survive future sheet switches
+            self._last_vline_xs = (float(vline1_pos), float(vline2_pos))
 
     def setup_vbm_vlines(self):
         """Position vLines at current control values"""
