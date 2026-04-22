@@ -6,3 +6,6 @@
 /__pycache__/
 *.pyc
 /config.json
+/CLAUDE.md
+/.claude/
+/.idea/
