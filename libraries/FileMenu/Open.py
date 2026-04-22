@@ -116,11 +116,12 @@ class ExcelDropTarget(wx.FileDropTarget):
 
                 wb.close()
 
-                # Treat as kFitting if it has proper headers OR proper sheet names (and no generic names)
-                if (is_kfitting or has_proper_sheet_names) and not has_generic_sheet_names:
+                # Treat as kFitting if it has any proper sheet names or kFitting headers.
+                # Bad/generic sheets will be skipped (with a summary) inside open_xlsx_file.
+                if is_kfitting or has_proper_sheet_names:
                     wx.CallAfter(open_xlsx_file, self.window, file)
                 else:
-                    # Has generic sheet names or no proper headers/names - use interactive import
+                    # No usable sheets at all - fall back to the interactive importer.
                     wx.CallAfter(import_generic_excel_file, self.window, file)
 
                 return True
@@ -171,11 +172,12 @@ class ExcelDropTarget(wx.FileDropTarget):
 
                 wb.release_resources()
 
-                # Only treat as kFitting if it has proper headers AND no generic sheet names
-                if is_kfitting and not has_generic_sheet_names:
+                # If at least one sheet has kFitting headers, open it - any bad/generic
+                # sheets will be skipped (with a summary) inside open_xlsx_file.
+                if is_kfitting:
                     wx.CallAfter(open_xlsx_file, self.window, file)
                 else:
-                    # Has generic sheet names or no proper headers - use interactive import
+                    # No usable sheets at all - fall back to the interactive importer.
                     wx.CallAfter(import_generic_excel_file, self.window, file)
 
                 return True
@@ -2861,39 +2863,47 @@ def open_xlsx_file(window, file_path=None):
         sheet_names = [name for name in all_sheet_names if
                        name.lower() not in ["results table", "experimental description"]]
 
-        # Validation
+        # Validation - track sheets we have to drop so the user knows at the end.
+        # Default Excel names like Sheet1/Sheet2 cannot be used as core-level names,
+        # so they are dismissed rather than blocking the whole file from opening.
+        dismissed_sheets = []  # list of (sheet_name, reason) tuples
         invalid_sheets = [name for name in sheet_names if name.startswith('Sheet')]
         if invalid_sheets:
-            console_frame.Close()
-            msg = (
-                f"Cannot open this file.\n\n"
-                f"The following sheet name(s) are not recognised by KherveFitting:\n"
-                f"    {', '.join(invalid_sheets)}\n\n"
-                f"Default Excel names like 'Sheet1', 'Sheet2', etc. are not allowed.\n"
-                f"Please rename each sheet to a valid core level (e.g. C1s, O1s, Si2p, "
-                f"Survey, Wide) or remove/rename the sheet, then try again."
-            )
-            wx.MessageBox(msg, "Cannot Open File - Invalid Sheet Names",
-                          wx.OK | wx.ICON_WARNING)
-            return
+            for name in invalid_sheets:
+                dismissed_sheets.append((name, "default Excel name (e.g. Sheet1)"))
+            sheet_names = [n for n in sheet_names if n not in invalid_sheets]
 
+        validated_sheets = []
         for sheet_name in sheet_names:
             # Skip validation for zzProfile sheets - they have different column structure
             if sheet_name.startswith('zzProfile') or sheet_name.startswith('zzMap'):
+                validated_sheets.append(sheet_name)
                 continue
 
             # Skip validation for EDX sheets - they have different structures
             if sheet_name == 'EDX~Map' or sheet_name == 'EDX~Plot' or sheet_name.startswith('EDX~Plot'):
+                validated_sheets.append(sheet_name)
                 continue
 
             if sheet_name == 'EELS~Map' or sheet_name == 'EELS~Plot' or sheet_name.startswith('EELS~Plot'):
+                validated_sheets.append(sheet_name)
                 continue
 
             # Skip validation for XPS~Map sheets - they have Y1, Y2, Y3... columns
             if sheet_name.startswith('XPS~Map'):
+                validated_sheets.append(sheet_name)
                 continue
 
-            df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+            try:
+                df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+            except Exception as e:
+                dismissed_sheets.append((sheet_name, f"unreadable ({e})"))
+                continue
+
+            if df.shape[0] == 0 or df.shape[1] < 2:
+                dismissed_sheets.append((sheet_name, "fewer than 2 columns or no data"))
+                continue
+
             col1_value = str(df.iloc[0, 0]).strip().upper()
             col2_value = str(df.iloc[0, 1]).strip().upper()
 
@@ -2910,30 +2920,32 @@ def open_xlsx_file(window, file_path=None):
             eels_valid = ('ENERGY' in col1_value) and ('EV' in col1_value or 'LOSS' in col1_value) and 'INTENSITY' in col2_value
 
             if not (xps_valid or raman_valid or xas_valid or edx_valid or eels_valid):
-                console_frame.Close()
                 found_col1 = str(df.iloc[0, 0]).strip() if df.shape[1] > 0 else "(empty)"
                 found_col2 = str(df.iloc[0, 1]).strip() if df.shape[1] > 1 else "(empty)"
-                msg = (
-                    f"Cannot open this file.\n\n"
-                    f"Sheet '{sheet_name}' has column headers that KherveFitting "
-                    f"does not recognise.\n\n"
-                    f"Found:\n"
-                    f"    Column 1 = '{found_col1}'\n"
-                    f"    Column 2 = '{found_col2}'\n\n"
-                    f"Expected one of these header pairs in row 1:\n"
-                    f"    XPS:   'BE' (or 'B.E.' / 'Binding Energy')  +  "
-                    f"'Raw Data' (or 'Corrected Data' / 'Intensity')\n"
-                    f"    Raman: 'Wavenumber' (or 'cm-1')  +  'Raw Data' / 'Intensity'\n"
-                    f"    XAS:   'Energy' (or 'Photon Energy')  +  'Intensity' / 'Raw Data'\n"
-                    f"    EDX:   'Energy (keV)'  +  'Intensity'\n"
-                    f"    EELS:  'Energy (eV)' or 'Energy Loss'  +  'Intensity'\n\n"
-                    f"Please fix the headers in sheet '{sheet_name}' (or remove the "
-                    f"sheet if it is not measurement data) and try again."
-                )
-                wx.MessageBox(msg, "Cannot Open File - Invalid Column Labels",
-                              wx.OK | wx.ICON_WARNING)
-                return
+                dismissed_sheets.append((
+                    sheet_name,
+                    f"unrecognised column headers "
+                    f"(Col1='{found_col1}', Col2='{found_col2}')"
+                ))
+                continue
 
+            validated_sheets.append(sheet_name)
+
+        sheet_names = validated_sheets
+
+        if not sheet_names:
+            console_frame.Close()
+            lines = [f"  - {n} : {r}" for n, r in dismissed_sheets]
+            msg = (
+                "Cannot open this file - no usable sheets were found.\n\n"
+                "All sheets were dismissed:\n" + "\n".join(lines) + "\n\n"
+                "Each sheet must be named after a core level (e.g. C1s, O1s, Si2p, "
+                "Survey) and have valid headers in row 1 (e.g. 'Binding Energy' + "
+                "'Raw Data')."
+            )
+            wx.MessageBox(msg, "Cannot Open File - No Usable Sheets",
+                          wx.OK | wx.ICON_WARNING)
+            return
 
         window.Data['FilePath'] = file_path
         update_console(f"Found {len(sheet_names)} sheets to process...")
@@ -3008,7 +3020,28 @@ def open_xlsx_file(window, file_path=None):
         refresh_sheets(window, on_sheet_selected, update_console)
 
         update_console("File loaded successfully!")
+        if dismissed_sheets:
+            update_console(f"Dismissed {len(dismissed_sheets)} sheet(s):")
+            for n, r in dismissed_sheets:
+                update_console(f"  - {n} : {r}")
         wx.CallLater(500, console_frame.Close)
+
+        # Tell the user about any sheets that were skipped because they don't
+        # match the KherveFitting format (e.g. Sheet1, missing/wrong headers).
+        if dismissed_sheets:
+            lines = [f"  - {n} : {r}" for n, r in dismissed_sheets]
+            wx.CallLater(
+                600,
+                wx.MessageBox,
+                ("The file was opened, but the following sheet(s) were dismissed "
+                 "because they do not match the KherveFitting format:\n\n"
+                 + "\n".join(lines) +
+                 "\n\nValid sheets must be named after a core level (e.g. C1s, "
+                 "O1s, Si2p, Survey) and have valid headers in row 1 (e.g. "
+                 "'Binding Energy' + 'Raw Data')."),
+                "Sheets Dismissed",
+                wx.OK | wx.ICON_INFORMATION,
+            )
 
         # Restore file manager
         if file_manager_was_open:
