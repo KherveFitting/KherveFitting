@@ -84,6 +84,18 @@ def apply_be_correction(window, correction):
     window.be_correction = correction
     window.Data['BEcorrection'] = correction
 
+    # Capture VBM vline positions before the replot wipes the axes,
+    # so we can restore them at their shifted BE afterwards.
+    saved_vline_xs = None
+    if getattr(window, 'vb_measurements_window', None) is not None:
+        try:
+            v1 = window.vline1.get_xdata()[0] if window.vline1 is not None else None
+            v2 = window.vline2.get_xdata()[0] if window.vline2 is not None else None
+            if v1 is not None and v2 is not None:
+                saved_vline_xs = (v1 + delta_correction, v2 + delta_correction)
+        except Exception:
+            saved_vline_xs = None
+
     # Get the current sheet and extract its row number
     current_sheet = window.sheet_combobox.GetValue()
     current_row = None
@@ -243,6 +255,33 @@ def apply_be_correction(window, correction):
             window.file_manager.save_be_corrections()
         except Exception as e:
             print(f"Error updating FileManager: {e}")
+
+    # on_sheet_selected wipes the axes, which destroys the VBM window's vlines.
+    # If the VBM window is open, recreate them at their pre-correction
+    # positions shifted by delta_correction so the user doesn't have to
+    # close/reopen the VBM window.
+    if (getattr(window, 'vb_measurements_window', None) is not None
+            and saved_vline_xs is not None):
+        try:
+            v1_x, v2_x = saved_vline_xs
+            if window.vline1 is not None:
+                try:
+                    window.vline1.remove()
+                except Exception:
+                    pass
+            if window.vline2 is not None:
+                try:
+                    window.vline2.remove()
+                except Exception:
+                    pass
+            window.vline1 = window.ax.axvline(v1_x, color='r', linestyle='--', alpha=0.7)
+            window.vline2 = window.ax.axvline(v2_x, color='r', linestyle='--', alpha=0.7)
+            window.background_tab_selected = True
+            if hasattr(window.vb_measurements_window, 'add_vline_text_labels'):
+                window.vb_measurements_window.add_vline_text_labels()
+            window.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error restoring VBM vlines after BE correction: {e}")
 
 
 def calculate_c1s_correction(window):
