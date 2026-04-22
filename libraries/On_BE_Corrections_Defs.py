@@ -118,9 +118,9 @@ def apply_be_correction(window, correction):
             if 'Background' in sheet_data:
                 bg = sheet_data['Background']
                 if 'Bkg Low' in bg and bg['Bkg Low'] != '':
-                    bg['Bkg Low'] = f"{float(bg['Bkg Low']) + delta_correction:.2f}"
+                    bg['Bkg Low'] = round(float(bg['Bkg Low']) + delta_correction, 2)
                 if 'Bkg High' in bg and bg['Bkg High'] != '':
-                    bg['Bkg High'] = f"{float(bg['Bkg High']) + delta_correction:.2f}"
+                    bg['Bkg High'] = round(float(bg['Bkg High']) + delta_correction, 2)
 
                 # Shift the BE x-axis stored alongside the background so it stays
                 # aligned with the corrected B.E. array.
@@ -248,7 +248,7 @@ def calculate_c1s_correction(window):
         sheet_match = re.search(r'(\d+)$', sheet_name)
         sheet_row = sheet_match.group(1) if sheet_match else "0"
 
-        if sheet_row == current_row and window.ref_peak_name[0] in sheet_name:
+        if sheet_row == current_row:
             matching_sheets.append(sheet_name)
 
     # Check each matching sheet for the reference peak
