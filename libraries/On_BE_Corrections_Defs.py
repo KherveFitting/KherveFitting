@@ -116,15 +116,47 @@ def apply_be_correction(window, correction):
 
             # Update Background range
             if 'Background' in sheet_data:
-                if 'Bkg Low' in sheet_data['Background'] and sheet_data['Background']['Bkg Low'] != '':
-                    sheet_data['Background']['Bkg Low'] = f"{float(sheet_data['Background']['Bkg Low']) + delta_correction:.2f}"
-                if 'Bkg High' in sheet_data['Background'] and sheet_data['Background']['Bkg High'] != '':
-                    sheet_data['Background']['Bkg High'] = f"{float(sheet_data['Background']['Bkg High']) + delta_correction:.2f}"
+                bg = sheet_data['Background']
+                if 'Bkg Low' in bg and bg['Bkg Low'] != '':
+                    bg['Bkg Low'] = f"{float(bg['Bkg Low']) + delta_correction:.2f}"
+                if 'Bkg High' in bg and bg['Bkg High'] != '':
+                    bg['Bkg High'] = f"{float(bg['Bkg High']) + delta_correction:.2f}"
+
+                # Shift the BE x-axis stored alongside the background so it stays
+                # aligned with the corrected B.E. array.
+                if 'Bkg X' in bg and bg['Bkg X']:
+                    bg['Bkg X'] = [x + delta_correction for x in bg['Bkg X']]
+
+                # Each recorded range tuple is (offset_h, offset_l, min_BE, max_BE).
+                # Only the last two entries are binding energies and need shifting.
+                if 'Recorded_Ranges' in bg and bg['Recorded_Ranges']:
+                    shifted = []
+                    for r in bg['Recorded_Ranges']:
+                        try:
+                            shifted.append((
+                                float(r[0]),
+                                float(r[1]),
+                                float(r[2]) + delta_correction,
+                                float(r[3]) + delta_correction,
+                            ))
+                        except (TypeError, ValueError, IndexError):
+                            shifted.append(r)
+                    bg['Recorded_Ranges'] = shifted
 
             # Update peak positions
             if 'Fitting' in sheet_data and 'Peaks' in sheet_data['Fitting']:
                 for peak in sheet_data['Fitting']['Peaks'].values():
                     peak['Position'] += delta_correction
+                    # Each peak also stores its own Bkg Low / Bkg High snapshot
+                    # that the peak_params_grid reads from. Shift those too,
+                    # otherwise on_sheet_selected re-populates the grid with
+                    # the un-corrected values and the user sees no change.
+                    for k in ('Bkg Low', 'Bkg High'):
+                        if k in peak and peak[k] not in ('', None):
+                            try:
+                                peak[k] = round(float(peak[k]) + delta_correction, 2)
+                            except (TypeError, ValueError):
+                                pass
                     if 'Constraints' in peak:
                         pos_constraint = peak['Constraints'].get('Position', '')
                         if pos_constraint and ',' in pos_constraint and not any(
@@ -139,7 +171,8 @@ def apply_be_correction(window, correction):
                 limits['Xmin'] += delta_correction
                 limits['Xmax'] += delta_correction
 
-    # Update peak_params_grid with corrected positions
+    # Update peak_params_grid with corrected positions (col 2) and the
+    # per-peak Bkg Low / Bkg High columns (15, 16) shown in the grid.
     if current_sheet == window.sheet_combobox.GetValue():
         num_peaks = window.peak_params_grid.GetNumberRows() // 2
         for i in range(num_peaks):
@@ -148,7 +181,15 @@ def apply_be_correction(window, correction):
                 pos = float(window.peak_params_grid.GetCellValue(row, 2))
                 window.peak_params_grid.SetCellValue(row, 2, f"{pos + delta_correction:.2f}")
             except ValueError:
-                continue
+                pass
+            for col in (15, 16):
+                try:
+                    val = float(window.peak_params_grid.GetCellValue(row, col))
+                    if val != 0:
+                        window.peak_params_grid.SetCellValue(
+                            row, col, f"{val + delta_correction:.2f}")
+                except ValueError:
+                    continue
 
     # Update Results grid if it corresponds to the current row
     for row in range(window.results_grid.GetNumberRows()):
@@ -165,6 +206,23 @@ def apply_be_correction(window, correction):
 
     # Update current sheet display
     on_sheet_selected(window, current_sheet)
+
+    # If the Peak Fitting window is open, push the corrected Bkg Low/High values
+    # into its range textboxes so the user sees the shift immediately.
+    if hasattr(window, 'fitting_window') and window.fitting_window is not None:
+        try:
+            cur_bg = window.Data['Core levels'].get(current_sheet, {}).get('Background', {})
+            bg_low = cur_bg.get('Bkg Low', '')
+            bg_high = cur_bg.get('Bkg High', '')
+            fw = window.fitting_window
+            if hasattr(fw, 'min_range_text') and bg_low != '':
+                fw.min_range_text.SetValue(f"{float(bg_low):.2f}")
+            if hasattr(fw, 'max_range_text') and bg_high != '':
+                fw.max_range_text.SetValue(f"{float(bg_high):.2f}")
+            if hasattr(fw, 'update_range_boxes'):
+                fw.update_range_boxes()
+        except Exception as e:
+            print(f"Error refreshing Fitting Screen ranges after BE correction: {e}")
 
     # Update FileManager's BE corrections if open
     if hasattr(window, 'file_manager') and window.file_manager is not None:

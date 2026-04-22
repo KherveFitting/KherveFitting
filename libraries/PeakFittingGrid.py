@@ -1410,17 +1410,17 @@ class PeakFittingGrid:
                 if 'Original_Position' in existing_data:
                     envelope_backup['Original_Position'] = existing_data['Original_Position']
 
-            peaks[peak_label] = {
+            peaks[peak_label].update({
                 'Position': float(self.window.peak_params_grid.GetCellValue(row_data, 2)),
                 'Height': float(self.window.peak_params_grid.GetCellValue(row_data, 3)),
                 'FWHM': float(self.window.peak_params_grid.GetCellValue(row_data, 4)),
                 'L/G': float(self.window.peak_params_grid.GetCellValue(row_data, 5)),
                 'Area': float(self.window.peak_params_grid.GetCellValue(row_data, 6)),
-                'Sigma': self.safe_float_convert(sigma_str),  # No self.
-                'Gamma': self.safe_float_convert(gamma_str),  # No self.
+                'Sigma': self.safe_float_convert(sigma_str),
+                'Gamma': self.safe_float_convert(gamma_str),
                 'Skew': float(self.window.peak_params_grid.GetCellValue(row_data, 9)),
-                'Fitting Model': self.window.peak_params_grid.GetCellValue(row_data, 13)
-            }
+                'Fitting Model': self.window.peak_params_grid.GetCellValue(row_data, 13),
+            })
 
             # Restore envelope data for SingleEntity
             if envelope_backup:
