@@ -157,6 +157,19 @@ def apply_be_correction(window, correction):
                                 peak[k] = round(float(peak[k]) + delta_correction, 2)
                             except (TypeError, ValueError):
                                 pass
+                    # Fermi / D-parameter / SingleEntity peaks cache their own
+                    # x-array and any extra BE-valued fields. Shift those too,
+                    # otherwise the fitted overlay stays at the un-corrected BE.
+                    if 'Fitted_X' in peak and peak['Fitted_X']:
+                        peak['Fitted_X'] = [x + delta_correction for x in peak['Fitted_X']]
+                    if 'x_data' in peak and peak['x_data']:
+                        peak['x_data'] = [x + delta_correction for x in peak['x_data']]
+                    for k in ('Fermi_Center', 'Original_Position'):
+                        if k in peak and peak[k] not in ('', None):
+                            try:
+                                peak[k] = round(float(peak[k]) + delta_correction, 2)
+                            except (TypeError, ValueError):
+                                pass
                     if 'Constraints' in peak:
                         pos_constraint = peak['Constraints'].get('Position', '')
                         if pos_constraint and ',' in pos_constraint and not any(
