@@ -3464,6 +3464,16 @@ def open_vamas_file(window, file_path):
                         update_console(f"  No Casa fitting data found for {sheet_name}")
 
             # Store experimental setup data
+            sputter_source = getattr(block, 'sputtering_source', None)
+            sputter_time_val = ''
+            if sputter_source is not None:
+                # VAMAS does not store a dedicated sputter duration per block; expose the
+                # sputter mode ("continuous"/"cyclic") as a proxy so the field is never blank
+                # when a sputter source is active. A true per-block sputter time (e.g. from
+                # the block comment) can be layered on top later.
+                sputter_time_val = getattr(sputter_source, 'mode', '') or ''
+            sample_tilt_val = getattr(block, 'sample_normal_polar_angle_tilt', '')
+
             block_exp_data = [
                 f"Block {i}",
                 block.sample_identifier,
@@ -3480,6 +3490,8 @@ def open_vamas_file(window, file_path):
                 block.analyzer_work_function_or_acceptance_energy,
                 block.analyzer_mode,
                 block.sputtering_source_energy if hasattr(block, 'sputtering_source_energy') else 'N/A',
+                sputter_time_val,
+                sample_tilt_val,
                 block.analyzer_axis_take_off_polar_angle,
                 block.analyzer_axis_take_off_azimuth,
                 block.target_bias,
@@ -3497,6 +3509,11 @@ def open_vamas_file(window, file_path):
                 block.num_lines_block_comment,
                 block.block_comment
             ]
+
+            # Parse Casa Info keyword-anchored fields from the block comment.
+            casa_info = parse_casa_info_lines(block.block_comment)
+            block_exp_data.extend(casa_info.get(f, '') for f in CASA_INFO_FIELDS)
+
             exp_data.append(block_exp_data)
 
             # Add experimental description data to this sheet starting at column 50
@@ -3506,10 +3523,10 @@ def open_vamas_file(window, file_path):
             exp_labels = [
                 "Sample ID", "Date", "Time", "Technique", "Species & Transition", "Number of scans",
                 "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
-                "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+                "Analyzer Mode", "Sputtering Energy", "Sputter Time", "Sample Tilt", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
                 "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
                 "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
-            ]
+            ] + list(CASA_INFO_FIELDS)
 
             for j, (label, value) in enumerate(zip(exp_labels, block_exp_data[1:])):
                 ws.cell(row=j + 2, column=exp_col, value=label)
@@ -3560,10 +3577,10 @@ def open_vamas_file(window, file_path):
         block_info_order = [
             "Sample ID", "Year/Month/Day", "Time HH,MM,SS", "Technique", "Species & Transition", "Number of scans",
             "Source Label", "Source Energy", "Source width X", "Source width Y", "Pass Energy", "Work Function",
-            "Analyzer Mode", "Sputtering Energy", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
+            "Analyzer Mode", "Sputtering Energy", "Sputter Time", "Sample Tilt", "Take-off Polar Angle", "Take-off Azimuth", "Target Bias",
             "Analysis Width X", "Analysis Width Y", "X Label", "X Units", "X Start", "X Step", "Num Y Values",
             "Num Scans", "Collection Time", "Time Correction", "Y Unit", "# Comment Lines", "Block Comment"
-        ]
+        ] + list(CASA_INFO_FIELDS)
 
         # Add block information
         for i, block_data in enumerate(exp_data, start=1):
@@ -3603,6 +3620,74 @@ def open_vamas_file(window, file_path):
 
     except Exception as e:
         wx.MessageBox(f"Error processing VAMAS file: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+
+CASA_INFO_FIELDS = [
+    'Casa Sample Name', 'Stage Position', 'Angle', 'FoV Position', 'Lens Mode',
+    'Neutraliser', 'Charge Balance', 'Filament Current', 'Filament Bias',
+    'Magnet Lens Trim Coil', 'Aperture', 'Iris Position'
+]
+
+
+def parse_casa_info_lines(comment_text):
+    """Extract Kratos/Casa informational fields from a 'Casa Info Follows' block.
+
+    Returns a dict keyed by the labels in CASA_INFO_FIELDS. Missing fields map to
+    empty strings. Lines are matched by keyword anchors (not by position) so the
+    parser survives reordering or missing entries.
+    """
+    result = {k: '' for k in CASA_INFO_FIELDS}
+    if not comment_text or 'Casa Info Follows' not in comment_text:
+        return result
+
+    tail = comment_text.split('Casa Info Follows', 1)[1]
+    # Only scan the first ~15 lines — after that Kratos writes numeric setup data.
+    candidate_lines = [ln.strip() for ln in tail.split('\n') if ln.strip()][:15]
+
+    # Sample Name: first non-zero, non-numeric line.
+    for ln in candidate_lines:
+        try:
+            float(ln)
+            continue
+        except ValueError:
+            pass
+        if ln.lower().startswith(('xps', 'aes', 'uhv')):
+            break
+        # Skip lines that are clearly structured (contain ':' or '(')
+        if ':' in ln or '(' in ln or '=' in ln or ln.startswith('FoV') or ln.startswith('Aperture') or ln.startswith('Iris'):
+            break
+        result['Casa Sample Name'] = ln
+        break
+
+    for ln in candidate_lines:
+        # Stage position + angle line: "(x, y, z)  Angle: N degrees"
+        if ln.startswith('(') and 'Angle' in ln:
+            paren_end = ln.find(')')
+            if paren_end != -1:
+                result['Stage Position'] = ln[:paren_end + 1]
+            angle_part = ln.split('Angle:', 1)[1].strip() if 'Angle:' in ln else ''
+            result['Angle'] = angle_part
+        elif ln.startswith('FoV Position'):
+            result['FoV Position'] = ln.split('FoV Position', 1)[1].strip()
+        elif ln.startswith('Lens Mode'):
+            result['Lens Mode'] = ln.split(':', 1)[1].strip() if ':' in ln else ''
+        elif ln.startswith('Neutraliser'):
+            result['Neutraliser'] = ln.split(':', 1)[1].strip() if ':' in ln else ''
+        elif ln.startswith('Charge Balance'):
+            # Compound line "A = 1 : B = 2 : C = 3 : D = 4"
+            for part in ln.split(':'):
+                if '=' not in part:
+                    continue
+                key, val = part.split('=', 1)
+                key, val = key.strip(), val.strip()
+                if key in result:
+                    result[key] = val
+        elif ln.startswith('Aperture Description'):
+            result['Aperture'] = ln.split(':', 1)[1].strip() if ':' in ln else ''
+        elif ln.startswith('Iris Position Description'):
+            result['Iris Position'] = ln.split(':', 1)[1].strip().rstrip('.') if ':' in ln else ''
+
+    return result
+
 
 def parse_casa_peak_fitting(block_comment, num_scans=1, photon_energy=1486.67, transmission_data=None,
                            collection_time=1.0, core_level_name=None):
@@ -4074,21 +4159,26 @@ def convert_kal_to_excel(file_path):
         content = f.read()
 
     blocks = content.split('Dataset filename')
-    spectra = {}
+    spectra = []  # list of (sample_id, region_name, info) to preserve duplicates across sample positions
     PHOTON_ENERGY = 1486.67
 
-    # Extract sample ID
-    sample_id = "Unknown"
-    for block in blocks:
-        for line in block.split('\n'):
-            if 'Stage Position Name' in line:
-                sample_id = line.split('=')[1].strip()
-                break
-        if sample_id != "Unknown":
-            break
+    # Track the current sample position as blocks are processed.
+    # KAL files can contain multiple "Sample Position" blocks, each followed by
+    # its own set of acquisition regions. Keying by region name alone would
+    # silently overwrite duplicates (see ReadMe: "Sample 3 contains 2 sets of data").
+    current_sample_id = "Unknown"
+    current_sample_tilt = ''
 
     # Process each spectrum block
     for block in blocks:
+        # Update current sample position / tilt whenever a Sample Position block is seen.
+        # Kratos only records these once per sample position, not per acquisition region.
+        for line in block.split('\n'):
+            if 'Stage Position Name' in line:
+                current_sample_id = line.split('=')[1].strip()
+            elif 'Stage X Rotation' in line:
+                current_sample_tilt = line.split('=')[1].strip()
+
         if 'Ordinate values' not in block or 'Object name' not in block:
             continue
 
@@ -4107,7 +4197,7 @@ def convert_kal_to_excel(file_path):
 
         # Initialize metadata dictionary with default values
         metadata = {
-            'Sample ID': sample_id,
+            'Sample ID': current_sample_id,
             'Date': '',
             'Time': '',
             'Technique': 'XPS',
@@ -4121,6 +4211,8 @@ def convert_kal_to_excel(file_path):
             'Work Function': '1E+37',
             'Analyzer Mode': 'FAT',
             'Sputtering Energy': 'N/A',
+            'Sputter Time': '',
+            'Sample Tilt': current_sample_tilt,
             'Take-off Polar Angle': '1E+37',
             'Take-off Azimuth': '1E+37',
             'Target Bias': '1E+37',
@@ -4209,6 +4301,11 @@ def convert_kal_to_excel(file_path):
             metadata['# Comment Lines'] = str(len(comment_lines))
             metadata['Block Comment'] = '"' + '\n'.join(comment_lines) + '"'
 
+        # Parse Casa Info keyword-anchored fields.
+        casa_info = parse_casa_info_lines('\n'.join(comment_lines))
+        for k, v in casa_info.items():
+            metadata[k] = v
+
         # Process spectral data
         ke_trans, trans_values = extract_transmission_data(block)
         if ke_trans is not None and trans_values is not None:
@@ -4235,19 +4332,29 @@ def convert_kal_to_excel(file_path):
                 'Transmission': transmission
             })
 
-            spectra[name] = {
+            spectra.append({
+                'sample_id': current_sample_id,
+                'name': name,
                 'data': df,
                 'metadata': metadata,
                 'id': spectrum_id
-            }
+            })
 
     # Create Excel workbook
     wb = openpyxl.Workbook()
     wb.remove(wb.active)  # Remove default sheet
 
     # Create sheets for each spectrum
-    for name, info in spectra.items():
-        sheet_name = name.replace(' ', '')
+    for info in spectra:
+        name = info['name']
+        base_sheet_name = name.replace(' ', '')
+        # Disambiguate when the same region appears for multiple sample positions.
+        sheet_name = base_sheet_name
+        if sheet_name in wb.sheetnames:
+            count = 1
+            while f"{base_sheet_name}{count}" in wb.sheetnames:
+                count += 1
+            sheet_name = f"{base_sheet_name}{count}"
         df = info['data']
         metadata = info['metadata']
 
@@ -4272,12 +4379,13 @@ def convert_kal_to_excel(file_path):
             'Sample ID', 'Date', 'Time', 'Technique', 'Species & Transition',
             'Number of scans', 'Source Label', 'Source Energy', 'Source width X',
             'Source width Y', 'Pass Energy', 'Work Function', 'Analyzer Mode',
-            'Sputtering Energy', 'Take-off Polar Angle', 'Take-off Azimuth',
+            'Sputtering Energy', 'Sputter Time', 'Sample Tilt',
+            'Take-off Polar Angle', 'Take-off Azimuth',
             'Target Bias', 'Analysis Width X', 'Analysis Width Y', 'X Label',
             'X Units', 'X Start', 'X Step', 'Num Y Values', 'Num Scans',
             'Collection Time', 'Time Correction', 'Y Unit', '# Comment Lines',
             'Block Comment'
-        ]
+        ] + list(CASA_INFO_FIELDS)
 
         # Write metadata in order
         for i, field in enumerate(fields, 2):
@@ -4296,12 +4404,13 @@ def convert_kal_to_excel(file_path):
 
     # Write metadata to Experimental description sheet
     row = 1
-    for name, info in spectra.items():
+    for info in spectra:
+        name = info['name']
         metadata = info['metadata']
         spectrum_id = info['id']
 
         # Add spectrum header
-        header = exp_sheet.cell(row=row, column=1, value=f"Spectrum: {name}/{spectrum_id}")
+        header = exp_sheet.cell(row=row, column=1, value=f"Spectrum: {name}/{spectrum_id} [{info['sample_id']}]")
         header.alignment = left_aligned
         row += 1
 

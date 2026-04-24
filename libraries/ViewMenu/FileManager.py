@@ -124,6 +124,10 @@ class FileManagerWindow(wx.Frame):
         # NOW load BE corrections after the grid is created
         self.load_be_corrections()
 
+        # Placeholder for user-added metadata columns; actual rebuild happens
+        # after populate_grid() runs (otherwise rows have no sheet names yet).
+        self.custom_columns = []
+
 
         # Position window using saved position or relative to main window
         if hasattr(parent, 'file_manager_position') and parent.file_manager_position:
@@ -151,6 +155,12 @@ class FileManagerWindow(wx.Frame):
 
         # Populate the grid with core levels
         self.populate_grid()
+
+        # Restore any user-added metadata columns from the persisted config.
+        for label in list(getattr(self.parent, 'file_manager_custom_columns', []) or []):
+            self._append_metadata_column(label, persist=False, grow_window=False)
+        if self.custom_columns:
+            self._grow_window_for_columns()
 
         # Bind grid events
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self.on_cell_changing)
@@ -3769,9 +3779,132 @@ class FileManagerWindow(wx.Frame):
                 self.Bind(wx.EVT_MENU, lambda evt, r=row, c=col, v=cell_value: self.propagate_norm_value(r, c, v),
                           propagate_item)
 
+        # Add "Fill new column from metadata" submenu.
+        metadata_keys = self._get_available_metadata_fields()
+        if metadata_keys:
+            menu.AppendSeparator()
+            meta_submenu = wx.Menu()
+            for key in metadata_keys:
+                item = meta_submenu.Append(wx.ID_ANY, key)
+                self.Bind(wx.EVT_MENU, lambda evt, k=key: self.fill_column_from_metadata(k), item)
+            menu.AppendSubMenu(meta_submenu, "Add column")
+
+        # Allow removing a user-added column (not the built-in ones).
+        if col >= self._first_custom_col_index() and col < self.grid.GetNumberCols():
+            label = self.grid.GetColLabelValue(col)
+            if label in self.custom_columns:
+                remove_item = menu.Append(wx.ID_ANY, f"Remove column '{label}'")
+                self.Bind(wx.EVT_MENU, lambda evt, c=col: self.remove_custom_column(c), remove_item)
+
         # Show the menu
         self.grid.PopupMenu(menu)
         menu.Destroy()
+
+    def _get_row_sheet_names(self, row):
+        """Return sheet names present in the core-level columns of a grid row."""
+        names = []
+        for c in range(1, len(self.core_levels) + 1):
+            v = self.grid.GetCellValue(row, c)
+            if v and v in self.parent.Data.get('Core levels', {}):
+                names.append(v)
+        return names
+
+    def _get_available_metadata_fields(self):
+        """Union of experimental_description labels across all loaded sheets."""
+        seen = []
+        for sheet_data in self.parent.Data.get('Core levels', {}).values():
+            exp = sheet_data.get('experimental_description', [])
+            for item in exp:
+                if not item:
+                    continue
+                key = str(item[0]).strip() if len(item) >= 1 else ''
+                if key and key not in seen:
+                    seen.append(key)
+        return seen
+
+    def fill_column_from_metadata(self, field_name):
+        """Append a user-added column filled with the given metadata field."""
+        if field_name in self.custom_columns:
+            wx.MessageBox(f"Column '{field_name}' already exists.", "Duplicate column",
+                          wx.OK | wx.ICON_INFORMATION)
+            return
+        self._append_metadata_column(field_name, persist=True, grow_window=True)
+
+    def _append_metadata_column(self, field_name, persist=True, grow_window=True):
+        """Append a grid column labeled field_name and fill it from each row's
+        experimental_description. Optionally persist the column in config and
+        grow the window so the new column is visible."""
+        new_col = self.grid.GetNumberCols()
+        self.grid.AppendCols(1)
+        self.grid.SetColLabelValue(new_col, field_name)
+
+        for row in range(self.grid.GetNumberRows()):
+            sheets = self._get_row_sheet_names(row)
+            value = ''
+            for sheet in sheets:
+                exp = self.parent.Data['Core levels'][sheet].get('experimental_description', [])
+                for item in exp:
+                    if len(item) >= 2 and str(item[0]).strip() == field_name:
+                        v = str(item[1]).strip() if item[1] is not None else ''
+                        if v:
+                            value = v
+                            break
+                if value:
+                    break
+            self.grid.SetCellValue(row, new_col, value)
+
+        self.grid.AutoSizeColumn(new_col)
+        # Clamp auto-size so very long labels don't explode the layout.
+        col_size = self.grid.GetColSize(new_col)
+        self.grid.SetColSize(new_col, max(80, min(col_size, 200)))
+        self.custom_columns.append(field_name)
+
+        if persist:
+            saved = getattr(self.parent, 'file_manager_custom_columns', []) or []
+            if field_name not in saved:
+                saved.append(field_name)
+            self.parent.file_manager_custom_columns = saved
+            if hasattr(self.parent, 'save_config'):
+                self.parent.save_config()
+
+        if grow_window:
+            self._grow_window_for_columns()
+
+        self.grid.ForceRefresh()
+
+    def remove_custom_column(self, col):
+        """Remove a user-added column (both from the grid and persisted config)."""
+        first_custom = self._first_custom_col_index()
+        if col < first_custom or col >= self.grid.GetNumberCols():
+            return
+        label = self.grid.GetColLabelValue(col)
+        self.grid.DeleteCols(col, 1)
+        if label in self.custom_columns:
+            self.custom_columns.remove(label)
+
+        saved = getattr(self.parent, 'file_manager_custom_columns', []) or []
+        if label in saved:
+            saved.remove(label)
+            self.parent.file_manager_custom_columns = saved
+            if hasattr(self.parent, 'save_config'):
+                self.parent.save_config()
+
+        self._grow_window_for_columns()
+        self.grid.ForceRefresh()
+
+    def _first_custom_col_index(self):
+        """Index of the first user-added column (right after the built-in columns)."""
+        return len(self.core_levels) + 4  # Experiment + core levels + Xshift + 2 Norm
+
+    def _grow_window_for_columns(self):
+        """Resize the window so all grid columns are visible."""
+        total = self.grid.GetRowLabelSize() + 40
+        for c in range(self.grid.GetNumberCols()):
+            total += self.grid.GetColSize(c)
+        total = max(total, 630)
+        current = self.GetSize()
+        if total != current.width:
+            self.SetSize(total, current.height)
 
     def propagate_norm_value(self, source_row, column, value):
         """Propagate a normalization value to all rows in the same column"""

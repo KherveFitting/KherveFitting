@@ -2006,8 +2006,15 @@ class MyFrame(wx.Frame):
                               hasattr(self, 'area_tab_selected') and
                               self.area_tab_selected)
 
+        # VBM/UPS measurements window: it owns vline1/vline2 too, but doesn't
+        # set background_tab_selected through a fitting screen. Without this,
+        # any clear_and_replot path hides the lines while VBM is the only
+        # consumer (e.g. after a missed click on the plot).
+        vbm_active = (hasattr(self, 'vb_measurements_window') and
+                      self.vb_measurements_window is not None)
+
         # Background lines (vline1, vline2) should be visible if EITHER screen is active
-        background_lines_visible = fitting_screen_active or area_screen_active
+        background_lines_visible = fitting_screen_active or area_screen_active or vbm_active
 
         # RESTORE INITIALIZATION LOGIC FOR DRAGGING TO WORK:
         # Initialize or restore vlines if fitting screen background tab is selected and they don't exist
@@ -3501,6 +3508,7 @@ class MyFrame(wx.Frame):
                 self.multiplot_legend_ncol = config.get('multiplot_legend_ncol', 2)
                 self.multiplot_max_legend_items = config.get('multiplot_max_legend_items', 10)
                 self.heatmap_colormap = config.get('heatmap_colormap', 'Greens')
+                self.file_manager_custom_columns = config.get('file_manager_custom_columns', [])
                 self.edx_plot_style = config.get('edx_plot_style', 'black')
                 print(f"DEBUG: Loaded edx_plot_style = {self.edx_plot_style}")
 
@@ -3634,6 +3642,7 @@ class MyFrame(wx.Frame):
             'multiplot_legend_ncol': self.multiplot_legend_ncol,
             'multiplot_max_legend_items': self.multiplot_max_legend_items,
             'heatmap_colormap': getattr(self, 'heatmap_colormap', 'Greens'),
+            'file_manager_custom_columns': getattr(self, 'file_manager_custom_columns', []),
             'edx_plot_style': self.edx_plot_style,
 
             #Tines opened
