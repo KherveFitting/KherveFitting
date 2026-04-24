@@ -652,7 +652,7 @@ class VB_measurements(wx.Frame):
             m = re.search(r'(\d+)$', sheet)
             row = m.group(1) if m else "0"
             existing = float(self.parent.Data['BEcorrections'].get(row, 0.0))
-            new_corr = existing + delta
+            new_corr = round(existing + delta, 2)
             self.parent.Data['BEcorrections'][row] = new_corr
             per_row_correction[row] = new_corr
 
@@ -663,7 +663,7 @@ class VB_measurements(wx.Frame):
         m = re.search(r'(\d+)$', original_sheet)
         active_row = m.group(1) if m else "0"
         if active_row in per_row_correction:
-            new_corr = per_row_correction[active_row]
+            new_corr = round(per_row_correction[active_row], 2)
             self.parent.be_correction = new_corr
             self.parent.Data['BEcorrection'] = new_corr
             try:
