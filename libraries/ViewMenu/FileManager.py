@@ -3007,34 +3007,135 @@ class FileManagerWindow(wx.Frame):
                                         f"\nCreated backup of the original data in Backup folder"
                                         f"\nBeware that core level retain their BE correction values")
 
+    def _extract_base_and_index(self, sheet_name):
+        """Extract base name and numeric index from a sheet name (e.g. 'VB3' -> ('VB', 3))"""
+        if "Raman_" in sheet_name or "Ra_" in sheet_name:
+            base_parts = sheet_name.split('_')
+            base_name = base_parts[0] + "_" + base_parts[1]
+            if len(base_parts) > 2 and base_parts[2].isdigit():
+                return base_name, int(base_parts[2]), True
+            return base_name, 0, False
+        match = re.match(r'([\w\-~.]+?)(\d+)$', sheet_name)
+        if match:
+            return match.group(1), int(match.group(2)), True
+        return sheet_name, 0, False
+
+    def _batch_rename_sheets(self, sheet_names):
+        """Rename multiple sheets that share a common base name, preserving row numbers."""
+        # Extract base names and indices
+        # has_suffix: whether the original name had an explicit numeric suffix
+        parsed = []
+        for name in sheet_names:
+            base, idx, has_suffix = self._extract_base_and_index(name)
+            parsed.append((name, base, idx, has_suffix))
+
+        # Check all share the same base name
+        bases = set(b for _, b, _, _ in parsed)
+        if len(bases) != 1:
+            self.parent.show_popup_message2("Invalid Selection",
+                "All selected sheets must belong to the same core level column.")
+            return
+        old_base = bases.pop()
+
+        dlg = wx.TextEntryDialog(self,
+            f"Enter new base name for {', '.join(sheet_names)}:\n"
+            f"(Row numbers will be preserved)",
+            "Rename Core Levels", old_base)
+        if dlg.ShowModal() == wx.ID_OK:
+            new_base = dlg.GetValue().strip()
+            if not new_base or new_base == old_base:
+                dlg.Destroy()
+                return
+            if len(new_base.split()) > 1:
+                self.parent.show_popup_message2("Invalid Name",
+                    "Only single words are allowed for sheet names.")
+                dlg.Destroy()
+                return
+
+            # Check for conflicts
+            existing = set(self.parent.Data['Core levels'].keys())
+            old_names_set = set(n for n, _, _, _ in parsed)
+            rename_map = {}
+            for old_name, _, idx, has_suffix in parsed:
+                # Preserve original suffix style: "VB" (no suffix) -> "Fermi", "VB0" -> "Fermi0"
+                new_name = f"{new_base}{idx}" if has_suffix else new_base
+                if new_name in existing and new_name not in old_names_set:
+                    self.parent.show_popup_message2("Name Conflict",
+                        f"'{new_name}' already exists. Rename aborted.")
+                    dlg.Destroy()
+                    return
+                rename_map[old_name] = new_name
+
+            # Sort by index descending to avoid conflicts during rename
+            sorted_items = sorted(rename_map.items(),
+                key=lambda x: next(idx for n, _, idx, _ in parsed if n == x[0]), reverse=True)
+
+            # Save position/size before closing
+            pos = self.GetPosition()
+            size = self.GetSize()
+
+            # Temporarily hide file_manager from rename_sheet so it doesn't
+            # close/reopen this window on every iteration
+            self.parent.file_manager = None
+            try:
+                for old_name, new_name in sorted_items:
+                    self.parent.sheet_combobox.SetValue(old_name)
+                    from libraries.Sheet_Operations import on_sheet_selected
+                    on_sheet_selected(self.parent, old_name)
+                    from libraries.Utilities import rename_sheet
+                    rename_sheet(self.parent, new_name)
+            finally:
+                pass
+
+            parent = self.parent
+            self.Close()
+            self.Destroy()
+
+            def reopen():
+                from libraries.ViewMenu.FileManager import FileManagerWindow
+                parent.file_manager = FileManagerWindow(parent)
+                parent.file_manager.SetPosition(pos)
+                parent.file_manager.SetSize(size)
+                parent.file_manager.Show()
+
+            wx.CallLater(50, reopen)
+            return
+        dlg.Destroy()
+
     def on_rename(self, event):
-        """Rename the selected core level"""
+        """Rename the selected core level(s)"""
         save_state(self.parent)
         sheet_names = self.get_selected_sheet_names()
 
-        if sheet_names:
-            sheet_name = sheet_names[0]  # Use the first selected sheet
+        if not sheet_names:
+            return
 
-            # Set the sheet in parent before renaming
-            self.parent.sheet_combobox.SetValue(sheet_name)
-            from libraries.Sheet_Operations import on_sheet_selected
-            on_sheet_selected(self.parent, sheet_name)
+        if len(sheet_names) > 1:
+            self._batch_rename_sheets(sheet_names)
+            return
 
-            dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name} (single word only):", "Rename Core Level",
-                                     sheet_name)
-            if dlg.ShowModal() == wx.ID_OK:
-                new_name = dlg.GetValue()
-                if new_name and new_name != sheet_name:
-                    # Check for single word validation
-                    if len(new_name.split()) > 1:
-                        self.parent.show_popup_message2("Invalid Name",
-                                                        "Only single words are allowed for sheet names.")
-                    else:
-                        from libraries.Utilities import rename_sheet
-                        rename_sheet(self.parent, new_name)
-                        # Reload the grid after renaming
-                        self.populate_grid()
-            dlg.Destroy()
+        sheet_name = sheet_names[0]
+
+        # Set the sheet in parent before renaming
+        self.parent.sheet_combobox.SetValue(sheet_name)
+        from libraries.Sheet_Operations import on_sheet_selected
+        on_sheet_selected(self.parent, sheet_name)
+
+        dlg = wx.TextEntryDialog(self, f"Enter new name for {sheet_name} (single word only):", "Rename Core Level",
+                                 sheet_name)
+        if dlg.ShowModal() == wx.ID_OK:
+            new_name = dlg.GetValue()
+            if new_name and new_name != sheet_name:
+                # Check for single word validation
+                if len(new_name.split()) > 1:
+                    self.parent.show_popup_message2("Invalid Name",
+                                                    "Only single words are allowed for sheet names.")
+                else:
+                    from libraries.Utilities import rename_sheet
+                    rename_sheet(self.parent, new_name)
+                    # Reload the grid after renaming
+                    self.populate_grid()
+        dlg.Destroy()
 
 
     def on_delete(self, event):
@@ -3581,9 +3682,14 @@ class FileManagerWindow(wx.Frame):
         if col > 0 and col <= len(self.core_levels):  # Only for core level columns
             cell_value = self.grid.GetCellValue(row, col)
             if cell_value and cell_value in self.parent.Data['Core levels']:
+                selected = self.get_selected_sheet_names()
                 menu.AppendSeparator()
-                rename_item = menu.Append(wx.ID_ANY, f"Rename '{cell_value}'")
-                self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.rename_from_context_menu(sheet), rename_item)
+                if len(selected) > 1:
+                    rename_item = menu.Append(wx.ID_ANY, f"Rename {len(selected)} Core Levels...")
+                    self.Bind(wx.EVT_MENU, lambda evt: self.on_rename(evt), rename_item)
+                else:
+                    rename_item = menu.Append(wx.ID_ANY, f"Rename '{cell_value}'")
+                    self.Bind(wx.EVT_MENU, lambda evt, sheet=cell_value: self.rename_from_context_menu(sheet), rename_item)
 
         # Add insert row option
         menu.AppendSeparator()
