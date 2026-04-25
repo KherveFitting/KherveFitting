@@ -1900,36 +1900,36 @@ class MouseEventHandler:
                 # heatmap_submenu.Enable(heatmap_active)
 
                 # ========== EDX~Plot submenu ==========
-                edx_menu = wx.Menu()
-
-                # Default style: Black line, black labels
-                default_item = edx_menu.Append(wx.ID_ANY, "Default (Black)")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('black'), default_item)
-
-                # Blue axes, yellow data, white figure, black labels
-                blue_yellow_white_item = edx_menu.Append(wx.ID_ANY, "Blue/Yellow")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('blue_yellow'), blue_yellow_white_item)
-
-                # White background, green filled, black labels
-                white_green_item = edx_menu.Append(wx.ID_ANY, "White/Green")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_green'), white_green_item)
-
-                # White background, red filled, black labels
-                white_red_item = edx_menu.Append(wx.ID_ANY, "White/Red")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_red'), white_red_item)
-
-                # White background, blue filled, black labels
-                white_blue_item = edx_menu.Append(wx.ID_ANY, "White/Blue")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_blue'), white_blue_item)
-
-                # White background, purple filled, black labels
-                white_purple_item = edx_menu.Append(wx.ID_ANY, "White/Purple")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_purple'), white_purple_item)
-
-                # White background, pink filled, black labels
-                white_pink_item = edx_menu.Append(wx.ID_ANY, "White/Pink")
-                self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_pink'), white_pink_item)
-
+                # edx_menu = wx.Menu()
+                #
+                # # Default style: Black line, black labels
+                # default_item = edx_menu.Append(wx.ID_ANY, "Default (Black)")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('black'), default_item)
+                #
+                # # Blue axes, yellow data, white figure, black labels
+                # blue_yellow_white_item = edx_menu.Append(wx.ID_ANY, "Blue/Yellow")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('blue_yellow'), blue_yellow_white_item)
+                #
+                # # White background, green filled, black labels
+                # white_green_item = edx_menu.Append(wx.ID_ANY, "White/Green")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_green'), white_green_item)
+                #
+                # # White background, red filled, black labels
+                # white_red_item = edx_menu.Append(wx.ID_ANY, "White/Red")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_red'), white_red_item)
+                #
+                # # White background, blue filled, black labels
+                # white_blue_item = edx_menu.Append(wx.ID_ANY, "White/Blue")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_blue'), white_blue_item)
+                #
+                # # White background, purple filled, black labels
+                # white_purple_item = edx_menu.Append(wx.ID_ANY, "White/Purple")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_purple'), white_purple_item)
+                #
+                # # White background, pink filled, black labels
+                # white_pink_item = edx_menu.Append(wx.ID_ANY, "White/Pink")
+                # self.window.Bind(wx.EVT_MENU, lambda evt: self.set_edx_plot_style('white_pink'), white_pink_item)
+                #
                 # edx_submenu = style_menu.AppendSubMenu(edx_menu, "EDX~Plot")
 
                 # # Enable only if current sheet is EDX~Plot
