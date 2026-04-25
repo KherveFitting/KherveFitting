@@ -3709,6 +3709,23 @@ class FileManagerWindow(wx.Frame):
         delete_row_item = menu.Append(wx.ID_ANY, f"Delete Row {row}")
         self.Bind(wx.EVT_MENU, lambda evt, r=row: self.on_delete_row(r), delete_row_item)
 
+        # Add "Fill new column from metadata" submenu.
+        metadata_keys = self._get_available_metadata_fields()
+        if metadata_keys:
+            menu.AppendSeparator()
+            meta_submenu = wx.Menu()
+            for key in metadata_keys:
+                item = meta_submenu.Append(wx.ID_ANY, key)
+                self.Bind(wx.EVT_MENU, lambda evt, k=key: self.fill_column_from_metadata(k), item)
+            menu.AppendSubMenu(meta_submenu, "Add column")
+
+        # Allow removing a user-added column (not the built-in ones).
+        if col >= self._first_custom_col_index() and col < self.grid.GetNumberCols():
+            label = self.grid.GetColLabelValue(col)
+            if label in self.custom_columns:
+                remove_item = menu.Append(wx.ID_ANY, f"Remove column '{label}'")
+                self.Bind(wx.EVT_MENU, lambda evt, c=col: self.remove_custom_column(c), remove_item)
+
         # Add info option for core level cells only
         if col > 0 and col <= len(self.core_levels):  # Only for core level columns
             cell_value = self.grid.GetCellValue(row, col)
@@ -3779,22 +3796,6 @@ class FileManagerWindow(wx.Frame):
                 self.Bind(wx.EVT_MENU, lambda evt, r=row, c=col, v=cell_value: self.propagate_norm_value(r, c, v),
                           propagate_item)
 
-        # Add "Fill new column from metadata" submenu.
-        metadata_keys = self._get_available_metadata_fields()
-        if metadata_keys:
-            menu.AppendSeparator()
-            meta_submenu = wx.Menu()
-            for key in metadata_keys:
-                item = meta_submenu.Append(wx.ID_ANY, key)
-                self.Bind(wx.EVT_MENU, lambda evt, k=key: self.fill_column_from_metadata(k), item)
-            menu.AppendSubMenu(meta_submenu, "Add column")
-
-        # Allow removing a user-added column (not the built-in ones).
-        if col >= self._first_custom_col_index() and col < self.grid.GetNumberCols():
-            label = self.grid.GetColLabelValue(col)
-            if label in self.custom_columns:
-                remove_item = menu.Append(wx.ID_ANY, f"Remove column '{label}'")
-                self.Bind(wx.EVT_MENU, lambda evt, c=col: self.remove_custom_column(c), remove_item)
 
         # Show the menu
         self.grid.PopupMenu(menu)
