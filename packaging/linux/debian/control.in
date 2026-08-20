@@ -1,0 +1,19 @@
+Package: khervefitting
+Version: @VERSION@
+Section: science
+Priority: optional
+Architecture: @ARCH@
+Installed-Size: @SIZE@
+Depends: libgtk-3-0 | libgtk-3-0t64, libglib2.0-0 | libglib2.0-0t64, libsm6, libxtst6, libxxf86vm1, libgl1, libnotify4, xdg-utils
+Recommends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libasound2 | libasound2t64, fonts-dejavu-core
+Maintainer: Gwilherm Kerherve <gwilherm.kerherve@gmail.com>
+Homepage: https://github.com/KherveFitting/KherveFitting
+Description: XPS peak fitting and analysis software
+ KherveFitting is an application for processing X-ray photoelectron
+ spectroscopy (XPS) data. It reads the common instrument formats (VAMAS,
+ Kratos, PHI, Thermo Avantage and plain text exports), performs background
+ subtraction and peak fitting with a range of line shapes, and exports the
+ results as Excel workbooks, plots and reports.
+ .
+ This package bundles the Python runtime and every Python dependency, so
+ nothing beyond the listed system libraries is required.

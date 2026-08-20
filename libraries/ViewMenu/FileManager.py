@@ -18,6 +18,7 @@ import sys
 import tempfile
 from libraries.FileMenu.Save import save_state
 from libraries.FileMenu.AVG_Import import open_avg_file_direct
+from libraries.AppPaths import is_linux_package, user_data_dir
 
 
 class FileManagerWindow(wx.Frame):
@@ -3492,6 +3493,9 @@ class FileManagerWindow(wx.Frame):
         # For Mac bundle, go outside the .app
         if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
             executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        # For the Linux package the executable sits in a read-only prefix
+        elif is_linux_package():
+            executable_dir = user_data_dir()
         # For development environment, fall back to current script directory
         elif not "KherveFitting" in executable_dir:
             executable_dir = os.path.dirname(os.path.abspath(__file__))

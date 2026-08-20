@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-vamas">
+    <comment>VAMAS surface chemical analysis file</comment>
+    <glob pattern="*.vms"/>
+  </mime-type>
+  <mime-type type="application/x-kratos-kal">
+    <comment>Kratos XPS data file</comment>
+    <glob pattern="*.kal"/>
+  </mime-type>
+  <mime-type type="application/x-phi-spe">
+    <comment>PHI XPS spectrum file</comment>
+    <glob pattern="*.spe"/>
+  </mime-type>
+  <mime-type type="application/x-thermo-avg">
+    <comment>Thermo Avantage XPS data file</comment>
+    <glob pattern="*.avg"/>
+  </mime-type>
+  <mime-type type="application/x-khervefitting-mrs">
+    <comment>MRS spectrum file</comment>
+    <glob pattern="*.mrs"/>
+  </mime-type>
+</mime-info>

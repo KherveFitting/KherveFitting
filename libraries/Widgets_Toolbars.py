@@ -56,6 +56,7 @@ from libraries.FileMenu.Scienta_Import import import_scienta_map, import_scienta
 
 # With conditional imports:
 import platform
+from libraries.AppPaths import user_data_dir
 # IS_MAC = platform.system() == 'Darwin'
 IS_MAC = platform.system() in ('Darwin', 'Linux')
 
@@ -2103,6 +2104,9 @@ def create_examples_menu_OLD(window):
             # sys.executable is at KherveFitting.app/Contents/MacOS/KherveFitting
             # We need to go to the directory containing KherveFitting.app
             executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        elif platform.system() == 'Linux':
+            # Linux package: the examples are copied into the user's data folder
+            executable_dir = user_data_dir()
         else:
             # Windows: executable is in same directory as Data-Examples
             executable_dir = os.path.dirname(sys.executable)
@@ -2177,6 +2181,9 @@ def create_examples_menu(window):
             # sys.executable is at KherveFitting.app/Contents/MacOS/KherveFitting
             # We need to go to the directory containing KherveFitting.app
             executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        elif platform.system() == 'Linux':
+            # Linux package: the examples are copied into the user's data folder
+            executable_dir = user_data_dir()
         else:
             # Windows: executable is in same directory as Data-Examples
             executable_dir = os.path.dirname(sys.executable)

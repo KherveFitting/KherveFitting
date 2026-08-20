@@ -6,3 +6,6 @@
 /__pycache__/
 *.pyc
 /config.json
+/build/
+/dist/
+/.venv-build/

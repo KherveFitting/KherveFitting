@@ -15,6 +15,7 @@ import sys
 import shutil
 import pandas as pd
 import json
+from libraries.AppPaths import is_linux_package, user_data_dir
 
 
 # from KherveFitting import FIRST_TIME_USE
@@ -1172,6 +1173,9 @@ def perform_auto_backup(parent):
     # For Mac bundle, go outside the .app
     if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
         executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+    # For the Linux package the executable sits in a read-only prefix
+    elif is_linux_package():
+        executable_dir = user_data_dir()
     # For development environment, fall back to current script directory
     elif not "KherveFitting" in executable_dir:
         executable_dir = os.path.dirname(os.path.abspath(__file__))

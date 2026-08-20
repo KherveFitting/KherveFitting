@@ -4271,6 +4271,24 @@ class MyFrame(wx.Frame):
 
 
 
+def open_file_from_command_line(window):
+    """Open a data file passed as a command line argument.
+
+    Desktop file associations start the application with the file to open as
+    its first argument. The drag and drop handler already picks the right
+    reader for each extension, so reuse it.
+    """
+    import sys
+
+    paths = [os.path.abspath(arg) for arg in sys.argv[1:]
+             if not arg.startswith('-') and os.path.isfile(arg)]
+    if not paths:
+        return
+
+    from libraries.FileMenu.Open import ExcelDropTarget
+    wx.CallAfter(ExcelDropTarget(window).OnDropFiles, 0, 0, paths)
+
+
 def set_high_priority():
     try:
         proc = psutil.Process(os.getpid())
@@ -4461,6 +4479,8 @@ if __name__ == '__main__':
     frame.Show(True)
 
     check_first_time_use(frame)
+
+    open_file_from_command_line(frame)
 
     updater = UpdateChecker()
     updater.check_update_delayed(frame)

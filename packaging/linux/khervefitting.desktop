@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=KherveFitting
+GenericName=XPS Peak Fitting
+Comment=Fit and analyse X-ray photoelectron spectroscopy data
+Exec=khervefitting %F
+TryExec=khervefitting
+Icon=khervefitting
+Terminal=false
+Categories=Science;Physics;Chemistry;
+Keywords=XPS;spectroscopy;photoelectron;peak;fitting;VAMAS;
+MimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/x-vamas;application/x-kratos-kal;application/x-phi-spe;application/x-thermo-avg;application/x-khervefitting-mrs;
+StartupNotify=true
+StartupWMClass=KherveFitting

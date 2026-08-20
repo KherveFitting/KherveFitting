@@ -11,6 +11,9 @@ wxwidgets = collect_all('wx')
 # Gather all .py files from the libraries folder
 library_files = [(os.path.join('libraries', f), 'libraries') for f in os.listdir('libraries') if f.endswith('.py')]
 
+# config.json is user generated and not in the repository, ship it only if present
+optional_files = [(f, '.') for f in ['config.json'] if os.path.exists(f)]
+
 a = Analysis(['KherveFitting.py'],
              pathex=['.'],
              binaries=wxwidgets[1],
@@ -18,13 +21,22 @@ a = Analysis(['KherveFitting.py'],
                  ('LICENSE', '.'),
                  ('THIRD_PARTY_LICENSES.txt', '.'),
                  ('KherveFitting_library.json', '.'),
+                 ('KherveFitting_library.xlsx', '.'),
+                 ('KherveFitting_library.parquet', '.'),
+                 ('NIST_BE.parquet', '.'),
+                 ('Manual.pdf', '.'),
                  (os.path.join('libraries', 'Images'), os.path.join('libraries', 'Images')),
                  (os.path.join('libraries', 'Icons'), os.path.join('libraries', 'Icons')),
                  (os.path.join('libraries', 'ToolsMenu', 'Icons'), os.path.join('libraries', 'ToolsMenu', 'Icons')),
                  (os.path.join('libraries', 'ViewMenu', 'Icons'), os.path.join('libraries', 'ViewMenu', 'Icons')),
+                 (os.path.join('libraries', 'HelpMenu', 'Images'), os.path.join('libraries', 'HelpMenu', 'Images')),
+                 (os.path.join('libraries', 'Games', 'Cards'), os.path.join('libraries', 'Games', 'Cards')),
                  ('Icons', 'Icons'),
-             ] + library_files + wxwidgets[0],
-             hiddenimports=['wx', 'numpy', 'matplotlib', 'pandas', 'openpyxl', 'lmfit', 'scipy','matplotlib.backends._backend_agg', 'matplotlib.backends.backend_wxagg', 'matplotlib.backends.backend_svg'] + wxwidgets[2],
+             ] + optional_files + library_files + wxwidgets[0],
+             hiddenimports=['wx', 'numpy', 'matplotlib', 'pandas', 'openpyxl', 'lmfit', 'scipy',
+                            'matplotlib.backends._backend_agg', 'matplotlib.backends.backend_wxagg',
+                            'matplotlib.backends.backend_svg',
+                            'docx', 'vamas', 'yadg.extractors.phi.spe', 'psutil'] + wxwidgets[2],
              hookspath=[],
              hooksconfig={},
              runtime_hooks=[],
@@ -41,10 +53,14 @@ exe = EXE(pyz,
           [],
           exclude_binaries=True,
           name='KherveFitting',
+          # Keep the bundled data next to the executable rather than in _internal:
+          # the application looks for its resources relative to sys.executable on
+          # every platform except macOS.
+          contents_directory='.',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
-          upx=True,
+          upx=False,
           console=False,
           disable_windowed_traceback=False,
           target_arch=None,
@@ -56,6 +72,6 @@ coll = COLLECT(exe,
                a.zipfiles,
                a.datas,
                strip=False,
-               upx=True,
+               upx=False,
                upx_exclude=[],
                name='KherveFitting')

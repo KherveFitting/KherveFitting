@@ -35,6 +35,12 @@ Download from SourceForge: https://sourceforge.net/projects/khervefitting/
 - **macOS**: Launch from Applications folder (right-click and select "Open" first time due to security restrictions)
 - **Windows**: Choose file location but DO NOT install in Program Files. Do not run as administrator.
 
+### Linux (Debian package)
+Build a `.deb` from source with `packaging/linux/build_deb.sh`, then install it
+with `sudo apt install ./dist/khervefitting_<version>_amd64.deb`. It adds a menu
+entry and file associations on Xfce, GNOME, KDE and any other freedesktop
+compliant desktop. See [packaging/linux/README.md](packaging/linux/README.md).
+
 ### Python Source
 For source installation: `pip install -r requirements.txt`
 
@@ -442,7 +448,9 @@ Quick visibility toggles for:
 **Platform Support:**
 - **Windows:** Windows 7 and later (Windows 10/11 recommended)
 - **macOS:** macOS 10.13 (High Sierra) and later
-- **Linux:** Most distributions with wxGTK support
+- **Linux:** Debian 12 and later, Ubuntu 22.04 and later, and other
+  distributions with wxGTK support (a `.deb` can be built from source, see
+  [packaging/linux/README.md](packaging/linux/README.md))
 
 **Installation Notes:**
 - **Windows:** Install in user directory (NOT Program Files), do not run as administrator
