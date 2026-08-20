@@ -21,6 +21,12 @@ for folder in Data-Examples 'Peaks Library'; do
     fi
 done
 
+# The application only initialises its settings when a configuration file is
+# present, so seed the default one shipped with the package on first run.
+if [ ! -f "$DATA_DIR/config.json" ] && [ -f "$INSTALL_DIR/config.json" ]; then
+    cp "$INSTALL_DIR/config.json" "$DATA_DIR/config.json"
+fi
+
 KHERVEFITTING_DATA_DIR="$DATA_DIR"
 export KHERVEFITTING_DATA_DIR
 

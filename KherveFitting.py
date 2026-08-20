@@ -76,6 +76,12 @@ class MyFrame(wx.Frame):
         # Initial folder path
         self.Working_directory =  os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
 
+        # The Linux package installs into a read only prefix, so start in the
+        # user's data folder instead
+        from libraries.AppPaths import is_linux_package, user_data_dir
+        if is_linux_package():
+            self.Working_directory = user_data_dir()
+
         self.selected_files = []     # Initialize selected_files variable
         self.selected_indices = []  # Initialize selected_indices variable
 

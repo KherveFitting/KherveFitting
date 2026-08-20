@@ -57,7 +57,7 @@ The package is written to `dist/khervefitting_1.80-1_amd64.deb`. Useful options:
 | `--no-examples` | drop the 32 MB `Data-Examples` folder |
 | `--output-dir DIR` | where to write the `.deb` |
 
-The package is around 200 MB and installs about 630 MB, most of it PyArrow.
+The package is around 195 MB and installs about 610 MB, most of it PyArrow.
 KherveFitting only uses it to read Parquet files and `fastparquet` handles those
 too, so adding `'pyarrow'` to the `excludes` list in `KherveFittingLinux.spec`
 cuts roughly 150 MB if size matters more than read speed.
@@ -101,6 +101,28 @@ KHERVEFITTING_DATA_DIR=~/xps-work khervefitting
 Removing the package leaves that folder in place. Delete it by hand to start
 from a clean configuration.
 
+## Differences from the Windows and macOS builds
+
+Three things are handled differently here, all in `KherveFittingLinux.spec`,
+`build_deb.sh` or `launcher.sh` if you want to change them:
+
+- **System GTK.** PyInstaller collects the GTK libraries wxWidgets links
+  against but not their gdk-pixbuf loaders or icon themes, which leaves the
+  bundled copy unable to draw some assets. The spec drops those libraries so
+  the application uses the system GTK and follows the desktop's theme; the
+  package depends on it. Delete the `SYSTEM_GTK_PREFIXES` block in the spec for
+  a fully self contained bundle like the Windows one.
+- **A default `config.json` is shipped.** The application only initialises many
+  of its settings when a configuration file is present — without one it raises
+  `'MyFrame' object has no attribute 'usage_tracking'` on the first file it
+  opens. The Windows and macOS bundles always carry one, so this never shows up
+  there. The launcher seeds the packaged default into the user's data folder on
+  first run.
+- **Liberation Sans instead of Arial.** The default plot font does not exist on
+  Linux. The shipped `config.json` selects Liberation Sans, which has Arial's
+  metrics, so plots keep the same proportions instead of falling back to
+  DejaVu Sans with a few hundred matplotlib warnings.
+
 ## Troubleshooting
 
 **The application does not start and prints nothing.** Run `khervefitting` from
@@ -112,6 +134,9 @@ to stderr.
 
 **The KherveDB window is blank.** That view uses WebKit; install the
 recommended `libwebkit2gtk-4.1-0`.
+
+**`Could not load a pixbuf from ... check-symbolic.svg`.** The GTK SVG loader is
+missing; install `librsvg2-common`, which the package depends on.
 
 **Building on a distribution without `python3-wxgtk4.0`.** Either install
 wxPython from the wxPython wheel index for your distribution, or build it from

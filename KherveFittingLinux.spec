@@ -46,6 +46,19 @@ a = Analysis(['KherveFitting.py'],
              cipher=block_cipher,
              noarchive=False)
 
+# PyInstaller collects the GTK stack that wxWidgets links against, but not the
+# gdk-pixbuf loaders and icon themes that belong with it, so the bundled copy
+# cannot draw some assets. The Debian package depends on the system GTK, so drop
+# those libraries and let the application use the desktop's own theme. Remove
+# this block to get a fully self contained bundle like the Windows build.
+SYSTEM_GTK_PREFIXES = (
+    'libgtk-3', 'libgdk-3', 'libgdk_pixbuf-2.0', 'libgio-2.0', 'libglib-2.0',
+    'libgobject-2.0', 'libgmodule-2.0', 'libpango', 'libcairo', 'libatk',
+    'libepoxy', 'libharfbuzz', 'libfontconfig', 'libfreetype',
+)
+a.binaries = [b for b in a.binaries
+              if not os.path.basename(b[0]).startswith(SYSTEM_GTK_PREFIXES)]
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(pyz,

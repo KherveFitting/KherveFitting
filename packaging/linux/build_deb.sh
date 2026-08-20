@@ -80,6 +80,16 @@ mkdir -p "$BUILD_ROOT$INSTALL_DIR" \
 
 cp -a "$FROZEN_DIR/." "$BUILD_ROOT$INSTALL_DIR/"
 
+# The application only initialises its settings when a configuration file is
+# present. The spec bundles the repository's config.json when there is one;
+# otherwise ship an empty object, which makes the application fall back to its
+# built in defaults instead of crashing on the first file it opens.
+# Arial, the default plot font, does not exist on Linux; Liberation Sans has the
+# same metrics, so plots keep the proportions of the Windows and macOS builds.
+if [ ! -f "$BUILD_ROOT$INSTALL_DIR/config.json" ]; then
+    printf '{\n  "plot_font": "Liberation Sans"\n}\n' > "$BUILD_ROOT$INSTALL_DIR/config.json"
+fi
+
 # Folders the launcher copies into the user's data directory on first run.
 if [ "$WITH_EXAMPLES" -eq 1 ]; then
     cp -a "$REPO_ROOT/Data-Examples" "$BUILD_ROOT$INSTALL_DIR/"
