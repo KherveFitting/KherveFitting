@@ -1009,7 +1009,7 @@ def create_menu(window):
     window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_fitting_results(), ToggleFit_item)
 
     ToggleRes_item = view_menu.Append(wx.NewId(), "Toggle Residuals")
-    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_residuals(), ToggleRes_item)
+    window.Bind(wx.EVT_MENU, lambda event: window.plot_manager.toggle_residuals(window), ToggleRes_item)
 
     # Theme/Style submenu
     theme_style_menu = wx.Menu()
