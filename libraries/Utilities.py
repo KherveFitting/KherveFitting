@@ -1383,6 +1383,12 @@ def sort_excel_sheets(window):
         wx.MessageBox(f"Error sorting sheets: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
 
 
+def mac_examples_dir():
+    """Where the Mac app keeps its user copy of Data-Examples"""
+    import os
+    return os.path.join(os.path.expanduser('~'), 'Documents', 'KherveFitting', 'Data-Examples')
+
+
 def setup_external_folders():
     """Copy Data-Examples and create Backup folder next to .app bundle on Mac"""
     import sys
@@ -1396,16 +1402,22 @@ def setup_external_folders():
     # Get bundle's parent directory (where .app is located)
     bundle_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
 
-    # Data-Examples folder
-    external_examples = os.path.join(bundle_dir, 'Data-Examples')
+    # Data-Examples folder: copy to a user-writable place, the bundle may be read-only
+    external_examples = mac_examples_dir()
     internal_examples = os.path.join(sys._MEIPASS, 'Data-Examples')
 
     if not os.path.exists(external_examples) and os.path.exists(internal_examples):
         print(f"Copying Data-Examples to {external_examples}")
-        shutil.copytree(internal_examples, external_examples)
+        try:
+            shutil.copytree(internal_examples, external_examples)
+        except Exception as e:
+            print(f"Could not copy Data-Examples: {e}")
 
     # Backup folder
     backup_folder = os.path.join(bundle_dir, 'Backup')
     if not os.path.exists(backup_folder):
         print(f"Creating Backup folder at {backup_folder}")
-        os.makedirs(backup_folder)
+        try:
+            os.makedirs(backup_folder)
+        except Exception as e:
+            print(f"Could not create Backup folder: {e}")

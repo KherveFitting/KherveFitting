@@ -2111,6 +2111,11 @@ def create_examples_menu_OLD(window):
         executable_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     examples_path = os.path.join(executable_dir, "Data-Examples")
+    if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+        from libraries.Utilities import mac_examples_dir
+        examples_path = mac_examples_dir()
+        if not os.path.exists(examples_path):
+            examples_path = os.path.join(sys._MEIPASS, "Data-Examples")
 
     if not os.path.exists(examples_path):
         no_examples_item = examples_menu.Append(wx.NewId(), "No Examples Folder Found")
@@ -2185,6 +2190,11 @@ def create_examples_menu(window):
         executable_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     examples_path = os.path.join(executable_dir, "Data-Examples")
+    if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+        from libraries.Utilities import mac_examples_dir
+        examples_path = mac_examples_dir()
+        if not os.path.exists(examples_path):
+            examples_path = os.path.join(sys._MEIPASS, "Data-Examples")
 
     if not os.path.exists(examples_path):
         no_examples_item = examples_menu.Append(wx.NewId(), "No Examples Folder Found")
